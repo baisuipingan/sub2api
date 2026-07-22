@@ -368,6 +368,12 @@ export const useAppStore = defineStore('app', () => {
         risk_control_enabled: false,
         service_quota_enabled: false,
         affiliate_enabled: false,
+        event_center_enabled: true,
+        event_map_amap_key: '',
+        event_map_amap_security_code: '',
+        event_map_default_latitude: 31.2304,
+        event_map_default_longitude: 121.4737,
+        event_map_default_zoom: 11,
         allow_user_view_error_requests: false,
       })
     }

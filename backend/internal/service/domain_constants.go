@@ -375,6 +375,15 @@ const (
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
+	// Event center and browser map settings. The AMap JS key and security code
+	// are browser credentials and are therefore included in public settings.
+	SettingKeyEventCenterEnabled       = "event_center_enabled"
+	SettingKeyEventMapAMapKey          = "event_map_amap_key"
+	SettingKeyEventMapAMapSecurityCode = "event_map_amap_security_code"
+	SettingKeyEventMapDefaultLatitude  = "event_map_default_latitude"
+	SettingKeyEventMapDefaultLongitude = "event_map_default_longitude"
+	SettingKeyEventMapDefaultZoom      = "event_map_default_zoom"
+
 	// SettingKeyUpstreamBillingProbeSettings stores the global enable switch and interval
 	// for probing remote Sub2API API-key billing metadata.
 	SettingKeyUpstreamBillingProbeSettings = "upstream_billing_probe_settings"

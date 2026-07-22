@@ -30,6 +30,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
+	"github.com/Wei-Shaw/sub2api/ent/event"
+	"github.com/Wei-Shaw/sub2api/ent/eventcategory"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportbatch"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportitem"
+	"github.com/Wei-Shaw/sub2api/ent/eventoccurrence"
+	"github.com/Wei-Shaw/sub2api/ent/eventsource"
+	"github.com/Wei-Shaw/sub2api/ent/eventsourcerecord"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
@@ -92,6 +99,20 @@ type Client struct {
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
+	// Event is the client for interacting with the Event builders.
+	Event *EventClient
+	// EventCategory is the client for interacting with the EventCategory builders.
+	EventCategory *EventCategoryClient
+	// EventImportBatch is the client for interacting with the EventImportBatch builders.
+	EventImportBatch *EventImportBatchClient
+	// EventImportItem is the client for interacting with the EventImportItem builders.
+	EventImportItem *EventImportItemClient
+	// EventOccurrence is the client for interacting with the EventOccurrence builders.
+	EventOccurrence *EventOccurrenceClient
+	// EventSource is the client for interacting with the EventSource builders.
+	EventSource *EventSourceClient
+	// EventSourceRecord is the client for interacting with the EventSourceRecord builders.
+	EventSourceRecord *EventSourceRecordClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
@@ -164,6 +185,13 @@ func (c *Client) init() {
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
+	c.Event = NewEventClient(c.config)
+	c.EventCategory = NewEventCategoryClient(c.config)
+	c.EventImportBatch = NewEventImportBatchClient(c.config)
+	c.EventImportItem = NewEventImportItemClient(c.config)
+	c.EventOccurrence = NewEventOccurrenceClient(c.config)
+	c.EventSource = NewEventSourceClient(c.config)
+	c.EventSourceRecord = NewEventSourceRecordClient(c.config)
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(c.config)
@@ -294,6 +322,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
+		Event:                         NewEventClient(cfg),
+		EventCategory:                 NewEventCategoryClient(cfg),
+		EventImportBatch:              NewEventImportBatchClient(cfg),
+		EventImportItem:               NewEventImportItemClient(cfg),
+		EventOccurrence:               NewEventOccurrenceClient(cfg),
+		EventSource:                   NewEventSourceClient(cfg),
+		EventSourceRecord:             NewEventSourceRecordClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
@@ -351,6 +386,13 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
+		Event:                         NewEventClient(cfg),
+		EventCategory:                 NewEventCategoryClient(cfg),
+		EventImportBatch:              NewEventImportBatchClient(cfg),
+		EventImportItem:               NewEventImportItemClient(cfg),
+		EventOccurrence:               NewEventOccurrenceClient(cfg),
+		EventSource:                   NewEventSourceClient(cfg),
+		EventSourceRecord:             NewEventSourceRecordClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
 		IdentityAdoptionDecision:      NewIdentityAdoptionDecisionClient(cfg),
@@ -407,12 +449,13 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.ErrorPassthroughRule, c.Event, c.EventCategory, c.EventImportBatch,
+		c.EventImportItem, c.EventOccurrence, c.EventSource, c.EventSourceRecord,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
@@ -427,12 +470,13 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
 		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
 		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.ErrorPassthroughRule, c.Event, c.EventCategory, c.EventImportBatch,
+		c.EventImportItem, c.EventOccurrence, c.EventSource, c.EventSourceRecord,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
@@ -472,6 +516,20 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
 		return c.ErrorPassthroughRule.mutate(ctx, m)
+	case *EventMutation:
+		return c.Event.mutate(ctx, m)
+	case *EventCategoryMutation:
+		return c.EventCategory.mutate(ctx, m)
+	case *EventImportBatchMutation:
+		return c.EventImportBatch.mutate(ctx, m)
+	case *EventImportItemMutation:
+		return c.EventImportItem.mutate(ctx, m)
+	case *EventOccurrenceMutation:
+		return c.EventOccurrence.mutate(ctx, m)
+	case *EventSourceMutation:
+		return c.EventSource.mutate(ctx, m)
+	case *EventSourceRecordMutation:
+		return c.EventSourceRecord.mutate(ctx, m)
 	case *GroupMutation:
 		return c.Group.mutate(ctx, m)
 	case *IdempotencyRecordMutation:
@@ -2854,6 +2912,1167 @@ func (c *ErrorPassthroughRuleClient) mutate(ctx context.Context, m *ErrorPassthr
 		return (&ErrorPassthroughRuleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ErrorPassthroughRule mutation op: %q", m.Op())
+	}
+}
+
+// EventClient is a client for the Event schema.
+type EventClient struct {
+	config
+}
+
+// NewEventClient returns a client for the Event from the given config.
+func NewEventClient(c config) *EventClient {
+	return &EventClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `event.Hooks(f(g(h())))`.
+func (c *EventClient) Use(hooks ...Hook) {
+	c.hooks.Event = append(c.hooks.Event, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `event.Intercept(f(g(h())))`.
+func (c *EventClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Event = append(c.inters.Event, interceptors...)
+}
+
+// Create returns a builder for creating a Event entity.
+func (c *EventClient) Create() *EventCreate {
+	mutation := newEventMutation(c.config, OpCreate)
+	return &EventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Event entities.
+func (c *EventClient) CreateBulk(builders ...*EventCreate) *EventCreateBulk {
+	return &EventCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventClient) MapCreateBulk(slice any, setFunc func(*EventCreate, int)) *EventCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventCreateBulk{err: fmt.Errorf("calling to EventClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Event.
+func (c *EventClient) Update() *EventUpdate {
+	mutation := newEventMutation(c.config, OpUpdate)
+	return &EventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventClient) UpdateOne(_m *Event) *EventUpdateOne {
+	mutation := newEventMutation(c.config, OpUpdateOne, withEvent(_m))
+	return &EventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventClient) UpdateOneID(id int64) *EventUpdateOne {
+	mutation := newEventMutation(c.config, OpUpdateOne, withEventID(id))
+	return &EventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Event.
+func (c *EventClient) Delete() *EventDelete {
+	mutation := newEventMutation(c.config, OpDelete)
+	return &EventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventClient) DeleteOne(_m *Event) *EventDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventClient) DeleteOneID(id int64) *EventDeleteOne {
+	builder := c.Delete().Where(event.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventDeleteOne{builder}
+}
+
+// Query returns a query builder for Event.
+func (c *EventClient) Query() *EventQuery {
+	return &EventQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEvent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Event entity by its id.
+func (c *EventClient) Get(ctx context.Context, id int64) (*Event, error) {
+	return c.Query().Where(event.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventClient) GetX(ctx context.Context, id int64) *Event {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCategory queries the category edge of a Event.
+func (c *EventClient) QueryCategory(_m *Event) *EventCategoryQuery {
+	query := (&EventCategoryClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(event.Table, event.FieldID, id),
+			sqlgraph.To(eventcategory.Table, eventcategory.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, event.CategoryTable, event.CategoryColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOccurrences queries the occurrences edge of a Event.
+func (c *EventClient) QueryOccurrences(_m *Event) *EventOccurrenceQuery {
+	query := (&EventOccurrenceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(event.Table, event.FieldID, id),
+			sqlgraph.To(eventoccurrence.Table, eventoccurrence.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, event.OccurrencesTable, event.OccurrencesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySourceRecords queries the source_records edge of a Event.
+func (c *EventClient) QuerySourceRecords(_m *Event) *EventSourceRecordQuery {
+	query := (&EventSourceRecordClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(event.Table, event.FieldID, id),
+			sqlgraph.To(eventsourcerecord.Table, eventsourcerecord.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, event.SourceRecordsTable, event.SourceRecordsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryImportItems queries the import_items edge of a Event.
+func (c *EventClient) QueryImportItems(_m *Event) *EventImportItemQuery {
+	query := (&EventImportItemClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(event.Table, event.FieldID, id),
+			sqlgraph.To(eventimportitem.Table, eventimportitem.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, event.ImportItemsTable, event.ImportItemsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventClient) Hooks() []Hook {
+	hooks := c.hooks.Event
+	return append(hooks[:len(hooks):len(hooks)], event.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventClient) Interceptors() []Interceptor {
+	inters := c.inters.Event
+	return append(inters[:len(inters):len(inters)], event.Interceptors[:]...)
+}
+
+func (c *EventClient) mutate(ctx context.Context, m *EventMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Event mutation op: %q", m.Op())
+	}
+}
+
+// EventCategoryClient is a client for the EventCategory schema.
+type EventCategoryClient struct {
+	config
+}
+
+// NewEventCategoryClient returns a client for the EventCategory from the given config.
+func NewEventCategoryClient(c config) *EventCategoryClient {
+	return &EventCategoryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventcategory.Hooks(f(g(h())))`.
+func (c *EventCategoryClient) Use(hooks ...Hook) {
+	c.hooks.EventCategory = append(c.hooks.EventCategory, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventcategory.Intercept(f(g(h())))`.
+func (c *EventCategoryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventCategory = append(c.inters.EventCategory, interceptors...)
+}
+
+// Create returns a builder for creating a EventCategory entity.
+func (c *EventCategoryClient) Create() *EventCategoryCreate {
+	mutation := newEventCategoryMutation(c.config, OpCreate)
+	return &EventCategoryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventCategory entities.
+func (c *EventCategoryClient) CreateBulk(builders ...*EventCategoryCreate) *EventCategoryCreateBulk {
+	return &EventCategoryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventCategoryClient) MapCreateBulk(slice any, setFunc func(*EventCategoryCreate, int)) *EventCategoryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventCategoryCreateBulk{err: fmt.Errorf("calling to EventCategoryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventCategoryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventCategoryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventCategory.
+func (c *EventCategoryClient) Update() *EventCategoryUpdate {
+	mutation := newEventCategoryMutation(c.config, OpUpdate)
+	return &EventCategoryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventCategoryClient) UpdateOne(_m *EventCategory) *EventCategoryUpdateOne {
+	mutation := newEventCategoryMutation(c.config, OpUpdateOne, withEventCategory(_m))
+	return &EventCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventCategoryClient) UpdateOneID(id int64) *EventCategoryUpdateOne {
+	mutation := newEventCategoryMutation(c.config, OpUpdateOne, withEventCategoryID(id))
+	return &EventCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventCategory.
+func (c *EventCategoryClient) Delete() *EventCategoryDelete {
+	mutation := newEventCategoryMutation(c.config, OpDelete)
+	return &EventCategoryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventCategoryClient) DeleteOne(_m *EventCategory) *EventCategoryDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventCategoryClient) DeleteOneID(id int64) *EventCategoryDeleteOne {
+	builder := c.Delete().Where(eventcategory.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventCategoryDeleteOne{builder}
+}
+
+// Query returns a query builder for EventCategory.
+func (c *EventCategoryClient) Query() *EventCategoryQuery {
+	return &EventCategoryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventCategory},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventCategory entity by its id.
+func (c *EventCategoryClient) Get(ctx context.Context, id int64) (*EventCategory, error) {
+	return c.Query().Where(eventcategory.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventCategoryClient) GetX(ctx context.Context, id int64) *EventCategory {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryEvents queries the events edge of a EventCategory.
+func (c *EventCategoryClient) QueryEvents(_m *EventCategory) *EventQuery {
+	query := (&EventClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventcategory.Table, eventcategory.FieldID, id),
+			sqlgraph.To(event.Table, event.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, eventcategory.EventsTable, eventcategory.EventsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventCategoryClient) Hooks() []Hook {
+	hooks := c.hooks.EventCategory
+	return append(hooks[:len(hooks):len(hooks)], eventcategory.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventCategoryClient) Interceptors() []Interceptor {
+	inters := c.inters.EventCategory
+	return append(inters[:len(inters):len(inters)], eventcategory.Interceptors[:]...)
+}
+
+func (c *EventCategoryClient) mutate(ctx context.Context, m *EventCategoryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventCategoryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventCategoryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventCategoryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventCategory mutation op: %q", m.Op())
+	}
+}
+
+// EventImportBatchClient is a client for the EventImportBatch schema.
+type EventImportBatchClient struct {
+	config
+}
+
+// NewEventImportBatchClient returns a client for the EventImportBatch from the given config.
+func NewEventImportBatchClient(c config) *EventImportBatchClient {
+	return &EventImportBatchClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventimportbatch.Hooks(f(g(h())))`.
+func (c *EventImportBatchClient) Use(hooks ...Hook) {
+	c.hooks.EventImportBatch = append(c.hooks.EventImportBatch, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventimportbatch.Intercept(f(g(h())))`.
+func (c *EventImportBatchClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventImportBatch = append(c.inters.EventImportBatch, interceptors...)
+}
+
+// Create returns a builder for creating a EventImportBatch entity.
+func (c *EventImportBatchClient) Create() *EventImportBatchCreate {
+	mutation := newEventImportBatchMutation(c.config, OpCreate)
+	return &EventImportBatchCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventImportBatch entities.
+func (c *EventImportBatchClient) CreateBulk(builders ...*EventImportBatchCreate) *EventImportBatchCreateBulk {
+	return &EventImportBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventImportBatchClient) MapCreateBulk(slice any, setFunc func(*EventImportBatchCreate, int)) *EventImportBatchCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventImportBatchCreateBulk{err: fmt.Errorf("calling to EventImportBatchClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventImportBatchCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventImportBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventImportBatch.
+func (c *EventImportBatchClient) Update() *EventImportBatchUpdate {
+	mutation := newEventImportBatchMutation(c.config, OpUpdate)
+	return &EventImportBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventImportBatchClient) UpdateOne(_m *EventImportBatch) *EventImportBatchUpdateOne {
+	mutation := newEventImportBatchMutation(c.config, OpUpdateOne, withEventImportBatch(_m))
+	return &EventImportBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventImportBatchClient) UpdateOneID(id int64) *EventImportBatchUpdateOne {
+	mutation := newEventImportBatchMutation(c.config, OpUpdateOne, withEventImportBatchID(id))
+	return &EventImportBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventImportBatch.
+func (c *EventImportBatchClient) Delete() *EventImportBatchDelete {
+	mutation := newEventImportBatchMutation(c.config, OpDelete)
+	return &EventImportBatchDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventImportBatchClient) DeleteOne(_m *EventImportBatch) *EventImportBatchDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventImportBatchClient) DeleteOneID(id int64) *EventImportBatchDeleteOne {
+	builder := c.Delete().Where(eventimportbatch.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventImportBatchDeleteOne{builder}
+}
+
+// Query returns a query builder for EventImportBatch.
+func (c *EventImportBatchClient) Query() *EventImportBatchQuery {
+	return &EventImportBatchQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventImportBatch},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventImportBatch entity by its id.
+func (c *EventImportBatchClient) Get(ctx context.Context, id int64) (*EventImportBatch, error) {
+	return c.Query().Where(eventimportbatch.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventImportBatchClient) GetX(ctx context.Context, id int64) *EventImportBatch {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySource queries the source edge of a EventImportBatch.
+func (c *EventImportBatchClient) QuerySource(_m *EventImportBatch) *EventSourceQuery {
+	query := (&EventSourceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventimportbatch.Table, eventimportbatch.FieldID, id),
+			sqlgraph.To(eventsource.Table, eventsource.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventimportbatch.SourceTable, eventimportbatch.SourceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryItems queries the items edge of a EventImportBatch.
+func (c *EventImportBatchClient) QueryItems(_m *EventImportBatch) *EventImportItemQuery {
+	query := (&EventImportItemClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventimportbatch.Table, eventimportbatch.FieldID, id),
+			sqlgraph.To(eventimportitem.Table, eventimportitem.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, eventimportbatch.ItemsTable, eventimportbatch.ItemsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventImportBatchClient) Hooks() []Hook {
+	return c.hooks.EventImportBatch
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventImportBatchClient) Interceptors() []Interceptor {
+	return c.inters.EventImportBatch
+}
+
+func (c *EventImportBatchClient) mutate(ctx context.Context, m *EventImportBatchMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventImportBatchCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventImportBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventImportBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventImportBatchDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventImportBatch mutation op: %q", m.Op())
+	}
+}
+
+// EventImportItemClient is a client for the EventImportItem schema.
+type EventImportItemClient struct {
+	config
+}
+
+// NewEventImportItemClient returns a client for the EventImportItem from the given config.
+func NewEventImportItemClient(c config) *EventImportItemClient {
+	return &EventImportItemClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventimportitem.Hooks(f(g(h())))`.
+func (c *EventImportItemClient) Use(hooks ...Hook) {
+	c.hooks.EventImportItem = append(c.hooks.EventImportItem, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventimportitem.Intercept(f(g(h())))`.
+func (c *EventImportItemClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventImportItem = append(c.inters.EventImportItem, interceptors...)
+}
+
+// Create returns a builder for creating a EventImportItem entity.
+func (c *EventImportItemClient) Create() *EventImportItemCreate {
+	mutation := newEventImportItemMutation(c.config, OpCreate)
+	return &EventImportItemCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventImportItem entities.
+func (c *EventImportItemClient) CreateBulk(builders ...*EventImportItemCreate) *EventImportItemCreateBulk {
+	return &EventImportItemCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventImportItemClient) MapCreateBulk(slice any, setFunc func(*EventImportItemCreate, int)) *EventImportItemCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventImportItemCreateBulk{err: fmt.Errorf("calling to EventImportItemClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventImportItemCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventImportItemCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventImportItem.
+func (c *EventImportItemClient) Update() *EventImportItemUpdate {
+	mutation := newEventImportItemMutation(c.config, OpUpdate)
+	return &EventImportItemUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventImportItemClient) UpdateOne(_m *EventImportItem) *EventImportItemUpdateOne {
+	mutation := newEventImportItemMutation(c.config, OpUpdateOne, withEventImportItem(_m))
+	return &EventImportItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventImportItemClient) UpdateOneID(id int64) *EventImportItemUpdateOne {
+	mutation := newEventImportItemMutation(c.config, OpUpdateOne, withEventImportItemID(id))
+	return &EventImportItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventImportItem.
+func (c *EventImportItemClient) Delete() *EventImportItemDelete {
+	mutation := newEventImportItemMutation(c.config, OpDelete)
+	return &EventImportItemDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventImportItemClient) DeleteOne(_m *EventImportItem) *EventImportItemDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventImportItemClient) DeleteOneID(id int64) *EventImportItemDeleteOne {
+	builder := c.Delete().Where(eventimportitem.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventImportItemDeleteOne{builder}
+}
+
+// Query returns a query builder for EventImportItem.
+func (c *EventImportItemClient) Query() *EventImportItemQuery {
+	return &EventImportItemQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventImportItem},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventImportItem entity by its id.
+func (c *EventImportItemClient) Get(ctx context.Context, id int64) (*EventImportItem, error) {
+	return c.Query().Where(eventimportitem.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventImportItemClient) GetX(ctx context.Context, id int64) *EventImportItem {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryBatch queries the batch edge of a EventImportItem.
+func (c *EventImportItemClient) QueryBatch(_m *EventImportItem) *EventImportBatchQuery {
+	query := (&EventImportBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventimportitem.Table, eventimportitem.FieldID, id),
+			sqlgraph.To(eventimportbatch.Table, eventimportbatch.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventimportitem.BatchTable, eventimportitem.BatchColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryEvent queries the event edge of a EventImportItem.
+func (c *EventImportItemClient) QueryEvent(_m *EventImportItem) *EventQuery {
+	query := (&EventClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventimportitem.Table, eventimportitem.FieldID, id),
+			sqlgraph.To(event.Table, event.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventimportitem.EventTable, eventimportitem.EventColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventImportItemClient) Hooks() []Hook {
+	return c.hooks.EventImportItem
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventImportItemClient) Interceptors() []Interceptor {
+	return c.inters.EventImportItem
+}
+
+func (c *EventImportItemClient) mutate(ctx context.Context, m *EventImportItemMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventImportItemCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventImportItemUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventImportItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventImportItemDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventImportItem mutation op: %q", m.Op())
+	}
+}
+
+// EventOccurrenceClient is a client for the EventOccurrence schema.
+type EventOccurrenceClient struct {
+	config
+}
+
+// NewEventOccurrenceClient returns a client for the EventOccurrence from the given config.
+func NewEventOccurrenceClient(c config) *EventOccurrenceClient {
+	return &EventOccurrenceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventoccurrence.Hooks(f(g(h())))`.
+func (c *EventOccurrenceClient) Use(hooks ...Hook) {
+	c.hooks.EventOccurrence = append(c.hooks.EventOccurrence, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventoccurrence.Intercept(f(g(h())))`.
+func (c *EventOccurrenceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventOccurrence = append(c.inters.EventOccurrence, interceptors...)
+}
+
+// Create returns a builder for creating a EventOccurrence entity.
+func (c *EventOccurrenceClient) Create() *EventOccurrenceCreate {
+	mutation := newEventOccurrenceMutation(c.config, OpCreate)
+	return &EventOccurrenceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventOccurrence entities.
+func (c *EventOccurrenceClient) CreateBulk(builders ...*EventOccurrenceCreate) *EventOccurrenceCreateBulk {
+	return &EventOccurrenceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventOccurrenceClient) MapCreateBulk(slice any, setFunc func(*EventOccurrenceCreate, int)) *EventOccurrenceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventOccurrenceCreateBulk{err: fmt.Errorf("calling to EventOccurrenceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventOccurrenceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventOccurrenceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventOccurrence.
+func (c *EventOccurrenceClient) Update() *EventOccurrenceUpdate {
+	mutation := newEventOccurrenceMutation(c.config, OpUpdate)
+	return &EventOccurrenceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventOccurrenceClient) UpdateOne(_m *EventOccurrence) *EventOccurrenceUpdateOne {
+	mutation := newEventOccurrenceMutation(c.config, OpUpdateOne, withEventOccurrence(_m))
+	return &EventOccurrenceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventOccurrenceClient) UpdateOneID(id int64) *EventOccurrenceUpdateOne {
+	mutation := newEventOccurrenceMutation(c.config, OpUpdateOne, withEventOccurrenceID(id))
+	return &EventOccurrenceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventOccurrence.
+func (c *EventOccurrenceClient) Delete() *EventOccurrenceDelete {
+	mutation := newEventOccurrenceMutation(c.config, OpDelete)
+	return &EventOccurrenceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventOccurrenceClient) DeleteOne(_m *EventOccurrence) *EventOccurrenceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventOccurrenceClient) DeleteOneID(id int64) *EventOccurrenceDeleteOne {
+	builder := c.Delete().Where(eventoccurrence.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventOccurrenceDeleteOne{builder}
+}
+
+// Query returns a query builder for EventOccurrence.
+func (c *EventOccurrenceClient) Query() *EventOccurrenceQuery {
+	return &EventOccurrenceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventOccurrence},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventOccurrence entity by its id.
+func (c *EventOccurrenceClient) Get(ctx context.Context, id int64) (*EventOccurrence, error) {
+	return c.Query().Where(eventoccurrence.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventOccurrenceClient) GetX(ctx context.Context, id int64) *EventOccurrence {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryEvent queries the event edge of a EventOccurrence.
+func (c *EventOccurrenceClient) QueryEvent(_m *EventOccurrence) *EventQuery {
+	query := (&EventClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventoccurrence.Table, eventoccurrence.FieldID, id),
+			sqlgraph.To(event.Table, event.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventoccurrence.EventTable, eventoccurrence.EventColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventOccurrenceClient) Hooks() []Hook {
+	return c.hooks.EventOccurrence
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventOccurrenceClient) Interceptors() []Interceptor {
+	return c.inters.EventOccurrence
+}
+
+func (c *EventOccurrenceClient) mutate(ctx context.Context, m *EventOccurrenceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventOccurrenceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventOccurrenceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventOccurrenceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventOccurrenceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventOccurrence mutation op: %q", m.Op())
+	}
+}
+
+// EventSourceClient is a client for the EventSource schema.
+type EventSourceClient struct {
+	config
+}
+
+// NewEventSourceClient returns a client for the EventSource from the given config.
+func NewEventSourceClient(c config) *EventSourceClient {
+	return &EventSourceClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventsource.Hooks(f(g(h())))`.
+func (c *EventSourceClient) Use(hooks ...Hook) {
+	c.hooks.EventSource = append(c.hooks.EventSource, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventsource.Intercept(f(g(h())))`.
+func (c *EventSourceClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventSource = append(c.inters.EventSource, interceptors...)
+}
+
+// Create returns a builder for creating a EventSource entity.
+func (c *EventSourceClient) Create() *EventSourceCreate {
+	mutation := newEventSourceMutation(c.config, OpCreate)
+	return &EventSourceCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventSource entities.
+func (c *EventSourceClient) CreateBulk(builders ...*EventSourceCreate) *EventSourceCreateBulk {
+	return &EventSourceCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventSourceClient) MapCreateBulk(slice any, setFunc func(*EventSourceCreate, int)) *EventSourceCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventSourceCreateBulk{err: fmt.Errorf("calling to EventSourceClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventSourceCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventSourceCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventSource.
+func (c *EventSourceClient) Update() *EventSourceUpdate {
+	mutation := newEventSourceMutation(c.config, OpUpdate)
+	return &EventSourceUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventSourceClient) UpdateOne(_m *EventSource) *EventSourceUpdateOne {
+	mutation := newEventSourceMutation(c.config, OpUpdateOne, withEventSource(_m))
+	return &EventSourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventSourceClient) UpdateOneID(id int64) *EventSourceUpdateOne {
+	mutation := newEventSourceMutation(c.config, OpUpdateOne, withEventSourceID(id))
+	return &EventSourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventSource.
+func (c *EventSourceClient) Delete() *EventSourceDelete {
+	mutation := newEventSourceMutation(c.config, OpDelete)
+	return &EventSourceDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventSourceClient) DeleteOne(_m *EventSource) *EventSourceDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventSourceClient) DeleteOneID(id int64) *EventSourceDeleteOne {
+	builder := c.Delete().Where(eventsource.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventSourceDeleteOne{builder}
+}
+
+// Query returns a query builder for EventSource.
+func (c *EventSourceClient) Query() *EventSourceQuery {
+	return &EventSourceQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventSource},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventSource entity by its id.
+func (c *EventSourceClient) Get(ctx context.Context, id int64) (*EventSource, error) {
+	return c.Query().Where(eventsource.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventSourceClient) GetX(ctx context.Context, id int64) *EventSource {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryRecords queries the records edge of a EventSource.
+func (c *EventSourceClient) QueryRecords(_m *EventSource) *EventSourceRecordQuery {
+	query := (&EventSourceRecordClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventsource.Table, eventsource.FieldID, id),
+			sqlgraph.To(eventsourcerecord.Table, eventsourcerecord.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, eventsource.RecordsTable, eventsource.RecordsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryImportBatches queries the import_batches edge of a EventSource.
+func (c *EventSourceClient) QueryImportBatches(_m *EventSource) *EventImportBatchQuery {
+	query := (&EventImportBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventsource.Table, eventsource.FieldID, id),
+			sqlgraph.To(eventimportbatch.Table, eventimportbatch.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, eventsource.ImportBatchesTable, eventsource.ImportBatchesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventSourceClient) Hooks() []Hook {
+	hooks := c.hooks.EventSource
+	return append(hooks[:len(hooks):len(hooks)], eventsource.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventSourceClient) Interceptors() []Interceptor {
+	inters := c.inters.EventSource
+	return append(inters[:len(inters):len(inters)], eventsource.Interceptors[:]...)
+}
+
+func (c *EventSourceClient) mutate(ctx context.Context, m *EventSourceMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventSourceCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventSourceUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventSourceUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventSourceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventSource mutation op: %q", m.Op())
+	}
+}
+
+// EventSourceRecordClient is a client for the EventSourceRecord schema.
+type EventSourceRecordClient struct {
+	config
+}
+
+// NewEventSourceRecordClient returns a client for the EventSourceRecord from the given config.
+func NewEventSourceRecordClient(c config) *EventSourceRecordClient {
+	return &EventSourceRecordClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `eventsourcerecord.Hooks(f(g(h())))`.
+func (c *EventSourceRecordClient) Use(hooks ...Hook) {
+	c.hooks.EventSourceRecord = append(c.hooks.EventSourceRecord, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `eventsourcerecord.Intercept(f(g(h())))`.
+func (c *EventSourceRecordClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EventSourceRecord = append(c.inters.EventSourceRecord, interceptors...)
+}
+
+// Create returns a builder for creating a EventSourceRecord entity.
+func (c *EventSourceRecordClient) Create() *EventSourceRecordCreate {
+	mutation := newEventSourceRecordMutation(c.config, OpCreate)
+	return &EventSourceRecordCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EventSourceRecord entities.
+func (c *EventSourceRecordClient) CreateBulk(builders ...*EventSourceRecordCreate) *EventSourceRecordCreateBulk {
+	return &EventSourceRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EventSourceRecordClient) MapCreateBulk(slice any, setFunc func(*EventSourceRecordCreate, int)) *EventSourceRecordCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EventSourceRecordCreateBulk{err: fmt.Errorf("calling to EventSourceRecordClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EventSourceRecordCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EventSourceRecordCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EventSourceRecord.
+func (c *EventSourceRecordClient) Update() *EventSourceRecordUpdate {
+	mutation := newEventSourceRecordMutation(c.config, OpUpdate)
+	return &EventSourceRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EventSourceRecordClient) UpdateOne(_m *EventSourceRecord) *EventSourceRecordUpdateOne {
+	mutation := newEventSourceRecordMutation(c.config, OpUpdateOne, withEventSourceRecord(_m))
+	return &EventSourceRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EventSourceRecordClient) UpdateOneID(id int64) *EventSourceRecordUpdateOne {
+	mutation := newEventSourceRecordMutation(c.config, OpUpdateOne, withEventSourceRecordID(id))
+	return &EventSourceRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EventSourceRecord.
+func (c *EventSourceRecordClient) Delete() *EventSourceRecordDelete {
+	mutation := newEventSourceRecordMutation(c.config, OpDelete)
+	return &EventSourceRecordDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EventSourceRecordClient) DeleteOne(_m *EventSourceRecord) *EventSourceRecordDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EventSourceRecordClient) DeleteOneID(id int64) *EventSourceRecordDeleteOne {
+	builder := c.Delete().Where(eventsourcerecord.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EventSourceRecordDeleteOne{builder}
+}
+
+// Query returns a query builder for EventSourceRecord.
+func (c *EventSourceRecordClient) Query() *EventSourceRecordQuery {
+	return &EventSourceRecordQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEventSourceRecord},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EventSourceRecord entity by its id.
+func (c *EventSourceRecordClient) Get(ctx context.Context, id int64) (*EventSourceRecord, error) {
+	return c.Query().Where(eventsourcerecord.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EventSourceRecordClient) GetX(ctx context.Context, id int64) *EventSourceRecord {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QuerySource queries the source edge of a EventSourceRecord.
+func (c *EventSourceRecordClient) QuerySource(_m *EventSourceRecord) *EventSourceQuery {
+	query := (&EventSourceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventsourcerecord.Table, eventsourcerecord.FieldID, id),
+			sqlgraph.To(eventsource.Table, eventsource.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventsourcerecord.SourceTable, eventsourcerecord.SourceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryEvent queries the event edge of a EventSourceRecord.
+func (c *EventSourceRecordClient) QueryEvent(_m *EventSourceRecord) *EventQuery {
+	query := (&EventClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(eventsourcerecord.Table, eventsourcerecord.FieldID, id),
+			sqlgraph.To(event.Table, event.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, eventsourcerecord.EventTable, eventsourcerecord.EventColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *EventSourceRecordClient) Hooks() []Hook {
+	return c.hooks.EventSourceRecord
+}
+
+// Interceptors returns the client interceptors.
+func (c *EventSourceRecordClient) Interceptors() []Interceptor {
+	return c.inters.EventSourceRecord
+}
+
+func (c *EventSourceRecordClient) mutate(ctx context.Context, m *EventSourceRecordMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EventSourceRecordCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EventSourceRecordUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EventSourceRecordUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EventSourceRecordDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EventSourceRecord mutation op: %q", m.Op())
 	}
 }
 
@@ -6669,23 +7888,27 @@ type (
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
-		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
+		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Event, EventCategory,
+		EventImportBatch, EventImportItem, EventOccurrence, EventSource,
+		EventSourceRecord, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
 		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
-		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
+		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Event, EventCategory,
+		EventImportBatch, EventImportItem, EventOccurrence, EventSource,
+		EventSourceRecord, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

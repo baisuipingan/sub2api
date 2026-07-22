@@ -3,6 +3,7 @@ import common from './common'
 import dashboard from './dashboard'
 import admin from './admin'
 import misc from './misc'
+import events from './events'
 
 export default {
   ...landing,
@@ -10,4 +11,5 @@ export default {
   ...dashboard,
   admin,
   ...misc,
+  ...events,
 }

@@ -220,6 +220,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorEnabled,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyAvailableChannelsEnabled,
+		SettingKeyEventCenterEnabled,
+		SettingKeyEventMapAMapKey,
+		SettingKeyEventMapAMapSecurityCode,
+		SettingKeyEventMapDefaultLatitude,
+		SettingKeyEventMapDefaultLongitude,
+		SettingKeyEventMapDefaultZoom,
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -331,6 +337,13 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+
+		EventCenterEnabled:       !isFalseSettingValue(settings[SettingKeyEventCenterEnabled]),
+		EventMapAMapKey:          strings.TrimSpace(settings[SettingKeyEventMapAMapKey]),
+		EventMapAMapSecurityCode: strings.TrimSpace(settings[SettingKeyEventMapAMapSecurityCode]),
+		EventMapDefaultLatitude:  parseEventMapFloat(settings[SettingKeyEventMapDefaultLatitude], 31.2304, -90, 90),
+		EventMapDefaultLongitude: parseEventMapFloat(settings[SettingKeyEventMapDefaultLongitude], 121.4737, -180, 180),
+		EventMapDefaultZoom:      parseEventMapInt(settings[SettingKeyEventMapDefaultZoom], 11, 3, 20),
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
@@ -491,12 +504,18 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool    `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int     `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool    `json:"available_channels_enabled"`
+	EventCenterEnabled                   bool    `json:"event_center_enabled"`
+	EventMapAMapKey                      string  `json:"event_map_amap_key"`
+	EventMapAMapSecurityCode             string  `json:"event_map_amap_security_code"`
+	EventMapDefaultLatitude              float64 `json:"event_map_default_latitude"`
+	EventMapDefaultLongitude             float64 `json:"event_map_default_longitude"`
+	EventMapDefaultZoom                  int     `json:"event_map_default_zoom"`
+	AffiliateEnabled                     bool    `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool    `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool    `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -559,6 +578,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
+		EventCenterEnabled:                   settings.EventCenterEnabled,
+		EventMapAMapKey:                      settings.EventMapAMapKey,
+		EventMapAMapSecurityCode:             settings.EventMapAMapSecurityCode,
+		EventMapDefaultLatitude:              settings.EventMapDefaultLatitude,
+		EventMapDefaultLongitude:             settings.EventMapDefaultLongitude,
+		EventMapDefaultZoom:                  settings.EventMapDefaultZoom,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,

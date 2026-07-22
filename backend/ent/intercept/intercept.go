@@ -23,6 +23,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
+	"github.com/Wei-Shaw/sub2api/ent/event"
+	"github.com/Wei-Shaw/sub2api/ent/eventcategory"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportbatch"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportitem"
+	"github.com/Wei-Shaw/sub2api/ent/eventoccurrence"
+	"github.com/Wei-Shaw/sub2api/ent/eventsource"
+	"github.com/Wei-Shaw/sub2api/ent/eventsourcerecord"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
@@ -508,6 +515,195 @@ func (f TraverseErrorPassthroughRule) Traverse(ctx context.Context, q ent.Query)
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.ErrorPassthroughRuleQuery", q)
+}
+
+// The EventFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventFunc func(context.Context, *ent.EventQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventQuery", q)
+}
+
+// The TraverseEvent type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEvent func(context.Context, *ent.EventQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEvent) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEvent) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventQuery", q)
+}
+
+// The EventCategoryFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventCategoryFunc func(context.Context, *ent.EventCategoryQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventCategoryFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventCategoryQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventCategoryQuery", q)
+}
+
+// The TraverseEventCategory type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventCategory func(context.Context, *ent.EventCategoryQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventCategory) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventCategory) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventCategoryQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventCategoryQuery", q)
+}
+
+// The EventImportBatchFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventImportBatchFunc func(context.Context, *ent.EventImportBatchQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventImportBatchFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventImportBatchQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventImportBatchQuery", q)
+}
+
+// The TraverseEventImportBatch type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventImportBatch func(context.Context, *ent.EventImportBatchQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventImportBatch) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventImportBatch) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventImportBatchQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventImportBatchQuery", q)
+}
+
+// The EventImportItemFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventImportItemFunc func(context.Context, *ent.EventImportItemQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventImportItemFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventImportItemQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventImportItemQuery", q)
+}
+
+// The TraverseEventImportItem type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventImportItem func(context.Context, *ent.EventImportItemQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventImportItem) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventImportItem) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventImportItemQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventImportItemQuery", q)
+}
+
+// The EventOccurrenceFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventOccurrenceFunc func(context.Context, *ent.EventOccurrenceQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventOccurrenceFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventOccurrenceQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventOccurrenceQuery", q)
+}
+
+// The TraverseEventOccurrence type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventOccurrence func(context.Context, *ent.EventOccurrenceQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventOccurrence) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventOccurrence) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventOccurrenceQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventOccurrenceQuery", q)
+}
+
+// The EventSourceFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventSourceFunc func(context.Context, *ent.EventSourceQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventSourceFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventSourceQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventSourceQuery", q)
+}
+
+// The TraverseEventSource type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventSource func(context.Context, *ent.EventSourceQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventSource) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventSource) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventSourceQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventSourceQuery", q)
+}
+
+// The EventSourceRecordFunc type is an adapter to allow the use of ordinary function as a Querier.
+type EventSourceRecordFunc func(context.Context, *ent.EventSourceRecordQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f EventSourceRecordFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.EventSourceRecordQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.EventSourceRecordQuery", q)
+}
+
+// The TraverseEventSourceRecord type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseEventSourceRecord func(context.Context, *ent.EventSourceRecordQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseEventSourceRecord) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseEventSourceRecord) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.EventSourceRecordQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.EventSourceRecordQuery", q)
 }
 
 // The GroupFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1164,6 +1360,20 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ChannelMonitorRequestTemplateQuery, predicate.ChannelMonitorRequestTemplate, channelmonitorrequesttemplate.OrderOption]{typ: ent.TypeChannelMonitorRequestTemplate, tq: q}, nil
 	case *ent.ErrorPassthroughRuleQuery:
 		return &query[*ent.ErrorPassthroughRuleQuery, predicate.ErrorPassthroughRule, errorpassthroughrule.OrderOption]{typ: ent.TypeErrorPassthroughRule, tq: q}, nil
+	case *ent.EventQuery:
+		return &query[*ent.EventQuery, predicate.Event, event.OrderOption]{typ: ent.TypeEvent, tq: q}, nil
+	case *ent.EventCategoryQuery:
+		return &query[*ent.EventCategoryQuery, predicate.EventCategory, eventcategory.OrderOption]{typ: ent.TypeEventCategory, tq: q}, nil
+	case *ent.EventImportBatchQuery:
+		return &query[*ent.EventImportBatchQuery, predicate.EventImportBatch, eventimportbatch.OrderOption]{typ: ent.TypeEventImportBatch, tq: q}, nil
+	case *ent.EventImportItemQuery:
+		return &query[*ent.EventImportItemQuery, predicate.EventImportItem, eventimportitem.OrderOption]{typ: ent.TypeEventImportItem, tq: q}, nil
+	case *ent.EventOccurrenceQuery:
+		return &query[*ent.EventOccurrenceQuery, predicate.EventOccurrence, eventoccurrence.OrderOption]{typ: ent.TypeEventOccurrence, tq: q}, nil
+	case *ent.EventSourceQuery:
+		return &query[*ent.EventSourceQuery, predicate.EventSource, eventsource.OrderOption]{typ: ent.TypeEventSource, tq: q}, nil
+	case *ent.EventSourceRecordQuery:
+		return &query[*ent.EventSourceRecordQuery, predicate.EventSourceRecord, eventsourcerecord.OrderOption]{typ: ent.TypeEventSourceRecord, tq: q}, nil
 	case *ent.GroupQuery:
 		return &query[*ent.GroupQuery, predicate.Group, group.OrderOption]{typ: ent.TypeGroup, tq: q}, nil
 	case *ent.IdempotencyRecordQuery:

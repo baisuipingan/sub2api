@@ -149,6 +149,8 @@ export default {
   nav: {
     dashboard: '仪表盘',
     announcements: '公告',
+    events: '活动中心',
+    eventManagement: '活动管理',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
     usage: '使用记录',

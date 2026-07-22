@@ -830,6 +830,381 @@ var (
 			},
 		},
 	}
+	// EventsColumns holds the columns for the "events" table.
+	EventsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "title", Type: field.TypeString, Size: 200},
+		{Name: "summary", Type: field.TypeString, Size: 1000, Default: ""},
+		{Name: "description_markdown", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "tags", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "organizer_name", Type: field.TypeString, Size: 200, Default: ""},
+		{Name: "organizer_url", Type: field.TypeString, Size: 2048, Default: ""},
+		{Name: "fee_type", Type: field.TypeString, Size: 20, Default: "unknown"},
+		{Name: "price_min", Type: field.TypeFloat64, Nullable: true},
+		{Name: "price_max", Type: field.TypeFloat64, Nullable: true},
+		{Name: "currency", Type: field.TypeString, Size: 8, Default: "CNY"},
+		{Name: "registration_url", Type: field.TypeString, Size: 2048, Default: ""},
+		{Name: "registration_deadline", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "cover_url", Type: field.TypeString, Size: 2048, Default: ""},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "draft"},
+		{Name: "visibility", Type: field.TypeString, Size: 20, Default: "authenticated"},
+		{Name: "audience", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "visible_from", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "visible_until", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "published_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "cancelled_reason", Type: field.TypeString, Size: 1000, Default: ""},
+		{Name: "manual_override_fields", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "created_by", Type: field.TypeInt64, Nullable: true},
+		{Name: "updated_by", Type: field.TypeInt64, Nullable: true},
+		{Name: "category_id", Type: field.TypeInt64, Nullable: true},
+	}
+	// EventsTable holds the schema information for the "events" table.
+	EventsTable = &schema.Table{
+		Name:       "events",
+		Columns:    EventsColumns,
+		PrimaryKey: []*schema.Column{EventsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "events_event_categories_events",
+				Columns:    []*schema.Column{EventsColumns[27]},
+				RefColumns: []*schema.Column{EventCategoriesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "event_status_published_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventsColumns[17], EventsColumns[22]},
+			},
+			{
+				Name:    "event_category_id",
+				Unique:  false,
+				Columns: []*schema.Column{EventsColumns[27]},
+			},
+			{
+				Name:    "event_visible_from",
+				Unique:  false,
+				Columns: []*schema.Column{EventsColumns[20]},
+			},
+			{
+				Name:    "event_visible_until",
+				Unique:  false,
+				Columns: []*schema.Column{EventsColumns[21]},
+			},
+			{
+				Name:    "event_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventsColumns[3]},
+			},
+		},
+	}
+	// EventCategoriesColumns holds the columns for the "event_categories" table.
+	EventCategoriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "code", Type: field.TypeString, Size: 64},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "color", Type: field.TypeString, Size: 20, Default: "#2563EB"},
+		{Name: "icon", Type: field.TypeString, Size: 64, Default: "calendar"},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+	}
+	// EventCategoriesTable holds the schema information for the "event_categories" table.
+	EventCategoriesTable = &schema.Table{
+		Name:       "event_categories",
+		Columns:    EventCategoriesColumns,
+		PrimaryKey: []*schema.Column{EventCategoriesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventcategory_code",
+				Unique:  false,
+				Columns: []*schema.Column{EventCategoriesColumns[4]},
+			},
+			{
+				Name:    "eventcategory_enabled_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{EventCategoriesColumns[9], EventCategoriesColumns[8]},
+			},
+			{
+				Name:    "eventcategory_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventCategoriesColumns[3]},
+			},
+		},
+	}
+	// EventImportBatchesColumns holds the columns for the "event_import_batches" table.
+	EventImportBatchesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "file_name", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "file_hash", Type: field.TypeString, Size: 64},
+		{Name: "schema_version", Type: field.TypeInt},
+		{Name: "mode", Type: field.TypeString, Size: 20, Default: "upsert"},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "previewed"},
+		{Name: "total_count", Type: field.TypeInt, Default: 0},
+		{Name: "create_count", Type: field.TypeInt, Default: 0},
+		{Name: "update_count", Type: field.TypeInt, Default: 0},
+		{Name: "unchanged_count", Type: field.TypeInt, Default: 0},
+		{Name: "conflict_count", Type: field.TypeInt, Default: 0},
+		{Name: "error_count", Type: field.TypeInt, Default: 0},
+		{Name: "created_by", Type: field.TypeInt64},
+		{Name: "committed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "source_id", Type: field.TypeInt64},
+	}
+	// EventImportBatchesTable holds the schema information for the "event_import_batches" table.
+	EventImportBatchesTable = &schema.Table{
+		Name:       "event_import_batches",
+		Columns:    EventImportBatchesColumns,
+		PrimaryKey: []*schema.Column{EventImportBatchesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "event_import_batches_event_sources_import_batches",
+				Columns:    []*schema.Column{EventImportBatchesColumns[16]},
+				RefColumns: []*schema.Column{EventSourcesColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventimportbatch_source_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventImportBatchesColumns[16], EventImportBatchesColumns[1]},
+			},
+			{
+				Name:    "eventimportbatch_status_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventImportBatchesColumns[7], EventImportBatchesColumns[1]},
+			},
+			{
+				Name:    "eventimportbatch_file_hash",
+				Unique:  false,
+				Columns: []*schema.Column{EventImportBatchesColumns[4]},
+			},
+		},
+	}
+	// EventImportItemsColumns holds the columns for the "event_import_items" table.
+	EventImportItemsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "item_index", Type: field.TypeInt},
+		{Name: "external_id", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "fingerprint", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "content_hash", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "action", Type: field.TypeString, Size: 20},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "pending"},
+		{Name: "error_code", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "error_detail", Type: field.TypeString, Size: 2000, Default: ""},
+		{Name: "normalized_payload", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "event_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "batch_id", Type: field.TypeInt64},
+	}
+	// EventImportItemsTable holds the schema information for the "event_import_items" table.
+	EventImportItemsTable = &schema.Table{
+		Name:       "event_import_items",
+		Columns:    EventImportItemsColumns,
+		PrimaryKey: []*schema.Column{EventImportItemsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "event_import_items_events_import_items",
+				Columns:    []*schema.Column{EventImportItemsColumns[12]},
+				RefColumns: []*schema.Column{EventsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "event_import_items_event_import_batches_items",
+				Columns:    []*schema.Column{EventImportItemsColumns[13]},
+				RefColumns: []*schema.Column{EventImportBatchesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventimportitem_batch_id_item_index",
+				Unique:  true,
+				Columns: []*schema.Column{EventImportItemsColumns[13], EventImportItemsColumns[3]},
+			},
+			{
+				Name:    "eventimportitem_batch_id_action",
+				Unique:  false,
+				Columns: []*schema.Column{EventImportItemsColumns[13], EventImportItemsColumns[7]},
+			},
+			{
+				Name:    "eventimportitem_event_id",
+				Unique:  false,
+				Columns: []*schema.Column{EventImportItemsColumns[12]},
+			},
+		},
+	}
+	// EventOccurrencesColumns holds the columns for the "event_occurrences" table.
+	EventOccurrencesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "starts_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "ends_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "timezone", Type: field.TypeString, Size: 64, Default: "Asia/Shanghai"},
+		{Name: "all_day", Type: field.TypeBool, Default: false},
+		{Name: "location_mode", Type: field.TypeString, Size: 20, Default: "offline"},
+		{Name: "online_url", Type: field.TypeString, Size: 2048, Default: ""},
+		{Name: "venue_name", Type: field.TypeString, Size: 300, Default: ""},
+		{Name: "address", Type: field.TypeString, Size: 1000, Default: ""},
+		{Name: "country", Type: field.TypeString, Size: 100, Default: "中国"},
+		{Name: "province", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "city", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "district", Type: field.TypeString, Size: 100, Default: ""},
+		{Name: "latitude", Type: field.TypeFloat64, Nullable: true},
+		{Name: "longitude", Type: field.TypeFloat64, Nullable: true},
+		{Name: "coordinate_source", Type: field.TypeString, Size: 20, Default: "wgs84"},
+		{Name: "geocode_status", Type: field.TypeString, Size: 32, Default: ""},
+		{Name: "geocode_precision", Type: field.TypeString, Size: 32, Default: ""},
+		{Name: "provider_place_id", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "event_id", Type: field.TypeInt64},
+	}
+	// EventOccurrencesTable holds the schema information for the "event_occurrences" table.
+	EventOccurrencesTable = &schema.Table{
+		Name:       "event_occurrences",
+		Columns:    EventOccurrencesColumns,
+		PrimaryKey: []*schema.Column{EventOccurrencesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "event_occurrences_events_occurrences",
+				Columns:    []*schema.Column{EventOccurrencesColumns[21]},
+				RefColumns: []*schema.Column{EventsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventoccurrence_event_id_starts_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventOccurrencesColumns[21], EventOccurrencesColumns[3]},
+			},
+			{
+				Name:    "eventoccurrence_starts_at_ends_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventOccurrencesColumns[3], EventOccurrencesColumns[4]},
+			},
+			{
+				Name:    "eventoccurrence_city_starts_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventOccurrencesColumns[13], EventOccurrencesColumns[3]},
+			},
+			{
+				Name:    "eventoccurrence_longitude_latitude",
+				Unique:  false,
+				Columns: []*schema.Column{EventOccurrencesColumns[16], EventOccurrencesColumns[15]},
+			},
+		},
+	}
+	// EventSourcesColumns holds the columns for the "event_sources" table.
+	EventSourcesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "code", Type: field.TypeString, Size: 64},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "kind", Type: field.TypeString, Size: 20, Default: "json"},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "last_sync_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// EventSourcesTable holds the schema information for the "event_sources" table.
+	EventSourcesTable = &schema.Table{
+		Name:       "event_sources",
+		Columns:    EventSourcesColumns,
+		PrimaryKey: []*schema.Column{EventSourcesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventsource_code",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourcesColumns[4]},
+			},
+			{
+				Name:    "eventsource_kind_enabled",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourcesColumns[6], EventSourcesColumns[7]},
+			},
+			{
+				Name:    "eventsource_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourcesColumns[3]},
+			},
+		},
+	}
+	// EventSourceRecordsColumns holds the columns for the "event_source_records" table.
+	EventSourceRecordsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "external_id", Type: field.TypeString, Size: 255, Default: ""},
+		{Name: "source_url", Type: field.TypeString, Size: 2048, Default: ""},
+		{Name: "fingerprint", Type: field.TypeString, Size: 64},
+		{Name: "content_hash", Type: field.TypeString, Size: 64},
+		{Name: "state", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "raw_payload", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "normalized_payload", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "source_updated_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "first_seen_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_seen_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "event_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "source_id", Type: field.TypeInt64},
+	}
+	// EventSourceRecordsTable holds the schema information for the "event_source_records" table.
+	EventSourceRecordsTable = &schema.Table{
+		Name:       "event_source_records",
+		Columns:    EventSourceRecordsColumns,
+		PrimaryKey: []*schema.Column{EventSourceRecordsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "event_source_records_events_source_records",
+				Columns:    []*schema.Column{EventSourceRecordsColumns[13]},
+				RefColumns: []*schema.Column{EventsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "event_source_records_event_sources_records",
+				Columns:    []*schema.Column{EventSourceRecordsColumns[14]},
+				RefColumns: []*schema.Column{EventSourcesColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "eventsourcerecord_source_id_external_id",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourceRecordsColumns[14], EventSourceRecordsColumns[3]},
+			},
+			{
+				Name:    "eventsourcerecord_source_id_fingerprint",
+				Unique:  true,
+				Columns: []*schema.Column{EventSourceRecordsColumns[14], EventSourceRecordsColumns[5]},
+			},
+			{
+				Name:    "eventsourcerecord_fingerprint",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourceRecordsColumns[5]},
+			},
+			{
+				Name:    "eventsourcerecord_event_id",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourceRecordsColumns[13]},
+			},
+			{
+				Name:    "eventsourcerecord_last_seen_at",
+				Unique:  false,
+				Columns: []*schema.Column{EventSourceRecordsColumns[12]},
+			},
+		},
+	}
 	// GroupsColumns holds the columns for the "groups" table.
 	GroupsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2013,6 +2388,13 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		ErrorPassthroughRulesTable,
+		EventsTable,
+		EventCategoriesTable,
+		EventImportBatchesTable,
+		EventImportItemsTable,
+		EventOccurrencesTable,
+		EventSourcesTable,
+		EventSourceRecordsTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
@@ -2097,6 +2479,34 @@ func init() {
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",
+	}
+	EventsTable.ForeignKeys[0].RefTable = EventCategoriesTable
+	EventsTable.Annotation = &entsql.Annotation{
+		Table: "events",
+	}
+	EventCategoriesTable.Annotation = &entsql.Annotation{
+		Table: "event_categories",
+	}
+	EventImportBatchesTable.ForeignKeys[0].RefTable = EventSourcesTable
+	EventImportBatchesTable.Annotation = &entsql.Annotation{
+		Table: "event_import_batches",
+	}
+	EventImportItemsTable.ForeignKeys[0].RefTable = EventsTable
+	EventImportItemsTable.ForeignKeys[1].RefTable = EventImportBatchesTable
+	EventImportItemsTable.Annotation = &entsql.Annotation{
+		Table: "event_import_items",
+	}
+	EventOccurrencesTable.ForeignKeys[0].RefTable = EventsTable
+	EventOccurrencesTable.Annotation = &entsql.Annotation{
+		Table: "event_occurrences",
+	}
+	EventSourcesTable.Annotation = &entsql.Annotation{
+		Table: "event_sources",
+	}
+	EventSourceRecordsTable.ForeignKeys[0].RefTable = EventsTable
+	EventSourceRecordsTable.ForeignKeys[1].RefTable = EventSourcesTable
+	EventSourceRecordsTable.Annotation = &entsql.Annotation{
+		Table: "event_source_records",
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",

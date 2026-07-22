@@ -51,6 +51,27 @@ type ChannelMonitorRequestTemplate func(*sql.Selector)
 // ErrorPassthroughRule is the predicate function for errorpassthroughrule builders.
 type ErrorPassthroughRule func(*sql.Selector)
 
+// Event is the predicate function for event builders.
+type Event func(*sql.Selector)
+
+// EventCategory is the predicate function for eventcategory builders.
+type EventCategory func(*sql.Selector)
+
+// EventImportBatch is the predicate function for eventimportbatch builders.
+type EventImportBatch func(*sql.Selector)
+
+// EventImportItem is the predicate function for eventimportitem builders.
+type EventImportItem func(*sql.Selector)
+
+// EventOccurrence is the predicate function for eventoccurrence builders.
+type EventOccurrence func(*sql.Selector)
+
+// EventSource is the predicate function for eventsource builders.
+type EventSource func(*sql.Selector)
+
+// EventSourceRecord is the predicate function for eventsourcerecord builders.
+type EventSourceRecord func(*sql.Selector)
+
 // Group is the predicate function for group builders.
 type Group func(*sql.Selector)
 

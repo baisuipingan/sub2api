@@ -44,6 +44,20 @@ type Tx struct {
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
+	// Event is the client for interacting with the Event builders.
+	Event *EventClient
+	// EventCategory is the client for interacting with the EventCategory builders.
+	EventCategory *EventCategoryClient
+	// EventImportBatch is the client for interacting with the EventImportBatch builders.
+	EventImportBatch *EventImportBatchClient
+	// EventImportItem is the client for interacting with the EventImportItem builders.
+	EventImportItem *EventImportItemClient
+	// EventOccurrence is the client for interacting with the EventOccurrence builders.
+	EventOccurrence *EventOccurrenceClient
+	// EventSource is the client for interacting with the EventSource builders.
+	EventSource *EventSourceClient
+	// EventSourceRecord is the client for interacting with the EventSourceRecord builders.
+	EventSourceRecord *EventSourceRecordClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
@@ -236,6 +250,13 @@ func (tx *Tx) init() {
 	tx.ChannelMonitorHistory = NewChannelMonitorHistoryClient(tx.config)
 	tx.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
+	tx.Event = NewEventClient(tx.config)
+	tx.EventCategory = NewEventCategoryClient(tx.config)
+	tx.EventImportBatch = NewEventImportBatchClient(tx.config)
+	tx.EventImportItem = NewEventImportItemClient(tx.config)
+	tx.EventOccurrence = NewEventOccurrenceClient(tx.config)
+	tx.EventSource = NewEventSourceClient(tx.config)
+	tx.EventSourceRecord = NewEventSourceRecordClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)

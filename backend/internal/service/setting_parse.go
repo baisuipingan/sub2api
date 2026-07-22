@@ -180,6 +180,14 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled: "false",
 
+		// Event center defaults (enabled; Shanghai map center).
+		SettingKeyEventCenterEnabled:       "true",
+		SettingKeyEventMapAMapKey:          "",
+		SettingKeyEventMapAMapSecurityCode: "",
+		SettingKeyEventMapDefaultLatitude:  "31.2304",
+		SettingKeyEventMapDefaultLongitude: "121.4737",
+		SettingKeyEventMapDefaultZoom:      "11",
+
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
 		SettingKeyAffiliateEnabled:              "false",
 		SettingKeyAffiliateAdminRechargeEnabled: strconv.FormatBool(AdminRechargeRebateEnabledDefault),

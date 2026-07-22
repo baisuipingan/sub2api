@@ -331,6 +331,13 @@ type PublicSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	EventCenterEnabled       bool    `json:"event_center_enabled"`
+	EventMapAMapKey          string  `json:"event_map_amap_key"`
+	EventMapAMapSecurityCode string  `json:"event_map_amap_security_code"`
+	EventMapDefaultLatitude  float64 `json:"event_map_default_latitude"`
+	EventMapDefaultLongitude float64 `json:"event_map_default_longitude"`
+	EventMapDefaultZoom      int     `json:"event_map_default_zoom"`
+
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 

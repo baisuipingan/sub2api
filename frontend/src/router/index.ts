@@ -231,6 +231,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/events',
+    name: 'Events',
+    component: () => import('@/views/user/EventsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Events',
+      titleKey: 'events.user.title',
+      descriptionKey: 'events.user.description'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -524,6 +536,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Announcements',
       titleKey: 'admin.announcements.title',
       descriptionKey: 'admin.announcements.description'
+    }
+  },
+  {
+    path: '/admin/events',
+    name: 'AdminEvents',
+    component: () => import('@/views/admin/EventsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Event Management',
+      titleKey: 'events.admin.title',
+      descriptionKey: 'events.admin.description'
     }
   },
   {

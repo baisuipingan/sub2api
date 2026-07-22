@@ -106,6 +106,15 @@ func RegisterUserRoutes(
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 
+		// 活动中心（登录用户只读）
+		events := authenticated.Group("/events")
+		{
+			events.GET("", h.Event.List)
+			events.GET("/map", h.Event.Map)
+			events.GET("/categories", h.Event.Categories)
+			events.GET("/:id", h.Event.Get)
+		}
+
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{

@@ -189,6 +189,90 @@ func (f ErrorPassthroughRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (e
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ErrorPassthroughRuleMutation", m)
 }
 
+// The EventFunc type is an adapter to allow the use of ordinary
+// function as Event mutator.
+type EventFunc func(context.Context, *ent.EventMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventMutation", m)
+}
+
+// The EventCategoryFunc type is an adapter to allow the use of ordinary
+// function as EventCategory mutator.
+type EventCategoryFunc func(context.Context, *ent.EventCategoryMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventCategoryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventCategoryMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventCategoryMutation", m)
+}
+
+// The EventImportBatchFunc type is an adapter to allow the use of ordinary
+// function as EventImportBatch mutator.
+type EventImportBatchFunc func(context.Context, *ent.EventImportBatchMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventImportBatchFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventImportBatchMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventImportBatchMutation", m)
+}
+
+// The EventImportItemFunc type is an adapter to allow the use of ordinary
+// function as EventImportItem mutator.
+type EventImportItemFunc func(context.Context, *ent.EventImportItemMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventImportItemFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventImportItemMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventImportItemMutation", m)
+}
+
+// The EventOccurrenceFunc type is an adapter to allow the use of ordinary
+// function as EventOccurrence mutator.
+type EventOccurrenceFunc func(context.Context, *ent.EventOccurrenceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventOccurrenceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventOccurrenceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventOccurrenceMutation", m)
+}
+
+// The EventSourceFunc type is an adapter to allow the use of ordinary
+// function as EventSource mutator.
+type EventSourceFunc func(context.Context, *ent.EventSourceMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventSourceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventSourceMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventSourceMutation", m)
+}
+
+// The EventSourceRecordFunc type is an adapter to allow the use of ordinary
+// function as EventSourceRecord mutator.
+type EventSourceRecordFunc func(context.Context, *ent.EventSourceRecordMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f EventSourceRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.EventSourceRecordMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.EventSourceRecordMutation", m)
+}
+
 // The GroupFunc type is an adapter to allow the use of ordinary
 // function as Group mutator.
 type GroupFunc func(context.Context, *ent.GroupMutation) (ent.Value, error)

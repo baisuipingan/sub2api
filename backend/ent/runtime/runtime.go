@@ -20,6 +20,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
+	"github.com/Wei-Shaw/sub2api/ent/event"
+	"github.com/Wei-Shaw/sub2api/ent/eventcategory"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportbatch"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportitem"
+	"github.com/Wei-Shaw/sub2api/ent/eventoccurrence"
+	"github.com/Wei-Shaw/sub2api/ent/eventsource"
+	"github.com/Wei-Shaw/sub2api/ent/eventsourcerecord"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
@@ -924,6 +931,593 @@ func init() {
 	errorpassthroughruleDescSkipMonitoring := errorpassthroughruleFields[11].Descriptor()
 	// errorpassthroughrule.DefaultSkipMonitoring holds the default value on creation for the skip_monitoring field.
 	errorpassthroughrule.DefaultSkipMonitoring = errorpassthroughruleDescSkipMonitoring.Default.(bool)
+	eventMixin := schema.Event{}.Mixin()
+	eventMixinHooks1 := eventMixin[1].Hooks()
+	event.Hooks[0] = eventMixinHooks1[0]
+	eventMixinInters1 := eventMixin[1].Interceptors()
+	event.Interceptors[0] = eventMixinInters1[0]
+	eventMixinFields0 := eventMixin[0].Fields()
+	_ = eventMixinFields0
+	eventFields := schema.Event{}.Fields()
+	_ = eventFields
+	// eventDescCreatedAt is the schema descriptor for created_at field.
+	eventDescCreatedAt := eventMixinFields0[0].Descriptor()
+	// event.DefaultCreatedAt holds the default value on creation for the created_at field.
+	event.DefaultCreatedAt = eventDescCreatedAt.Default.(func() time.Time)
+	// eventDescUpdatedAt is the schema descriptor for updated_at field.
+	eventDescUpdatedAt := eventMixinFields0[1].Descriptor()
+	// event.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	event.DefaultUpdatedAt = eventDescUpdatedAt.Default.(func() time.Time)
+	// event.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	event.UpdateDefaultUpdatedAt = eventDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventDescTitle is the schema descriptor for title field.
+	eventDescTitle := eventFields[1].Descriptor()
+	// event.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	event.TitleValidator = func() func(string) error {
+		validators := eventDescTitle.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(title string) error {
+			for _, fn := range fns {
+				if err := fn(title); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventDescSummary is the schema descriptor for summary field.
+	eventDescSummary := eventFields[2].Descriptor()
+	// event.DefaultSummary holds the default value on creation for the summary field.
+	event.DefaultSummary = eventDescSummary.Default.(string)
+	// event.SummaryValidator is a validator for the "summary" field. It is called by the builders before save.
+	event.SummaryValidator = eventDescSummary.Validators[0].(func(string) error)
+	// eventDescDescriptionMarkdown is the schema descriptor for description_markdown field.
+	eventDescDescriptionMarkdown := eventFields[3].Descriptor()
+	// event.DefaultDescriptionMarkdown holds the default value on creation for the description_markdown field.
+	event.DefaultDescriptionMarkdown = eventDescDescriptionMarkdown.Default.(string)
+	// eventDescTags is the schema descriptor for tags field.
+	eventDescTags := eventFields[4].Descriptor()
+	// event.DefaultTags holds the default value on creation for the tags field.
+	event.DefaultTags = eventDescTags.Default.([]string)
+	// eventDescOrganizerName is the schema descriptor for organizer_name field.
+	eventDescOrganizerName := eventFields[5].Descriptor()
+	// event.DefaultOrganizerName holds the default value on creation for the organizer_name field.
+	event.DefaultOrganizerName = eventDescOrganizerName.Default.(string)
+	// event.OrganizerNameValidator is a validator for the "organizer_name" field. It is called by the builders before save.
+	event.OrganizerNameValidator = eventDescOrganizerName.Validators[0].(func(string) error)
+	// eventDescOrganizerURL is the schema descriptor for organizer_url field.
+	eventDescOrganizerURL := eventFields[6].Descriptor()
+	// event.DefaultOrganizerURL holds the default value on creation for the organizer_url field.
+	event.DefaultOrganizerURL = eventDescOrganizerURL.Default.(string)
+	// event.OrganizerURLValidator is a validator for the "organizer_url" field. It is called by the builders before save.
+	event.OrganizerURLValidator = eventDescOrganizerURL.Validators[0].(func(string) error)
+	// eventDescFeeType is the schema descriptor for fee_type field.
+	eventDescFeeType := eventFields[7].Descriptor()
+	// event.DefaultFeeType holds the default value on creation for the fee_type field.
+	event.DefaultFeeType = eventDescFeeType.Default.(string)
+	// event.FeeTypeValidator is a validator for the "fee_type" field. It is called by the builders before save.
+	event.FeeTypeValidator = eventDescFeeType.Validators[0].(func(string) error)
+	// eventDescCurrency is the schema descriptor for currency field.
+	eventDescCurrency := eventFields[10].Descriptor()
+	// event.DefaultCurrency holds the default value on creation for the currency field.
+	event.DefaultCurrency = eventDescCurrency.Default.(string)
+	// event.CurrencyValidator is a validator for the "currency" field. It is called by the builders before save.
+	event.CurrencyValidator = eventDescCurrency.Validators[0].(func(string) error)
+	// eventDescRegistrationURL is the schema descriptor for registration_url field.
+	eventDescRegistrationURL := eventFields[11].Descriptor()
+	// event.DefaultRegistrationURL holds the default value on creation for the registration_url field.
+	event.DefaultRegistrationURL = eventDescRegistrationURL.Default.(string)
+	// event.RegistrationURLValidator is a validator for the "registration_url" field. It is called by the builders before save.
+	event.RegistrationURLValidator = eventDescRegistrationURL.Validators[0].(func(string) error)
+	// eventDescCoverURL is the schema descriptor for cover_url field.
+	eventDescCoverURL := eventFields[13].Descriptor()
+	// event.DefaultCoverURL holds the default value on creation for the cover_url field.
+	event.DefaultCoverURL = eventDescCoverURL.Default.(string)
+	// event.CoverURLValidator is a validator for the "cover_url" field. It is called by the builders before save.
+	event.CoverURLValidator = eventDescCoverURL.Validators[0].(func(string) error)
+	// eventDescStatus is the schema descriptor for status field.
+	eventDescStatus := eventFields[14].Descriptor()
+	// event.DefaultStatus holds the default value on creation for the status field.
+	event.DefaultStatus = eventDescStatus.Default.(string)
+	// event.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	event.StatusValidator = eventDescStatus.Validators[0].(func(string) error)
+	// eventDescVisibility is the schema descriptor for visibility field.
+	eventDescVisibility := eventFields[15].Descriptor()
+	// event.DefaultVisibility holds the default value on creation for the visibility field.
+	event.DefaultVisibility = eventDescVisibility.Default.(string)
+	// event.VisibilityValidator is a validator for the "visibility" field. It is called by the builders before save.
+	event.VisibilityValidator = eventDescVisibility.Validators[0].(func(string) error)
+	// eventDescAudience is the schema descriptor for audience field.
+	eventDescAudience := eventFields[16].Descriptor()
+	// event.DefaultAudience holds the default value on creation for the audience field.
+	event.DefaultAudience = eventDescAudience.Default.(domain.EventAudience)
+	// eventDescCancelledReason is the schema descriptor for cancelled_reason field.
+	eventDescCancelledReason := eventFields[20].Descriptor()
+	// event.DefaultCancelledReason holds the default value on creation for the cancelled_reason field.
+	event.DefaultCancelledReason = eventDescCancelledReason.Default.(string)
+	// event.CancelledReasonValidator is a validator for the "cancelled_reason" field. It is called by the builders before save.
+	event.CancelledReasonValidator = eventDescCancelledReason.Validators[0].(func(string) error)
+	// eventDescManualOverrideFields is the schema descriptor for manual_override_fields field.
+	eventDescManualOverrideFields := eventFields[21].Descriptor()
+	// event.DefaultManualOverrideFields holds the default value on creation for the manual_override_fields field.
+	event.DefaultManualOverrideFields = eventDescManualOverrideFields.Default.([]string)
+	eventcategoryMixin := schema.EventCategory{}.Mixin()
+	eventcategoryMixinHooks1 := eventcategoryMixin[1].Hooks()
+	eventcategory.Hooks[0] = eventcategoryMixinHooks1[0]
+	eventcategoryMixinInters1 := eventcategoryMixin[1].Interceptors()
+	eventcategory.Interceptors[0] = eventcategoryMixinInters1[0]
+	eventcategoryMixinFields0 := eventcategoryMixin[0].Fields()
+	_ = eventcategoryMixinFields0
+	eventcategoryFields := schema.EventCategory{}.Fields()
+	_ = eventcategoryFields
+	// eventcategoryDescCreatedAt is the schema descriptor for created_at field.
+	eventcategoryDescCreatedAt := eventcategoryMixinFields0[0].Descriptor()
+	// eventcategory.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventcategory.DefaultCreatedAt = eventcategoryDescCreatedAt.Default.(func() time.Time)
+	// eventcategoryDescUpdatedAt is the schema descriptor for updated_at field.
+	eventcategoryDescUpdatedAt := eventcategoryMixinFields0[1].Descriptor()
+	// eventcategory.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventcategory.DefaultUpdatedAt = eventcategoryDescUpdatedAt.Default.(func() time.Time)
+	// eventcategory.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventcategory.UpdateDefaultUpdatedAt = eventcategoryDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventcategoryDescCode is the schema descriptor for code field.
+	eventcategoryDescCode := eventcategoryFields[0].Descriptor()
+	// eventcategory.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	eventcategory.CodeValidator = func() func(string) error {
+		validators := eventcategoryDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventcategoryDescName is the schema descriptor for name field.
+	eventcategoryDescName := eventcategoryFields[1].Descriptor()
+	// eventcategory.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	eventcategory.NameValidator = func() func(string) error {
+		validators := eventcategoryDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventcategoryDescColor is the schema descriptor for color field.
+	eventcategoryDescColor := eventcategoryFields[2].Descriptor()
+	// eventcategory.DefaultColor holds the default value on creation for the color field.
+	eventcategory.DefaultColor = eventcategoryDescColor.Default.(string)
+	// eventcategory.ColorValidator is a validator for the "color" field. It is called by the builders before save.
+	eventcategory.ColorValidator = eventcategoryDescColor.Validators[0].(func(string) error)
+	// eventcategoryDescIcon is the schema descriptor for icon field.
+	eventcategoryDescIcon := eventcategoryFields[3].Descriptor()
+	// eventcategory.DefaultIcon holds the default value on creation for the icon field.
+	eventcategory.DefaultIcon = eventcategoryDescIcon.Default.(string)
+	// eventcategory.IconValidator is a validator for the "icon" field. It is called by the builders before save.
+	eventcategory.IconValidator = eventcategoryDescIcon.Validators[0].(func(string) error)
+	// eventcategoryDescSortOrder is the schema descriptor for sort_order field.
+	eventcategoryDescSortOrder := eventcategoryFields[4].Descriptor()
+	// eventcategory.DefaultSortOrder holds the default value on creation for the sort_order field.
+	eventcategory.DefaultSortOrder = eventcategoryDescSortOrder.Default.(int)
+	// eventcategoryDescEnabled is the schema descriptor for enabled field.
+	eventcategoryDescEnabled := eventcategoryFields[5].Descriptor()
+	// eventcategory.DefaultEnabled holds the default value on creation for the enabled field.
+	eventcategory.DefaultEnabled = eventcategoryDescEnabled.Default.(bool)
+	eventimportbatchMixin := schema.EventImportBatch{}.Mixin()
+	eventimportbatchMixinFields0 := eventimportbatchMixin[0].Fields()
+	_ = eventimportbatchMixinFields0
+	eventimportbatchFields := schema.EventImportBatch{}.Fields()
+	_ = eventimportbatchFields
+	// eventimportbatchDescCreatedAt is the schema descriptor for created_at field.
+	eventimportbatchDescCreatedAt := eventimportbatchMixinFields0[0].Descriptor()
+	// eventimportbatch.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventimportbatch.DefaultCreatedAt = eventimportbatchDescCreatedAt.Default.(func() time.Time)
+	// eventimportbatchDescUpdatedAt is the schema descriptor for updated_at field.
+	eventimportbatchDescUpdatedAt := eventimportbatchMixinFields0[1].Descriptor()
+	// eventimportbatch.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventimportbatch.DefaultUpdatedAt = eventimportbatchDescUpdatedAt.Default.(func() time.Time)
+	// eventimportbatch.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventimportbatch.UpdateDefaultUpdatedAt = eventimportbatchDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventimportbatchDescFileName is the schema descriptor for file_name field.
+	eventimportbatchDescFileName := eventimportbatchFields[1].Descriptor()
+	// eventimportbatch.DefaultFileName holds the default value on creation for the file_name field.
+	eventimportbatch.DefaultFileName = eventimportbatchDescFileName.Default.(string)
+	// eventimportbatch.FileNameValidator is a validator for the "file_name" field. It is called by the builders before save.
+	eventimportbatch.FileNameValidator = eventimportbatchDescFileName.Validators[0].(func(string) error)
+	// eventimportbatchDescFileHash is the schema descriptor for file_hash field.
+	eventimportbatchDescFileHash := eventimportbatchFields[2].Descriptor()
+	// eventimportbatch.FileHashValidator is a validator for the "file_hash" field. It is called by the builders before save.
+	eventimportbatch.FileHashValidator = func() func(string) error {
+		validators := eventimportbatchDescFileHash.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(file_hash string) error {
+			for _, fn := range fns {
+				if err := fn(file_hash); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventimportbatchDescMode is the schema descriptor for mode field.
+	eventimportbatchDescMode := eventimportbatchFields[4].Descriptor()
+	// eventimportbatch.DefaultMode holds the default value on creation for the mode field.
+	eventimportbatch.DefaultMode = eventimportbatchDescMode.Default.(string)
+	// eventimportbatch.ModeValidator is a validator for the "mode" field. It is called by the builders before save.
+	eventimportbatch.ModeValidator = eventimportbatchDescMode.Validators[0].(func(string) error)
+	// eventimportbatchDescStatus is the schema descriptor for status field.
+	eventimportbatchDescStatus := eventimportbatchFields[5].Descriptor()
+	// eventimportbatch.DefaultStatus holds the default value on creation for the status field.
+	eventimportbatch.DefaultStatus = eventimportbatchDescStatus.Default.(string)
+	// eventimportbatch.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	eventimportbatch.StatusValidator = eventimportbatchDescStatus.Validators[0].(func(string) error)
+	// eventimportbatchDescTotalCount is the schema descriptor for total_count field.
+	eventimportbatchDescTotalCount := eventimportbatchFields[6].Descriptor()
+	// eventimportbatch.DefaultTotalCount holds the default value on creation for the total_count field.
+	eventimportbatch.DefaultTotalCount = eventimportbatchDescTotalCount.Default.(int)
+	// eventimportbatchDescCreateCount is the schema descriptor for create_count field.
+	eventimportbatchDescCreateCount := eventimportbatchFields[7].Descriptor()
+	// eventimportbatch.DefaultCreateCount holds the default value on creation for the create_count field.
+	eventimportbatch.DefaultCreateCount = eventimportbatchDescCreateCount.Default.(int)
+	// eventimportbatchDescUpdateCount is the schema descriptor for update_count field.
+	eventimportbatchDescUpdateCount := eventimportbatchFields[8].Descriptor()
+	// eventimportbatch.DefaultUpdateCount holds the default value on creation for the update_count field.
+	eventimportbatch.DefaultUpdateCount = eventimportbatchDescUpdateCount.Default.(int)
+	// eventimportbatchDescUnchangedCount is the schema descriptor for unchanged_count field.
+	eventimportbatchDescUnchangedCount := eventimportbatchFields[9].Descriptor()
+	// eventimportbatch.DefaultUnchangedCount holds the default value on creation for the unchanged_count field.
+	eventimportbatch.DefaultUnchangedCount = eventimportbatchDescUnchangedCount.Default.(int)
+	// eventimportbatchDescConflictCount is the schema descriptor for conflict_count field.
+	eventimportbatchDescConflictCount := eventimportbatchFields[10].Descriptor()
+	// eventimportbatch.DefaultConflictCount holds the default value on creation for the conflict_count field.
+	eventimportbatch.DefaultConflictCount = eventimportbatchDescConflictCount.Default.(int)
+	// eventimportbatchDescErrorCount is the schema descriptor for error_count field.
+	eventimportbatchDescErrorCount := eventimportbatchFields[11].Descriptor()
+	// eventimportbatch.DefaultErrorCount holds the default value on creation for the error_count field.
+	eventimportbatch.DefaultErrorCount = eventimportbatchDescErrorCount.Default.(int)
+	eventimportitemMixin := schema.EventImportItem{}.Mixin()
+	eventimportitemMixinFields0 := eventimportitemMixin[0].Fields()
+	_ = eventimportitemMixinFields0
+	eventimportitemFields := schema.EventImportItem{}.Fields()
+	_ = eventimportitemFields
+	// eventimportitemDescCreatedAt is the schema descriptor for created_at field.
+	eventimportitemDescCreatedAt := eventimportitemMixinFields0[0].Descriptor()
+	// eventimportitem.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventimportitem.DefaultCreatedAt = eventimportitemDescCreatedAt.Default.(func() time.Time)
+	// eventimportitemDescUpdatedAt is the schema descriptor for updated_at field.
+	eventimportitemDescUpdatedAt := eventimportitemMixinFields0[1].Descriptor()
+	// eventimportitem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventimportitem.DefaultUpdatedAt = eventimportitemDescUpdatedAt.Default.(func() time.Time)
+	// eventimportitem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventimportitem.UpdateDefaultUpdatedAt = eventimportitemDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventimportitemDescExternalID is the schema descriptor for external_id field.
+	eventimportitemDescExternalID := eventimportitemFields[2].Descriptor()
+	// eventimportitem.DefaultExternalID holds the default value on creation for the external_id field.
+	eventimportitem.DefaultExternalID = eventimportitemDescExternalID.Default.(string)
+	// eventimportitem.ExternalIDValidator is a validator for the "external_id" field. It is called by the builders before save.
+	eventimportitem.ExternalIDValidator = eventimportitemDescExternalID.Validators[0].(func(string) error)
+	// eventimportitemDescFingerprint is the schema descriptor for fingerprint field.
+	eventimportitemDescFingerprint := eventimportitemFields[3].Descriptor()
+	// eventimportitem.DefaultFingerprint holds the default value on creation for the fingerprint field.
+	eventimportitem.DefaultFingerprint = eventimportitemDescFingerprint.Default.(string)
+	// eventimportitem.FingerprintValidator is a validator for the "fingerprint" field. It is called by the builders before save.
+	eventimportitem.FingerprintValidator = eventimportitemDescFingerprint.Validators[0].(func(string) error)
+	// eventimportitemDescContentHash is the schema descriptor for content_hash field.
+	eventimportitemDescContentHash := eventimportitemFields[4].Descriptor()
+	// eventimportitem.DefaultContentHash holds the default value on creation for the content_hash field.
+	eventimportitem.DefaultContentHash = eventimportitemDescContentHash.Default.(string)
+	// eventimportitem.ContentHashValidator is a validator for the "content_hash" field. It is called by the builders before save.
+	eventimportitem.ContentHashValidator = eventimportitemDescContentHash.Validators[0].(func(string) error)
+	// eventimportitemDescAction is the schema descriptor for action field.
+	eventimportitemDescAction := eventimportitemFields[5].Descriptor()
+	// eventimportitem.ActionValidator is a validator for the "action" field. It is called by the builders before save.
+	eventimportitem.ActionValidator = func() func(string) error {
+		validators := eventimportitemDescAction.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(action string) error {
+			for _, fn := range fns {
+				if err := fn(action); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventimportitemDescStatus is the schema descriptor for status field.
+	eventimportitemDescStatus := eventimportitemFields[6].Descriptor()
+	// eventimportitem.DefaultStatus holds the default value on creation for the status field.
+	eventimportitem.DefaultStatus = eventimportitemDescStatus.Default.(string)
+	// eventimportitem.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	eventimportitem.StatusValidator = eventimportitemDescStatus.Validators[0].(func(string) error)
+	// eventimportitemDescErrorCode is the schema descriptor for error_code field.
+	eventimportitemDescErrorCode := eventimportitemFields[8].Descriptor()
+	// eventimportitem.DefaultErrorCode holds the default value on creation for the error_code field.
+	eventimportitem.DefaultErrorCode = eventimportitemDescErrorCode.Default.(string)
+	// eventimportitem.ErrorCodeValidator is a validator for the "error_code" field. It is called by the builders before save.
+	eventimportitem.ErrorCodeValidator = eventimportitemDescErrorCode.Validators[0].(func(string) error)
+	// eventimportitemDescErrorDetail is the schema descriptor for error_detail field.
+	eventimportitemDescErrorDetail := eventimportitemFields[9].Descriptor()
+	// eventimportitem.DefaultErrorDetail holds the default value on creation for the error_detail field.
+	eventimportitem.DefaultErrorDetail = eventimportitemDescErrorDetail.Default.(string)
+	// eventimportitem.ErrorDetailValidator is a validator for the "error_detail" field. It is called by the builders before save.
+	eventimportitem.ErrorDetailValidator = eventimportitemDescErrorDetail.Validators[0].(func(string) error)
+	// eventimportitemDescNormalizedPayload is the schema descriptor for normalized_payload field.
+	eventimportitemDescNormalizedPayload := eventimportitemFields[10].Descriptor()
+	// eventimportitem.DefaultNormalizedPayload holds the default value on creation for the normalized_payload field.
+	eventimportitem.DefaultNormalizedPayload = eventimportitemDescNormalizedPayload.Default.(map[string]interface{})
+	eventoccurrenceMixin := schema.EventOccurrence{}.Mixin()
+	eventoccurrenceMixinFields0 := eventoccurrenceMixin[0].Fields()
+	_ = eventoccurrenceMixinFields0
+	eventoccurrenceFields := schema.EventOccurrence{}.Fields()
+	_ = eventoccurrenceFields
+	// eventoccurrenceDescCreatedAt is the schema descriptor for created_at field.
+	eventoccurrenceDescCreatedAt := eventoccurrenceMixinFields0[0].Descriptor()
+	// eventoccurrence.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventoccurrence.DefaultCreatedAt = eventoccurrenceDescCreatedAt.Default.(func() time.Time)
+	// eventoccurrenceDescUpdatedAt is the schema descriptor for updated_at field.
+	eventoccurrenceDescUpdatedAt := eventoccurrenceMixinFields0[1].Descriptor()
+	// eventoccurrence.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventoccurrence.DefaultUpdatedAt = eventoccurrenceDescUpdatedAt.Default.(func() time.Time)
+	// eventoccurrence.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventoccurrence.UpdateDefaultUpdatedAt = eventoccurrenceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventoccurrenceDescTimezone is the schema descriptor for timezone field.
+	eventoccurrenceDescTimezone := eventoccurrenceFields[3].Descriptor()
+	// eventoccurrence.DefaultTimezone holds the default value on creation for the timezone field.
+	eventoccurrence.DefaultTimezone = eventoccurrenceDescTimezone.Default.(string)
+	// eventoccurrence.TimezoneValidator is a validator for the "timezone" field. It is called by the builders before save.
+	eventoccurrence.TimezoneValidator = eventoccurrenceDescTimezone.Validators[0].(func(string) error)
+	// eventoccurrenceDescAllDay is the schema descriptor for all_day field.
+	eventoccurrenceDescAllDay := eventoccurrenceFields[4].Descriptor()
+	// eventoccurrence.DefaultAllDay holds the default value on creation for the all_day field.
+	eventoccurrence.DefaultAllDay = eventoccurrenceDescAllDay.Default.(bool)
+	// eventoccurrenceDescLocationMode is the schema descriptor for location_mode field.
+	eventoccurrenceDescLocationMode := eventoccurrenceFields[5].Descriptor()
+	// eventoccurrence.DefaultLocationMode holds the default value on creation for the location_mode field.
+	eventoccurrence.DefaultLocationMode = eventoccurrenceDescLocationMode.Default.(string)
+	// eventoccurrence.LocationModeValidator is a validator for the "location_mode" field. It is called by the builders before save.
+	eventoccurrence.LocationModeValidator = eventoccurrenceDescLocationMode.Validators[0].(func(string) error)
+	// eventoccurrenceDescOnlineURL is the schema descriptor for online_url field.
+	eventoccurrenceDescOnlineURL := eventoccurrenceFields[6].Descriptor()
+	// eventoccurrence.DefaultOnlineURL holds the default value on creation for the online_url field.
+	eventoccurrence.DefaultOnlineURL = eventoccurrenceDescOnlineURL.Default.(string)
+	// eventoccurrence.OnlineURLValidator is a validator for the "online_url" field. It is called by the builders before save.
+	eventoccurrence.OnlineURLValidator = eventoccurrenceDescOnlineURL.Validators[0].(func(string) error)
+	// eventoccurrenceDescVenueName is the schema descriptor for venue_name field.
+	eventoccurrenceDescVenueName := eventoccurrenceFields[7].Descriptor()
+	// eventoccurrence.DefaultVenueName holds the default value on creation for the venue_name field.
+	eventoccurrence.DefaultVenueName = eventoccurrenceDescVenueName.Default.(string)
+	// eventoccurrence.VenueNameValidator is a validator for the "venue_name" field. It is called by the builders before save.
+	eventoccurrence.VenueNameValidator = eventoccurrenceDescVenueName.Validators[0].(func(string) error)
+	// eventoccurrenceDescAddress is the schema descriptor for address field.
+	eventoccurrenceDescAddress := eventoccurrenceFields[8].Descriptor()
+	// eventoccurrence.DefaultAddress holds the default value on creation for the address field.
+	eventoccurrence.DefaultAddress = eventoccurrenceDescAddress.Default.(string)
+	// eventoccurrence.AddressValidator is a validator for the "address" field. It is called by the builders before save.
+	eventoccurrence.AddressValidator = eventoccurrenceDescAddress.Validators[0].(func(string) error)
+	// eventoccurrenceDescCountry is the schema descriptor for country field.
+	eventoccurrenceDescCountry := eventoccurrenceFields[9].Descriptor()
+	// eventoccurrence.DefaultCountry holds the default value on creation for the country field.
+	eventoccurrence.DefaultCountry = eventoccurrenceDescCountry.Default.(string)
+	// eventoccurrence.CountryValidator is a validator for the "country" field. It is called by the builders before save.
+	eventoccurrence.CountryValidator = eventoccurrenceDescCountry.Validators[0].(func(string) error)
+	// eventoccurrenceDescProvince is the schema descriptor for province field.
+	eventoccurrenceDescProvince := eventoccurrenceFields[10].Descriptor()
+	// eventoccurrence.DefaultProvince holds the default value on creation for the province field.
+	eventoccurrence.DefaultProvince = eventoccurrenceDescProvince.Default.(string)
+	// eventoccurrence.ProvinceValidator is a validator for the "province" field. It is called by the builders before save.
+	eventoccurrence.ProvinceValidator = eventoccurrenceDescProvince.Validators[0].(func(string) error)
+	// eventoccurrenceDescCity is the schema descriptor for city field.
+	eventoccurrenceDescCity := eventoccurrenceFields[11].Descriptor()
+	// eventoccurrence.DefaultCity holds the default value on creation for the city field.
+	eventoccurrence.DefaultCity = eventoccurrenceDescCity.Default.(string)
+	// eventoccurrence.CityValidator is a validator for the "city" field. It is called by the builders before save.
+	eventoccurrence.CityValidator = eventoccurrenceDescCity.Validators[0].(func(string) error)
+	// eventoccurrenceDescDistrict is the schema descriptor for district field.
+	eventoccurrenceDescDistrict := eventoccurrenceFields[12].Descriptor()
+	// eventoccurrence.DefaultDistrict holds the default value on creation for the district field.
+	eventoccurrence.DefaultDistrict = eventoccurrenceDescDistrict.Default.(string)
+	// eventoccurrence.DistrictValidator is a validator for the "district" field. It is called by the builders before save.
+	eventoccurrence.DistrictValidator = eventoccurrenceDescDistrict.Validators[0].(func(string) error)
+	// eventoccurrenceDescCoordinateSource is the schema descriptor for coordinate_source field.
+	eventoccurrenceDescCoordinateSource := eventoccurrenceFields[15].Descriptor()
+	// eventoccurrence.DefaultCoordinateSource holds the default value on creation for the coordinate_source field.
+	eventoccurrence.DefaultCoordinateSource = eventoccurrenceDescCoordinateSource.Default.(string)
+	// eventoccurrence.CoordinateSourceValidator is a validator for the "coordinate_source" field. It is called by the builders before save.
+	eventoccurrence.CoordinateSourceValidator = eventoccurrenceDescCoordinateSource.Validators[0].(func(string) error)
+	// eventoccurrenceDescGeocodeStatus is the schema descriptor for geocode_status field.
+	eventoccurrenceDescGeocodeStatus := eventoccurrenceFields[16].Descriptor()
+	// eventoccurrence.DefaultGeocodeStatus holds the default value on creation for the geocode_status field.
+	eventoccurrence.DefaultGeocodeStatus = eventoccurrenceDescGeocodeStatus.Default.(string)
+	// eventoccurrence.GeocodeStatusValidator is a validator for the "geocode_status" field. It is called by the builders before save.
+	eventoccurrence.GeocodeStatusValidator = eventoccurrenceDescGeocodeStatus.Validators[0].(func(string) error)
+	// eventoccurrenceDescGeocodePrecision is the schema descriptor for geocode_precision field.
+	eventoccurrenceDescGeocodePrecision := eventoccurrenceFields[17].Descriptor()
+	// eventoccurrence.DefaultGeocodePrecision holds the default value on creation for the geocode_precision field.
+	eventoccurrence.DefaultGeocodePrecision = eventoccurrenceDescGeocodePrecision.Default.(string)
+	// eventoccurrence.GeocodePrecisionValidator is a validator for the "geocode_precision" field. It is called by the builders before save.
+	eventoccurrence.GeocodePrecisionValidator = eventoccurrenceDescGeocodePrecision.Validators[0].(func(string) error)
+	// eventoccurrenceDescProviderPlaceID is the schema descriptor for provider_place_id field.
+	eventoccurrenceDescProviderPlaceID := eventoccurrenceFields[18].Descriptor()
+	// eventoccurrence.DefaultProviderPlaceID holds the default value on creation for the provider_place_id field.
+	eventoccurrence.DefaultProviderPlaceID = eventoccurrenceDescProviderPlaceID.Default.(string)
+	// eventoccurrence.ProviderPlaceIDValidator is a validator for the "provider_place_id" field. It is called by the builders before save.
+	eventoccurrence.ProviderPlaceIDValidator = eventoccurrenceDescProviderPlaceID.Validators[0].(func(string) error)
+	eventsourceMixin := schema.EventSource{}.Mixin()
+	eventsourceMixinHooks1 := eventsourceMixin[1].Hooks()
+	eventsource.Hooks[0] = eventsourceMixinHooks1[0]
+	eventsourceMixinInters1 := eventsourceMixin[1].Interceptors()
+	eventsource.Interceptors[0] = eventsourceMixinInters1[0]
+	eventsourceMixinFields0 := eventsourceMixin[0].Fields()
+	_ = eventsourceMixinFields0
+	eventsourceFields := schema.EventSource{}.Fields()
+	_ = eventsourceFields
+	// eventsourceDescCreatedAt is the schema descriptor for created_at field.
+	eventsourceDescCreatedAt := eventsourceMixinFields0[0].Descriptor()
+	// eventsource.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventsource.DefaultCreatedAt = eventsourceDescCreatedAt.Default.(func() time.Time)
+	// eventsourceDescUpdatedAt is the schema descriptor for updated_at field.
+	eventsourceDescUpdatedAt := eventsourceMixinFields0[1].Descriptor()
+	// eventsource.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventsource.DefaultUpdatedAt = eventsourceDescUpdatedAt.Default.(func() time.Time)
+	// eventsource.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventsource.UpdateDefaultUpdatedAt = eventsourceDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventsourceDescCode is the schema descriptor for code field.
+	eventsourceDescCode := eventsourceFields[0].Descriptor()
+	// eventsource.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	eventsource.CodeValidator = func() func(string) error {
+		validators := eventsourceDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventsourceDescName is the schema descriptor for name field.
+	eventsourceDescName := eventsourceFields[1].Descriptor()
+	// eventsource.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	eventsource.NameValidator = func() func(string) error {
+		validators := eventsourceDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventsourceDescKind is the schema descriptor for kind field.
+	eventsourceDescKind := eventsourceFields[2].Descriptor()
+	// eventsource.DefaultKind holds the default value on creation for the kind field.
+	eventsource.DefaultKind = eventsourceDescKind.Default.(string)
+	// eventsource.KindValidator is a validator for the "kind" field. It is called by the builders before save.
+	eventsource.KindValidator = eventsourceDescKind.Validators[0].(func(string) error)
+	// eventsourceDescEnabled is the schema descriptor for enabled field.
+	eventsourceDescEnabled := eventsourceFields[3].Descriptor()
+	// eventsource.DefaultEnabled holds the default value on creation for the enabled field.
+	eventsource.DefaultEnabled = eventsourceDescEnabled.Default.(bool)
+	// eventsourceDescConfig is the schema descriptor for config field.
+	eventsourceDescConfig := eventsourceFields[4].Descriptor()
+	// eventsource.DefaultConfig holds the default value on creation for the config field.
+	eventsource.DefaultConfig = eventsourceDescConfig.Default.(map[string]interface{})
+	eventsourcerecordMixin := schema.EventSourceRecord{}.Mixin()
+	eventsourcerecordMixinFields0 := eventsourcerecordMixin[0].Fields()
+	_ = eventsourcerecordMixinFields0
+	eventsourcerecordFields := schema.EventSourceRecord{}.Fields()
+	_ = eventsourcerecordFields
+	// eventsourcerecordDescCreatedAt is the schema descriptor for created_at field.
+	eventsourcerecordDescCreatedAt := eventsourcerecordMixinFields0[0].Descriptor()
+	// eventsourcerecord.DefaultCreatedAt holds the default value on creation for the created_at field.
+	eventsourcerecord.DefaultCreatedAt = eventsourcerecordDescCreatedAt.Default.(func() time.Time)
+	// eventsourcerecordDescUpdatedAt is the schema descriptor for updated_at field.
+	eventsourcerecordDescUpdatedAt := eventsourcerecordMixinFields0[1].Descriptor()
+	// eventsourcerecord.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	eventsourcerecord.DefaultUpdatedAt = eventsourcerecordDescUpdatedAt.Default.(func() time.Time)
+	// eventsourcerecord.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	eventsourcerecord.UpdateDefaultUpdatedAt = eventsourcerecordDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// eventsourcerecordDescExternalID is the schema descriptor for external_id field.
+	eventsourcerecordDescExternalID := eventsourcerecordFields[2].Descriptor()
+	// eventsourcerecord.DefaultExternalID holds the default value on creation for the external_id field.
+	eventsourcerecord.DefaultExternalID = eventsourcerecordDescExternalID.Default.(string)
+	// eventsourcerecord.ExternalIDValidator is a validator for the "external_id" field. It is called by the builders before save.
+	eventsourcerecord.ExternalIDValidator = eventsourcerecordDescExternalID.Validators[0].(func(string) error)
+	// eventsourcerecordDescSourceURL is the schema descriptor for source_url field.
+	eventsourcerecordDescSourceURL := eventsourcerecordFields[3].Descriptor()
+	// eventsourcerecord.DefaultSourceURL holds the default value on creation for the source_url field.
+	eventsourcerecord.DefaultSourceURL = eventsourcerecordDescSourceURL.Default.(string)
+	// eventsourcerecord.SourceURLValidator is a validator for the "source_url" field. It is called by the builders before save.
+	eventsourcerecord.SourceURLValidator = eventsourcerecordDescSourceURL.Validators[0].(func(string) error)
+	// eventsourcerecordDescFingerprint is the schema descriptor for fingerprint field.
+	eventsourcerecordDescFingerprint := eventsourcerecordFields[4].Descriptor()
+	// eventsourcerecord.FingerprintValidator is a validator for the "fingerprint" field. It is called by the builders before save.
+	eventsourcerecord.FingerprintValidator = func() func(string) error {
+		validators := eventsourcerecordDescFingerprint.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(fingerprint string) error {
+			for _, fn := range fns {
+				if err := fn(fingerprint); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventsourcerecordDescContentHash is the schema descriptor for content_hash field.
+	eventsourcerecordDescContentHash := eventsourcerecordFields[5].Descriptor()
+	// eventsourcerecord.ContentHashValidator is a validator for the "content_hash" field. It is called by the builders before save.
+	eventsourcerecord.ContentHashValidator = func() func(string) error {
+		validators := eventsourcerecordDescContentHash.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(content_hash string) error {
+			for _, fn := range fns {
+				if err := fn(content_hash); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// eventsourcerecordDescState is the schema descriptor for state field.
+	eventsourcerecordDescState := eventsourcerecordFields[6].Descriptor()
+	// eventsourcerecord.DefaultState holds the default value on creation for the state field.
+	eventsourcerecord.DefaultState = eventsourcerecordDescState.Default.(string)
+	// eventsourcerecord.StateValidator is a validator for the "state" field. It is called by the builders before save.
+	eventsourcerecord.StateValidator = eventsourcerecordDescState.Validators[0].(func(string) error)
+	// eventsourcerecordDescRawPayload is the schema descriptor for raw_payload field.
+	eventsourcerecordDescRawPayload := eventsourcerecordFields[7].Descriptor()
+	// eventsourcerecord.DefaultRawPayload holds the default value on creation for the raw_payload field.
+	eventsourcerecord.DefaultRawPayload = eventsourcerecordDescRawPayload.Default.(map[string]interface{})
+	// eventsourcerecordDescNormalizedPayload is the schema descriptor for normalized_payload field.
+	eventsourcerecordDescNormalizedPayload := eventsourcerecordFields[8].Descriptor()
+	// eventsourcerecord.DefaultNormalizedPayload holds the default value on creation for the normalized_payload field.
+	eventsourcerecord.DefaultNormalizedPayload = eventsourcerecordDescNormalizedPayload.Default.(map[string]interface{})
+	// eventsourcerecordDescFirstSeenAt is the schema descriptor for first_seen_at field.
+	eventsourcerecordDescFirstSeenAt := eventsourcerecordFields[10].Descriptor()
+	// eventsourcerecord.DefaultFirstSeenAt holds the default value on creation for the first_seen_at field.
+	eventsourcerecord.DefaultFirstSeenAt = eventsourcerecordDescFirstSeenAt.Default.(func() time.Time)
+	// eventsourcerecordDescLastSeenAt is the schema descriptor for last_seen_at field.
+	eventsourcerecordDescLastSeenAt := eventsourcerecordFields[11].Descriptor()
+	// eventsourcerecord.DefaultLastSeenAt holds the default value on creation for the last_seen_at field.
+	eventsourcerecord.DefaultLastSeenAt = eventsourcerecordDescLastSeenAt.Default.(func() time.Time)
 	groupMixin := schema.Group{}.Mixin()
 	groupMixinHooks1 := groupMixin[1].Hooks()
 	group.Hooks[0] = groupMixinHooks1[0]

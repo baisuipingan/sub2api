@@ -212,6 +212,12 @@ export interface PublicSettings {
   hide_ccs_import_button: boolean
   payment_enabled: boolean
   risk_control_enabled: boolean
+  event_center_enabled: boolean
+  event_map_amap_key: string
+  event_map_amap_security_code: string
+  event_map_default_latitude: number
+  event_map_default_longitude: number
+  event_map_default_zoom: number
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
@@ -2135,6 +2141,7 @@ export interface UpdateScheduledTestPlanRequest {
 
 // Payment types
 export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
+export type * from './events'
 
 export type {
   PlatformQuotaItem,

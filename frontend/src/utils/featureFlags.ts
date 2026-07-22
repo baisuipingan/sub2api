@@ -119,6 +119,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Affiliate',
   }),
+  eventCenter: defineFlag({
+    key: 'event_center_enabled',
+    mode: 'opt-out',
+    label: 'Event Center',
+  }),
 } as const
 
 export type RegisteredFeatureFlag = keyof typeof FeatureFlags

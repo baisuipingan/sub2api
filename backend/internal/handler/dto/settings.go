@@ -280,7 +280,13 @@ type SystemSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature switch (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled bool    `json:"available_channels_enabled"`
+	EventCenterEnabled       bool    `json:"event_center_enabled"`
+	EventMapAMapKey          string  `json:"event_map_amap_key"`
+	EventMapAMapSecurityCode string  `json:"event_map_amap_security_code"`
+	EventMapDefaultLatitude  float64 `json:"event_map_default_latitude"`
+	EventMapDefaultLongitude float64 `json:"event_map_default_longitude"`
+	EventMapDefaultZoom      int     `json:"event_map_default_zoom"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
@@ -364,6 +370,13 @@ type PublicSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+
+	EventCenterEnabled       bool    `json:"event_center_enabled"`
+	EventMapAMapKey          string  `json:"event_map_amap_key"`
+	EventMapAMapSecurityCode string  `json:"event_map_amap_security_code"`
+	EventMapDefaultLatitude  float64 `json:"event_map_default_latitude"`
+	EventMapDefaultLongitude float64 `json:"event_map_default_longitude"`
+	EventMapDefaultZoom      int     `json:"event_map_default_zoom"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 

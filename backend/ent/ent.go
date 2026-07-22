@@ -27,6 +27,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
+	"github.com/Wei-Shaw/sub2api/ent/event"
+	"github.com/Wei-Shaw/sub2api/ent/eventcategory"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportbatch"
+	"github.com/Wei-Shaw/sub2api/ent/eventimportitem"
+	"github.com/Wei-Shaw/sub2api/ent/eventoccurrence"
+	"github.com/Wei-Shaw/sub2api/ent/eventsource"
+	"github.com/Wei-Shaw/sub2api/ent/eventsourcerecord"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
@@ -125,6 +132,13 @@ func checkColumn(t, c string) error {
 			channelmonitorhistory.Table:         channelmonitorhistory.ValidColumn,
 			channelmonitorrequesttemplate.Table: channelmonitorrequesttemplate.ValidColumn,
 			errorpassthroughrule.Table:          errorpassthroughrule.ValidColumn,
+			event.Table:                         event.ValidColumn,
+			eventcategory.Table:                 eventcategory.ValidColumn,
+			eventimportbatch.Table:              eventimportbatch.ValidColumn,
+			eventimportitem.Table:               eventimportitem.ValidColumn,
+			eventoccurrence.Table:               eventoccurrence.ValidColumn,
+			eventsource.Table:                   eventsource.ValidColumn,
+			eventsourcerecord.Table:             eventsourcerecord.ValidColumn,
 			group.Table:                         group.ValidColumn,
 			idempotencyrecord.Table:             idempotencyrecord.ValidColumn,
 			identityadoptiondecision.Table:      identityadoptiondecision.ValidColumn,

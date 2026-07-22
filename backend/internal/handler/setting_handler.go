@@ -97,6 +97,12 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		EventCenterEnabled:       settings.EventCenterEnabled,
+		EventMapAMapKey:          settings.EventMapAMapKey,
+		EventMapAMapSecurityCode: settings.EventMapAMapSecurityCode,
+		EventMapDefaultLatitude:  settings.EventMapDefaultLatitude,
+		EventMapDefaultLongitude: settings.EventMapDefaultLongitude,
+		EventMapDefaultZoom:      settings.EventMapDefaultZoom,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 

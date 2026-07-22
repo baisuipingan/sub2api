@@ -42,6 +42,9 @@ func RegisterAdminRoutes(
 		// 公告管理
 		registerAnnouncementRoutes(admin, h)
 
+		// 活动中心
+		registerEventRoutes(admin, h)
+
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
 
@@ -384,6 +387,46 @@ func registerAnnouncementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		announcements.DELETE("/:id", h.Admin.Announcement.Delete)
 		announcements.GET("/:id/read-status", h.Admin.Announcement.ListReadStatus)
 	}
+}
+
+func registerEventRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	events := admin.Group("/events")
+	{
+		events.GET("", h.Admin.Event.List)
+		events.POST("", h.Admin.Event.Create)
+		events.GET("/:id", h.Admin.Event.Get)
+		events.PUT("/:id", h.Admin.Event.Update)
+		events.DELETE("/:id", h.Admin.Event.Delete)
+		events.POST("/:id/publish", h.Admin.Event.Publish)
+		events.POST("/:id/cancel", h.Admin.Event.Cancel)
+		events.POST("/:id/archive", h.Admin.Event.Archive)
+	}
+
+	categories := admin.Group("/event-categories")
+	{
+		categories.GET("", h.Admin.Event.ListCategories)
+		categories.POST("", h.Admin.Event.CreateCategory)
+		categories.PUT("/:id", h.Admin.Event.UpdateCategory)
+		categories.DELETE("/:id", h.Admin.Event.DeleteCategory)
+	}
+
+	sources := admin.Group("/event-sources")
+	{
+		sources.GET("", h.Admin.Event.ListSources)
+		sources.POST("", h.Admin.Event.CreateSource)
+		sources.PUT("/:id", h.Admin.Event.UpdateSource)
+		sources.DELETE("/:id", h.Admin.Event.DeleteSource)
+	}
+
+	imports := admin.Group("/event-imports")
+	{
+		imports.POST("/preview", middleware.RequestBodyLimit(5<<20), h.Admin.Event.PreviewImport)
+		imports.GET("/:id", h.Admin.Event.GetImport)
+		imports.POST("/:id/commit", h.Admin.Event.CommitImport)
+	}
+
+	admin.GET("/event-settings", h.Admin.Event.GetMapSettings)
+	admin.PUT("/event-settings", h.Admin.Event.UpdateMapSettings)
 }
 
 func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
