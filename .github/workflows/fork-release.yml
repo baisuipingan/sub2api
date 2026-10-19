@@ -155,6 +155,7 @@ jobs:
           bash -n scripts/fork-release.sh
           bash -n deploy/sub2api-release.sh
           bash scripts/tests/fork-release-test.sh
+          bash deploy/tests/sub2api-release-test.sh
 
   image:
     needs: validate-and-test

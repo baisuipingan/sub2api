@@ -391,11 +391,13 @@ rollback_release() {
   fi
   [[ -f "$CURRENT_RECORD" ]] || die "current release record not found"
 
-  local current_epoch target_epoch current_policy target_image target_version backup
-  local old_current old_backup
+  local current_epoch target_epoch current_policy target_policy
+  local target_image target_version target_upstream target_upstream_commit
+  local target_source_commit target_digest backup old_current
   current_epoch="$(json_get "$CURRENT_RECORD" schema_epoch)"
   target_epoch="$(json_get "$target_record" schema_epoch)"
   current_policy="$(json_get "$CURRENT_RECORD" database_rollback)"
+  target_policy="$(json_get "$target_record" database_rollback)"
   if [[ "$current_epoch" != "$target_epoch" ]]; then
     die "schema epoch differs ($current_epoch -> $target_epoch); restore the pre-deploy database backup before switching images"
   fi
@@ -405,6 +407,10 @@ rollback_release() {
 
   target_image="$(json_get "$target_record" image)"
   target_version="$(json_get "$target_record" release_version)"
+  target_upstream="$(json_get "$target_record" upstream_version)"
+  target_upstream_commit="$(json_get "$target_record" upstream_commit)"
+  target_source_commit="$(json_get "$target_record" source_commit)"
+  target_digest="$(json_get "$target_record" digest)"
   [[ -n "$target_image" ]] || die "target image reference is empty"
   [[ "$target_version" != "$(json_get "$CURRENT_RECORD" release_version)" ]] \
     || die "target release is already current: $target_version"
@@ -429,15 +435,10 @@ rollback_release() {
   fi
 
   cp "$old_current" "$PREVIOUS_RECORD"
-  old_backup="$(json_get "$target_record" backup)"
-  [[ -n "$old_backup" ]] || old_backup="$backup"
   write_record "$CURRENT_RECORD" "$target_version" \
-    "$(json_get "$target_record" upstream_version)" \
-    "$(json_get "$target_record" upstream_commit)" \
-    "$(json_get "$target_record" source_commit)" \
-    "$target_image" "$(json_get "$target_record" digest)" \
-    "$target_epoch" "$(json_get "$target_record" database_rollback)" \
-    "$old_backup" "$(container_health)"
+    "$target_upstream" "$target_upstream_commit" "$target_source_commit" \
+    "$target_image" "$target_digest" "$target_epoch" "$target_policy" \
+    "$backup" "$(container_health)"
   cp "$CURRENT_RECORD" "$RECORD_DIR/$target_version.json"
   append_history "$CURRENT_RECORD"
   rm -f "$old_current"
@@ -513,4 +514,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]:-}" == "$0" ]]; then
+  main "$@"
+fi
