@@ -5,6 +5,7 @@ import AdminOrderDetail from '../AdminOrderDetail.vue'
 import AdminOrderTable from '../AdminOrderTable.vue'
 import AdminRefundDialog from '../AdminRefundDialog.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -121,6 +122,52 @@ describe('admin order currency display', () => {
     expect(text).toContain('$108.00')
     expect(text).toContain('¥108.00')
     expect(text).toContain('$100.00')
+  })
+
+  it('converts site credited and refund amounts to CNY while preserving gateway currency', () => {
+    const previousConfig = window.__APP_CONFIG__
+    window.__APP_CONFIG__ = {
+      ...(previousConfig ?? {}),
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    } as any
+    setCurrentBillingCurrencySettings(window.__APP_CONFIG__)
+
+    try {
+      const wrapper = mount(OrderTable, {
+        props: {
+          orders: [
+            orderFactory({ id: 1, currency: 'USD', amount: 100, pay_amount: 108 }),
+            orderFactory({ id: 2, currency: 'CNY', amount: 100, pay_amount: 108 }),
+          ],
+          loading: false,
+        },
+        global: { stubs: { DataTable: DataTableStub, OrderStatusBadge: true } },
+      })
+
+      const text = wrapper.text()
+      expect(text).toContain('$108.00')
+      expect(text).toContain('¥108.00')
+      expect(text).toContain('¥720.00')
+      expect(text).not.toContain('$100.00')
+
+      const detail = mount(AdminRefundDialog, {
+        props: {
+          show: true,
+          order: orderFactory({ currency: 'CNY', status: 'PARTIALLY_REFUNDED', refund_amount: 20 }),
+          userBalance: 200,
+        },
+        global: { stubs: { BaseDialog: BaseDialogStub } },
+      })
+      const detailText = detail.text()
+      expect(detailText).toContain('¥108.00')
+      expect(detailText).toContain('¥720.00')
+      expect(detailText).toContain('¥144.00')
+      expect(detailText).toContain('¥1,440.00')
+    } finally {
+      window.__APP_CONFIG__ = previousConfig
+      setCurrentBillingCurrencySettings(previousConfig)
+    }
   })
 
   it('renders payment currency consistently in the admin order table', () => {
