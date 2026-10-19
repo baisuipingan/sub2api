@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "release_version": "0.2.19-ds.1",
+  "upstream_version": "0.2.19",
+  "upstream_commit": "0123456789abcdef0123456789abcdef01234567",
+  "source_commit": "89abcdef0123456789abcdef0123456789abcdef",
+  "git_tag": "fork-v0.2.19-1",
+  "image": "ghcr.io/baisuipingan/sub2api:0.2.19-ds.1",
+  "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "built_at": "2026-10-19T00:00:00Z",
+  "database": {
+    "max_migration": "dsapi_002_add_credit_quota_columns.sql",
+    "schema_epoch": 1,
+    "rollback": "backup-required"
+  },
+  "tests": {
+    "backend": "passed",
+    "frontend": "passed",
+    "migration": "passed",
+    "image_smoke": "passed"
+  }
+}
