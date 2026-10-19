@@ -21,10 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  packages: write
-  id-token: write
-  attestations: write
+  contents: read
 
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
@@ -128,6 +125,14 @@ jobs:
         run: |
           go version | grep -q 'go1.27.2'
           make test-unit
+          make test-integration
+
+      - name: Backend lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          args: --timeout=30m
+          working-directory: backend
 
       - uses: pnpm/action-setup@v6
         with:
@@ -154,6 +159,11 @@ jobs:
   image:
     needs: validate-and-test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
