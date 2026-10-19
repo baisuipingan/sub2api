@@ -16,6 +16,12 @@ UPSTREAM_REMOTE="${UPSTREAM_REMOTE:-upstream}"
 UPSTREAM_REPO="${UPSTREAM_REPO:-Wei-Shaw/sub2api}"
 ORIGIN_REMOTE="${ORIGIN_REMOTE:-origin}"
 FORK_VERSION_FILE="backend/cmd/server/VERSION"
+GITHUB_RESOLVE_IP="${GITHUB_RESOLVE_IP:-}"
+
+GIT_NET_OPTS=(-c http.version=HTTP/1.1)
+if [[ -n "$GITHUB_RESOLVE_IP" ]]; then
+  GIT_NET_OPTS+=(-c "http.curloptResolve=github.com:443:${GITHUB_RESOLVE_IP}")
+fi
 
 log() { printf '[fork-release] %s\n' "$*"; }
 die() { printf '[fork-release] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -55,24 +61,33 @@ require_clean_worktree() {
 }
 
 fetch_upstream() {
+  local allow_cached="${1:-false}"
   git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1 \
     || die "missing upstream remote '$UPSTREAM_REMOTE'; add https://github.com/${UPSTREAM_REPO}.git"
+  local -a curl_opts=(--connect-timeout 5 --max-time 10)
+  [[ -n "$GITHUB_RESOLVE_IP" ]] && curl_opts+=(--resolve "github.com:443:${GITHUB_RESOLVE_IP}")
+  if [[ "$allow_cached" == true ]] && command -v curl >/dev/null 2>&1 \
+    && ! curl -fsSI "${curl_opts[@]}" https://github.com >/dev/null 2>&1 \
+    && git rev-parse -q --verify "refs/remotes/$UPSTREAM_REMOTE/main" >/dev/null; then
+    log "warning: GitHub is unreachable; using cached $UPSTREAM_REMOTE/main" >&2
+    return 0
+  fi
   log "fetching official tags and commits from $UPSTREAM_REMOTE"
   local attempt
-  for attempt in 1 2 3; do
-    if git -c http.version=HTTP/1.1 fetch --prune --tags --force "$UPSTREAM_REMOTE"; then
+  for attempt in 1 2; do
+    if git "${GIT_NET_OPTS[@]}" fetch --prune --tags --force "$UPSTREAM_REMOTE"; then
       return 0
     fi
-    [[ "$attempt" -eq 3 ]] || { log "fetch failed (attempt $attempt/3); retrying"; sleep "$attempt"; }
+    [[ "$attempt" -eq 2 ]] || { log "fetch failed (attempt $attempt/2); retrying"; sleep 1; }
   done
-  die "failed to fetch $UPSTREAM_REMOTE after 3 attempts"
+  die "failed to fetch $UPSTREAM_REMOTE after 2 attempts"
 }
 
 fetch_origin_tags() {
   git remote get-url "$ORIGIN_REMOTE" >/dev/null 2>&1 || return 0
   local attempt
   for attempt in 1 2 3; do
-    if git -c http.version=HTTP/1.1 fetch --tags --force "$ORIGIN_REMOTE"; then
+    if git "${GIT_NET_OPTS[@]}" fetch --tags --force "$ORIGIN_REMOTE"; then
       return 0
     fi
     [[ "$attempt" -eq 3 ]] || { log "origin tag fetch failed (attempt $attempt/3); retrying"; sleep "$attempt"; }
@@ -110,18 +125,23 @@ PY_EOF
 
 latest_official_release() {
   local response
-  local -a token=()
-  [[ -n "${GH_TOKEN:-}" ]] && token=(-H "Authorization: Bearer $GH_TOKEN")
-  response="$(curl -fsSL --max-time 20 \
-    -H 'Accept: application/vnd.github+json' \
-    -H 'X-GitHub-Api-Version: 2022-11-28' \
-    "${token[@]}" \
-    "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" 2>/dev/null)" || return 1
+  if [[ -n "${GH_TOKEN:-}" ]]; then
+    response="$(curl -fsSL --max-time 20 \
+      -H "Authorization: Bearer $GH_TOKEN" \
+      -H 'Accept: application/vnd.github+json' \
+      -H 'X-GitHub-Api-Version: 2022-11-28' \
+      "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" 2>/dev/null)" || return 1
+  else
+    response="$(curl -fsSL --max-time 20 \
+      -H 'Accept: application/vnd.github+json' \
+      -H 'X-GitHub-Api-Version: 2022-11-28' \
+      "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" 2>/dev/null)" || return 1
+  fi
   python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("tag_name", "")); print(d.get("html_url", "")); print((d.get("body") or "").replace("\r", ""))' <<<"$response"
 }
 
 show_status() {
-  fetch_upstream
+  fetch_upstream true
   local baseline fork_release official_data official_tag official_url official_notes
   baseline="$(current_official_baseline)"
   fork_release="$(current_fork_release)"
@@ -223,8 +243,12 @@ publish_release() {
 
   require_clean_worktree
   tag="$(normalize_official_tag "$tag")"
-  fetch_upstream
-  fetch_origin_tags
+  if [[ "$push" == true ]]; then
+    fetch_upstream
+    fetch_origin_tags
+  else
+    fetch_upstream true
+  fi
   require_official_tag "$tag"
   git merge-base --is-ancestor "$tag" HEAD \
     || die "$tag is not an ancestor of HEAD; merge the official release first"
@@ -262,8 +286,8 @@ publish_release() {
 
   if [[ "$push" == true ]]; then
     log "pushing $branch and $fork_tag to $ORIGIN_REMOTE"
-    git push "$ORIGIN_REMOTE" "HEAD:refs/heads/$branch"
-    git push "$ORIGIN_REMOTE" "refs/tags/$fork_tag"
+    git "${GIT_NET_OPTS[@]}" push "$ORIGIN_REMOTE" "HEAD:refs/heads/$branch"
+    git "${GIT_NET_OPTS[@]}" push "$ORIGIN_REMOTE" "refs/tags/$fork_tag"
     log "release workflow will now build the immutable image"
   else
     log "tag created locally; rerun with --push after reviewing it"

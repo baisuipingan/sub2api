@@ -339,7 +339,8 @@ cleanup_retention() {
     rm -f -- "$backup"
     log "removed old database backup: $backup"
   done < <(
-    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.gz' -printf '%T@ %p\n' 2>/dev/null       | sort -nr | awk 'NR > 3 {sub(/^[^ ]+ /, ""); print}'
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.gz' -printf '%T@ %p\n' 2>/dev/null \
+      | sort -nr | awk 'NR > 5 {sub(/^[^ ]+ /, ""); print}'
   )
 
   while IFS= read -r record; do
@@ -347,7 +348,8 @@ cleanup_retention() {
     rm -f -- "$record"
     log "removed old release record: $record"
   done < <(
-    find "$RECORD_DIR" -maxdepth 1 -type f -name '*.json' -printf '%T@ %p\n' 2>/dev/null       | sort -nr | awk 'NR > 3 {sub(/^[^ ]+ /, ""); print}'
+    find "$RECORD_DIR" -maxdepth 1 -type f -name '*.json' -printf '%T@ %p\n' 2>/dev/null \
+      | sort -nr | awk 'NR > 10 {sub(/^[^ ]+ /, ""); print}'
   )
 
   [[ -f "$HISTORY_FILE" ]] || return 0

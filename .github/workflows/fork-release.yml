@@ -195,8 +195,8 @@ jobs:
             org.opencontainers.image.title=Sub2API Fork
             org.opencontainers.image.description=Fork release built from reviewed upstream code
             org.opencontainers.image.created=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
-          provenance: mode=max
-          sbom: true
+          provenance: ${{ env.DRY_RUN == 'true' && 'false' || 'mode=max' }}
+          sbom: ${{ env.DRY_RUN != 'true' }}
 
       - name: Verify image metadata and version output
         shell: bash
@@ -247,12 +247,30 @@ jobs:
           JSON
           python3 -m json.tool release-manifest.json >/dev/null
 
+          cat > release-notes.md <<MD
+          ## Fork release ${{ needs.validate-and-test.outputs.release_version }}
+
+          - Upstream baseline: \`v${{ needs.validate-and-test.outputs.upstream_version }}\`
+          - Upstream commit: \`${{ needs.validate-and-test.outputs.upstream_commit }}\`
+          - Source commit: \`${{ needs.validate-and-test.outputs.source_commit }}\`
+          - Image digest: \`${digest}\`
+          - Database policy: \`${{ needs.validate-and-test.outputs.database_rollback }}\`
+
+          Deploy on the server:
+
+          \`\`\`bash
+          /root/sub2api-deploy/bin/sub2api-release deploy \\
+            ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api@${digest}
+          \`\`\`
+          MD
+
       - uses: actions/upload-artifact@v7
         if: ${{ env.DRY_RUN == 'true' }}
         with:
           name: fork-release-dry-run
           path: |
             release-manifest.json
+            release-notes.md
             version.txt
           retention-days: 3
 
@@ -264,4 +282,4 @@ jobs:
           gh release create "$RELEASE_TAG" release-manifest.json \
             --repo "$GITHUB_REPOSITORY" \
             --title "Fork ${{ needs.validate-and-test.outputs.release_version }}" \
-            --notes-file release-manifest.json
+            --notes-file release-notes.md
