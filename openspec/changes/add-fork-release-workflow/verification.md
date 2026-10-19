@@ -99,6 +99,8 @@ Fork Release run: https://github.com/baisuipingan/sub2api/actions/runs/392472642
 - 回退窗口内由官方版本写下的 2 条记录 `charge_credits=0`，已在确认唯一 ID 后按同一换算公式补齐；最终 fork 版本的新请求均直接写入正确积分。
 - `billing_ledger` 可正常创建和使用。
 
+服务器基础 Compose 的应用 `image` 已改为 `${SUB2API_IMAGE:?SUB2API_IMAGE is required}`，原文件保存为 `docker-compose.yml.before-fork`。即使直接执行 `docker compose up -d`，也会继续使用 `.env` 中的固定 digest，不会退回 `latest`。
+
 当前发布记录保存在服务器：
 
 ```text
