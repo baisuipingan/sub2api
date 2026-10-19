@@ -27,7 +27,7 @@ func ChatCompletionsToResponsesWithMinOutputTokens(req *ChatCompletionsRequest, 
 	if err := openai.ValidateGPT61SolReasoningEffort(req.Model, req.ReasoningEffort); err != nil {
 		return nil, err
 	}
-	input, err := convertChatMessagesToResponsesInput(req.Messages)
+	input, err := convertChatMessagesToResponsesInput(req.Messages, isDeepSeekReasoningModel(req.Model))
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func ChatCompletionsToResponsesWithMinOutputTokens(req *ChatCompletionsRequest, 
 
 // convertChatMessagesToResponsesInput converts the Chat Completions messages
 // array into a Responses API input items array.
-func convertChatMessagesToResponsesInput(msgs []ChatMessage) ([]ResponsesInputItem, error) {
+func convertChatMessagesToResponsesInput(msgs []ChatMessage, useReasoningItems bool) ([]ResponsesInputItem, error) {
 	var out []ResponsesInputItem
 	legacyIDs := legacyFunctionCallIDs{msgs: msgs}
 	for _, m := range msgs {
@@ -126,7 +126,7 @@ func convertChatMessagesToResponsesInput(msgs []ChatMessage) ([]ResponsesInputIt
 		case m.Role == "function" && m.ToolCallID == "":
 			m.ToolCallID = legacyIDs.claim(m.Name)
 		}
-		items, err := chatMessageToResponsesItems(m)
+		items, err := chatMessageToResponsesItems(m, useReasoningItems)
 		if err != nil {
 			return nil, err
 		}
@@ -189,14 +189,14 @@ func (ids *legacyFunctionCallIDs) claim(name string) string {
 
 // chatMessageToResponsesItems converts a single ChatMessage into one or more
 // ResponsesInputItem values.
-func chatMessageToResponsesItems(m ChatMessage) ([]ResponsesInputItem, error) {
+func chatMessageToResponsesItems(m ChatMessage, useReasoningItems bool) ([]ResponsesInputItem, error) {
 	switch m.Role {
 	case "system", "developer":
 		return chatSystemToResponses(m)
 	case "user":
 		return chatUserToResponses(m)
 	case "assistant":
-		return chatAssistantToResponses(m)
+		return chatAssistantToResponses(m, useReasoningItems)
 	case "tool":
 		return chatToolToResponses(m)
 	case "function":
@@ -239,26 +239,53 @@ func chatUserToResponses(m ChatMessage) ([]ResponsesInputItem, error) {
 // text content and tool_calls, the text is emitted as an assistant message
 // first, then each tool_call becomes a function_call item. If the content is
 // empty/nil and there are tool_calls, only function_call items are emitted.
-func chatAssistantToResponses(m ChatMessage) ([]ResponsesInputItem, error) {
+func chatAssistantToResponses(m ChatMessage, useReasoningItems bool) ([]ResponsesInputItem, error) {
+	if !useReasoningItems {
+		return chatAssistantToResponsesLegacy(m)
+	}
+
 	var items []ResponsesInputItem
 	content := ""
-
-	if m.ReasoningContent != "" {
-		content = "<thinking>" + m.ReasoningContent + "</thinking>"
-	}
+	reasoning := m.reasoningText()
 
 	// Emit assistant message with output_text if content is non-empty.
 	if len(m.Content) > 0 {
-		s, err := parseAssistantContent(m.Content)
+		text, embeddedReasoning, err := parseAssistantContent(m.Content)
 		if err != nil {
 			return nil, err
 		}
-		if s != "" {
-			if content != "" {
-				content += "\n"
+		content = text
+		if embeddedReasoning != "" {
+			if reasoning != "" {
+				reasoning += "\n"
 			}
-			content += s
+			reasoning += embeddedReasoning
 		}
+	}
+
+	// Clients such as WorkBuddy may retain a leaked <thinking> block in an
+	// assistant message. Strip it from visible history before it is replayed;
+	// putting the tag in output_text teaches the model to emit it again.
+	if taggedReasoning, visibleText, ok := splitLeadingReasoningTag(content); ok {
+		if reasoning != "" && taggedReasoning != "" {
+			reasoning += "\n"
+		}
+		reasoning += taggedReasoning
+		content = visibleText
+	}
+
+	// DeepSeek requires reasoning_content when continuing an interrupted tool
+	// turn, but replaying old thought text on ordinary assistant messages makes
+	// V4.1 Flash imitate its own chain-of-thought and leak tags into content.
+	// Preserve it only where the tool continuation requires it.
+	if reasoning != "" && len(m.ToolCalls) > 0 {
+		items = append(items, ResponsesInputItem{
+			Type: "reasoning",
+			Summary: []ResponsesSummary{{
+				Type: "summary_text",
+				Text: reasoning,
+			}},
+		})
 	}
 
 	if content != "" {
@@ -287,36 +314,110 @@ func chatAssistantToResponses(m ChatMessage) ([]ResponsesInputItem, error) {
 	return items, nil
 }
 
-// parseAssistantContent returns assistant content as plain text.
-//
-// Supported formats:
-// - JSON string
-// - JSON array of typed parts (e.g. [{"type":"text","text":"..."}])
-//
-// For structured thinking/reasoning parts, it preserves semantics by wrapping
-// the text in explicit tags so downstream can still distinguish it from normal text.
-func parseAssistantContent(raw json.RawMessage) (string, error) {
+// chatAssistantToResponsesLegacy keeps the historical tagged-text shape for
+// providers whose Responses implementation has not been verified with
+// summary-only reasoning items. DeepSeek accepts those items and benefits from
+// not having reasoning tags replayed as visible assistant output.
+func chatAssistantToResponsesLegacy(m ChatMessage) ([]ResponsesInputItem, error) {
+	var items []ResponsesInputItem
+	content := ""
+	if m.ReasoningContent != "" {
+		content = "<thinking>" + m.ReasoningContent + "</thinking>"
+	}
+	if len(m.Content) > 0 {
+		s, err := parseAssistantContentLegacy(m.Content)
+		if err != nil {
+			return nil, err
+		}
+		if s != "" {
+			if content != "" {
+				content += "\n"
+			}
+			content += s
+		}
+	}
+	if content != "" {
+		parts := []ResponsesContentPart{{Type: "output_text", Text: content}}
+		partsJSON, err := json.Marshal(parts)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, ResponsesInputItem{Type: "message", Role: "assistant", Content: partsJSON})
+	}
+	for _, tc := range m.ToolCalls {
+		args := tc.Function.Arguments
+		if args == "" {
+			args = "{}"
+		}
+		items = append(items, ResponsesInputItem{
+			Type:      "function_call",
+			CallID:    tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: args,
+		})
+	}
+	return items, nil
+}
+
+// parseAssistantContentLegacy preserves structured thinking as tagged text for
+// providers using the pre-existing conversion behavior.
+func parseAssistantContentLegacy(raw json.RawMessage) (string, error) {
 	if len(raw) == 0 {
 		return "", nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, nil
+	}
+	var parts []map[string]any
+	if err := json.Unmarshal(raw, &parts); err != nil {
+		return "", nil
+	}
+	var b strings.Builder
+	for _, p := range parts {
+		typ, _ := p["type"].(string)
+		text, _ := p["text"].(string)
+		thinking, _ := p["thinking"].(string)
+		switch typ {
+		case "thinking", "reasoning":
+			if thinking == "" {
+				thinking = text
+			}
+			if thinking != "" {
+				_, _ = b.WriteString("<thinking>")
+				_, _ = b.WriteString(thinking)
+				_, _ = b.WriteString("</thinking>")
+			}
+		default:
+			_, _ = b.WriteString(text)
+		}
+	}
+	return b.String(), nil
+}
+
+// parseAssistantContent separates ordinary assistant text from structured
+// thinking/reasoning parts. Reasoning is returned in its own field so callers
+// can emit a Responses reasoning item rather than putting <thinking> tags into
+// visible output_text history.
+func parseAssistantContent(raw json.RawMessage) (content string, reasoning string, err error) {
+	if len(raw) == 0 {
+		return "", "", nil
 	}
 
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		return s, nil
+		taggedReasoning, visible, _ := splitLeadingReasoningTag(s)
+		return visible, taggedReasoning, nil
 	}
 
 	var parts []map[string]any
 	if err := json.Unmarshal(raw, &parts); err != nil {
 		// Keep compatibility with prior behavior: unsupported assistant content
 		// formats are ignored instead of failing the whole request conversion.
-		return "", nil
+		return "", "", nil
 	}
 
-	var b strings.Builder
-	write := func(v string) error {
-		_, err := b.WriteString(v)
-		return err
-	}
+	var contentBuilder, reasoningBuilder strings.Builder
 	for _, p := range parts {
 		typ, _ := p["type"].(string)
 		text, _ := p["text"].(string)
@@ -324,37 +425,29 @@ func parseAssistantContent(raw json.RawMessage) (string, error) {
 
 		switch typ {
 		case "thinking", "reasoning":
-			if thinking != "" {
-				if err := write("<thinking>"); err != nil {
-					return "", err
+			plan := thinking
+			if plan == "" {
+				plan = text
+			}
+			if plan != "" {
+				if reasoningBuilder.Len() > 0 {
+					_ = reasoningBuilder.WriteByte('\n')
 				}
-				if err := write(thinking); err != nil {
-					return "", err
-				}
-				if err := write("</thinking>"); err != nil {
-					return "", err
-				}
-			} else if text != "" {
-				if err := write("<thinking>"); err != nil {
-					return "", err
-				}
-				if err := write(text); err != nil {
-					return "", err
-				}
-				if err := write("</thinking>"); err != nil {
-					return "", err
-				}
+				_, _ = reasoningBuilder.WriteString(plan)
 			}
 		default:
-			if text != "" {
-				if err := write(text); err != nil {
-					return "", err
-				}
-			}
+			_, _ = contentBuilder.WriteString(text)
 		}
 	}
 
-	return b.String(), nil
+	taggedReasoning, visible, _ := splitLeadingReasoningTag(contentBuilder.String())
+	if taggedReasoning != "" {
+		if reasoningBuilder.Len() > 0 {
+			_ = reasoningBuilder.WriteByte('\n')
+		}
+		_, _ = reasoningBuilder.WriteString(taggedReasoning)
+	}
+	return visible, reasoningBuilder.String(), nil
 }
 
 // chatToolToResponses converts a tool result message (role=tool) into a
@@ -619,4 +712,11 @@ func convertChatFunctionCallToToolChoice(raw json.RawMessage) (json.RawMessage, 
 		"type": "function",
 		"name": obj.Name,
 	})
+}
+
+// isDeepSeekReasoningModel enables compliant reasoning-item history for
+// DeepSeek models. Their Responses endpoint currently accepts summary-only
+// reasoning items, which avoids replaying <thinking> tags as assistant text.
+func isDeepSeekReasoningModel(model string) bool {
+	return strings.Contains(strings.ToLower(model), "deepseek")
 }

@@ -67,6 +67,14 @@ func ResponsesToChatCompletions(resp *ResponsesResponse, model string) *ChatComp
 		}
 	}
 
+	if taggedReasoning, visibleText, ok := splitLeadingReasoningTag(contentText); ok {
+		if reasoningText != "" && taggedReasoning != "" {
+			reasoningText += "\n"
+		}
+		reasoningText += taggedReasoning
+		contentText = visibleText
+	}
+
 	msg := ChatMessage{Role: "assistant", Refusal: refusalText}
 	if len(toolCalls) > 0 {
 		msg.ToolCalls = toolCalls
@@ -134,6 +142,7 @@ type ResponsesEventToChatState struct {
 	OutputIndexToArguments map[int]string
 	IncludeUsage           bool
 	Usage                  *ChatUsage
+	ContentFilter          leadingReasoningTagFilter
 }
 
 // NewResponsesEventToChatState returns an initialised stream state.
@@ -196,7 +205,9 @@ func FinalizeResponsesChatStream(state *ResponsesEventToChatState) []ChatComplet
 		finishReason = "tool_calls"
 	}
 
-	chunks := []ChatCompletionsChunk{makeChatFinishChunk(state, finishReason)}
+	reasoning, content := state.ContentFilter.Flush()
+	chunks := makeChatTextChunks(state, reasoning, content)
+	chunks = append(chunks, makeChatFinishChunk(state, finishReason))
 
 	if state.IncludeUsage && state.Usage != nil {
 		chunks = append(chunks, ChatCompletionsChunk{
@@ -250,9 +261,24 @@ func resToChatHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	if evt.Delta == "" {
 		return nil
 	}
-	state.SawText = true
-	content := evt.Delta
-	return []ChatCompletionsChunk{makeChatDeltaChunk(state, ChatDelta{Content: &content})}
+	reasoning, content := state.ContentFilter.Feed(evt.Delta)
+	if content != "" {
+		state.SawText = true
+	}
+	return makeChatTextChunks(state, reasoning, content)
+}
+
+func makeChatTextChunks(state *ResponsesEventToChatState, reasoning, content string) []ChatCompletionsChunk {
+	var chunks []ChatCompletionsChunk
+	if reasoning != "" {
+		reasoningCopy := reasoning
+		chunks = append(chunks, makeChatDeltaChunk(state, ChatDelta{ReasoningContent: &reasoningCopy}))
+	}
+	if content != "" {
+		contentCopy := content
+		chunks = append(chunks, makeChatDeltaChunk(state, ChatDelta{Content: &contentCopy}))
+	}
+	return chunks
 }
 
 func resToChatHandleRefusalDelta(evt *ResponsesStreamEvent, state *ResponsesEventToChatState) []ChatCompletionsChunk {
@@ -377,7 +403,8 @@ func resToChatHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 		finishReason = "tool_calls"
 	}
 
-	var chunks []ChatCompletionsChunk
+	reasoning, content := state.ContentFilter.Flush()
+	chunks := makeChatTextChunks(state, reasoning, content)
 	chunks = append(chunks, makeChatFinishChunk(state, finishReason))
 
 	if state.IncludeUsage && state.Usage != nil {
