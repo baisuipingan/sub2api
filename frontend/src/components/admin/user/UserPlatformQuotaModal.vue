@@ -13,7 +13,7 @@
         {{ t('admin.users.platformQuota.subscriptionWarning') }}
       </div>
       <p class="text-sm text-gray-600 dark:text-gray-400">
-        {{ t('admin.users.platformQuota.subtitle', { email: user.email }) }}
+        {{ t('admin.users.platformQuota.subtitle', { email: user.email, currency: billingSymbol }) }}
       </p>
       <div v-if="loading" class="py-10 text-center text-gray-500">{{ t('common.loading') }}</div>
       <div v-else class="overflow-x-auto">
@@ -21,9 +21,9 @@
           <thead>
             <tr class="border-b border-gray-200 text-gray-700 dark:border-dark-700 dark:text-gray-300">
               <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.platform') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.daily') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.weekly') }}</th>
-              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.monthly') }}</th>
+              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.daily', { currency: billingSymbol }) }}</th>
+              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.weekly', { currency: billingSymbol }) }}</th>
+              <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.monthly', { currency: billingSymbol }) }}</th>
               <th class="px-3 py-2 text-left font-medium">{{ t('admin.users.platformQuota.columns.usage') }}</th>
             </tr>
           </thead>
@@ -122,12 +122,14 @@ import { adminAPI } from '@/api/admin'
 import { platformQuotaPlatforms } from '@/api/admin/users'
 import type { AdminUser, PlatformQuotaItem, PlatformQuotaPlatform, PlatformQuotaWindow } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { formatUSD, usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency()
 
 interface QuotaRow {
   platform: PlatformQuotaPlatform
@@ -180,9 +182,9 @@ function normalize(items: PlatformQuotaItem[]): QuotaRow[] {
     if (!it) return emptyRow(p)
     return {
       platform: p,
-      daily_limit_usd: it.daily_limit_usd ?? null,
-      weekly_limit_usd: it.weekly_limit_usd ?? null,
-      monthly_limit_usd: it.monthly_limit_usd ?? null,
+      daily_limit_usd: it.daily_limit_usd == null ? null : usdToDisplay(it.daily_limit_usd),
+      weekly_limit_usd: it.weekly_limit_usd == null ? null : usdToDisplay(it.weekly_limit_usd),
+      monthly_limit_usd: it.monthly_limit_usd == null ? null : usdToDisplay(it.monthly_limit_usd),
       daily_usage_usd: it.daily_usage_usd ?? 0,
       weekly_usage_usd: it.weekly_usage_usd ?? 0,
       monthly_usage_usd: it.monthly_usage_usd ?? 0,
@@ -192,7 +194,7 @@ function normalize(items: PlatformQuotaItem[]): QuotaRow[] {
 
 function formatUsage(n: number): string {
   if (n == null || Number.isNaN(n)) return '-'
-  return n.toFixed(2)
+  return formatUSD(n, 2)
 }
 
 async function load() {
@@ -252,6 +254,11 @@ async function onSave() {
       daily_limit_usd: normalizeLimit(r.daily_limit_usd),
       weekly_limit_usd: normalizeLimit(r.weekly_limit_usd),
       monthly_limit_usd: normalizeLimit(r.monthly_limit_usd),
+    })).map((r) => ({
+      ...r,
+      daily_limit_usd: r.daily_limit_usd == null ? null : displayToUSD(r.daily_limit_usd),
+      weekly_limit_usd: r.weekly_limit_usd == null ? null : displayToUSD(r.weekly_limit_usd),
+      monthly_limit_usd: r.monthly_limit_usd == null ? null : displayToUSD(r.monthly_limit_usd),
     }))
     await adminAPI.users.updatePlatformQuotas(props.user.id, payload)
     appStore.showSuccess(t('admin.users.platformQuota.updateSuccess'))

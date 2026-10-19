@@ -19,6 +19,7 @@ import { nextTick } from 'vue'
 import en from '@/i18n/locales/en/admin/resources'
 import zh from '@/i18n/locales/zh/admin/resources'
 import UsageTable from '../UsageTable.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 let locale: 'en' | 'zh' = 'en'
 const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
@@ -145,6 +146,29 @@ const baseImageRow = {
 }
 
 describe('admin UsageTable tooltip', () => {
+  it('renders billed costs in the configured CNY display currency', () => {
+    const previousConfig = window.__APP_CONFIG__
+    window.__APP_CONFIG__ = {
+      ...(previousConfig ?? {}),
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    } as any
+
+    try {
+      setCurrentBillingCurrencySettings(window.__APP_CONFIG__)
+      const wrapper = mount(UsageTable, {
+        props: { data: [{ ...baseImageRow, image_count: 0 }], loading: false, columns: [] },
+        global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+      })
+
+      expect(wrapper.text()).toContain('¥2.880000')
+      expect(wrapper.text()).not.toContain('$0.400000')
+    } finally {
+      window.__APP_CONFIG__ = previousConfig
+      setCurrentBillingCurrencySettings(previousConfig)
+    }
+  })
+
   it('shows output TPS in the latency cell using total duration', () => {
     const row = { ...baseImageRow, image_count: 0, billing_mode: 'token', output_tokens: 1000, duration_ms: 20_000, first_token_ms: 10_000 }
     const wrapper = mount(UsageTable, {

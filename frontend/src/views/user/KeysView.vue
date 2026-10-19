@@ -702,7 +702,7 @@
                   step="0.01"
                   min="0"
                   class="input pl-7"
-                  :placeholder="t('keys.quotaAmountPlaceholder')"
+                  :placeholder="t('keys.quotaAmountPlaceholder', { currency: billingSymbol })"
                 />
               </div>
               <p class="input-hint">{{ t('keys.quotaAmountHint') }}</p>
@@ -759,7 +759,7 @@
             <p class="input-hint -mt-2">{{ t('keys.rateLimitHint') }}</p>
             <!-- 5-Hour Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
+              <label class="input-label">{{ t('keys.rateLimit5h', { currency: billingSymbol }) }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
@@ -805,7 +805,7 @@
 
             <!-- Daily Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
+              <label class="input-label">{{ t('keys.rateLimit1d', { currency: billingSymbol }) }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
@@ -851,7 +851,7 @@
 
             <!-- 7-Day Limit -->
             <div>
-              <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
+              <label class="input-label">{{ t('keys.rateLimit7d', { currency: billingSymbol }) }}</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
@@ -1049,7 +1049,7 @@
     <ConfirmDialog
       :show="showResetQuotaDialog"
       :title="t('keys.resetQuotaTitle')"
-      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: selectedKey?.quota_used?.toFixed(4) })"
+      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: formatUSD(selectedKey?.quota_used ?? 0, 4) })"
       :confirm-text="t('keys.reset')"
       :cancel-text="t('common.cancel')"
       :danger="true"

@@ -1,3 +1,5 @@
+import { shallowRef } from "vue";
+
 export type BillingDisplayCurrency = "USD" | "CNY";
 export type BillingEngine = "legacy" | "shadow" | "credits";
 
@@ -51,6 +53,21 @@ export function resolveBillingCurrencyView(
         ? usdToCny
         : DEFAULT_BILLING_CURRENCY_VIEW.usdToCny,
   };
+}
+
+const initialCurrencySettings =
+  typeof window !== "undefined" ? window.__APP_CONFIG__ : null;
+const currentCurrencyView = shallowRef<BillingCurrencyView>(
+  resolveBillingCurrencyView(initialCurrencySettings),
+);
+
+/** Update the reactive site-wide currency snapshot when public settings change. */
+export function setCurrentBillingCurrencySettings(
+  settings?: BillingCurrencySettingsLike | null,
+): BillingCurrencyView {
+  const view = resolveBillingCurrencyView(settings);
+  currentCurrencyView.value = view;
+  return view;
 }
 
 export function usdToDisplayAmount(
@@ -119,16 +136,33 @@ export function formatBillingCredits(
   );
 }
 
+/** Keep dense tables readable while still showing the active display currency. */
+export function formatCompactBillingAmount(
+  amountUSD: number,
+  view: BillingCurrencyView,
+): string {
+  const displayAmount = usdToDisplayAmount(amountUSD, view);
+  const absolute = Math.abs(displayAmount);
+  const symbol = billingCurrencySymbol(view.displayCurrency);
+  if (absolute >= 1_000_000) {
+    return `${symbol}${(displayAmount / 1_000_000).toFixed(2)}M`;
+  }
+  if (absolute >= 1_000) {
+    return `${symbol}${(displayAmount / 1_000).toFixed(2)}K`;
+  }
+  const digits = absolute >= 1 ? 2 : absolute >= 0.01 ? 3 : 4;
+  return formatBillingAmount(amountUSD, view, digits);
+}
+
 export function billingCurrencySymbol(
   currency: BillingDisplayCurrency,
 ): string {
   return currency === "CNY" ? "¥" : "$";
 }
 
-/** Resolve the current public-settings snapshot outside a Vue component. */
+/** Read the current public-settings snapshot outside a Vue component. */
 export function getCurrentBillingCurrencyView(): BillingCurrencyView {
-  if (typeof window === "undefined") return DEFAULT_BILLING_CURRENCY_VIEW;
-  return resolveBillingCurrencyView(window.__APP_CONFIG__);
+  return currentCurrencyView.value;
 }
 
 export function formatCurrentBillingAmount(
@@ -139,5 +173,12 @@ export function formatCurrentBillingAmount(
     amountUSD,
     getCurrentBillingCurrencyView(),
     fractionDigits,
+  );
+}
+
+export function formatCurrentCompactBillingAmount(amountUSD: number): string {
+  return formatCompactBillingAmount(
+    amountUSD,
+    getCurrentBillingCurrencyView(),
   );
 }

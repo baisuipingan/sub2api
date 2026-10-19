@@ -3,6 +3,7 @@ import {
   creditsToDisplayAmount,
   displayToUSD,
   formatBillingAmount,
+  formatCompactBillingAmount,
   resolveBillingCurrencyView,
   usdToDisplayAmount,
 } from '../billingCurrency'
@@ -27,6 +28,16 @@ describe('billing currency display', () => {
     expect(creditsToDisplayAmount(24_000_000, view)).toBeCloseTo(1.728, 10)
     expect(displayToUSD(1.728, view)).toBeCloseTo(0.24, 10)
     expect(formatBillingAmount(0.24, view, 2)).toContain('1.73')
+  })
+
+  it('formats compact costs after converting from USD to CNY', () => {
+    const view = resolveBillingCurrencyView({
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    })
+
+    expect(formatCompactBillingAmount(0.1, view)).toContain('0.72')
+    expect(formatCompactBillingAmount(200, view)).toMatch(/^¥1\.44K$/)
   })
 
   it('keeps recharge and display conversion independent', () => {
