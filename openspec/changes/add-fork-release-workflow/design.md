@@ -80,7 +80,21 @@ Git tag：fork-v0.2.18-1
 - 完整 `release_version` 和 `upstream_version` 通过 Docker build args 注入，不通过运行时环境变量伪造。
 - fork Git tag 使用 `fork-v*`，不能使用 `v*-ds.*`。官方 workflow 监听 `v*`，错误的 tag 会意外触发官方二进制与镜像发布链。
 
-### 数据库迁移命名
+### 数据库迁移与回退策略
+
+仓库根目录的 `.fork-release.json` 是当前二开发布的数据库策略声明，CI 会读取并写入镜像 labels：
+
+```json
+{
+  "schema_epoch": 1,
+  "database": {
+    "rollback": "image-only",
+    "reason": "仅新增兼容表、列与触发器"
+  }
+}
+```
+
+本版本的两个迁移只增加积分列、表和触发器，现有官方应用仍可读写原字段，因此首次发布保持 `schema_epoch=1`、`rollback=image-only`。以后出现破坏性迁移必须递增 epoch 并改成 `backup-required`。
 
 官方 migration runner 按文件名做字典序执行，以文件名为唯一键。二开继续占用 `246_...`、`247_...` 会和未来官方迁移编号冲突：文件不会重名，但新官方迁移晚到时会被插到已有的 fork 迁移之前，破坏原本的顺序语义。
 

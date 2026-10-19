@@ -178,7 +178,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
-	if !s.canSelfUpdate() {
+	if s.isForkBuild() {
 		return ErrUpdateManagedExternally
 	}
 	info, err := s.CheckUpdate(ctx, true)
@@ -299,7 +299,7 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 // Rollback restores the previous version
 func (s *UpdateService) Rollback() error {
-	if !s.canSelfUpdate() {
+	if s.isForkBuild() {
 		return ErrUpdateManagedExternally
 	}
 	exePath, err := os.Executable()
@@ -328,7 +328,7 @@ func (s *UpdateService) Rollback() error {
 // strictly older than the current version (the current version itself is excluded),
 // newest first. Draft and prerelease entries are skipped.
 func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
-	if !s.canSelfUpdate() {
+	if s.isForkBuild() {
 		return []RollbackVersion{}, nil
 	}
 	releases, err := s.fetchRollbackCandidates(ctx)
@@ -351,7 +351,7 @@ func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVer
 // The target must be one of the versions returned by ListRollbackVersions;
 // anything else (including the current version) is rejected.
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
-	if !s.canSelfUpdate() {
+	if s.isForkBuild() {
 		return ErrUpdateManagedExternally
 	}
 	target := strings.TrimPrefix(strings.TrimSpace(version), "v")
@@ -662,14 +662,18 @@ func (s *UpdateService) isForkBuild() bool {
 }
 
 func (s *UpdateService) canSelfUpdate() bool {
-	return !s.isForkBuild()
+	return strings.EqualFold(strings.TrimSpace(s.buildType), "release")
 }
 
 func (s *UpdateService) updateMode() string {
-	if s.canSelfUpdate() {
+	switch {
+	case s.isForkBuild():
+		return "external"
+	case s.canSelfUpdate():
 		return "self"
+	default:
+		return "manual"
 	}
-	return "external"
 }
 
 func (s *UpdateService) comparisonVersion() string {

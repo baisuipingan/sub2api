@@ -20,7 +20,7 @@ export interface VersionInfo {
   cached: boolean
   warning?: string
   build_type: string // "source", "release", or "fork"
-  update_mode?: 'self' | 'external'
+  update_mode?: 'self' | 'external' | 'manual'
   can_self_update?: boolean
 }
 

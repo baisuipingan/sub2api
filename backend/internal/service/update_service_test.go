@@ -199,6 +199,22 @@ func newForkUpdateService(current, upstream string, release *GitHubRelease) (*Up
 	return svc, cache, client
 }
 
+func TestUpdateServiceSourceBuildReportsManualUpdateMode(t *testing.T) {
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{release: &GitHubRelease{TagName: "v0.2.18"}},
+		"0.2.17",
+		"source",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "manual", info.UpdateMode)
+	require.False(t, info.CanSelfUpdate)
+	require.True(t, info.HasUpdate)
+}
+
 func TestUpdateServiceForkComparesOfficialBaseline(t *testing.T) {
 	svc, _, _ := newForkUpdateService("0.2.17-ds.1", "0.2.17", &GitHubRelease{
 		TagName: "v0.2.18",

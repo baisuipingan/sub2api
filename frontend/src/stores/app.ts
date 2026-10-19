@@ -43,7 +43,7 @@ export const useAppStore = defineStore('app', () => {
   const latestVersion = ref<string>('')
   const hasUpdate = ref<boolean>(false)
   const buildType = ref<string>('source')
-  const updateMode = ref<'self' | 'external'>('self')
+  const updateMode = ref<'self' | 'external' | 'manual'>('self')
   const canSelfUpdate = ref<boolean>(true)
   const releaseInfo = ref<ReleaseInfo | null>(null)
   const versionWarning = ref<string>('')
@@ -274,7 +274,13 @@ export const useAppStore = defineStore('app', () => {
       latestVersion.value = data.latest_version
       hasUpdate.value = data.has_update
       buildType.value = data.build_type || 'source'
-      updateMode.value = data.update_mode || (data.can_self_update === false ? 'external' : 'self')
+      updateMode.value =
+        data.update_mode ||
+        (data.build_type === 'fork'
+          ? 'external'
+          : data.build_type === 'release'
+            ? 'self'
+            : 'manual')
       canSelfUpdate.value = data.can_self_update !== false
       releaseInfo.value = data.release_info || null
       versionWarning.value = data.warning || ''

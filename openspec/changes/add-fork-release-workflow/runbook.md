@@ -47,7 +47,13 @@ git diff origin/main...HEAD -- \
   frontend/src
 ```
 
-数据库规则：
+数据库规则由仓库根目录 `.fork-release.json` 固定，并随镜像写入 labels。首次二开发布记录为：
+
+```json
+{"schema_epoch": 1, "database": {"rollback": "image-only"}}
+```
+
+只允许在数据库副本验证“上一官方版本 + 新 schema”可用后保持这组值。
 
 - 只新增表、列、索引和可空字段通常允许一个周期的应用回退。
 - `DROP`、`RENAME`、收紧约束或修改既有语义必须递增 `schema_epoch` 并标记 `database.rollback=backup-required`。
