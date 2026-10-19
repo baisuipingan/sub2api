@@ -15,6 +15,25 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
+func cleanupBillingUser(t *testing.T, userID int64) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx := context.Background()
+		statements := []string{
+			"DELETE FROM billing_ledger WHERE user_id = $1",
+			"DELETE FROM usage_billing_dedup WHERE api_key_id IN (SELECT id FROM api_keys WHERE user_id = $1)",
+			"DELETE FROM usage_logs WHERE user_id = $1",
+			"DELETE FROM user_allowed_groups WHERE user_id = $1",
+			"DELETE FROM user_subscriptions WHERE user_id = $1",
+			"DELETE FROM api_keys WHERE user_id = $1",
+			"DELETE FROM users WHERE id = $1",
+		}
+		for _, statement := range statements {
+			_, _ = integrationDB.ExecContext(ctx, statement, userID)
+		}
+	})
+}
+
 func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
@@ -25,6 +44,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 		PasswordHash: "hash",
 		Balance:      100,
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-usage-billing-" + uuid.NewString(),
@@ -89,6 +109,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 		Email:        fmt.Sprintf("usage-billing-sub-user-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
 	})
+	cleanupBillingUser(t, user.ID)
 	group := mustCreateGroup(t, client, &service.Group{
 		Name:             "usage-billing-group-" + uuid.NewString(),
 		Platform:         service.PlatformAnthropic,
@@ -138,6 +159,7 @@ func TestUsageBillingRepositoryApply_RequestFingerprintConflict(t *testing.T) {
 		PasswordHash: "hash",
 		Balance:      100,
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-usage-billing-conflict-" + uuid.NewString(),
@@ -172,6 +194,7 @@ func TestUsageBillingRepositoryApply_DeletedAPIKeyStillBillsBalance(t *testing.T
 		PasswordHash: "hash",
 		Balance:      100,
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID:      user.ID,
 		Key:         "sk-usage-billing-deleted-key-" + uuid.NewString(),
@@ -226,6 +249,7 @@ func TestUsageBillingRepositoryApply_UpdatesAccountQuota(t *testing.T) {
 		Email:        fmt.Sprintf("usage-billing-account-user-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-usage-billing-account-" + uuid.NewString(),
@@ -265,6 +289,7 @@ func TestUsageBillingRepositoryApply_EnqueuesSchedulerOutboxOnQuotaCrossing(t *t
 			Email:        fmt.Sprintf("usage-billing-outbox-user-%d-%s@example.com", time.Now().UnixNano(), uuid.NewString()),
 			PasswordHash: "hash",
 		})
+		cleanupBillingUser(t, user.ID)
 		apiKey := mustCreateApiKey(t, client, &service.APIKey{
 			UserID: user.ID,
 			Key:    "sk-usage-billing-outbox-" + uuid.NewString(),
@@ -386,6 +411,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesAgainstArchivedKey(t *testing.T
 		PasswordHash: "hash",
 		Balance:      100,
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-usage-billing-archive-" + uuid.NewString(),
@@ -431,6 +457,7 @@ func TestUsageBillingRepositoryApply_CreditsWritesLedger(t *testing.T) {
 		PasswordHash: "hash",
 		Balance:      10,
 	})
+	cleanupBillingUser(t, user.ID)
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID:      user.ID,
 		Key:         "sk-usage-credit-" + uuid.NewString(),
