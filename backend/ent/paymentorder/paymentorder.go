@@ -30,6 +30,18 @@ const (
 	FieldFeeRate = "fee_rate"
 	// FieldBonusAmount holds the string denoting the bonus_amount field in the database.
 	FieldBonusAmount = "bonus_amount"
+	// FieldCreditedCredits holds the string denoting the credited_credits field in the database.
+	FieldCreditedCredits = "credited_credits"
+	// FieldBonusCredits holds the string denoting the bonus_credits field in the database.
+	FieldBonusCredits = "bonus_credits"
+	// FieldCreditsPerUsdSnapshot holds the string denoting the credits_per_usd_snapshot field in the database.
+	FieldCreditsPerUsdSnapshot = "credits_per_usd_snapshot"
+	// FieldUsdToCnySnapshot holds the string denoting the usd_to_cny_snapshot field in the database.
+	FieldUsdToCnySnapshot = "usd_to_cny_snapshot"
+	// FieldRechargeRateSnapshot holds the string denoting the recharge_rate_snapshot field in the database.
+	FieldRechargeRateSnapshot = "recharge_rate_snapshot"
+	// FieldBillingVersion holds the string denoting the billing_version field in the database.
+	FieldBillingVersion = "billing_version"
 	// FieldRechargeCode holds the string denoting the recharge_code field in the database.
 	FieldRechargeCode = "recharge_code"
 	// FieldOutTradeNo holds the string denoting the out_trade_no field in the database.
@@ -118,6 +130,12 @@ var Columns = []string{
 	FieldPayAmount,
 	FieldFeeRate,
 	FieldBonusAmount,
+	FieldCreditedCredits,
+	FieldBonusCredits,
+	FieldCreditsPerUsdSnapshot,
+	FieldUsdToCnySnapshot,
+	FieldRechargeRateSnapshot,
+	FieldBillingVersion,
 	FieldRechargeCode,
 	FieldOutTradeNo,
 	FieldPaymentType,
@@ -171,6 +189,18 @@ var (
 	DefaultFeeRate float64
 	// DefaultBonusAmount holds the default value on creation for the "bonus_amount" field.
 	DefaultBonusAmount float64
+	// DefaultCreditedCredits holds the default value on creation for the "credited_credits" field.
+	DefaultCreditedCredits int64
+	// DefaultBonusCredits holds the default value on creation for the "bonus_credits" field.
+	DefaultBonusCredits int64
+	// DefaultCreditsPerUsdSnapshot holds the default value on creation for the "credits_per_usd_snapshot" field.
+	DefaultCreditsPerUsdSnapshot int64
+	// DefaultUsdToCnySnapshot holds the default value on creation for the "usd_to_cny_snapshot" field.
+	DefaultUsdToCnySnapshot float64
+	// DefaultRechargeRateSnapshot holds the default value on creation for the "recharge_rate_snapshot" field.
+	DefaultRechargeRateSnapshot float64
+	// DefaultBillingVersion holds the default value on creation for the "billing_version" field.
+	DefaultBillingVersion int64
 	// RechargeCodeValidator is a validator for the "recharge_code" field. It is called by the builders before save.
 	RechargeCodeValidator func(string) error
 	// DefaultOutTradeNo holds the default value on creation for the "out_trade_no" field.
@@ -257,6 +287,36 @@ func ByFeeRate(opts ...sql.OrderTermOption) OrderOption {
 // ByBonusAmount orders the results by the bonus_amount field.
 func ByBonusAmount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBonusAmount, opts...).ToFunc()
+}
+
+// ByCreditedCredits orders the results by the credited_credits field.
+func ByCreditedCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreditedCredits, opts...).ToFunc()
+}
+
+// ByBonusCredits orders the results by the bonus_credits field.
+func ByBonusCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBonusCredits, opts...).ToFunc()
+}
+
+// ByCreditsPerUsdSnapshot orders the results by the credits_per_usd_snapshot field.
+func ByCreditsPerUsdSnapshot(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreditsPerUsdSnapshot, opts...).ToFunc()
+}
+
+// ByUsdToCnySnapshot orders the results by the usd_to_cny_snapshot field.
+func ByUsdToCnySnapshot(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsdToCnySnapshot, opts...).ToFunc()
+}
+
+// ByRechargeRateSnapshot orders the results by the recharge_rate_snapshot field.
+func ByRechargeRateSnapshot(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRechargeRateSnapshot, opts...).ToFunc()
+}
+
+// ByBillingVersion orders the results by the billing_version field.
+func ByBillingVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingVersion, opts...).ToFunc()
 }
 
 // ByRechargeCode orders the results by the recharge_code field.

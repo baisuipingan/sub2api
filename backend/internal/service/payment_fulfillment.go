@@ -421,6 +421,30 @@ func validatePaymentRedeemCode(o *dbent.PaymentOrder, code *RedeemCode) error {
 }
 
 func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease) error {
+	if o.CreditedCredits <= 0 {
+		settings := GetBillingCurrencySettings(ctx)
+		paidCurrency := BillingDisplayUSD
+		if value, ok := o.ProviderSnapshot["currency"].(string); ok && strings.TrimSpace(value) != "" {
+			paidCurrency = strings.ToUpper(strings.TrimSpace(value))
+		}
+		credited := USDToCredits(o.Amount)
+		bonus := USDToCredits(o.BonusAmount)
+		if _, err := s.entClient.PaymentOrder.UpdateOneID(o.ID).
+			SetCreditedCredits(credited).
+			SetBonusCredits(bonus).
+			SetCreditsPerUsdSnapshot(CreditsPerUSD).
+			SetUsdToCnySnapshot(settings.USDToCNY).
+			SetRechargeRateSnapshot(settings.RechargeRate(paidCurrency)).
+			SetBillingVersion(settings.Version).
+			// Keep the fulfillment lease version stable; markCompleted fences on it.
+			SetUpdatedAt(lease.version).
+			Save(ctx); err != nil {
+			return fmt.Errorf("snapshot payment credits: %w", err)
+		}
+		o.CreditedCredits = credited
+		o.BonusCredits = bonus
+	}
+
 	// Idempotency: check if redeem code already exists (from a previous partial run)
 	existing, lookupErr := s.redeemService.GetByCode(ctx, o.RechargeCode)
 	action, err := resolveRedeemAction(existing, lookupErr)
@@ -448,7 +472,14 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	case redeemActionRedeem:
 		// Code exists but unused — skip creation, proceed to redeem
 	}
-	if _, err := s.redeemService.redeemForPaymentFulfillment(ctx, o.UserID, o.RechargeCode); err != nil {
+	if _, err := s.redeemService.redeemForPaymentFulfillment(ctx, o.UserID, o.RechargeCode, &redeemFulfillmentMeta{
+		PaymentOrderID:  o.ID,
+		CreditedCredits: o.CreditedCredits,
+		BonusCredits:    o.BonusCredits,
+		CreditsPerUSD:   o.CreditsPerUsdSnapshot,
+		USDToCNYRate:    o.UsdToCnySnapshot,
+		BillingVersion:  o.BillingVersion,
+	}); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
@@ -514,7 +545,7 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 	currentBalance := ""
 	if s.userRepo != nil {
 		if user, err := s.userRepo.GetByID(ctx, o.UserID); err == nil && user != nil {
-			currentBalance = fmt.Sprintf("%.2f", user.Balance)
+			currentBalance = FormatBillingDisplayAmount(user.Balance)
 		}
 	}
 	return s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
@@ -525,7 +556,7 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 		SourceType:     "payment_order",
 		SourceID:       strconv.FormatInt(o.ID, 10),
 		Variables: map[string]string{
-			"recharge_amount": fmt.Sprintf("%.2f", o.Amount),
+			"recharge_amount": FormatBillingDisplayAmount(o.Amount),
 			"current_balance": currentBalance,
 			"order_id":        strconv.FormatInt(o.ID, 10),
 		},

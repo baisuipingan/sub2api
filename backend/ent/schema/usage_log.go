@@ -4,6 +4,8 @@ package schema
 import (
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -108,6 +110,21 @@ func (UsageLog) Fields() []ent.Field {
 		field.Float("actual_cost").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		// ChargeCredits is the integer amount consumed from the relevant wallet
+		// or subscription bucket. It is the reconciliation source of truth for the
+		// credit engine; ActualCost remains the USD-equivalent reporting value.
+		field.Int64("charge_credits").
+			Default(0),
+		field.String("billing_currency").
+			MaxLen(3).
+			Default(domain.CurrencyUSD),
+		field.Int64("credits_per_usd").
+			Default(0),
+		field.Float("usd_to_cny_rate").
+			Default(0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Int64("billing_version").
+			Default(0),
 		field.Float("rate_multiplier").
 			Default(1).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),

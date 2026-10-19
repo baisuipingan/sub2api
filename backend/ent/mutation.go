@@ -22,6 +22,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/batchimageevent"
 	"github.com/Wei-Shaw/sub2api/ent/batchimageitem"
 	"github.com/Wei-Shaw/sub2api/ent/batchimagejob"
+	"github.com/Wei-Shaw/sub2api/ent/billingledger"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
@@ -74,6 +75,7 @@ const (
 	TypeBatchImageEvent               = "BatchImageEvent"
 	TypeBatchImageItem                = "BatchImageItem"
 	TypeBatchImageJob                 = "BatchImageJob"
+	TypeBillingLedger                 = "BillingLedger"
 	TypeChannelMonitor                = "ChannelMonitor"
 	TypeChannelMonitorDailyRollup     = "ChannelMonitorDailyRollup"
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
@@ -108,51 +110,67 @@ const (
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
 type APIKeyMutation struct {
 	config
-	op                 Op
-	typ                string
-	id                 *int64
-	created_at         *time.Time
-	updated_at         *time.Time
-	deleted_at         *time.Time
-	key                *string
-	name               *string
-	status             *string
-	last_used_at       *time.Time
-	ip_whitelist       *[]string
-	appendip_whitelist []string
-	ip_blacklist       *[]string
-	appendip_blacklist []string
-	quota              *float64
-	addquota           *float64
-	quota_used         *float64
-	addquota_used      *float64
-	expires_at         *time.Time
-	rate_limit_5h      *float64
-	addrate_limit_5h   *float64
-	rate_limit_1d      *float64
-	addrate_limit_1d   *float64
-	rate_limit_7d      *float64
-	addrate_limit_7d   *float64
-	usage_5h           *float64
-	addusage_5h        *float64
-	usage_1d           *float64
-	addusage_1d        *float64
-	usage_7d           *float64
-	addusage_7d        *float64
-	window_5h_start    *time.Time
-	window_1d_start    *time.Time
-	window_7d_start    *time.Time
-	clearedFields      map[string]struct{}
-	user               *int64
-	cleareduser        bool
-	group              *int64
-	clearedgroup       bool
-	usage_logs         map[int64]struct{}
-	removedusage_logs  map[int64]struct{}
-	clearedusage_logs  bool
-	done               bool
-	oldValue           func(context.Context) (*APIKey, error)
-	predicates         []predicate.APIKey
+	op                       Op
+	typ                      string
+	id                       *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	deleted_at               *time.Time
+	key                      *string
+	name                     *string
+	status                   *string
+	last_used_at             *time.Time
+	ip_whitelist             *[]string
+	appendip_whitelist       []string
+	ip_blacklist             *[]string
+	appendip_blacklist       []string
+	quota                    *float64
+	addquota                 *float64
+	quota_credits            *int64
+	addquota_credits         *int64
+	quota_used               *float64
+	addquota_used            *float64
+	quota_used_credits       *int64
+	addquota_used_credits    *int64
+	expires_at               *time.Time
+	rate_limit_5h            *float64
+	addrate_limit_5h         *float64
+	rate_limit_5h_credits    *int64
+	addrate_limit_5h_credits *int64
+	rate_limit_1d            *float64
+	addrate_limit_1d         *float64
+	rate_limit_1d_credits    *int64
+	addrate_limit_1d_credits *int64
+	rate_limit_7d            *float64
+	addrate_limit_7d         *float64
+	rate_limit_7d_credits    *int64
+	addrate_limit_7d_credits *int64
+	usage_5h                 *float64
+	addusage_5h              *float64
+	usage_5h_credits         *int64
+	addusage_5h_credits      *int64
+	usage_1d                 *float64
+	addusage_1d              *float64
+	usage_1d_credits         *int64
+	addusage_1d_credits      *int64
+	usage_7d                 *float64
+	addusage_7d              *float64
+	usage_7d_credits         *int64
+	addusage_7d_credits      *int64
+	window_5h_start          *time.Time
+	window_1d_start          *time.Time
+	window_7d_start          *time.Time
+	clearedFields            map[string]struct{}
+	user                     *int64
+	cleareduser              bool
+	group                    *int64
+	clearedgroup             bool
+	usage_logs               map[int64]struct{}
+	removedusage_logs        map[int64]struct{}
+	clearedusage_logs        bool
+	done                     bool
+	oldValue                 func(context.Context) (*APIKey, error)
+	predicates               []predicate.APIKey
 }
 
 var _ ent.Mutation = (*APIKeyMutation)(nil)
@@ -802,6 +820,62 @@ func (m *APIKeyMutation) ResetQuota() {
 	m.addquota = nil
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (m *APIKeyMutation) SetQuotaCredits(i int64) {
+	m.quota_credits = &i
+	m.addquota_credits = nil
+}
+
+// QuotaCredits returns the value of the "quota_credits" field in the mutation.
+func (m *APIKeyMutation) QuotaCredits() (r int64, exists bool) {
+	v := m.quota_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaCredits returns the old "quota_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldQuotaCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaCredits: %w", err)
+	}
+	return oldValue.QuotaCredits, nil
+}
+
+// AddQuotaCredits adds i to the "quota_credits" field.
+func (m *APIKeyMutation) AddQuotaCredits(i int64) {
+	if m.addquota_credits != nil {
+		*m.addquota_credits += i
+	} else {
+		m.addquota_credits = &i
+	}
+}
+
+// AddedQuotaCredits returns the value that was added to the "quota_credits" field in this mutation.
+func (m *APIKeyMutation) AddedQuotaCredits() (r int64, exists bool) {
+	v := m.addquota_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetQuotaCredits resets all changes to the "quota_credits" field.
+func (m *APIKeyMutation) ResetQuotaCredits() {
+	m.quota_credits = nil
+	m.addquota_credits = nil
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (m *APIKeyMutation) SetQuotaUsed(f float64) {
 	m.quota_used = &f
@@ -856,6 +930,62 @@ func (m *APIKeyMutation) AddedQuotaUsed() (r float64, exists bool) {
 func (m *APIKeyMutation) ResetQuotaUsed() {
 	m.quota_used = nil
 	m.addquota_used = nil
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (m *APIKeyMutation) SetQuotaUsedCredits(i int64) {
+	m.quota_used_credits = &i
+	m.addquota_used_credits = nil
+}
+
+// QuotaUsedCredits returns the value of the "quota_used_credits" field in the mutation.
+func (m *APIKeyMutation) QuotaUsedCredits() (r int64, exists bool) {
+	v := m.quota_used_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuotaUsedCredits returns the old "quota_used_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldQuotaUsedCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuotaUsedCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuotaUsedCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuotaUsedCredits: %w", err)
+	}
+	return oldValue.QuotaUsedCredits, nil
+}
+
+// AddQuotaUsedCredits adds i to the "quota_used_credits" field.
+func (m *APIKeyMutation) AddQuotaUsedCredits(i int64) {
+	if m.addquota_used_credits != nil {
+		*m.addquota_used_credits += i
+	} else {
+		m.addquota_used_credits = &i
+	}
+}
+
+// AddedQuotaUsedCredits returns the value that was added to the "quota_used_credits" field in this mutation.
+func (m *APIKeyMutation) AddedQuotaUsedCredits() (r int64, exists bool) {
+	v := m.addquota_used_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetQuotaUsedCredits resets all changes to the "quota_used_credits" field.
+func (m *APIKeyMutation) ResetQuotaUsedCredits() {
+	m.quota_used_credits = nil
+	m.addquota_used_credits = nil
 }
 
 // SetExpiresAt sets the "expires_at" field.
@@ -963,6 +1093,62 @@ func (m *APIKeyMutation) ResetRateLimit5h() {
 	m.addrate_limit_5h = nil
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (m *APIKeyMutation) SetRateLimit5hCredits(i int64) {
+	m.rate_limit_5h_credits = &i
+	m.addrate_limit_5h_credits = nil
+}
+
+// RateLimit5hCredits returns the value of the "rate_limit_5h_credits" field in the mutation.
+func (m *APIKeyMutation) RateLimit5hCredits() (r int64, exists bool) {
+	v := m.rate_limit_5h_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRateLimit5hCredits returns the old "rate_limit_5h_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldRateLimit5hCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRateLimit5hCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRateLimit5hCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRateLimit5hCredits: %w", err)
+	}
+	return oldValue.RateLimit5hCredits, nil
+}
+
+// AddRateLimit5hCredits adds i to the "rate_limit_5h_credits" field.
+func (m *APIKeyMutation) AddRateLimit5hCredits(i int64) {
+	if m.addrate_limit_5h_credits != nil {
+		*m.addrate_limit_5h_credits += i
+	} else {
+		m.addrate_limit_5h_credits = &i
+	}
+}
+
+// AddedRateLimit5hCredits returns the value that was added to the "rate_limit_5h_credits" field in this mutation.
+func (m *APIKeyMutation) AddedRateLimit5hCredits() (r int64, exists bool) {
+	v := m.addrate_limit_5h_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRateLimit5hCredits resets all changes to the "rate_limit_5h_credits" field.
+func (m *APIKeyMutation) ResetRateLimit5hCredits() {
+	m.rate_limit_5h_credits = nil
+	m.addrate_limit_5h_credits = nil
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (m *APIKeyMutation) SetRateLimit1d(f float64) {
 	m.rate_limit_1d = &f
@@ -1017,6 +1203,62 @@ func (m *APIKeyMutation) AddedRateLimit1d() (r float64, exists bool) {
 func (m *APIKeyMutation) ResetRateLimit1d() {
 	m.rate_limit_1d = nil
 	m.addrate_limit_1d = nil
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (m *APIKeyMutation) SetRateLimit1dCredits(i int64) {
+	m.rate_limit_1d_credits = &i
+	m.addrate_limit_1d_credits = nil
+}
+
+// RateLimit1dCredits returns the value of the "rate_limit_1d_credits" field in the mutation.
+func (m *APIKeyMutation) RateLimit1dCredits() (r int64, exists bool) {
+	v := m.rate_limit_1d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRateLimit1dCredits returns the old "rate_limit_1d_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldRateLimit1dCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRateLimit1dCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRateLimit1dCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRateLimit1dCredits: %w", err)
+	}
+	return oldValue.RateLimit1dCredits, nil
+}
+
+// AddRateLimit1dCredits adds i to the "rate_limit_1d_credits" field.
+func (m *APIKeyMutation) AddRateLimit1dCredits(i int64) {
+	if m.addrate_limit_1d_credits != nil {
+		*m.addrate_limit_1d_credits += i
+	} else {
+		m.addrate_limit_1d_credits = &i
+	}
+}
+
+// AddedRateLimit1dCredits returns the value that was added to the "rate_limit_1d_credits" field in this mutation.
+func (m *APIKeyMutation) AddedRateLimit1dCredits() (r int64, exists bool) {
+	v := m.addrate_limit_1d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRateLimit1dCredits resets all changes to the "rate_limit_1d_credits" field.
+func (m *APIKeyMutation) ResetRateLimit1dCredits() {
+	m.rate_limit_1d_credits = nil
+	m.addrate_limit_1d_credits = nil
 }
 
 // SetRateLimit7d sets the "rate_limit_7d" field.
@@ -1075,6 +1317,62 @@ func (m *APIKeyMutation) ResetRateLimit7d() {
 	m.addrate_limit_7d = nil
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (m *APIKeyMutation) SetRateLimit7dCredits(i int64) {
+	m.rate_limit_7d_credits = &i
+	m.addrate_limit_7d_credits = nil
+}
+
+// RateLimit7dCredits returns the value of the "rate_limit_7d_credits" field in the mutation.
+func (m *APIKeyMutation) RateLimit7dCredits() (r int64, exists bool) {
+	v := m.rate_limit_7d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRateLimit7dCredits returns the old "rate_limit_7d_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldRateLimit7dCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRateLimit7dCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRateLimit7dCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRateLimit7dCredits: %w", err)
+	}
+	return oldValue.RateLimit7dCredits, nil
+}
+
+// AddRateLimit7dCredits adds i to the "rate_limit_7d_credits" field.
+func (m *APIKeyMutation) AddRateLimit7dCredits(i int64) {
+	if m.addrate_limit_7d_credits != nil {
+		*m.addrate_limit_7d_credits += i
+	} else {
+		m.addrate_limit_7d_credits = &i
+	}
+}
+
+// AddedRateLimit7dCredits returns the value that was added to the "rate_limit_7d_credits" field in this mutation.
+func (m *APIKeyMutation) AddedRateLimit7dCredits() (r int64, exists bool) {
+	v := m.addrate_limit_7d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRateLimit7dCredits resets all changes to the "rate_limit_7d_credits" field.
+func (m *APIKeyMutation) ResetRateLimit7dCredits() {
+	m.rate_limit_7d_credits = nil
+	m.addrate_limit_7d_credits = nil
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (m *APIKeyMutation) SetUsage5h(f float64) {
 	m.usage_5h = &f
@@ -1129,6 +1427,62 @@ func (m *APIKeyMutation) AddedUsage5h() (r float64, exists bool) {
 func (m *APIKeyMutation) ResetUsage5h() {
 	m.usage_5h = nil
 	m.addusage_5h = nil
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (m *APIKeyMutation) SetUsage5hCredits(i int64) {
+	m.usage_5h_credits = &i
+	m.addusage_5h_credits = nil
+}
+
+// Usage5hCredits returns the value of the "usage_5h_credits" field in the mutation.
+func (m *APIKeyMutation) Usage5hCredits() (r int64, exists bool) {
+	v := m.usage_5h_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsage5hCredits returns the old "usage_5h_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldUsage5hCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsage5hCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsage5hCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsage5hCredits: %w", err)
+	}
+	return oldValue.Usage5hCredits, nil
+}
+
+// AddUsage5hCredits adds i to the "usage_5h_credits" field.
+func (m *APIKeyMutation) AddUsage5hCredits(i int64) {
+	if m.addusage_5h_credits != nil {
+		*m.addusage_5h_credits += i
+	} else {
+		m.addusage_5h_credits = &i
+	}
+}
+
+// AddedUsage5hCredits returns the value that was added to the "usage_5h_credits" field in this mutation.
+func (m *APIKeyMutation) AddedUsage5hCredits() (r int64, exists bool) {
+	v := m.addusage_5h_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsage5hCredits resets all changes to the "usage_5h_credits" field.
+func (m *APIKeyMutation) ResetUsage5hCredits() {
+	m.usage_5h_credits = nil
+	m.addusage_5h_credits = nil
 }
 
 // SetUsage1d sets the "usage_1d" field.
@@ -1187,6 +1541,62 @@ func (m *APIKeyMutation) ResetUsage1d() {
 	m.addusage_1d = nil
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (m *APIKeyMutation) SetUsage1dCredits(i int64) {
+	m.usage_1d_credits = &i
+	m.addusage_1d_credits = nil
+}
+
+// Usage1dCredits returns the value of the "usage_1d_credits" field in the mutation.
+func (m *APIKeyMutation) Usage1dCredits() (r int64, exists bool) {
+	v := m.usage_1d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsage1dCredits returns the old "usage_1d_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldUsage1dCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsage1dCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsage1dCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsage1dCredits: %w", err)
+	}
+	return oldValue.Usage1dCredits, nil
+}
+
+// AddUsage1dCredits adds i to the "usage_1d_credits" field.
+func (m *APIKeyMutation) AddUsage1dCredits(i int64) {
+	if m.addusage_1d_credits != nil {
+		*m.addusage_1d_credits += i
+	} else {
+		m.addusage_1d_credits = &i
+	}
+}
+
+// AddedUsage1dCredits returns the value that was added to the "usage_1d_credits" field in this mutation.
+func (m *APIKeyMutation) AddedUsage1dCredits() (r int64, exists bool) {
+	v := m.addusage_1d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsage1dCredits resets all changes to the "usage_1d_credits" field.
+func (m *APIKeyMutation) ResetUsage1dCredits() {
+	m.usage_1d_credits = nil
+	m.addusage_1d_credits = nil
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (m *APIKeyMutation) SetUsage7d(f float64) {
 	m.usage_7d = &f
@@ -1241,6 +1651,62 @@ func (m *APIKeyMutation) AddedUsage7d() (r float64, exists bool) {
 func (m *APIKeyMutation) ResetUsage7d() {
 	m.usage_7d = nil
 	m.addusage_7d = nil
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (m *APIKeyMutation) SetUsage7dCredits(i int64) {
+	m.usage_7d_credits = &i
+	m.addusage_7d_credits = nil
+}
+
+// Usage7dCredits returns the value of the "usage_7d_credits" field in the mutation.
+func (m *APIKeyMutation) Usage7dCredits() (r int64, exists bool) {
+	v := m.usage_7d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsage7dCredits returns the old "usage_7d_credits" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldUsage7dCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsage7dCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsage7dCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsage7dCredits: %w", err)
+	}
+	return oldValue.Usage7dCredits, nil
+}
+
+// AddUsage7dCredits adds i to the "usage_7d_credits" field.
+func (m *APIKeyMutation) AddUsage7dCredits(i int64) {
+	if m.addusage_7d_credits != nil {
+		*m.addusage_7d_credits += i
+	} else {
+		m.addusage_7d_credits = &i
+	}
+}
+
+// AddedUsage7dCredits returns the value that was added to the "usage_7d_credits" field in this mutation.
+func (m *APIKeyMutation) AddedUsage7dCredits() (r int64, exists bool) {
+	v := m.addusage_7d_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsage7dCredits resets all changes to the "usage_7d_credits" field.
+func (m *APIKeyMutation) ResetUsage7dCredits() {
+	m.usage_7d_credits = nil
+	m.addusage_7d_credits = nil
 }
 
 // SetWindow5hStart sets the "window_5h_start" field.
@@ -1532,7 +1998,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 31)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1569,8 +2035,14 @@ func (m *APIKeyMutation) Fields() []string {
 	if m.quota != nil {
 		fields = append(fields, apikey.FieldQuota)
 	}
+	if m.quota_credits != nil {
+		fields = append(fields, apikey.FieldQuotaCredits)
+	}
 	if m.quota_used != nil {
 		fields = append(fields, apikey.FieldQuotaUsed)
+	}
+	if m.quota_used_credits != nil {
+		fields = append(fields, apikey.FieldQuotaUsedCredits)
 	}
 	if m.expires_at != nil {
 		fields = append(fields, apikey.FieldExpiresAt)
@@ -1578,20 +2050,38 @@ func (m *APIKeyMutation) Fields() []string {
 	if m.rate_limit_5h != nil {
 		fields = append(fields, apikey.FieldRateLimit5h)
 	}
+	if m.rate_limit_5h_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit5hCredits)
+	}
 	if m.rate_limit_1d != nil {
 		fields = append(fields, apikey.FieldRateLimit1d)
+	}
+	if m.rate_limit_1d_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit1dCredits)
 	}
 	if m.rate_limit_7d != nil {
 		fields = append(fields, apikey.FieldRateLimit7d)
 	}
+	if m.rate_limit_7d_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit7dCredits)
+	}
 	if m.usage_5h != nil {
 		fields = append(fields, apikey.FieldUsage5h)
+	}
+	if m.usage_5h_credits != nil {
+		fields = append(fields, apikey.FieldUsage5hCredits)
 	}
 	if m.usage_1d != nil {
 		fields = append(fields, apikey.FieldUsage1d)
 	}
+	if m.usage_1d_credits != nil {
+		fields = append(fields, apikey.FieldUsage1dCredits)
+	}
 	if m.usage_7d != nil {
 		fields = append(fields, apikey.FieldUsage7d)
+	}
+	if m.usage_7d_credits != nil {
+		fields = append(fields, apikey.FieldUsage7dCredits)
 	}
 	if m.window_5h_start != nil {
 		fields = append(fields, apikey.FieldWindow5hStart)
@@ -1634,22 +2124,38 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.IPBlacklist()
 	case apikey.FieldQuota:
 		return m.Quota()
+	case apikey.FieldQuotaCredits:
+		return m.QuotaCredits()
 	case apikey.FieldQuotaUsed:
 		return m.QuotaUsed()
+	case apikey.FieldQuotaUsedCredits:
+		return m.QuotaUsedCredits()
 	case apikey.FieldExpiresAt:
 		return m.ExpiresAt()
 	case apikey.FieldRateLimit5h:
 		return m.RateLimit5h()
+	case apikey.FieldRateLimit5hCredits:
+		return m.RateLimit5hCredits()
 	case apikey.FieldRateLimit1d:
 		return m.RateLimit1d()
+	case apikey.FieldRateLimit1dCredits:
+		return m.RateLimit1dCredits()
 	case apikey.FieldRateLimit7d:
 		return m.RateLimit7d()
+	case apikey.FieldRateLimit7dCredits:
+		return m.RateLimit7dCredits()
 	case apikey.FieldUsage5h:
 		return m.Usage5h()
+	case apikey.FieldUsage5hCredits:
+		return m.Usage5hCredits()
 	case apikey.FieldUsage1d:
 		return m.Usage1d()
+	case apikey.FieldUsage1dCredits:
+		return m.Usage1dCredits()
 	case apikey.FieldUsage7d:
 		return m.Usage7d()
+	case apikey.FieldUsage7dCredits:
+		return m.Usage7dCredits()
 	case apikey.FieldWindow5hStart:
 		return m.Window5hStart()
 	case apikey.FieldWindow1dStart:
@@ -1689,22 +2195,38 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldIPBlacklist(ctx)
 	case apikey.FieldQuota:
 		return m.OldQuota(ctx)
+	case apikey.FieldQuotaCredits:
+		return m.OldQuotaCredits(ctx)
 	case apikey.FieldQuotaUsed:
 		return m.OldQuotaUsed(ctx)
+	case apikey.FieldQuotaUsedCredits:
+		return m.OldQuotaUsedCredits(ctx)
 	case apikey.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
 	case apikey.FieldRateLimit5h:
 		return m.OldRateLimit5h(ctx)
+	case apikey.FieldRateLimit5hCredits:
+		return m.OldRateLimit5hCredits(ctx)
 	case apikey.FieldRateLimit1d:
 		return m.OldRateLimit1d(ctx)
+	case apikey.FieldRateLimit1dCredits:
+		return m.OldRateLimit1dCredits(ctx)
 	case apikey.FieldRateLimit7d:
 		return m.OldRateLimit7d(ctx)
+	case apikey.FieldRateLimit7dCredits:
+		return m.OldRateLimit7dCredits(ctx)
 	case apikey.FieldUsage5h:
 		return m.OldUsage5h(ctx)
+	case apikey.FieldUsage5hCredits:
+		return m.OldUsage5hCredits(ctx)
 	case apikey.FieldUsage1d:
 		return m.OldUsage1d(ctx)
+	case apikey.FieldUsage1dCredits:
+		return m.OldUsage1dCredits(ctx)
 	case apikey.FieldUsage7d:
 		return m.OldUsage7d(ctx)
+	case apikey.FieldUsage7dCredits:
+		return m.OldUsage7dCredits(ctx)
 	case apikey.FieldWindow5hStart:
 		return m.OldWindow5hStart(ctx)
 	case apikey.FieldWindow1dStart:
@@ -1804,12 +2326,26 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetQuota(v)
 		return nil
+	case apikey.FieldQuotaCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaCredits(v)
+		return nil
 	case apikey.FieldQuotaUsed:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetQuotaUsed(v)
+		return nil
+	case apikey.FieldQuotaUsedCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuotaUsedCredits(v)
 		return nil
 	case apikey.FieldExpiresAt:
 		v, ok := value.(time.Time)
@@ -1825,12 +2361,26 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRateLimit5h(v)
 		return nil
+	case apikey.FieldRateLimit5hCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRateLimit5hCredits(v)
+		return nil
 	case apikey.FieldRateLimit1d:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRateLimit1d(v)
+		return nil
+	case apikey.FieldRateLimit1dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRateLimit1dCredits(v)
 		return nil
 	case apikey.FieldRateLimit7d:
 		v, ok := value.(float64)
@@ -1839,12 +2389,26 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRateLimit7d(v)
 		return nil
+	case apikey.FieldRateLimit7dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRateLimit7dCredits(v)
+		return nil
 	case apikey.FieldUsage5h:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsage5h(v)
+		return nil
+	case apikey.FieldUsage5hCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsage5hCredits(v)
 		return nil
 	case apikey.FieldUsage1d:
 		v, ok := value.(float64)
@@ -1853,12 +2417,26 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUsage1d(v)
 		return nil
+	case apikey.FieldUsage1dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsage1dCredits(v)
+		return nil
 	case apikey.FieldUsage7d:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUsage7d(v)
+		return nil
+	case apikey.FieldUsage7dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsage7dCredits(v)
 		return nil
 	case apikey.FieldWindow5hStart:
 		v, ok := value.(time.Time)
@@ -1892,26 +2470,50 @@ func (m *APIKeyMutation) AddedFields() []string {
 	if m.addquota != nil {
 		fields = append(fields, apikey.FieldQuota)
 	}
+	if m.addquota_credits != nil {
+		fields = append(fields, apikey.FieldQuotaCredits)
+	}
 	if m.addquota_used != nil {
 		fields = append(fields, apikey.FieldQuotaUsed)
+	}
+	if m.addquota_used_credits != nil {
+		fields = append(fields, apikey.FieldQuotaUsedCredits)
 	}
 	if m.addrate_limit_5h != nil {
 		fields = append(fields, apikey.FieldRateLimit5h)
 	}
+	if m.addrate_limit_5h_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit5hCredits)
+	}
 	if m.addrate_limit_1d != nil {
 		fields = append(fields, apikey.FieldRateLimit1d)
+	}
+	if m.addrate_limit_1d_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit1dCredits)
 	}
 	if m.addrate_limit_7d != nil {
 		fields = append(fields, apikey.FieldRateLimit7d)
 	}
+	if m.addrate_limit_7d_credits != nil {
+		fields = append(fields, apikey.FieldRateLimit7dCredits)
+	}
 	if m.addusage_5h != nil {
 		fields = append(fields, apikey.FieldUsage5h)
+	}
+	if m.addusage_5h_credits != nil {
+		fields = append(fields, apikey.FieldUsage5hCredits)
 	}
 	if m.addusage_1d != nil {
 		fields = append(fields, apikey.FieldUsage1d)
 	}
+	if m.addusage_1d_credits != nil {
+		fields = append(fields, apikey.FieldUsage1dCredits)
+	}
 	if m.addusage_7d != nil {
 		fields = append(fields, apikey.FieldUsage7d)
+	}
+	if m.addusage_7d_credits != nil {
+		fields = append(fields, apikey.FieldUsage7dCredits)
 	}
 	return fields
 }
@@ -1923,20 +2525,36 @@ func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case apikey.FieldQuota:
 		return m.AddedQuota()
+	case apikey.FieldQuotaCredits:
+		return m.AddedQuotaCredits()
 	case apikey.FieldQuotaUsed:
 		return m.AddedQuotaUsed()
+	case apikey.FieldQuotaUsedCredits:
+		return m.AddedQuotaUsedCredits()
 	case apikey.FieldRateLimit5h:
 		return m.AddedRateLimit5h()
+	case apikey.FieldRateLimit5hCredits:
+		return m.AddedRateLimit5hCredits()
 	case apikey.FieldRateLimit1d:
 		return m.AddedRateLimit1d()
+	case apikey.FieldRateLimit1dCredits:
+		return m.AddedRateLimit1dCredits()
 	case apikey.FieldRateLimit7d:
 		return m.AddedRateLimit7d()
+	case apikey.FieldRateLimit7dCredits:
+		return m.AddedRateLimit7dCredits()
 	case apikey.FieldUsage5h:
 		return m.AddedUsage5h()
+	case apikey.FieldUsage5hCredits:
+		return m.AddedUsage5hCredits()
 	case apikey.FieldUsage1d:
 		return m.AddedUsage1d()
+	case apikey.FieldUsage1dCredits:
+		return m.AddedUsage1dCredits()
 	case apikey.FieldUsage7d:
 		return m.AddedUsage7d()
+	case apikey.FieldUsage7dCredits:
+		return m.AddedUsage7dCredits()
 	}
 	return nil, false
 }
@@ -1953,12 +2571,26 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddQuota(v)
 		return nil
+	case apikey.FieldQuotaCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQuotaCredits(v)
+		return nil
 	case apikey.FieldQuotaUsed:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddQuotaUsed(v)
+		return nil
+	case apikey.FieldQuotaUsedCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQuotaUsedCredits(v)
 		return nil
 	case apikey.FieldRateLimit5h:
 		v, ok := value.(float64)
@@ -1967,12 +2599,26 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddRateLimit5h(v)
 		return nil
+	case apikey.FieldRateLimit5hCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRateLimit5hCredits(v)
+		return nil
 	case apikey.FieldRateLimit1d:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddRateLimit1d(v)
+		return nil
+	case apikey.FieldRateLimit1dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRateLimit1dCredits(v)
 		return nil
 	case apikey.FieldRateLimit7d:
 		v, ok := value.(float64)
@@ -1981,12 +2627,26 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddRateLimit7d(v)
 		return nil
+	case apikey.FieldRateLimit7dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRateLimit7dCredits(v)
+		return nil
 	case apikey.FieldUsage5h:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddUsage5h(v)
+		return nil
+	case apikey.FieldUsage5hCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsage5hCredits(v)
 		return nil
 	case apikey.FieldUsage1d:
 		v, ok := value.(float64)
@@ -1995,12 +2655,26 @@ func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddUsage1d(v)
 		return nil
+	case apikey.FieldUsage1dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsage1dCredits(v)
+		return nil
 	case apikey.FieldUsage7d:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddUsage7d(v)
+		return nil
+	case apikey.FieldUsage7dCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsage7dCredits(v)
 		return nil
 	}
 	return fmt.Errorf("unknown APIKey numeric field %s", name)
@@ -2122,8 +2796,14 @@ func (m *APIKeyMutation) ResetField(name string) error {
 	case apikey.FieldQuota:
 		m.ResetQuota()
 		return nil
+	case apikey.FieldQuotaCredits:
+		m.ResetQuotaCredits()
+		return nil
 	case apikey.FieldQuotaUsed:
 		m.ResetQuotaUsed()
+		return nil
+	case apikey.FieldQuotaUsedCredits:
+		m.ResetQuotaUsedCredits()
 		return nil
 	case apikey.FieldExpiresAt:
 		m.ResetExpiresAt()
@@ -2131,20 +2811,38 @@ func (m *APIKeyMutation) ResetField(name string) error {
 	case apikey.FieldRateLimit5h:
 		m.ResetRateLimit5h()
 		return nil
+	case apikey.FieldRateLimit5hCredits:
+		m.ResetRateLimit5hCredits()
+		return nil
 	case apikey.FieldRateLimit1d:
 		m.ResetRateLimit1d()
+		return nil
+	case apikey.FieldRateLimit1dCredits:
+		m.ResetRateLimit1dCredits()
 		return nil
 	case apikey.FieldRateLimit7d:
 		m.ResetRateLimit7d()
 		return nil
+	case apikey.FieldRateLimit7dCredits:
+		m.ResetRateLimit7dCredits()
+		return nil
 	case apikey.FieldUsage5h:
 		m.ResetUsage5h()
+		return nil
+	case apikey.FieldUsage5hCredits:
+		m.ResetUsage5hCredits()
 		return nil
 	case apikey.FieldUsage1d:
 		m.ResetUsage1d()
 		return nil
+	case apikey.FieldUsage1dCredits:
+		m.ResetUsage1dCredits()
+		return nil
 	case apikey.FieldUsage7d:
 		m.ResetUsage7d()
+		return nil
+	case apikey.FieldUsage7dCredits:
+		m.ResetUsage7dCredits()
 		return nil
 	case apikey.FieldWindow5hStart:
 		m.ResetWindow5hStart()
@@ -14598,6 +15296,994 @@ func (m *BatchImageJobMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown BatchImageJob edge %s", name)
 }
 
+// BillingLedgerMutation represents an operation that mutates the BillingLedger nodes in the graph.
+type BillingLedgerMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	user_id          *int64
+	adduser_id       *int64
+	delta_credits    *int64
+	adddelta_credits *int64
+	balance_after    *int64
+	addbalance_after *int64
+	bucket_type      *string
+	bucket_id        *int64
+	addbucket_id     *int64
+	reference_type   *string
+	reference_id     *string
+	request_id       *string
+	metadata         *map[string]interface{}
+	created_at       *time.Time
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*BillingLedger, error)
+	predicates       []predicate.BillingLedger
+}
+
+var _ ent.Mutation = (*BillingLedgerMutation)(nil)
+
+// billingledgerOption allows management of the mutation configuration using functional options.
+type billingledgerOption func(*BillingLedgerMutation)
+
+// newBillingLedgerMutation creates new mutation for the BillingLedger entity.
+func newBillingLedgerMutation(c config, op Op, opts ...billingledgerOption) *BillingLedgerMutation {
+	m := &BillingLedgerMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeBillingLedger,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withBillingLedgerID sets the ID field of the mutation.
+func withBillingLedgerID(id int64) billingledgerOption {
+	return func(m *BillingLedgerMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *BillingLedger
+		)
+		m.oldValue = func(ctx context.Context) (*BillingLedger, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().BillingLedger.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withBillingLedger sets the old BillingLedger of the mutation.
+func withBillingLedger(node *BillingLedger) billingledgerOption {
+	return func(m *BillingLedgerMutation) {
+		m.oldValue = func(context.Context) (*BillingLedger, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m BillingLedgerMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m BillingLedgerMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *BillingLedgerMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *BillingLedgerMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().BillingLedger.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *BillingLedgerMutation) SetUserID(i int64) {
+	m.user_id = &i
+	m.adduser_id = nil
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *BillingLedgerMutation) UserID() (r int64, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// AddUserID adds i to the "user_id" field.
+func (m *BillingLedgerMutation) AddUserID(i int64) {
+	if m.adduser_id != nil {
+		*m.adduser_id += i
+	} else {
+		m.adduser_id = &i
+	}
+}
+
+// AddedUserID returns the value that was added to the "user_id" field in this mutation.
+func (m *BillingLedgerMutation) AddedUserID() (r int64, exists bool) {
+	v := m.adduser_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *BillingLedgerMutation) ResetUserID() {
+	m.user_id = nil
+	m.adduser_id = nil
+}
+
+// SetDeltaCredits sets the "delta_credits" field.
+func (m *BillingLedgerMutation) SetDeltaCredits(i int64) {
+	m.delta_credits = &i
+	m.adddelta_credits = nil
+}
+
+// DeltaCredits returns the value of the "delta_credits" field in the mutation.
+func (m *BillingLedgerMutation) DeltaCredits() (r int64, exists bool) {
+	v := m.delta_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeltaCredits returns the old "delta_credits" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldDeltaCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeltaCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeltaCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeltaCredits: %w", err)
+	}
+	return oldValue.DeltaCredits, nil
+}
+
+// AddDeltaCredits adds i to the "delta_credits" field.
+func (m *BillingLedgerMutation) AddDeltaCredits(i int64) {
+	if m.adddelta_credits != nil {
+		*m.adddelta_credits += i
+	} else {
+		m.adddelta_credits = &i
+	}
+}
+
+// AddedDeltaCredits returns the value that was added to the "delta_credits" field in this mutation.
+func (m *BillingLedgerMutation) AddedDeltaCredits() (r int64, exists bool) {
+	v := m.adddelta_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDeltaCredits resets all changes to the "delta_credits" field.
+func (m *BillingLedgerMutation) ResetDeltaCredits() {
+	m.delta_credits = nil
+	m.adddelta_credits = nil
+}
+
+// SetBalanceAfter sets the "balance_after" field.
+func (m *BillingLedgerMutation) SetBalanceAfter(i int64) {
+	m.balance_after = &i
+	m.addbalance_after = nil
+}
+
+// BalanceAfter returns the value of the "balance_after" field in the mutation.
+func (m *BillingLedgerMutation) BalanceAfter() (r int64, exists bool) {
+	v := m.balance_after
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceAfter returns the old "balance_after" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldBalanceAfter(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceAfter is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceAfter requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceAfter: %w", err)
+	}
+	return oldValue.BalanceAfter, nil
+}
+
+// AddBalanceAfter adds i to the "balance_after" field.
+func (m *BillingLedgerMutation) AddBalanceAfter(i int64) {
+	if m.addbalance_after != nil {
+		*m.addbalance_after += i
+	} else {
+		m.addbalance_after = &i
+	}
+}
+
+// AddedBalanceAfter returns the value that was added to the "balance_after" field in this mutation.
+func (m *BillingLedgerMutation) AddedBalanceAfter() (r int64, exists bool) {
+	v := m.addbalance_after
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceAfter resets all changes to the "balance_after" field.
+func (m *BillingLedgerMutation) ResetBalanceAfter() {
+	m.balance_after = nil
+	m.addbalance_after = nil
+}
+
+// SetBucketType sets the "bucket_type" field.
+func (m *BillingLedgerMutation) SetBucketType(s string) {
+	m.bucket_type = &s
+}
+
+// BucketType returns the value of the "bucket_type" field in the mutation.
+func (m *BillingLedgerMutation) BucketType() (r string, exists bool) {
+	v := m.bucket_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBucketType returns the old "bucket_type" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldBucketType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBucketType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBucketType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBucketType: %w", err)
+	}
+	return oldValue.BucketType, nil
+}
+
+// ResetBucketType resets all changes to the "bucket_type" field.
+func (m *BillingLedgerMutation) ResetBucketType() {
+	m.bucket_type = nil
+}
+
+// SetBucketID sets the "bucket_id" field.
+func (m *BillingLedgerMutation) SetBucketID(i int64) {
+	m.bucket_id = &i
+	m.addbucket_id = nil
+}
+
+// BucketID returns the value of the "bucket_id" field in the mutation.
+func (m *BillingLedgerMutation) BucketID() (r int64, exists bool) {
+	v := m.bucket_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBucketID returns the old "bucket_id" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldBucketID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBucketID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBucketID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBucketID: %w", err)
+	}
+	return oldValue.BucketID, nil
+}
+
+// AddBucketID adds i to the "bucket_id" field.
+func (m *BillingLedgerMutation) AddBucketID(i int64) {
+	if m.addbucket_id != nil {
+		*m.addbucket_id += i
+	} else {
+		m.addbucket_id = &i
+	}
+}
+
+// AddedBucketID returns the value that was added to the "bucket_id" field in this mutation.
+func (m *BillingLedgerMutation) AddedBucketID() (r int64, exists bool) {
+	v := m.addbucket_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBucketID resets all changes to the "bucket_id" field.
+func (m *BillingLedgerMutation) ResetBucketID() {
+	m.bucket_id = nil
+	m.addbucket_id = nil
+}
+
+// SetReferenceType sets the "reference_type" field.
+func (m *BillingLedgerMutation) SetReferenceType(s string) {
+	m.reference_type = &s
+}
+
+// ReferenceType returns the value of the "reference_type" field in the mutation.
+func (m *BillingLedgerMutation) ReferenceType() (r string, exists bool) {
+	v := m.reference_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferenceType returns the old "reference_type" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldReferenceType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferenceType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferenceType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferenceType: %w", err)
+	}
+	return oldValue.ReferenceType, nil
+}
+
+// ResetReferenceType resets all changes to the "reference_type" field.
+func (m *BillingLedgerMutation) ResetReferenceType() {
+	m.reference_type = nil
+}
+
+// SetReferenceID sets the "reference_id" field.
+func (m *BillingLedgerMutation) SetReferenceID(s string) {
+	m.reference_id = &s
+}
+
+// ReferenceID returns the value of the "reference_id" field in the mutation.
+func (m *BillingLedgerMutation) ReferenceID() (r string, exists bool) {
+	v := m.reference_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferenceID returns the old "reference_id" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldReferenceID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferenceID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferenceID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferenceID: %w", err)
+	}
+	return oldValue.ReferenceID, nil
+}
+
+// ResetReferenceID resets all changes to the "reference_id" field.
+func (m *BillingLedgerMutation) ResetReferenceID() {
+	m.reference_id = nil
+}
+
+// SetRequestID sets the "request_id" field.
+func (m *BillingLedgerMutation) SetRequestID(s string) {
+	m.request_id = &s
+}
+
+// RequestID returns the value of the "request_id" field in the mutation.
+func (m *BillingLedgerMutation) RequestID() (r string, exists bool) {
+	v := m.request_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestID returns the old "request_id" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldRequestID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestID: %w", err)
+	}
+	return oldValue.RequestID, nil
+}
+
+// ClearRequestID clears the value of the "request_id" field.
+func (m *BillingLedgerMutation) ClearRequestID() {
+	m.request_id = nil
+	m.clearedFields[billingledger.FieldRequestID] = struct{}{}
+}
+
+// RequestIDCleared returns if the "request_id" field was cleared in this mutation.
+func (m *BillingLedgerMutation) RequestIDCleared() bool {
+	_, ok := m.clearedFields[billingledger.FieldRequestID]
+	return ok
+}
+
+// ResetRequestID resets all changes to the "request_id" field.
+func (m *BillingLedgerMutation) ResetRequestID() {
+	m.request_id = nil
+	delete(m.clearedFields, billingledger.FieldRequestID)
+}
+
+// SetMetadata sets the "metadata" field.
+func (m *BillingLedgerMutation) SetMetadata(value map[string]interface{}) {
+	m.metadata = &value
+}
+
+// Metadata returns the value of the "metadata" field in the mutation.
+func (m *BillingLedgerMutation) Metadata() (r map[string]interface{}, exists bool) {
+	v := m.metadata
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMetadata returns the old "metadata" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldMetadata(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMetadata is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMetadata requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMetadata: %w", err)
+	}
+	return oldValue.Metadata, nil
+}
+
+// ClearMetadata clears the value of the "metadata" field.
+func (m *BillingLedgerMutation) ClearMetadata() {
+	m.metadata = nil
+	m.clearedFields[billingledger.FieldMetadata] = struct{}{}
+}
+
+// MetadataCleared returns if the "metadata" field was cleared in this mutation.
+func (m *BillingLedgerMutation) MetadataCleared() bool {
+	_, ok := m.clearedFields[billingledger.FieldMetadata]
+	return ok
+}
+
+// ResetMetadata resets all changes to the "metadata" field.
+func (m *BillingLedgerMutation) ResetMetadata() {
+	m.metadata = nil
+	delete(m.clearedFields, billingledger.FieldMetadata)
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *BillingLedgerMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *BillingLedgerMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the BillingLedger entity.
+// If the BillingLedger object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *BillingLedgerMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *BillingLedgerMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// Where appends a list predicates to the BillingLedgerMutation builder.
+func (m *BillingLedgerMutation) Where(ps ...predicate.BillingLedger) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the BillingLedgerMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *BillingLedgerMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.BillingLedger, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *BillingLedgerMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *BillingLedgerMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (BillingLedger).
+func (m *BillingLedgerMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *BillingLedgerMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.user_id != nil {
+		fields = append(fields, billingledger.FieldUserID)
+	}
+	if m.delta_credits != nil {
+		fields = append(fields, billingledger.FieldDeltaCredits)
+	}
+	if m.balance_after != nil {
+		fields = append(fields, billingledger.FieldBalanceAfter)
+	}
+	if m.bucket_type != nil {
+		fields = append(fields, billingledger.FieldBucketType)
+	}
+	if m.bucket_id != nil {
+		fields = append(fields, billingledger.FieldBucketID)
+	}
+	if m.reference_type != nil {
+		fields = append(fields, billingledger.FieldReferenceType)
+	}
+	if m.reference_id != nil {
+		fields = append(fields, billingledger.FieldReferenceID)
+	}
+	if m.request_id != nil {
+		fields = append(fields, billingledger.FieldRequestID)
+	}
+	if m.metadata != nil {
+		fields = append(fields, billingledger.FieldMetadata)
+	}
+	if m.created_at != nil {
+		fields = append(fields, billingledger.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *BillingLedgerMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case billingledger.FieldUserID:
+		return m.UserID()
+	case billingledger.FieldDeltaCredits:
+		return m.DeltaCredits()
+	case billingledger.FieldBalanceAfter:
+		return m.BalanceAfter()
+	case billingledger.FieldBucketType:
+		return m.BucketType()
+	case billingledger.FieldBucketID:
+		return m.BucketID()
+	case billingledger.FieldReferenceType:
+		return m.ReferenceType()
+	case billingledger.FieldReferenceID:
+		return m.ReferenceID()
+	case billingledger.FieldRequestID:
+		return m.RequestID()
+	case billingledger.FieldMetadata:
+		return m.Metadata()
+	case billingledger.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *BillingLedgerMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case billingledger.FieldUserID:
+		return m.OldUserID(ctx)
+	case billingledger.FieldDeltaCredits:
+		return m.OldDeltaCredits(ctx)
+	case billingledger.FieldBalanceAfter:
+		return m.OldBalanceAfter(ctx)
+	case billingledger.FieldBucketType:
+		return m.OldBucketType(ctx)
+	case billingledger.FieldBucketID:
+		return m.OldBucketID(ctx)
+	case billingledger.FieldReferenceType:
+		return m.OldReferenceType(ctx)
+	case billingledger.FieldReferenceID:
+		return m.OldReferenceID(ctx)
+	case billingledger.FieldRequestID:
+		return m.OldRequestID(ctx)
+	case billingledger.FieldMetadata:
+		return m.OldMetadata(ctx)
+	case billingledger.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown BillingLedger field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BillingLedgerMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case billingledger.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case billingledger.FieldDeltaCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeltaCredits(v)
+		return nil
+	case billingledger.FieldBalanceAfter:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceAfter(v)
+		return nil
+	case billingledger.FieldBucketType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBucketType(v)
+		return nil
+	case billingledger.FieldBucketID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBucketID(v)
+		return nil
+	case billingledger.FieldReferenceType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferenceType(v)
+		return nil
+	case billingledger.FieldReferenceID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferenceID(v)
+		return nil
+	case billingledger.FieldRequestID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestID(v)
+		return nil
+	case billingledger.FieldMetadata:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMetadata(v)
+		return nil
+	case billingledger.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BillingLedger field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *BillingLedgerMutation) AddedFields() []string {
+	var fields []string
+	if m.adduser_id != nil {
+		fields = append(fields, billingledger.FieldUserID)
+	}
+	if m.adddelta_credits != nil {
+		fields = append(fields, billingledger.FieldDeltaCredits)
+	}
+	if m.addbalance_after != nil {
+		fields = append(fields, billingledger.FieldBalanceAfter)
+	}
+	if m.addbucket_id != nil {
+		fields = append(fields, billingledger.FieldBucketID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *BillingLedgerMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case billingledger.FieldUserID:
+		return m.AddedUserID()
+	case billingledger.FieldDeltaCredits:
+		return m.AddedDeltaCredits()
+	case billingledger.FieldBalanceAfter:
+		return m.AddedBalanceAfter()
+	case billingledger.FieldBucketID:
+		return m.AddedBucketID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *BillingLedgerMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case billingledger.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUserID(v)
+		return nil
+	case billingledger.FieldDeltaCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDeltaCredits(v)
+		return nil
+	case billingledger.FieldBalanceAfter:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceAfter(v)
+		return nil
+	case billingledger.FieldBucketID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBucketID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown BillingLedger numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *BillingLedgerMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(billingledger.FieldRequestID) {
+		fields = append(fields, billingledger.FieldRequestID)
+	}
+	if m.FieldCleared(billingledger.FieldMetadata) {
+		fields = append(fields, billingledger.FieldMetadata)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *BillingLedgerMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *BillingLedgerMutation) ClearField(name string) error {
+	switch name {
+	case billingledger.FieldRequestID:
+		m.ClearRequestID()
+		return nil
+	case billingledger.FieldMetadata:
+		m.ClearMetadata()
+		return nil
+	}
+	return fmt.Errorf("unknown BillingLedger nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *BillingLedgerMutation) ResetField(name string) error {
+	switch name {
+	case billingledger.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case billingledger.FieldDeltaCredits:
+		m.ResetDeltaCredits()
+		return nil
+	case billingledger.FieldBalanceAfter:
+		m.ResetBalanceAfter()
+		return nil
+	case billingledger.FieldBucketType:
+		m.ResetBucketType()
+		return nil
+	case billingledger.FieldBucketID:
+		m.ResetBucketID()
+		return nil
+	case billingledger.FieldReferenceType:
+		m.ResetReferenceType()
+		return nil
+	case billingledger.FieldReferenceID:
+		m.ResetReferenceID()
+		return nil
+	case billingledger.FieldRequestID:
+		m.ResetRequestID()
+		return nil
+	case billingledger.FieldMetadata:
+		m.ResetMetadata()
+		return nil
+	case billingledger.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown BillingLedger field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *BillingLedgerMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *BillingLedgerMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *BillingLedgerMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *BillingLedgerMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *BillingLedgerMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *BillingLedgerMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *BillingLedgerMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown BillingLedger unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *BillingLedgerMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown BillingLedger edge %s", name)
+}
+
 // ChannelMonitorMutation represents an operation that mutates the ChannelMonitor nodes in the graph.
 type ChannelMonitorMutation struct {
 	config
@@ -22101,10 +23787,16 @@ type GroupMutation struct {
 	subscription_type                       *string
 	daily_limit_usd                         *float64
 	adddaily_limit_usd                      *float64
+	daily_limit_credits                     *int64
+	adddaily_limit_credits                  *int64
 	weekly_limit_usd                        *float64
 	addweekly_limit_usd                     *float64
+	weekly_limit_credits                    *int64
+	addweekly_limit_credits                 *int64
 	monthly_limit_usd                       *float64
 	addmonthly_limit_usd                    *float64
+	monthly_limit_credits                   *int64
+	addmonthly_limit_credits                *int64
 	default_validity_days                   *int
 	adddefault_validity_days                *int
 	allow_image_generation                  *bool
@@ -23025,6 +24717,76 @@ func (m *GroupMutation) ResetDailyLimitUsd() {
 	delete(m.clearedFields, group.FieldDailyLimitUsd)
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (m *GroupMutation) SetDailyLimitCredits(i int64) {
+	m.daily_limit_credits = &i
+	m.adddaily_limit_credits = nil
+}
+
+// DailyLimitCredits returns the value of the "daily_limit_credits" field in the mutation.
+func (m *GroupMutation) DailyLimitCredits() (r int64, exists bool) {
+	v := m.daily_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDailyLimitCredits returns the old "daily_limit_credits" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldDailyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDailyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDailyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDailyLimitCredits: %w", err)
+	}
+	return oldValue.DailyLimitCredits, nil
+}
+
+// AddDailyLimitCredits adds i to the "daily_limit_credits" field.
+func (m *GroupMutation) AddDailyLimitCredits(i int64) {
+	if m.adddaily_limit_credits != nil {
+		*m.adddaily_limit_credits += i
+	} else {
+		m.adddaily_limit_credits = &i
+	}
+}
+
+// AddedDailyLimitCredits returns the value that was added to the "daily_limit_credits" field in this mutation.
+func (m *GroupMutation) AddedDailyLimitCredits() (r int64, exists bool) {
+	v := m.adddaily_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (m *GroupMutation) ClearDailyLimitCredits() {
+	m.daily_limit_credits = nil
+	m.adddaily_limit_credits = nil
+	m.clearedFields[group.FieldDailyLimitCredits] = struct{}{}
+}
+
+// DailyLimitCreditsCleared returns if the "daily_limit_credits" field was cleared in this mutation.
+func (m *GroupMutation) DailyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[group.FieldDailyLimitCredits]
+	return ok
+}
+
+// ResetDailyLimitCredits resets all changes to the "daily_limit_credits" field.
+func (m *GroupMutation) ResetDailyLimitCredits() {
+	m.daily_limit_credits = nil
+	m.adddaily_limit_credits = nil
+	delete(m.clearedFields, group.FieldDailyLimitCredits)
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (m *GroupMutation) SetWeeklyLimitUsd(f float64) {
 	m.weekly_limit_usd = &f
@@ -23095,6 +24857,76 @@ func (m *GroupMutation) ResetWeeklyLimitUsd() {
 	delete(m.clearedFields, group.FieldWeeklyLimitUsd)
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (m *GroupMutation) SetWeeklyLimitCredits(i int64) {
+	m.weekly_limit_credits = &i
+	m.addweekly_limit_credits = nil
+}
+
+// WeeklyLimitCredits returns the value of the "weekly_limit_credits" field in the mutation.
+func (m *GroupMutation) WeeklyLimitCredits() (r int64, exists bool) {
+	v := m.weekly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeeklyLimitCredits returns the old "weekly_limit_credits" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldWeeklyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeeklyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeeklyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeeklyLimitCredits: %w", err)
+	}
+	return oldValue.WeeklyLimitCredits, nil
+}
+
+// AddWeeklyLimitCredits adds i to the "weekly_limit_credits" field.
+func (m *GroupMutation) AddWeeklyLimitCredits(i int64) {
+	if m.addweekly_limit_credits != nil {
+		*m.addweekly_limit_credits += i
+	} else {
+		m.addweekly_limit_credits = &i
+	}
+}
+
+// AddedWeeklyLimitCredits returns the value that was added to the "weekly_limit_credits" field in this mutation.
+func (m *GroupMutation) AddedWeeklyLimitCredits() (r int64, exists bool) {
+	v := m.addweekly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (m *GroupMutation) ClearWeeklyLimitCredits() {
+	m.weekly_limit_credits = nil
+	m.addweekly_limit_credits = nil
+	m.clearedFields[group.FieldWeeklyLimitCredits] = struct{}{}
+}
+
+// WeeklyLimitCreditsCleared returns if the "weekly_limit_credits" field was cleared in this mutation.
+func (m *GroupMutation) WeeklyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[group.FieldWeeklyLimitCredits]
+	return ok
+}
+
+// ResetWeeklyLimitCredits resets all changes to the "weekly_limit_credits" field.
+func (m *GroupMutation) ResetWeeklyLimitCredits() {
+	m.weekly_limit_credits = nil
+	m.addweekly_limit_credits = nil
+	delete(m.clearedFields, group.FieldWeeklyLimitCredits)
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (m *GroupMutation) SetMonthlyLimitUsd(f float64) {
 	m.monthly_limit_usd = &f
@@ -23163,6 +24995,76 @@ func (m *GroupMutation) ResetMonthlyLimitUsd() {
 	m.monthly_limit_usd = nil
 	m.addmonthly_limit_usd = nil
 	delete(m.clearedFields, group.FieldMonthlyLimitUsd)
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (m *GroupMutation) SetMonthlyLimitCredits(i int64) {
+	m.monthly_limit_credits = &i
+	m.addmonthly_limit_credits = nil
+}
+
+// MonthlyLimitCredits returns the value of the "monthly_limit_credits" field in the mutation.
+func (m *GroupMutation) MonthlyLimitCredits() (r int64, exists bool) {
+	v := m.monthly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonthlyLimitCredits returns the old "monthly_limit_credits" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldMonthlyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonthlyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonthlyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonthlyLimitCredits: %w", err)
+	}
+	return oldValue.MonthlyLimitCredits, nil
+}
+
+// AddMonthlyLimitCredits adds i to the "monthly_limit_credits" field.
+func (m *GroupMutation) AddMonthlyLimitCredits(i int64) {
+	if m.addmonthly_limit_credits != nil {
+		*m.addmonthly_limit_credits += i
+	} else {
+		m.addmonthly_limit_credits = &i
+	}
+}
+
+// AddedMonthlyLimitCredits returns the value that was added to the "monthly_limit_credits" field in this mutation.
+func (m *GroupMutation) AddedMonthlyLimitCredits() (r int64, exists bool) {
+	v := m.addmonthly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (m *GroupMutation) ClearMonthlyLimitCredits() {
+	m.monthly_limit_credits = nil
+	m.addmonthly_limit_credits = nil
+	m.clearedFields[group.FieldMonthlyLimitCredits] = struct{}{}
+}
+
+// MonthlyLimitCreditsCleared returns if the "monthly_limit_credits" field was cleared in this mutation.
+func (m *GroupMutation) MonthlyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[group.FieldMonthlyLimitCredits]
+	return ok
+}
+
+// ResetMonthlyLimitCredits resets all changes to the "monthly_limit_credits" field.
+func (m *GroupMutation) ResetMonthlyLimitCredits() {
+	m.monthly_limit_credits = nil
+	m.addmonthly_limit_credits = nil
+	delete(m.clearedFields, group.FieldMonthlyLimitCredits)
 }
 
 // SetDefaultValidityDays sets the "default_validity_days" field.
@@ -25958,7 +27860,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 67)
+	fields := make([]string, 0, 70)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26010,11 +27912,20 @@ func (m *GroupMutation) Fields() []string {
 	if m.daily_limit_usd != nil {
 		fields = append(fields, group.FieldDailyLimitUsd)
 	}
+	if m.daily_limit_credits != nil {
+		fields = append(fields, group.FieldDailyLimitCredits)
+	}
 	if m.weekly_limit_usd != nil {
 		fields = append(fields, group.FieldWeeklyLimitUsd)
 	}
+	if m.weekly_limit_credits != nil {
+		fields = append(fields, group.FieldWeeklyLimitCredits)
+	}
 	if m.monthly_limit_usd != nil {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
+	}
+	if m.monthly_limit_credits != nil {
+		fields = append(fields, group.FieldMonthlyLimitCredits)
 	}
 	if m.default_validity_days != nil {
 		fields = append(fields, group.FieldDefaultValidityDays)
@@ -26202,10 +28113,16 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.SubscriptionType()
 	case group.FieldDailyLimitUsd:
 		return m.DailyLimitUsd()
+	case group.FieldDailyLimitCredits:
+		return m.DailyLimitCredits()
 	case group.FieldWeeklyLimitUsd:
 		return m.WeeklyLimitUsd()
+	case group.FieldWeeklyLimitCredits:
+		return m.WeeklyLimitCredits()
 	case group.FieldMonthlyLimitUsd:
 		return m.MonthlyLimitUsd()
+	case group.FieldMonthlyLimitCredits:
+		return m.MonthlyLimitCredits()
 	case group.FieldDefaultValidityDays:
 		return m.DefaultValidityDays()
 	case group.FieldAllowImageGeneration:
@@ -26345,10 +28262,16 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldSubscriptionType(ctx)
 	case group.FieldDailyLimitUsd:
 		return m.OldDailyLimitUsd(ctx)
+	case group.FieldDailyLimitCredits:
+		return m.OldDailyLimitCredits(ctx)
 	case group.FieldWeeklyLimitUsd:
 		return m.OldWeeklyLimitUsd(ctx)
+	case group.FieldWeeklyLimitCredits:
+		return m.OldWeeklyLimitCredits(ctx)
 	case group.FieldMonthlyLimitUsd:
 		return m.OldMonthlyLimitUsd(ctx)
+	case group.FieldMonthlyLimitCredits:
+		return m.OldMonthlyLimitCredits(ctx)
 	case group.FieldDefaultValidityDays:
 		return m.OldDefaultValidityDays(ctx)
 	case group.FieldAllowImageGeneration:
@@ -26573,6 +28496,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetDailyLimitUsd(v)
 		return nil
+	case group.FieldDailyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDailyLimitCredits(v)
+		return nil
 	case group.FieldWeeklyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -26580,12 +28510,26 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetWeeklyLimitUsd(v)
 		return nil
+	case group.FieldWeeklyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeeklyLimitCredits(v)
+		return nil
 	case group.FieldMonthlyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMonthlyLimitUsd(v)
+		return nil
+	case group.FieldMonthlyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonthlyLimitCredits(v)
 		return nil
 	case group.FieldDefaultValidityDays:
 		v, ok := value.(int)
@@ -26940,11 +28884,20 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.adddaily_limit_usd != nil {
 		fields = append(fields, group.FieldDailyLimitUsd)
 	}
+	if m.adddaily_limit_credits != nil {
+		fields = append(fields, group.FieldDailyLimitCredits)
+	}
 	if m.addweekly_limit_usd != nil {
 		fields = append(fields, group.FieldWeeklyLimitUsd)
 	}
+	if m.addweekly_limit_credits != nil {
+		fields = append(fields, group.FieldWeeklyLimitCredits)
+	}
 	if m.addmonthly_limit_usd != nil {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
+	}
+	if m.addmonthly_limit_credits != nil {
+		fields = append(fields, group.FieldMonthlyLimitCredits)
 	}
 	if m.adddefault_validity_days != nil {
 		fields = append(fields, group.FieldDefaultValidityDays)
@@ -27026,10 +28979,16 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedPeakRateMultiplier()
 	case group.FieldDailyLimitUsd:
 		return m.AddedDailyLimitUsd()
+	case group.FieldDailyLimitCredits:
+		return m.AddedDailyLimitCredits()
 	case group.FieldWeeklyLimitUsd:
 		return m.AddedWeeklyLimitUsd()
+	case group.FieldWeeklyLimitCredits:
+		return m.AddedWeeklyLimitCredits()
 	case group.FieldMonthlyLimitUsd:
 		return m.AddedMonthlyLimitUsd()
+	case group.FieldMonthlyLimitCredits:
+		return m.AddedMonthlyLimitCredits()
 	case group.FieldDefaultValidityDays:
 		return m.AddedDefaultValidityDays()
 	case group.FieldImageRateMultiplier:
@@ -27104,6 +29063,13 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddDailyLimitUsd(v)
 		return nil
+	case group.FieldDailyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDailyLimitCredits(v)
+		return nil
 	case group.FieldWeeklyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -27111,12 +29077,26 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddWeeklyLimitUsd(v)
 		return nil
+	case group.FieldWeeklyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWeeklyLimitCredits(v)
+		return nil
 	case group.FieldMonthlyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddMonthlyLimitUsd(v)
+		return nil
+	case group.FieldMonthlyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMonthlyLimitCredits(v)
 		return nil
 	case group.FieldDefaultValidityDays:
 		v, ok := value.(int)
@@ -27292,11 +29272,20 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldDailyLimitUsd) {
 		fields = append(fields, group.FieldDailyLimitUsd)
 	}
+	if m.FieldCleared(group.FieldDailyLimitCredits) {
+		fields = append(fields, group.FieldDailyLimitCredits)
+	}
 	if m.FieldCleared(group.FieldWeeklyLimitUsd) {
 		fields = append(fields, group.FieldWeeklyLimitUsd)
 	}
+	if m.FieldCleared(group.FieldWeeklyLimitCredits) {
+		fields = append(fields, group.FieldWeeklyLimitCredits)
+	}
 	if m.FieldCleared(group.FieldMonthlyLimitUsd) {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
+	}
+	if m.FieldCleared(group.FieldMonthlyLimitCredits) {
+		fields = append(fields, group.FieldMonthlyLimitCredits)
 	}
 	if m.FieldCleared(group.FieldImagePrice1k) {
 		fields = append(fields, group.FieldImagePrice1k)
@@ -27372,11 +29361,20 @@ func (m *GroupMutation) ClearField(name string) error {
 	case group.FieldDailyLimitUsd:
 		m.ClearDailyLimitUsd()
 		return nil
+	case group.FieldDailyLimitCredits:
+		m.ClearDailyLimitCredits()
+		return nil
 	case group.FieldWeeklyLimitUsd:
 		m.ClearWeeklyLimitUsd()
 		return nil
+	case group.FieldWeeklyLimitCredits:
+		m.ClearWeeklyLimitCredits()
+		return nil
 	case group.FieldMonthlyLimitUsd:
 		m.ClearMonthlyLimitUsd()
+		return nil
+	case group.FieldMonthlyLimitCredits:
+		m.ClearMonthlyLimitCredits()
 		return nil
 	case group.FieldImagePrice1k:
 		m.ClearImagePrice1k()
@@ -27485,11 +29483,20 @@ func (m *GroupMutation) ResetField(name string) error {
 	case group.FieldDailyLimitUsd:
 		m.ResetDailyLimitUsd()
 		return nil
+	case group.FieldDailyLimitCredits:
+		m.ResetDailyLimitCredits()
+		return nil
 	case group.FieldWeeklyLimitUsd:
 		m.ResetWeeklyLimitUsd()
 		return nil
+	case group.FieldWeeklyLimitCredits:
+		m.ResetWeeklyLimitCredits()
+		return nil
 	case group.FieldMonthlyLimitUsd:
 		m.ResetMonthlyLimitUsd()
+		return nil
+	case group.FieldMonthlyLimitCredits:
+		m.ResetMonthlyLimitCredits()
 		return nil
 	case group.FieldDefaultValidityDays:
 		m.ResetDefaultValidityDays()
@@ -30155,62 +32162,74 @@ func (m *PaymentAuditLogMutation) ResetEdge(name string) error {
 // PaymentOrderMutation represents an operation that mutates the PaymentOrder nodes in the graph.
 type PaymentOrderMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *int64
-	user_email               *string
-	user_name                *string
-	user_notes               *string
-	amount                   *float64
-	addamount                *float64
-	pay_amount               *float64
-	addpay_amount            *float64
-	fee_rate                 *float64
-	addfee_rate              *float64
-	bonus_amount             *float64
-	addbonus_amount          *float64
-	recharge_code            *string
-	out_trade_no             *string
-	payment_type             *string
-	payment_trade_no         *string
-	pay_url                  *string
-	qr_code                  *string
-	qr_code_img              *string
-	order_type               *string
-	plan_id                  *int64
-	addplan_id               *int64
-	subscription_group_id    *int64
-	addsubscription_group_id *int64
-	subscription_days        *int
-	addsubscription_days     *int
-	provider_instance_id     *string
-	provider_key             *string
-	provider_snapshot        *map[string]interface{}
-	status                   *string
-	refund_amount            *float64
-	addrefund_amount         *float64
-	refund_reason            *string
-	refund_at                *time.Time
-	force_refund             *bool
-	refund_requested_at      *time.Time
-	refund_request_reason    *string
-	refund_requested_by      *string
-	expires_at               *time.Time
-	paid_at                  *time.Time
-	completed_at             *time.Time
-	failed_at                *time.Time
-	failed_reason            *string
-	client_ip                *string
-	src_host                 *string
-	src_url                  *string
-	created_at               *time.Time
-	updated_at               *time.Time
-	clearedFields            map[string]struct{}
-	user                     *int64
-	cleareduser              bool
-	done                     bool
-	oldValue                 func(context.Context) (*PaymentOrder, error)
-	predicates               []predicate.PaymentOrder
+	op                          Op
+	typ                         string
+	id                          *int64
+	user_email                  *string
+	user_name                   *string
+	user_notes                  *string
+	amount                      *float64
+	addamount                   *float64
+	pay_amount                  *float64
+	addpay_amount               *float64
+	fee_rate                    *float64
+	addfee_rate                 *float64
+	bonus_amount                *float64
+	addbonus_amount             *float64
+	credited_credits            *int64
+	addcredited_credits         *int64
+	bonus_credits               *int64
+	addbonus_credits            *int64
+	credits_per_usd_snapshot    *int64
+	addcredits_per_usd_snapshot *int64
+	usd_to_cny_snapshot         *float64
+	addusd_to_cny_snapshot      *float64
+	recharge_rate_snapshot      *float64
+	addrecharge_rate_snapshot   *float64
+	billing_version             *int64
+	addbilling_version          *int64
+	recharge_code               *string
+	out_trade_no                *string
+	payment_type                *string
+	payment_trade_no            *string
+	pay_url                     *string
+	qr_code                     *string
+	qr_code_img                 *string
+	order_type                  *string
+	plan_id                     *int64
+	addplan_id                  *int64
+	subscription_group_id       *int64
+	addsubscription_group_id    *int64
+	subscription_days           *int
+	addsubscription_days        *int
+	provider_instance_id        *string
+	provider_key                *string
+	provider_snapshot           *map[string]interface{}
+	status                      *string
+	refund_amount               *float64
+	addrefund_amount            *float64
+	refund_reason               *string
+	refund_at                   *time.Time
+	force_refund                *bool
+	refund_requested_at         *time.Time
+	refund_request_reason       *string
+	refund_requested_by         *string
+	expires_at                  *time.Time
+	paid_at                     *time.Time
+	completed_at                *time.Time
+	failed_at                   *time.Time
+	failed_reason               *string
+	client_ip                   *string
+	src_host                    *string
+	src_url                     *string
+	created_at                  *time.Time
+	updated_at                  *time.Time
+	clearedFields               map[string]struct{}
+	user                        *int64
+	cleareduser                 bool
+	done                        bool
+	oldValue                    func(context.Context) (*PaymentOrder, error)
+	predicates                  []predicate.PaymentOrder
 }
 
 var _ ent.Mutation = (*PaymentOrderMutation)(nil)
@@ -30690,6 +32709,342 @@ func (m *PaymentOrderMutation) AddedBonusAmount() (r float64, exists bool) {
 func (m *PaymentOrderMutation) ResetBonusAmount() {
 	m.bonus_amount = nil
 	m.addbonus_amount = nil
+}
+
+// SetCreditedCredits sets the "credited_credits" field.
+func (m *PaymentOrderMutation) SetCreditedCredits(i int64) {
+	m.credited_credits = &i
+	m.addcredited_credits = nil
+}
+
+// CreditedCredits returns the value of the "credited_credits" field in the mutation.
+func (m *PaymentOrderMutation) CreditedCredits() (r int64, exists bool) {
+	v := m.credited_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreditedCredits returns the old "credited_credits" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldCreditedCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreditedCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreditedCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreditedCredits: %w", err)
+	}
+	return oldValue.CreditedCredits, nil
+}
+
+// AddCreditedCredits adds i to the "credited_credits" field.
+func (m *PaymentOrderMutation) AddCreditedCredits(i int64) {
+	if m.addcredited_credits != nil {
+		*m.addcredited_credits += i
+	} else {
+		m.addcredited_credits = &i
+	}
+}
+
+// AddedCreditedCredits returns the value that was added to the "credited_credits" field in this mutation.
+func (m *PaymentOrderMutation) AddedCreditedCredits() (r int64, exists bool) {
+	v := m.addcredited_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreditedCredits resets all changes to the "credited_credits" field.
+func (m *PaymentOrderMutation) ResetCreditedCredits() {
+	m.credited_credits = nil
+	m.addcredited_credits = nil
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (m *PaymentOrderMutation) SetBonusCredits(i int64) {
+	m.bonus_credits = &i
+	m.addbonus_credits = nil
+}
+
+// BonusCredits returns the value of the "bonus_credits" field in the mutation.
+func (m *PaymentOrderMutation) BonusCredits() (r int64, exists bool) {
+	v := m.bonus_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBonusCredits returns the old "bonus_credits" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldBonusCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBonusCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBonusCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBonusCredits: %w", err)
+	}
+	return oldValue.BonusCredits, nil
+}
+
+// AddBonusCredits adds i to the "bonus_credits" field.
+func (m *PaymentOrderMutation) AddBonusCredits(i int64) {
+	if m.addbonus_credits != nil {
+		*m.addbonus_credits += i
+	} else {
+		m.addbonus_credits = &i
+	}
+}
+
+// AddedBonusCredits returns the value that was added to the "bonus_credits" field in this mutation.
+func (m *PaymentOrderMutation) AddedBonusCredits() (r int64, exists bool) {
+	v := m.addbonus_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBonusCredits resets all changes to the "bonus_credits" field.
+func (m *PaymentOrderMutation) ResetBonusCredits() {
+	m.bonus_credits = nil
+	m.addbonus_credits = nil
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (m *PaymentOrderMutation) SetCreditsPerUsdSnapshot(i int64) {
+	m.credits_per_usd_snapshot = &i
+	m.addcredits_per_usd_snapshot = nil
+}
+
+// CreditsPerUsdSnapshot returns the value of the "credits_per_usd_snapshot" field in the mutation.
+func (m *PaymentOrderMutation) CreditsPerUsdSnapshot() (r int64, exists bool) {
+	v := m.credits_per_usd_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreditsPerUsdSnapshot returns the old "credits_per_usd_snapshot" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldCreditsPerUsdSnapshot(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreditsPerUsdSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreditsPerUsdSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreditsPerUsdSnapshot: %w", err)
+	}
+	return oldValue.CreditsPerUsdSnapshot, nil
+}
+
+// AddCreditsPerUsdSnapshot adds i to the "credits_per_usd_snapshot" field.
+func (m *PaymentOrderMutation) AddCreditsPerUsdSnapshot(i int64) {
+	if m.addcredits_per_usd_snapshot != nil {
+		*m.addcredits_per_usd_snapshot += i
+	} else {
+		m.addcredits_per_usd_snapshot = &i
+	}
+}
+
+// AddedCreditsPerUsdSnapshot returns the value that was added to the "credits_per_usd_snapshot" field in this mutation.
+func (m *PaymentOrderMutation) AddedCreditsPerUsdSnapshot() (r int64, exists bool) {
+	v := m.addcredits_per_usd_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreditsPerUsdSnapshot resets all changes to the "credits_per_usd_snapshot" field.
+func (m *PaymentOrderMutation) ResetCreditsPerUsdSnapshot() {
+	m.credits_per_usd_snapshot = nil
+	m.addcredits_per_usd_snapshot = nil
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (m *PaymentOrderMutation) SetUsdToCnySnapshot(f float64) {
+	m.usd_to_cny_snapshot = &f
+	m.addusd_to_cny_snapshot = nil
+}
+
+// UsdToCnySnapshot returns the value of the "usd_to_cny_snapshot" field in the mutation.
+func (m *PaymentOrderMutation) UsdToCnySnapshot() (r float64, exists bool) {
+	v := m.usd_to_cny_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsdToCnySnapshot returns the old "usd_to_cny_snapshot" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldUsdToCnySnapshot(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsdToCnySnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsdToCnySnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsdToCnySnapshot: %w", err)
+	}
+	return oldValue.UsdToCnySnapshot, nil
+}
+
+// AddUsdToCnySnapshot adds f to the "usd_to_cny_snapshot" field.
+func (m *PaymentOrderMutation) AddUsdToCnySnapshot(f float64) {
+	if m.addusd_to_cny_snapshot != nil {
+		*m.addusd_to_cny_snapshot += f
+	} else {
+		m.addusd_to_cny_snapshot = &f
+	}
+}
+
+// AddedUsdToCnySnapshot returns the value that was added to the "usd_to_cny_snapshot" field in this mutation.
+func (m *PaymentOrderMutation) AddedUsdToCnySnapshot() (r float64, exists bool) {
+	v := m.addusd_to_cny_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsdToCnySnapshot resets all changes to the "usd_to_cny_snapshot" field.
+func (m *PaymentOrderMutation) ResetUsdToCnySnapshot() {
+	m.usd_to_cny_snapshot = nil
+	m.addusd_to_cny_snapshot = nil
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (m *PaymentOrderMutation) SetRechargeRateSnapshot(f float64) {
+	m.recharge_rate_snapshot = &f
+	m.addrecharge_rate_snapshot = nil
+}
+
+// RechargeRateSnapshot returns the value of the "recharge_rate_snapshot" field in the mutation.
+func (m *PaymentOrderMutation) RechargeRateSnapshot() (r float64, exists bool) {
+	v := m.recharge_rate_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRechargeRateSnapshot returns the old "recharge_rate_snapshot" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldRechargeRateSnapshot(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRechargeRateSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRechargeRateSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRechargeRateSnapshot: %w", err)
+	}
+	return oldValue.RechargeRateSnapshot, nil
+}
+
+// AddRechargeRateSnapshot adds f to the "recharge_rate_snapshot" field.
+func (m *PaymentOrderMutation) AddRechargeRateSnapshot(f float64) {
+	if m.addrecharge_rate_snapshot != nil {
+		*m.addrecharge_rate_snapshot += f
+	} else {
+		m.addrecharge_rate_snapshot = &f
+	}
+}
+
+// AddedRechargeRateSnapshot returns the value that was added to the "recharge_rate_snapshot" field in this mutation.
+func (m *PaymentOrderMutation) AddedRechargeRateSnapshot() (r float64, exists bool) {
+	v := m.addrecharge_rate_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRechargeRateSnapshot resets all changes to the "recharge_rate_snapshot" field.
+func (m *PaymentOrderMutation) ResetRechargeRateSnapshot() {
+	m.recharge_rate_snapshot = nil
+	m.addrecharge_rate_snapshot = nil
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (m *PaymentOrderMutation) SetBillingVersion(i int64) {
+	m.billing_version = &i
+	m.addbilling_version = nil
+}
+
+// BillingVersion returns the value of the "billing_version" field in the mutation.
+func (m *PaymentOrderMutation) BillingVersion() (r int64, exists bool) {
+	v := m.billing_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBillingVersion returns the old "billing_version" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldBillingVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBillingVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBillingVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBillingVersion: %w", err)
+	}
+	return oldValue.BillingVersion, nil
+}
+
+// AddBillingVersion adds i to the "billing_version" field.
+func (m *PaymentOrderMutation) AddBillingVersion(i int64) {
+	if m.addbilling_version != nil {
+		*m.addbilling_version += i
+	} else {
+		m.addbilling_version = &i
+	}
+}
+
+// AddedBillingVersion returns the value that was added to the "billing_version" field in this mutation.
+func (m *PaymentOrderMutation) AddedBillingVersion() (r int64, exists bool) {
+	v := m.addbilling_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBillingVersion resets all changes to the "billing_version" field.
+func (m *PaymentOrderMutation) ResetBillingVersion() {
+	m.billing_version = nil
+	m.addbilling_version = nil
 }
 
 // SetRechargeCode sets the "recharge_code" field.
@@ -32235,7 +34590,7 @@ func (m *PaymentOrderMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PaymentOrderMutation) Fields() []string {
-	fields := make([]string, 0, 40)
+	fields := make([]string, 0, 46)
 	if m.user != nil {
 		fields = append(fields, paymentorder.FieldUserID)
 	}
@@ -32259,6 +34614,24 @@ func (m *PaymentOrderMutation) Fields() []string {
 	}
 	if m.bonus_amount != nil {
 		fields = append(fields, paymentorder.FieldBonusAmount)
+	}
+	if m.credited_credits != nil {
+		fields = append(fields, paymentorder.FieldCreditedCredits)
+	}
+	if m.bonus_credits != nil {
+		fields = append(fields, paymentorder.FieldBonusCredits)
+	}
+	if m.credits_per_usd_snapshot != nil {
+		fields = append(fields, paymentorder.FieldCreditsPerUsdSnapshot)
+	}
+	if m.usd_to_cny_snapshot != nil {
+		fields = append(fields, paymentorder.FieldUsdToCnySnapshot)
+	}
+	if m.recharge_rate_snapshot != nil {
+		fields = append(fields, paymentorder.FieldRechargeRateSnapshot)
+	}
+	if m.billing_version != nil {
+		fields = append(fields, paymentorder.FieldBillingVersion)
 	}
 	if m.recharge_code != nil {
 		fields = append(fields, paymentorder.FieldRechargeCode)
@@ -32380,6 +34753,18 @@ func (m *PaymentOrderMutation) Field(name string) (ent.Value, bool) {
 		return m.FeeRate()
 	case paymentorder.FieldBonusAmount:
 		return m.BonusAmount()
+	case paymentorder.FieldCreditedCredits:
+		return m.CreditedCredits()
+	case paymentorder.FieldBonusCredits:
+		return m.BonusCredits()
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		return m.CreditsPerUsdSnapshot()
+	case paymentorder.FieldUsdToCnySnapshot:
+		return m.UsdToCnySnapshot()
+	case paymentorder.FieldRechargeRateSnapshot:
+		return m.RechargeRateSnapshot()
+	case paymentorder.FieldBillingVersion:
+		return m.BillingVersion()
 	case paymentorder.FieldRechargeCode:
 		return m.RechargeCode()
 	case paymentorder.FieldOutTradeNo:
@@ -32469,6 +34854,18 @@ func (m *PaymentOrderMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldFeeRate(ctx)
 	case paymentorder.FieldBonusAmount:
 		return m.OldBonusAmount(ctx)
+	case paymentorder.FieldCreditedCredits:
+		return m.OldCreditedCredits(ctx)
+	case paymentorder.FieldBonusCredits:
+		return m.OldBonusCredits(ctx)
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		return m.OldCreditsPerUsdSnapshot(ctx)
+	case paymentorder.FieldUsdToCnySnapshot:
+		return m.OldUsdToCnySnapshot(ctx)
+	case paymentorder.FieldRechargeRateSnapshot:
+		return m.OldRechargeRateSnapshot(ctx)
+	case paymentorder.FieldBillingVersion:
+		return m.OldBillingVersion(ctx)
 	case paymentorder.FieldRechargeCode:
 		return m.OldRechargeCode(ctx)
 	case paymentorder.FieldOutTradeNo:
@@ -32597,6 +34994,48 @@ func (m *PaymentOrderMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetBonusAmount(v)
+		return nil
+	case paymentorder.FieldCreditedCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreditedCredits(v)
+		return nil
+	case paymentorder.FieldBonusCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBonusCredits(v)
+		return nil
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreditsPerUsdSnapshot(v)
+		return nil
+	case paymentorder.FieldUsdToCnySnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsdToCnySnapshot(v)
+		return nil
+	case paymentorder.FieldRechargeRateSnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRechargeRateSnapshot(v)
+		return nil
+	case paymentorder.FieldBillingVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBillingVersion(v)
 		return nil
 	case paymentorder.FieldRechargeCode:
 		v, ok := value.(string)
@@ -32842,6 +35281,24 @@ func (m *PaymentOrderMutation) AddedFields() []string {
 	if m.addbonus_amount != nil {
 		fields = append(fields, paymentorder.FieldBonusAmount)
 	}
+	if m.addcredited_credits != nil {
+		fields = append(fields, paymentorder.FieldCreditedCredits)
+	}
+	if m.addbonus_credits != nil {
+		fields = append(fields, paymentorder.FieldBonusCredits)
+	}
+	if m.addcredits_per_usd_snapshot != nil {
+		fields = append(fields, paymentorder.FieldCreditsPerUsdSnapshot)
+	}
+	if m.addusd_to_cny_snapshot != nil {
+		fields = append(fields, paymentorder.FieldUsdToCnySnapshot)
+	}
+	if m.addrecharge_rate_snapshot != nil {
+		fields = append(fields, paymentorder.FieldRechargeRateSnapshot)
+	}
+	if m.addbilling_version != nil {
+		fields = append(fields, paymentorder.FieldBillingVersion)
+	}
 	if m.addplan_id != nil {
 		fields = append(fields, paymentorder.FieldPlanID)
 	}
@@ -32870,6 +35327,18 @@ func (m *PaymentOrderMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedFeeRate()
 	case paymentorder.FieldBonusAmount:
 		return m.AddedBonusAmount()
+	case paymentorder.FieldCreditedCredits:
+		return m.AddedCreditedCredits()
+	case paymentorder.FieldBonusCredits:
+		return m.AddedBonusCredits()
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		return m.AddedCreditsPerUsdSnapshot()
+	case paymentorder.FieldUsdToCnySnapshot:
+		return m.AddedUsdToCnySnapshot()
+	case paymentorder.FieldRechargeRateSnapshot:
+		return m.AddedRechargeRateSnapshot()
+	case paymentorder.FieldBillingVersion:
+		return m.AddedBillingVersion()
 	case paymentorder.FieldPlanID:
 		return m.AddedPlanID()
 	case paymentorder.FieldSubscriptionGroupID:
@@ -32914,6 +35383,48 @@ func (m *PaymentOrderMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddBonusAmount(v)
+		return nil
+	case paymentorder.FieldCreditedCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreditedCredits(v)
+		return nil
+	case paymentorder.FieldBonusCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBonusCredits(v)
+		return nil
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreditsPerUsdSnapshot(v)
+		return nil
+	case paymentorder.FieldUsdToCnySnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsdToCnySnapshot(v)
+		return nil
+	case paymentorder.FieldRechargeRateSnapshot:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRechargeRateSnapshot(v)
+		return nil
+	case paymentorder.FieldBillingVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBillingVersion(v)
 		return nil
 	case paymentorder.FieldPlanID:
 		v, ok := value.(int64)
@@ -33116,6 +35627,24 @@ func (m *PaymentOrderMutation) ResetField(name string) error {
 		return nil
 	case paymentorder.FieldBonusAmount:
 		m.ResetBonusAmount()
+		return nil
+	case paymentorder.FieldCreditedCredits:
+		m.ResetCreditedCredits()
+		return nil
+	case paymentorder.FieldBonusCredits:
+		m.ResetBonusCredits()
+		return nil
+	case paymentorder.FieldCreditsPerUsdSnapshot:
+		m.ResetCreditsPerUsdSnapshot()
+		return nil
+	case paymentorder.FieldUsdToCnySnapshot:
+		m.ResetUsdToCnySnapshot()
+		return nil
+	case paymentorder.FieldRechargeRateSnapshot:
+		m.ResetRechargeRateSnapshot()
+		return nil
+	case paymentorder.FieldBillingVersion:
+		m.ResetBillingVersion()
 		return nil
 	case paymentorder.FieldRechargeCode:
 		m.ResetRechargeCode()
@@ -38931,6 +41460,8 @@ type RedeemCodeMutation struct {
 	_type            *string
 	value            *float64
 	addvalue         *float64
+	value_credits    *int64
+	addvalue_credits *int64
 	status           *string
 	used_at          *time.Time
 	notes            *string
@@ -39172,6 +41703,62 @@ func (m *RedeemCodeMutation) AddedValue() (r float64, exists bool) {
 func (m *RedeemCodeMutation) ResetValue() {
 	m.value = nil
 	m.addvalue = nil
+}
+
+// SetValueCredits sets the "value_credits" field.
+func (m *RedeemCodeMutation) SetValueCredits(i int64) {
+	m.value_credits = &i
+	m.addvalue_credits = nil
+}
+
+// ValueCredits returns the value of the "value_credits" field in the mutation.
+func (m *RedeemCodeMutation) ValueCredits() (r int64, exists bool) {
+	v := m.value_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldValueCredits returns the old "value_credits" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldValueCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldValueCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldValueCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldValueCredits: %w", err)
+	}
+	return oldValue.ValueCredits, nil
+}
+
+// AddValueCredits adds i to the "value_credits" field.
+func (m *RedeemCodeMutation) AddValueCredits(i int64) {
+	if m.addvalue_credits != nil {
+		*m.addvalue_credits += i
+	} else {
+		m.addvalue_credits = &i
+	}
+}
+
+// AddedValueCredits returns the value that was added to the "value_credits" field in this mutation.
+func (m *RedeemCodeMutation) AddedValueCredits() (r int64, exists bool) {
+	v := m.addvalue_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetValueCredits resets all changes to the "value_credits" field.
+func (m *RedeemCodeMutation) ResetValueCredits() {
+	m.value_credits = nil
+	m.addvalue_credits = nil
 }
 
 // SetStatus sets the "status" field.
@@ -39648,7 +42235,7 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
@@ -39657,6 +42244,9 @@ func (m *RedeemCodeMutation) Fields() []string {
 	}
 	if m.value != nil {
 		fields = append(fields, redeemcode.FieldValue)
+	}
+	if m.value_credits != nil {
+		fields = append(fields, redeemcode.FieldValueCredits)
 	}
 	if m.status != nil {
 		fields = append(fields, redeemcode.FieldStatus)
@@ -39696,6 +42286,8 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.GetType()
 	case redeemcode.FieldValue:
 		return m.Value()
+	case redeemcode.FieldValueCredits:
+		return m.ValueCredits()
 	case redeemcode.FieldStatus:
 		return m.Status()
 	case redeemcode.FieldUsedBy:
@@ -39727,6 +42319,8 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldType(ctx)
 	case redeemcode.FieldValue:
 		return m.OldValue(ctx)
+	case redeemcode.FieldValueCredits:
+		return m.OldValueCredits(ctx)
 	case redeemcode.FieldStatus:
 		return m.OldStatus(ctx)
 	case redeemcode.FieldUsedBy:
@@ -39772,6 +42366,13 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetValue(v)
+		return nil
+	case redeemcode.FieldValueCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetValueCredits(v)
 		return nil
 	case redeemcode.FieldStatus:
 		v, ok := value.(string)
@@ -39840,6 +42441,9 @@ func (m *RedeemCodeMutation) AddedFields() []string {
 	if m.addvalue != nil {
 		fields = append(fields, redeemcode.FieldValue)
 	}
+	if m.addvalue_credits != nil {
+		fields = append(fields, redeemcode.FieldValueCredits)
+	}
 	if m.addvalidity_days != nil {
 		fields = append(fields, redeemcode.FieldValidityDays)
 	}
@@ -39853,6 +42457,8 @@ func (m *RedeemCodeMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case redeemcode.FieldValue:
 		return m.AddedValue()
+	case redeemcode.FieldValueCredits:
+		return m.AddedValueCredits()
 	case redeemcode.FieldValidityDays:
 		return m.AddedValidityDays()
 	}
@@ -39870,6 +42476,13 @@ func (m *RedeemCodeMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddValue(v)
+		return nil
+	case redeemcode.FieldValueCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddValueCredits(v)
 		return nil
 	case redeemcode.FieldValidityDays:
 		v, ok := value.(int)
@@ -39946,6 +42559,9 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldValue:
 		m.ResetValue()
+		return nil
+	case redeemcode.FieldValueCredits:
+		m.ResetValueCredits()
 		return nil
 	case redeemcode.FieldStatus:
 		m.ResetStatus()
@@ -44706,6 +47322,15 @@ type UsageLogMutation struct {
 	addtotal_cost                *float64
 	actual_cost                  *float64
 	addactual_cost               *float64
+	charge_credits               *int64
+	addcharge_credits            *int64
+	billing_currency             *string
+	credits_per_usd              *int64
+	addcredits_per_usd           *int64
+	usd_to_cny_rate              *float64
+	addusd_to_cny_rate           *float64
+	billing_version              *int64
+	addbilling_version           *int64
 	rate_multiplier              *float64
 	addrate_multiplier           *float64
 	long_context_billing_applied *bool
@@ -46211,6 +48836,266 @@ func (m *UsageLogMutation) ResetActualCost() {
 	m.addactual_cost = nil
 }
 
+// SetChargeCredits sets the "charge_credits" field.
+func (m *UsageLogMutation) SetChargeCredits(i int64) {
+	m.charge_credits = &i
+	m.addcharge_credits = nil
+}
+
+// ChargeCredits returns the value of the "charge_credits" field in the mutation.
+func (m *UsageLogMutation) ChargeCredits() (r int64, exists bool) {
+	v := m.charge_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChargeCredits returns the old "charge_credits" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldChargeCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChargeCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChargeCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChargeCredits: %w", err)
+	}
+	return oldValue.ChargeCredits, nil
+}
+
+// AddChargeCredits adds i to the "charge_credits" field.
+func (m *UsageLogMutation) AddChargeCredits(i int64) {
+	if m.addcharge_credits != nil {
+		*m.addcharge_credits += i
+	} else {
+		m.addcharge_credits = &i
+	}
+}
+
+// AddedChargeCredits returns the value that was added to the "charge_credits" field in this mutation.
+func (m *UsageLogMutation) AddedChargeCredits() (r int64, exists bool) {
+	v := m.addcharge_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetChargeCredits resets all changes to the "charge_credits" field.
+func (m *UsageLogMutation) ResetChargeCredits() {
+	m.charge_credits = nil
+	m.addcharge_credits = nil
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (m *UsageLogMutation) SetBillingCurrency(s string) {
+	m.billing_currency = &s
+}
+
+// BillingCurrency returns the value of the "billing_currency" field in the mutation.
+func (m *UsageLogMutation) BillingCurrency() (r string, exists bool) {
+	v := m.billing_currency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBillingCurrency returns the old "billing_currency" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldBillingCurrency(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBillingCurrency is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBillingCurrency requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBillingCurrency: %w", err)
+	}
+	return oldValue.BillingCurrency, nil
+}
+
+// ResetBillingCurrency resets all changes to the "billing_currency" field.
+func (m *UsageLogMutation) ResetBillingCurrency() {
+	m.billing_currency = nil
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (m *UsageLogMutation) SetCreditsPerUsd(i int64) {
+	m.credits_per_usd = &i
+	m.addcredits_per_usd = nil
+}
+
+// CreditsPerUsd returns the value of the "credits_per_usd" field in the mutation.
+func (m *UsageLogMutation) CreditsPerUsd() (r int64, exists bool) {
+	v := m.credits_per_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreditsPerUsd returns the old "credits_per_usd" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldCreditsPerUsd(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreditsPerUsd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreditsPerUsd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreditsPerUsd: %w", err)
+	}
+	return oldValue.CreditsPerUsd, nil
+}
+
+// AddCreditsPerUsd adds i to the "credits_per_usd" field.
+func (m *UsageLogMutation) AddCreditsPerUsd(i int64) {
+	if m.addcredits_per_usd != nil {
+		*m.addcredits_per_usd += i
+	} else {
+		m.addcredits_per_usd = &i
+	}
+}
+
+// AddedCreditsPerUsd returns the value that was added to the "credits_per_usd" field in this mutation.
+func (m *UsageLogMutation) AddedCreditsPerUsd() (r int64, exists bool) {
+	v := m.addcredits_per_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreditsPerUsd resets all changes to the "credits_per_usd" field.
+func (m *UsageLogMutation) ResetCreditsPerUsd() {
+	m.credits_per_usd = nil
+	m.addcredits_per_usd = nil
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (m *UsageLogMutation) SetUsdToCnyRate(f float64) {
+	m.usd_to_cny_rate = &f
+	m.addusd_to_cny_rate = nil
+}
+
+// UsdToCnyRate returns the value of the "usd_to_cny_rate" field in the mutation.
+func (m *UsageLogMutation) UsdToCnyRate() (r float64, exists bool) {
+	v := m.usd_to_cny_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsdToCnyRate returns the old "usd_to_cny_rate" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUsdToCnyRate(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsdToCnyRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsdToCnyRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsdToCnyRate: %w", err)
+	}
+	return oldValue.UsdToCnyRate, nil
+}
+
+// AddUsdToCnyRate adds f to the "usd_to_cny_rate" field.
+func (m *UsageLogMutation) AddUsdToCnyRate(f float64) {
+	if m.addusd_to_cny_rate != nil {
+		*m.addusd_to_cny_rate += f
+	} else {
+		m.addusd_to_cny_rate = &f
+	}
+}
+
+// AddedUsdToCnyRate returns the value that was added to the "usd_to_cny_rate" field in this mutation.
+func (m *UsageLogMutation) AddedUsdToCnyRate() (r float64, exists bool) {
+	v := m.addusd_to_cny_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsdToCnyRate resets all changes to the "usd_to_cny_rate" field.
+func (m *UsageLogMutation) ResetUsdToCnyRate() {
+	m.usd_to_cny_rate = nil
+	m.addusd_to_cny_rate = nil
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (m *UsageLogMutation) SetBillingVersion(i int64) {
+	m.billing_version = &i
+	m.addbilling_version = nil
+}
+
+// BillingVersion returns the value of the "billing_version" field in the mutation.
+func (m *UsageLogMutation) BillingVersion() (r int64, exists bool) {
+	v := m.billing_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBillingVersion returns the old "billing_version" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldBillingVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBillingVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBillingVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBillingVersion: %w", err)
+	}
+	return oldValue.BillingVersion, nil
+}
+
+// AddBillingVersion adds i to the "billing_version" field.
+func (m *UsageLogMutation) AddBillingVersion(i int64) {
+	if m.addbilling_version != nil {
+		*m.addbilling_version += i
+	} else {
+		m.addbilling_version = &i
+	}
+}
+
+// AddedBillingVersion returns the value that was added to the "billing_version" field in this mutation.
+func (m *UsageLogMutation) AddedBillingVersion() (r int64, exists bool) {
+	v := m.addbilling_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBillingVersion resets all changes to the "billing_version" field.
+func (m *UsageLogMutation) ResetBillingVersion() {
+	m.billing_version = nil
+	m.addbilling_version = nil
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (m *UsageLogMutation) SetRateMultiplier(f float64) {
 	m.rate_multiplier = &f
@@ -47420,7 +50305,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 47)
+	fields := make([]string, 0, 52)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47501,6 +50386,21 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.actual_cost != nil {
 		fields = append(fields, usagelog.FieldActualCost)
+	}
+	if m.charge_credits != nil {
+		fields = append(fields, usagelog.FieldChargeCredits)
+	}
+	if m.billing_currency != nil {
+		fields = append(fields, usagelog.FieldBillingCurrency)
+	}
+	if m.credits_per_usd != nil {
+		fields = append(fields, usagelog.FieldCreditsPerUsd)
+	}
+	if m.usd_to_cny_rate != nil {
+		fields = append(fields, usagelog.FieldUsdToCnyRate)
+	}
+	if m.billing_version != nil {
+		fields = append(fields, usagelog.FieldBillingVersion)
 	}
 	if m.rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
@@ -47624,6 +50524,16 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.TotalCost()
 	case usagelog.FieldActualCost:
 		return m.ActualCost()
+	case usagelog.FieldChargeCredits:
+		return m.ChargeCredits()
+	case usagelog.FieldBillingCurrency:
+		return m.BillingCurrency()
+	case usagelog.FieldCreditsPerUsd:
+		return m.CreditsPerUsd()
+	case usagelog.FieldUsdToCnyRate:
+		return m.UsdToCnyRate()
+	case usagelog.FieldBillingVersion:
+		return m.BillingVersion()
 	case usagelog.FieldRateMultiplier:
 		return m.RateMultiplier()
 	case usagelog.FieldLongContextBillingApplied:
@@ -47727,6 +50637,16 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldTotalCost(ctx)
 	case usagelog.FieldActualCost:
 		return m.OldActualCost(ctx)
+	case usagelog.FieldChargeCredits:
+		return m.OldChargeCredits(ctx)
+	case usagelog.FieldBillingCurrency:
+		return m.OldBillingCurrency(ctx)
+	case usagelog.FieldCreditsPerUsd:
+		return m.OldCreditsPerUsd(ctx)
+	case usagelog.FieldUsdToCnyRate:
+		return m.OldUsdToCnyRate(ctx)
+	case usagelog.FieldBillingVersion:
+		return m.OldBillingVersion(ctx)
 	case usagelog.FieldRateMultiplier:
 		return m.OldRateMultiplier(ctx)
 	case usagelog.FieldLongContextBillingApplied:
@@ -47965,6 +50885,41 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetActualCost(v)
 		return nil
+	case usagelog.FieldChargeCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChargeCredits(v)
+		return nil
+	case usagelog.FieldBillingCurrency:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBillingCurrency(v)
+		return nil
+	case usagelog.FieldCreditsPerUsd:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreditsPerUsd(v)
+		return nil
+	case usagelog.FieldUsdToCnyRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsdToCnyRate(v)
+		return nil
+	case usagelog.FieldBillingVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBillingVersion(v)
+		return nil
 	case usagelog.FieldRateMultiplier:
 		v, ok := value.(float64)
 		if !ok {
@@ -48152,6 +51107,18 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addactual_cost != nil {
 		fields = append(fields, usagelog.FieldActualCost)
 	}
+	if m.addcharge_credits != nil {
+		fields = append(fields, usagelog.FieldChargeCredits)
+	}
+	if m.addcredits_per_usd != nil {
+		fields = append(fields, usagelog.FieldCreditsPerUsd)
+	}
+	if m.addusd_to_cny_rate != nil {
+		fields = append(fields, usagelog.FieldUsdToCnyRate)
+	}
+	if m.addbilling_version != nil {
+		fields = append(fields, usagelog.FieldBillingVersion)
+	}
 	if m.addrate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
 	}
@@ -48210,6 +51177,14 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTotalCost()
 	case usagelog.FieldActualCost:
 		return m.AddedActualCost()
+	case usagelog.FieldChargeCredits:
+		return m.AddedChargeCredits()
+	case usagelog.FieldCreditsPerUsd:
+		return m.AddedCreditsPerUsd()
+	case usagelog.FieldUsdToCnyRate:
+		return m.AddedUsdToCnyRate()
+	case usagelog.FieldBillingVersion:
+		return m.AddedBillingVersion()
 	case usagelog.FieldRateMultiplier:
 		return m.AddedRateMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
@@ -48325,6 +51300,34 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddActualCost(v)
+		return nil
+	case usagelog.FieldChargeCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddChargeCredits(v)
+		return nil
+	case usagelog.FieldCreditsPerUsd:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreditsPerUsd(v)
+		return nil
+	case usagelog.FieldUsdToCnyRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsdToCnyRate(v)
+		return nil
+	case usagelog.FieldBillingVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBillingVersion(v)
 		return nil
 	case usagelog.FieldRateMultiplier:
 		v, ok := value.(float64)
@@ -48625,6 +51628,21 @@ func (m *UsageLogMutation) ResetField(name string) error {
 	case usagelog.FieldActualCost:
 		m.ResetActualCost()
 		return nil
+	case usagelog.FieldChargeCredits:
+		m.ResetChargeCredits()
+		return nil
+	case usagelog.FieldBillingCurrency:
+		m.ResetBillingCurrency()
+		return nil
+	case usagelog.FieldCreditsPerUsd:
+		m.ResetCreditsPerUsd()
+		return nil
+	case usagelog.FieldUsdToCnyRate:
+		m.ResetUsdToCnyRate()
+		return nil
+	case usagelog.FieldBillingVersion:
+		m.ResetBillingVersion()
+		return nil
 	case usagelog.FieldRateMultiplier:
 		m.ResetRateMultiplier()
 		return nil
@@ -48849,8 +51867,14 @@ type UserMutation struct {
 	role                          *string
 	balance                       *float64
 	addbalance                    *float64
+	balance_credits               *int64
+	addbalance_credits            *int64
+	balance_credits_version       *int64
+	addbalance_credits_version    *int64
 	frozen_balance                *float64
 	addfrozen_balance             *float64
+	frozen_balance_credits        *int64
+	addfrozen_balance_credits     *int64
 	concurrency                   *int
 	addconcurrency                *int
 	status                        *string
@@ -49300,6 +52324,118 @@ func (m *UserMutation) ResetBalance() {
 	m.addbalance = nil
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (m *UserMutation) SetBalanceCredits(i int64) {
+	m.balance_credits = &i
+	m.addbalance_credits = nil
+}
+
+// BalanceCredits returns the value of the "balance_credits" field in the mutation.
+func (m *UserMutation) BalanceCredits() (r int64, exists bool) {
+	v := m.balance_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceCredits returns the old "balance_credits" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBalanceCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceCredits: %w", err)
+	}
+	return oldValue.BalanceCredits, nil
+}
+
+// AddBalanceCredits adds i to the "balance_credits" field.
+func (m *UserMutation) AddBalanceCredits(i int64) {
+	if m.addbalance_credits != nil {
+		*m.addbalance_credits += i
+	} else {
+		m.addbalance_credits = &i
+	}
+}
+
+// AddedBalanceCredits returns the value that was added to the "balance_credits" field in this mutation.
+func (m *UserMutation) AddedBalanceCredits() (r int64, exists bool) {
+	v := m.addbalance_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceCredits resets all changes to the "balance_credits" field.
+func (m *UserMutation) ResetBalanceCredits() {
+	m.balance_credits = nil
+	m.addbalance_credits = nil
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (m *UserMutation) SetBalanceCreditsVersion(i int64) {
+	m.balance_credits_version = &i
+	m.addbalance_credits_version = nil
+}
+
+// BalanceCreditsVersion returns the value of the "balance_credits_version" field in the mutation.
+func (m *UserMutation) BalanceCreditsVersion() (r int64, exists bool) {
+	v := m.balance_credits_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBalanceCreditsVersion returns the old "balance_credits_version" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldBalanceCreditsVersion(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBalanceCreditsVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBalanceCreditsVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBalanceCreditsVersion: %w", err)
+	}
+	return oldValue.BalanceCreditsVersion, nil
+}
+
+// AddBalanceCreditsVersion adds i to the "balance_credits_version" field.
+func (m *UserMutation) AddBalanceCreditsVersion(i int64) {
+	if m.addbalance_credits_version != nil {
+		*m.addbalance_credits_version += i
+	} else {
+		m.addbalance_credits_version = &i
+	}
+}
+
+// AddedBalanceCreditsVersion returns the value that was added to the "balance_credits_version" field in this mutation.
+func (m *UserMutation) AddedBalanceCreditsVersion() (r int64, exists bool) {
+	v := m.addbalance_credits_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBalanceCreditsVersion resets all changes to the "balance_credits_version" field.
+func (m *UserMutation) ResetBalanceCreditsVersion() {
+	m.balance_credits_version = nil
+	m.addbalance_credits_version = nil
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (m *UserMutation) SetFrozenBalance(f float64) {
 	m.frozen_balance = &f
@@ -49354,6 +52490,62 @@ func (m *UserMutation) AddedFrozenBalance() (r float64, exists bool) {
 func (m *UserMutation) ResetFrozenBalance() {
 	m.frozen_balance = nil
 	m.addfrozen_balance = nil
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (m *UserMutation) SetFrozenBalanceCredits(i int64) {
+	m.frozen_balance_credits = &i
+	m.addfrozen_balance_credits = nil
+}
+
+// FrozenBalanceCredits returns the value of the "frozen_balance_credits" field in the mutation.
+func (m *UserMutation) FrozenBalanceCredits() (r int64, exists bool) {
+	v := m.frozen_balance_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFrozenBalanceCredits returns the old "frozen_balance_credits" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldFrozenBalanceCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFrozenBalanceCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFrozenBalanceCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFrozenBalanceCredits: %w", err)
+	}
+	return oldValue.FrozenBalanceCredits, nil
+}
+
+// AddFrozenBalanceCredits adds i to the "frozen_balance_credits" field.
+func (m *UserMutation) AddFrozenBalanceCredits(i int64) {
+	if m.addfrozen_balance_credits != nil {
+		*m.addfrozen_balance_credits += i
+	} else {
+		m.addfrozen_balance_credits = &i
+	}
+}
+
+// AddedFrozenBalanceCredits returns the value that was added to the "frozen_balance_credits" field in this mutation.
+func (m *UserMutation) AddedFrozenBalanceCredits() (r int64, exists bool) {
+	v := m.addfrozen_balance_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetFrozenBalanceCredits resets all changes to the "frozen_balance_credits" field.
+func (m *UserMutation) ResetFrozenBalanceCredits() {
+	m.frozen_balance_credits = nil
+	m.addfrozen_balance_credits = nil
 }
 
 // SetConcurrency sets the "concurrency" field.
@@ -50850,7 +54042,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 28)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -50872,8 +54064,17 @@ func (m *UserMutation) Fields() []string {
 	if m.balance != nil {
 		fields = append(fields, user.FieldBalance)
 	}
+	if m.balance_credits != nil {
+		fields = append(fields, user.FieldBalanceCredits)
+	}
+	if m.balance_credits_version != nil {
+		fields = append(fields, user.FieldBalanceCreditsVersion)
+	}
 	if m.frozen_balance != nil {
 		fields = append(fields, user.FieldFrozenBalance)
+	}
+	if m.frozen_balance_credits != nil {
+		fields = append(fields, user.FieldFrozenBalanceCredits)
 	}
 	if m.concurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
@@ -50948,8 +54149,14 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Role()
 	case user.FieldBalance:
 		return m.Balance()
+	case user.FieldBalanceCredits:
+		return m.BalanceCredits()
+	case user.FieldBalanceCreditsVersion:
+		return m.BalanceCreditsVersion()
 	case user.FieldFrozenBalance:
 		return m.FrozenBalance()
+	case user.FieldFrozenBalanceCredits:
+		return m.FrozenBalanceCredits()
 	case user.FieldConcurrency:
 		return m.Concurrency()
 	case user.FieldStatus:
@@ -51007,8 +54214,14 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldRole(ctx)
 	case user.FieldBalance:
 		return m.OldBalance(ctx)
+	case user.FieldBalanceCredits:
+		return m.OldBalanceCredits(ctx)
+	case user.FieldBalanceCreditsVersion:
+		return m.OldBalanceCreditsVersion(ctx)
 	case user.FieldFrozenBalance:
 		return m.OldFrozenBalance(ctx)
+	case user.FieldFrozenBalanceCredits:
+		return m.OldFrozenBalanceCredits(ctx)
 	case user.FieldConcurrency:
 		return m.OldConcurrency(ctx)
 	case user.FieldStatus:
@@ -51101,12 +54314,33 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBalance(v)
 		return nil
+	case user.FieldBalanceCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceCredits(v)
+		return nil
+	case user.FieldBalanceCreditsVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBalanceCreditsVersion(v)
+		return nil
 	case user.FieldFrozenBalance:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetFrozenBalance(v)
+		return nil
+	case user.FieldFrozenBalanceCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFrozenBalanceCredits(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -51238,8 +54472,17 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addbalance != nil {
 		fields = append(fields, user.FieldBalance)
 	}
+	if m.addbalance_credits != nil {
+		fields = append(fields, user.FieldBalanceCredits)
+	}
+	if m.addbalance_credits_version != nil {
+		fields = append(fields, user.FieldBalanceCreditsVersion)
+	}
 	if m.addfrozen_balance != nil {
 		fields = append(fields, user.FieldFrozenBalance)
+	}
+	if m.addfrozen_balance_credits != nil {
+		fields = append(fields, user.FieldFrozenBalanceCredits)
 	}
 	if m.addconcurrency != nil {
 		fields = append(fields, user.FieldConcurrency)
@@ -51263,8 +54506,14 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case user.FieldBalance:
 		return m.AddedBalance()
+	case user.FieldBalanceCredits:
+		return m.AddedBalanceCredits()
+	case user.FieldBalanceCreditsVersion:
+		return m.AddedBalanceCreditsVersion()
 	case user.FieldFrozenBalance:
 		return m.AddedFrozenBalance()
+	case user.FieldFrozenBalanceCredits:
+		return m.AddedFrozenBalanceCredits()
 	case user.FieldConcurrency:
 		return m.AddedConcurrency()
 	case user.FieldBalanceNotifyThreshold:
@@ -51289,12 +54538,33 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddBalance(v)
 		return nil
+	case user.FieldBalanceCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceCredits(v)
+		return nil
+	case user.FieldBalanceCreditsVersion:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBalanceCreditsVersion(v)
+		return nil
 	case user.FieldFrozenBalance:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddFrozenBalance(v)
+		return nil
+	case user.FieldFrozenBalanceCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFrozenBalanceCredits(v)
 		return nil
 	case user.FieldConcurrency:
 		v, ok := value.(int)
@@ -51411,8 +54681,17 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldBalance:
 		m.ResetBalance()
 		return nil
+	case user.FieldBalanceCredits:
+		m.ResetBalanceCredits()
+		return nil
+	case user.FieldBalanceCreditsVersion:
+		m.ResetBalanceCreditsVersion()
+		return nil
 	case user.FieldFrozenBalance:
 		m.ResetFrozenBalance()
+		return nil
+	case user.FieldFrozenBalanceCredits:
+		m.ResetFrozenBalanceCredits()
 		return nil
 	case user.FieldConcurrency:
 		m.ResetConcurrency()
@@ -54084,34 +57363,46 @@ func (m *UserAttributeValueMutation) ResetEdge(name string) error {
 // UserPlatformQuotaMutation represents an operation that mutates the UserPlatformQuota nodes in the graph.
 type UserPlatformQuotaMutation struct {
 	config
-	op                   Op
-	typ                  string
-	id                   *int64
-	created_at           *time.Time
-	updated_at           *time.Time
-	deleted_at           *time.Time
-	platform             *string
-	daily_limit_usd      *float64
-	adddaily_limit_usd   *float64
-	weekly_limit_usd     *float64
-	addweekly_limit_usd  *float64
-	monthly_limit_usd    *float64
-	addmonthly_limit_usd *float64
-	daily_usage_usd      *float64
-	adddaily_usage_usd   *float64
-	weekly_usage_usd     *float64
-	addweekly_usage_usd  *float64
-	monthly_usage_usd    *float64
-	addmonthly_usage_usd *float64
-	daily_window_start   *time.Time
-	weekly_window_start  *time.Time
-	monthly_window_start *time.Time
-	clearedFields        map[string]struct{}
-	user                 *int64
-	cleareduser          bool
-	done                 bool
-	oldValue             func(context.Context) (*UserPlatformQuota, error)
-	predicates           []predicate.UserPlatformQuota
+	op                       Op
+	typ                      string
+	id                       *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	deleted_at               *time.Time
+	platform                 *string
+	daily_limit_usd          *float64
+	adddaily_limit_usd       *float64
+	daily_limit_credits      *int64
+	adddaily_limit_credits   *int64
+	weekly_limit_usd         *float64
+	addweekly_limit_usd      *float64
+	weekly_limit_credits     *int64
+	addweekly_limit_credits  *int64
+	monthly_limit_usd        *float64
+	addmonthly_limit_usd     *float64
+	monthly_limit_credits    *int64
+	addmonthly_limit_credits *int64
+	daily_usage_usd          *float64
+	adddaily_usage_usd       *float64
+	daily_usage_credits      *int64
+	adddaily_usage_credits   *int64
+	weekly_usage_usd         *float64
+	addweekly_usage_usd      *float64
+	weekly_usage_credits     *int64
+	addweekly_usage_credits  *int64
+	monthly_usage_usd        *float64
+	addmonthly_usage_usd     *float64
+	monthly_usage_credits    *int64
+	addmonthly_usage_credits *int64
+	daily_window_start       *time.Time
+	weekly_window_start      *time.Time
+	monthly_window_start     *time.Time
+	clearedFields            map[string]struct{}
+	user                     *int64
+	cleareduser              bool
+	done                     bool
+	oldValue                 func(context.Context) (*UserPlatformQuota, error)
+	predicates               []predicate.UserPlatformQuota
 }
 
 var _ ent.Mutation = (*UserPlatformQuotaMutation)(nil)
@@ -54475,6 +57766,76 @@ func (m *UserPlatformQuotaMutation) ResetDailyLimitUsd() {
 	delete(m.clearedFields, userplatformquota.FieldDailyLimitUsd)
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (m *UserPlatformQuotaMutation) SetDailyLimitCredits(i int64) {
+	m.daily_limit_credits = &i
+	m.adddaily_limit_credits = nil
+}
+
+// DailyLimitCredits returns the value of the "daily_limit_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) DailyLimitCredits() (r int64, exists bool) {
+	v := m.daily_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDailyLimitCredits returns the old "daily_limit_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldDailyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDailyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDailyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDailyLimitCredits: %w", err)
+	}
+	return oldValue.DailyLimitCredits, nil
+}
+
+// AddDailyLimitCredits adds i to the "daily_limit_credits" field.
+func (m *UserPlatformQuotaMutation) AddDailyLimitCredits(i int64) {
+	if m.adddaily_limit_credits != nil {
+		*m.adddaily_limit_credits += i
+	} else {
+		m.adddaily_limit_credits = &i
+	}
+}
+
+// AddedDailyLimitCredits returns the value that was added to the "daily_limit_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedDailyLimitCredits() (r int64, exists bool) {
+	v := m.adddaily_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ClearDailyLimitCredits() {
+	m.daily_limit_credits = nil
+	m.adddaily_limit_credits = nil
+	m.clearedFields[userplatformquota.FieldDailyLimitCredits] = struct{}{}
+}
+
+// DailyLimitCreditsCleared returns if the "daily_limit_credits" field was cleared in this mutation.
+func (m *UserPlatformQuotaMutation) DailyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[userplatformquota.FieldDailyLimitCredits]
+	return ok
+}
+
+// ResetDailyLimitCredits resets all changes to the "daily_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ResetDailyLimitCredits() {
+	m.daily_limit_credits = nil
+	m.adddaily_limit_credits = nil
+	delete(m.clearedFields, userplatformquota.FieldDailyLimitCredits)
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (m *UserPlatformQuotaMutation) SetWeeklyLimitUsd(f float64) {
 	m.weekly_limit_usd = &f
@@ -54543,6 +57904,76 @@ func (m *UserPlatformQuotaMutation) ResetWeeklyLimitUsd() {
 	m.weekly_limit_usd = nil
 	m.addweekly_limit_usd = nil
 	delete(m.clearedFields, userplatformquota.FieldWeeklyLimitUsd)
+}
+
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) SetWeeklyLimitCredits(i int64) {
+	m.weekly_limit_credits = &i
+	m.addweekly_limit_credits = nil
+}
+
+// WeeklyLimitCredits returns the value of the "weekly_limit_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) WeeklyLimitCredits() (r int64, exists bool) {
+	v := m.weekly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeeklyLimitCredits returns the old "weekly_limit_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldWeeklyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeeklyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeeklyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeeklyLimitCredits: %w", err)
+	}
+	return oldValue.WeeklyLimitCredits, nil
+}
+
+// AddWeeklyLimitCredits adds i to the "weekly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) AddWeeklyLimitCredits(i int64) {
+	if m.addweekly_limit_credits != nil {
+		*m.addweekly_limit_credits += i
+	} else {
+		m.addweekly_limit_credits = &i
+	}
+}
+
+// AddedWeeklyLimitCredits returns the value that was added to the "weekly_limit_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedWeeklyLimitCredits() (r int64, exists bool) {
+	v := m.addweekly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ClearWeeklyLimitCredits() {
+	m.weekly_limit_credits = nil
+	m.addweekly_limit_credits = nil
+	m.clearedFields[userplatformquota.FieldWeeklyLimitCredits] = struct{}{}
+}
+
+// WeeklyLimitCreditsCleared returns if the "weekly_limit_credits" field was cleared in this mutation.
+func (m *UserPlatformQuotaMutation) WeeklyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[userplatformquota.FieldWeeklyLimitCredits]
+	return ok
+}
+
+// ResetWeeklyLimitCredits resets all changes to the "weekly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ResetWeeklyLimitCredits() {
+	m.weekly_limit_credits = nil
+	m.addweekly_limit_credits = nil
+	delete(m.clearedFields, userplatformquota.FieldWeeklyLimitCredits)
 }
 
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
@@ -54615,6 +58046,76 @@ func (m *UserPlatformQuotaMutation) ResetMonthlyLimitUsd() {
 	delete(m.clearedFields, userplatformquota.FieldMonthlyLimitUsd)
 }
 
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) SetMonthlyLimitCredits(i int64) {
+	m.monthly_limit_credits = &i
+	m.addmonthly_limit_credits = nil
+}
+
+// MonthlyLimitCredits returns the value of the "monthly_limit_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) MonthlyLimitCredits() (r int64, exists bool) {
+	v := m.monthly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonthlyLimitCredits returns the old "monthly_limit_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldMonthlyLimitCredits(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonthlyLimitCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonthlyLimitCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonthlyLimitCredits: %w", err)
+	}
+	return oldValue.MonthlyLimitCredits, nil
+}
+
+// AddMonthlyLimitCredits adds i to the "monthly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) AddMonthlyLimitCredits(i int64) {
+	if m.addmonthly_limit_credits != nil {
+		*m.addmonthly_limit_credits += i
+	} else {
+		m.addmonthly_limit_credits = &i
+	}
+}
+
+// AddedMonthlyLimitCredits returns the value that was added to the "monthly_limit_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedMonthlyLimitCredits() (r int64, exists bool) {
+	v := m.addmonthly_limit_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ClearMonthlyLimitCredits() {
+	m.monthly_limit_credits = nil
+	m.addmonthly_limit_credits = nil
+	m.clearedFields[userplatformquota.FieldMonthlyLimitCredits] = struct{}{}
+}
+
+// MonthlyLimitCreditsCleared returns if the "monthly_limit_credits" field was cleared in this mutation.
+func (m *UserPlatformQuotaMutation) MonthlyLimitCreditsCleared() bool {
+	_, ok := m.clearedFields[userplatformquota.FieldMonthlyLimitCredits]
+	return ok
+}
+
+// ResetMonthlyLimitCredits resets all changes to the "monthly_limit_credits" field.
+func (m *UserPlatformQuotaMutation) ResetMonthlyLimitCredits() {
+	m.monthly_limit_credits = nil
+	m.addmonthly_limit_credits = nil
+	delete(m.clearedFields, userplatformquota.FieldMonthlyLimitCredits)
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (m *UserPlatformQuotaMutation) SetDailyUsageUsd(f float64) {
 	m.daily_usage_usd = &f
@@ -54669,6 +58170,62 @@ func (m *UserPlatformQuotaMutation) AddedDailyUsageUsd() (r float64, exists bool
 func (m *UserPlatformQuotaMutation) ResetDailyUsageUsd() {
 	m.daily_usage_usd = nil
 	m.adddaily_usage_usd = nil
+}
+
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (m *UserPlatformQuotaMutation) SetDailyUsageCredits(i int64) {
+	m.daily_usage_credits = &i
+	m.adddaily_usage_credits = nil
+}
+
+// DailyUsageCredits returns the value of the "daily_usage_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) DailyUsageCredits() (r int64, exists bool) {
+	v := m.daily_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDailyUsageCredits returns the old "daily_usage_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldDailyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDailyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDailyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDailyUsageCredits: %w", err)
+	}
+	return oldValue.DailyUsageCredits, nil
+}
+
+// AddDailyUsageCredits adds i to the "daily_usage_credits" field.
+func (m *UserPlatformQuotaMutation) AddDailyUsageCredits(i int64) {
+	if m.adddaily_usage_credits != nil {
+		*m.adddaily_usage_credits += i
+	} else {
+		m.adddaily_usage_credits = &i
+	}
+}
+
+// AddedDailyUsageCredits returns the value that was added to the "daily_usage_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedDailyUsageCredits() (r int64, exists bool) {
+	v := m.adddaily_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDailyUsageCredits resets all changes to the "daily_usage_credits" field.
+func (m *UserPlatformQuotaMutation) ResetDailyUsageCredits() {
+	m.daily_usage_credits = nil
+	m.adddaily_usage_credits = nil
 }
 
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
@@ -54727,6 +58284,62 @@ func (m *UserPlatformQuotaMutation) ResetWeeklyUsageUsd() {
 	m.addweekly_usage_usd = nil
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) SetWeeklyUsageCredits(i int64) {
+	m.weekly_usage_credits = &i
+	m.addweekly_usage_credits = nil
+}
+
+// WeeklyUsageCredits returns the value of the "weekly_usage_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) WeeklyUsageCredits() (r int64, exists bool) {
+	v := m.weekly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeeklyUsageCredits returns the old "weekly_usage_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldWeeklyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeeklyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeeklyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeeklyUsageCredits: %w", err)
+	}
+	return oldValue.WeeklyUsageCredits, nil
+}
+
+// AddWeeklyUsageCredits adds i to the "weekly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) AddWeeklyUsageCredits(i int64) {
+	if m.addweekly_usage_credits != nil {
+		*m.addweekly_usage_credits += i
+	} else {
+		m.addweekly_usage_credits = &i
+	}
+}
+
+// AddedWeeklyUsageCredits returns the value that was added to the "weekly_usage_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedWeeklyUsageCredits() (r int64, exists bool) {
+	v := m.addweekly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetWeeklyUsageCredits resets all changes to the "weekly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) ResetWeeklyUsageCredits() {
+	m.weekly_usage_credits = nil
+	m.addweekly_usage_credits = nil
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (m *UserPlatformQuotaMutation) SetMonthlyUsageUsd(f float64) {
 	m.monthly_usage_usd = &f
@@ -54781,6 +58394,62 @@ func (m *UserPlatformQuotaMutation) AddedMonthlyUsageUsd() (r float64, exists bo
 func (m *UserPlatformQuotaMutation) ResetMonthlyUsageUsd() {
 	m.monthly_usage_usd = nil
 	m.addmonthly_usage_usd = nil
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) SetMonthlyUsageCredits(i int64) {
+	m.monthly_usage_credits = &i
+	m.addmonthly_usage_credits = nil
+}
+
+// MonthlyUsageCredits returns the value of the "monthly_usage_credits" field in the mutation.
+func (m *UserPlatformQuotaMutation) MonthlyUsageCredits() (r int64, exists bool) {
+	v := m.monthly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonthlyUsageCredits returns the old "monthly_usage_credits" field's value of the UserPlatformQuota entity.
+// If the UserPlatformQuota object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserPlatformQuotaMutation) OldMonthlyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonthlyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonthlyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonthlyUsageCredits: %w", err)
+	}
+	return oldValue.MonthlyUsageCredits, nil
+}
+
+// AddMonthlyUsageCredits adds i to the "monthly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) AddMonthlyUsageCredits(i int64) {
+	if m.addmonthly_usage_credits != nil {
+		*m.addmonthly_usage_credits += i
+	} else {
+		m.addmonthly_usage_credits = &i
+	}
+}
+
+// AddedMonthlyUsageCredits returns the value that was added to the "monthly_usage_credits" field in this mutation.
+func (m *UserPlatformQuotaMutation) AddedMonthlyUsageCredits() (r int64, exists bool) {
+	v := m.addmonthly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMonthlyUsageCredits resets all changes to the "monthly_usage_credits" field.
+func (m *UserPlatformQuotaMutation) ResetMonthlyUsageCredits() {
+	m.monthly_usage_credits = nil
+	m.addmonthly_usage_credits = nil
 }
 
 // SetDailyWindowStart sets the "daily_window_start" field.
@@ -54991,7 +58660,7 @@ func (m *UserPlatformQuotaMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserPlatformQuotaMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 20)
 	if m.created_at != nil {
 		fields = append(fields, userplatformquota.FieldCreatedAt)
 	}
@@ -55010,20 +58679,38 @@ func (m *UserPlatformQuotaMutation) Fields() []string {
 	if m.daily_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldDailyLimitUsd)
 	}
+	if m.daily_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldDailyLimitCredits)
+	}
 	if m.weekly_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldWeeklyLimitUsd)
+	}
+	if m.weekly_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldWeeklyLimitCredits)
 	}
 	if m.monthly_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldMonthlyLimitUsd)
 	}
+	if m.monthly_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldMonthlyLimitCredits)
+	}
 	if m.daily_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldDailyUsageUsd)
+	}
+	if m.daily_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldDailyUsageCredits)
 	}
 	if m.weekly_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldWeeklyUsageUsd)
 	}
+	if m.weekly_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldWeeklyUsageCredits)
+	}
 	if m.monthly_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldMonthlyUsageUsd)
+	}
+	if m.monthly_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldMonthlyUsageCredits)
 	}
 	if m.daily_window_start != nil {
 		fields = append(fields, userplatformquota.FieldDailyWindowStart)
@@ -55054,16 +58741,28 @@ func (m *UserPlatformQuotaMutation) Field(name string) (ent.Value, bool) {
 		return m.Platform()
 	case userplatformquota.FieldDailyLimitUsd:
 		return m.DailyLimitUsd()
+	case userplatformquota.FieldDailyLimitCredits:
+		return m.DailyLimitCredits()
 	case userplatformquota.FieldWeeklyLimitUsd:
 		return m.WeeklyLimitUsd()
+	case userplatformquota.FieldWeeklyLimitCredits:
+		return m.WeeklyLimitCredits()
 	case userplatformquota.FieldMonthlyLimitUsd:
 		return m.MonthlyLimitUsd()
+	case userplatformquota.FieldMonthlyLimitCredits:
+		return m.MonthlyLimitCredits()
 	case userplatformquota.FieldDailyUsageUsd:
 		return m.DailyUsageUsd()
+	case userplatformquota.FieldDailyUsageCredits:
+		return m.DailyUsageCredits()
 	case userplatformquota.FieldWeeklyUsageUsd:
 		return m.WeeklyUsageUsd()
+	case userplatformquota.FieldWeeklyUsageCredits:
+		return m.WeeklyUsageCredits()
 	case userplatformquota.FieldMonthlyUsageUsd:
 		return m.MonthlyUsageUsd()
+	case userplatformquota.FieldMonthlyUsageCredits:
+		return m.MonthlyUsageCredits()
 	case userplatformquota.FieldDailyWindowStart:
 		return m.DailyWindowStart()
 	case userplatformquota.FieldWeeklyWindowStart:
@@ -55091,16 +58790,28 @@ func (m *UserPlatformQuotaMutation) OldField(ctx context.Context, name string) (
 		return m.OldPlatform(ctx)
 	case userplatformquota.FieldDailyLimitUsd:
 		return m.OldDailyLimitUsd(ctx)
+	case userplatformquota.FieldDailyLimitCredits:
+		return m.OldDailyLimitCredits(ctx)
 	case userplatformquota.FieldWeeklyLimitUsd:
 		return m.OldWeeklyLimitUsd(ctx)
+	case userplatformquota.FieldWeeklyLimitCredits:
+		return m.OldWeeklyLimitCredits(ctx)
 	case userplatformquota.FieldMonthlyLimitUsd:
 		return m.OldMonthlyLimitUsd(ctx)
+	case userplatformquota.FieldMonthlyLimitCredits:
+		return m.OldMonthlyLimitCredits(ctx)
 	case userplatformquota.FieldDailyUsageUsd:
 		return m.OldDailyUsageUsd(ctx)
+	case userplatformquota.FieldDailyUsageCredits:
+		return m.OldDailyUsageCredits(ctx)
 	case userplatformquota.FieldWeeklyUsageUsd:
 		return m.OldWeeklyUsageUsd(ctx)
+	case userplatformquota.FieldWeeklyUsageCredits:
+		return m.OldWeeklyUsageCredits(ctx)
 	case userplatformquota.FieldMonthlyUsageUsd:
 		return m.OldMonthlyUsageUsd(ctx)
+	case userplatformquota.FieldMonthlyUsageCredits:
+		return m.OldMonthlyUsageCredits(ctx)
 	case userplatformquota.FieldDailyWindowStart:
 		return m.OldDailyWindowStart(ctx)
 	case userplatformquota.FieldWeeklyWindowStart:
@@ -55158,12 +58869,26 @@ func (m *UserPlatformQuotaMutation) SetField(name string, value ent.Value) error
 		}
 		m.SetDailyLimitUsd(v)
 		return nil
+	case userplatformquota.FieldDailyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDailyLimitCredits(v)
+		return nil
 	case userplatformquota.FieldWeeklyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetWeeklyLimitUsd(v)
+		return nil
+	case userplatformquota.FieldWeeklyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeeklyLimitCredits(v)
 		return nil
 	case userplatformquota.FieldMonthlyLimitUsd:
 		v, ok := value.(float64)
@@ -55172,12 +58897,26 @@ func (m *UserPlatformQuotaMutation) SetField(name string, value ent.Value) error
 		}
 		m.SetMonthlyLimitUsd(v)
 		return nil
+	case userplatformquota.FieldMonthlyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonthlyLimitCredits(v)
+		return nil
 	case userplatformquota.FieldDailyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDailyUsageUsd(v)
+		return nil
+	case userplatformquota.FieldDailyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDailyUsageCredits(v)
 		return nil
 	case userplatformquota.FieldWeeklyUsageUsd:
 		v, ok := value.(float64)
@@ -55186,12 +58925,26 @@ func (m *UserPlatformQuotaMutation) SetField(name string, value ent.Value) error
 		}
 		m.SetWeeklyUsageUsd(v)
 		return nil
+	case userplatformquota.FieldWeeklyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeeklyUsageCredits(v)
+		return nil
 	case userplatformquota.FieldMonthlyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMonthlyUsageUsd(v)
+		return nil
+	case userplatformquota.FieldMonthlyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonthlyUsageCredits(v)
 		return nil
 	case userplatformquota.FieldDailyWindowStart:
 		v, ok := value.(time.Time)
@@ -55225,20 +58978,38 @@ func (m *UserPlatformQuotaMutation) AddedFields() []string {
 	if m.adddaily_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldDailyLimitUsd)
 	}
+	if m.adddaily_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldDailyLimitCredits)
+	}
 	if m.addweekly_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldWeeklyLimitUsd)
+	}
+	if m.addweekly_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldWeeklyLimitCredits)
 	}
 	if m.addmonthly_limit_usd != nil {
 		fields = append(fields, userplatformquota.FieldMonthlyLimitUsd)
 	}
+	if m.addmonthly_limit_credits != nil {
+		fields = append(fields, userplatformquota.FieldMonthlyLimitCredits)
+	}
 	if m.adddaily_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldDailyUsageUsd)
+	}
+	if m.adddaily_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldDailyUsageCredits)
 	}
 	if m.addweekly_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldWeeklyUsageUsd)
 	}
+	if m.addweekly_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldWeeklyUsageCredits)
+	}
 	if m.addmonthly_usage_usd != nil {
 		fields = append(fields, userplatformquota.FieldMonthlyUsageUsd)
+	}
+	if m.addmonthly_usage_credits != nil {
+		fields = append(fields, userplatformquota.FieldMonthlyUsageCredits)
 	}
 	return fields
 }
@@ -55250,16 +59021,28 @@ func (m *UserPlatformQuotaMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case userplatformquota.FieldDailyLimitUsd:
 		return m.AddedDailyLimitUsd()
+	case userplatformquota.FieldDailyLimitCredits:
+		return m.AddedDailyLimitCredits()
 	case userplatformquota.FieldWeeklyLimitUsd:
 		return m.AddedWeeklyLimitUsd()
+	case userplatformquota.FieldWeeklyLimitCredits:
+		return m.AddedWeeklyLimitCredits()
 	case userplatformquota.FieldMonthlyLimitUsd:
 		return m.AddedMonthlyLimitUsd()
+	case userplatformquota.FieldMonthlyLimitCredits:
+		return m.AddedMonthlyLimitCredits()
 	case userplatformquota.FieldDailyUsageUsd:
 		return m.AddedDailyUsageUsd()
+	case userplatformquota.FieldDailyUsageCredits:
+		return m.AddedDailyUsageCredits()
 	case userplatformquota.FieldWeeklyUsageUsd:
 		return m.AddedWeeklyUsageUsd()
+	case userplatformquota.FieldWeeklyUsageCredits:
+		return m.AddedWeeklyUsageCredits()
 	case userplatformquota.FieldMonthlyUsageUsd:
 		return m.AddedMonthlyUsageUsd()
+	case userplatformquota.FieldMonthlyUsageCredits:
+		return m.AddedMonthlyUsageCredits()
 	}
 	return nil, false
 }
@@ -55276,12 +59059,26 @@ func (m *UserPlatformQuotaMutation) AddField(name string, value ent.Value) error
 		}
 		m.AddDailyLimitUsd(v)
 		return nil
+	case userplatformquota.FieldDailyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDailyLimitCredits(v)
+		return nil
 	case userplatformquota.FieldWeeklyLimitUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddWeeklyLimitUsd(v)
+		return nil
+	case userplatformquota.FieldWeeklyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWeeklyLimitCredits(v)
 		return nil
 	case userplatformquota.FieldMonthlyLimitUsd:
 		v, ok := value.(float64)
@@ -55290,12 +59087,26 @@ func (m *UserPlatformQuotaMutation) AddField(name string, value ent.Value) error
 		}
 		m.AddMonthlyLimitUsd(v)
 		return nil
+	case userplatformquota.FieldMonthlyLimitCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMonthlyLimitCredits(v)
+		return nil
 	case userplatformquota.FieldDailyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddDailyUsageUsd(v)
+		return nil
+	case userplatformquota.FieldDailyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDailyUsageCredits(v)
 		return nil
 	case userplatformquota.FieldWeeklyUsageUsd:
 		v, ok := value.(float64)
@@ -55304,12 +59115,26 @@ func (m *UserPlatformQuotaMutation) AddField(name string, value ent.Value) error
 		}
 		m.AddWeeklyUsageUsd(v)
 		return nil
+	case userplatformquota.FieldWeeklyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWeeklyUsageCredits(v)
+		return nil
 	case userplatformquota.FieldMonthlyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddMonthlyUsageUsd(v)
+		return nil
+	case userplatformquota.FieldMonthlyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMonthlyUsageCredits(v)
 		return nil
 	}
 	return fmt.Errorf("unknown UserPlatformQuota numeric field %s", name)
@@ -55325,11 +59150,20 @@ func (m *UserPlatformQuotaMutation) ClearedFields() []string {
 	if m.FieldCleared(userplatformquota.FieldDailyLimitUsd) {
 		fields = append(fields, userplatformquota.FieldDailyLimitUsd)
 	}
+	if m.FieldCleared(userplatformquota.FieldDailyLimitCredits) {
+		fields = append(fields, userplatformquota.FieldDailyLimitCredits)
+	}
 	if m.FieldCleared(userplatformquota.FieldWeeklyLimitUsd) {
 		fields = append(fields, userplatformquota.FieldWeeklyLimitUsd)
 	}
+	if m.FieldCleared(userplatformquota.FieldWeeklyLimitCredits) {
+		fields = append(fields, userplatformquota.FieldWeeklyLimitCredits)
+	}
 	if m.FieldCleared(userplatformquota.FieldMonthlyLimitUsd) {
 		fields = append(fields, userplatformquota.FieldMonthlyLimitUsd)
+	}
+	if m.FieldCleared(userplatformquota.FieldMonthlyLimitCredits) {
+		fields = append(fields, userplatformquota.FieldMonthlyLimitCredits)
 	}
 	if m.FieldCleared(userplatformquota.FieldDailyWindowStart) {
 		fields = append(fields, userplatformquota.FieldDailyWindowStart)
@@ -55360,11 +59194,20 @@ func (m *UserPlatformQuotaMutation) ClearField(name string) error {
 	case userplatformquota.FieldDailyLimitUsd:
 		m.ClearDailyLimitUsd()
 		return nil
+	case userplatformquota.FieldDailyLimitCredits:
+		m.ClearDailyLimitCredits()
+		return nil
 	case userplatformquota.FieldWeeklyLimitUsd:
 		m.ClearWeeklyLimitUsd()
 		return nil
+	case userplatformquota.FieldWeeklyLimitCredits:
+		m.ClearWeeklyLimitCredits()
+		return nil
 	case userplatformquota.FieldMonthlyLimitUsd:
 		m.ClearMonthlyLimitUsd()
+		return nil
+	case userplatformquota.FieldMonthlyLimitCredits:
+		m.ClearMonthlyLimitCredits()
 		return nil
 	case userplatformquota.FieldDailyWindowStart:
 		m.ClearDailyWindowStart()
@@ -55401,20 +59244,38 @@ func (m *UserPlatformQuotaMutation) ResetField(name string) error {
 	case userplatformquota.FieldDailyLimitUsd:
 		m.ResetDailyLimitUsd()
 		return nil
+	case userplatformquota.FieldDailyLimitCredits:
+		m.ResetDailyLimitCredits()
+		return nil
 	case userplatformquota.FieldWeeklyLimitUsd:
 		m.ResetWeeklyLimitUsd()
+		return nil
+	case userplatformquota.FieldWeeklyLimitCredits:
+		m.ResetWeeklyLimitCredits()
 		return nil
 	case userplatformquota.FieldMonthlyLimitUsd:
 		m.ResetMonthlyLimitUsd()
 		return nil
+	case userplatformquota.FieldMonthlyLimitCredits:
+		m.ResetMonthlyLimitCredits()
+		return nil
 	case userplatformquota.FieldDailyUsageUsd:
 		m.ResetDailyUsageUsd()
+		return nil
+	case userplatformquota.FieldDailyUsageCredits:
+		m.ResetDailyUsageCredits()
 		return nil
 	case userplatformquota.FieldWeeklyUsageUsd:
 		m.ResetWeeklyUsageUsd()
 		return nil
+	case userplatformquota.FieldWeeklyUsageCredits:
+		m.ResetWeeklyUsageCredits()
+		return nil
 	case userplatformquota.FieldMonthlyUsageUsd:
 		m.ResetMonthlyUsageUsd()
+		return nil
+	case userplatformquota.FieldMonthlyUsageCredits:
+		m.ResetMonthlyUsageCredits()
 		return nil
 	case userplatformquota.FieldDailyWindowStart:
 		m.ResetDailyWindowStart()
@@ -55506,39 +59367,45 @@ func (m *UserPlatformQuotaMutation) ResetEdge(name string) error {
 // UserSubscriptionMutation represents an operation that mutates the UserSubscription nodes in the graph.
 type UserSubscriptionMutation struct {
 	config
-	op                      Op
-	typ                     string
-	id                      *int64
-	created_at              *time.Time
-	updated_at              *time.Time
-	deleted_at              *time.Time
-	starts_at               *time.Time
-	expires_at              *time.Time
-	status                  *string
-	daily_window_start      *time.Time
-	weekly_window_start     *time.Time
-	monthly_window_start    *time.Time
-	daily_usage_usd         *float64
-	adddaily_usage_usd      *float64
-	weekly_usage_usd        *float64
-	addweekly_usage_usd     *float64
-	monthly_usage_usd       *float64
-	addmonthly_usage_usd    *float64
-	assigned_at             *time.Time
-	notes                   *string
-	clearedFields           map[string]struct{}
-	user                    *int64
-	cleareduser             bool
-	group                   *int64
-	clearedgroup            bool
-	assigned_by_user        *int64
-	clearedassigned_by_user bool
-	usage_logs              map[int64]struct{}
-	removedusage_logs       map[int64]struct{}
-	clearedusage_logs       bool
-	done                    bool
-	oldValue                func(context.Context) (*UserSubscription, error)
-	predicates              []predicate.UserSubscription
+	op                       Op
+	typ                      string
+	id                       *int64
+	created_at               *time.Time
+	updated_at               *time.Time
+	deleted_at               *time.Time
+	starts_at                *time.Time
+	expires_at               *time.Time
+	status                   *string
+	daily_window_start       *time.Time
+	weekly_window_start      *time.Time
+	monthly_window_start     *time.Time
+	daily_usage_usd          *float64
+	adddaily_usage_usd       *float64
+	daily_usage_credits      *int64
+	adddaily_usage_credits   *int64
+	weekly_usage_usd         *float64
+	addweekly_usage_usd      *float64
+	weekly_usage_credits     *int64
+	addweekly_usage_credits  *int64
+	monthly_usage_usd        *float64
+	addmonthly_usage_usd     *float64
+	monthly_usage_credits    *int64
+	addmonthly_usage_credits *int64
+	assigned_at              *time.Time
+	notes                    *string
+	clearedFields            map[string]struct{}
+	user                     *int64
+	cleareduser              bool
+	group                    *int64
+	clearedgroup             bool
+	assigned_by_user         *int64
+	clearedassigned_by_user  bool
+	usage_logs               map[int64]struct{}
+	removedusage_logs        map[int64]struct{}
+	clearedusage_logs        bool
+	done                     bool
+	oldValue                 func(context.Context) (*UserSubscription, error)
+	predicates               []predicate.UserSubscription
 }
 
 var _ ent.Mutation = (*UserSubscriptionMutation)(nil)
@@ -56143,6 +60010,62 @@ func (m *UserSubscriptionMutation) ResetDailyUsageUsd() {
 	m.adddaily_usage_usd = nil
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (m *UserSubscriptionMutation) SetDailyUsageCredits(i int64) {
+	m.daily_usage_credits = &i
+	m.adddaily_usage_credits = nil
+}
+
+// DailyUsageCredits returns the value of the "daily_usage_credits" field in the mutation.
+func (m *UserSubscriptionMutation) DailyUsageCredits() (r int64, exists bool) {
+	v := m.daily_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDailyUsageCredits returns the old "daily_usage_credits" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldDailyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDailyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDailyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDailyUsageCredits: %w", err)
+	}
+	return oldValue.DailyUsageCredits, nil
+}
+
+// AddDailyUsageCredits adds i to the "daily_usage_credits" field.
+func (m *UserSubscriptionMutation) AddDailyUsageCredits(i int64) {
+	if m.adddaily_usage_credits != nil {
+		*m.adddaily_usage_credits += i
+	} else {
+		m.adddaily_usage_credits = &i
+	}
+}
+
+// AddedDailyUsageCredits returns the value that was added to the "daily_usage_credits" field in this mutation.
+func (m *UserSubscriptionMutation) AddedDailyUsageCredits() (r int64, exists bool) {
+	v := m.adddaily_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDailyUsageCredits resets all changes to the "daily_usage_credits" field.
+func (m *UserSubscriptionMutation) ResetDailyUsageCredits() {
+	m.daily_usage_credits = nil
+	m.adddaily_usage_credits = nil
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (m *UserSubscriptionMutation) SetWeeklyUsageUsd(f float64) {
 	m.weekly_usage_usd = &f
@@ -56199,6 +60122,62 @@ func (m *UserSubscriptionMutation) ResetWeeklyUsageUsd() {
 	m.addweekly_usage_usd = nil
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (m *UserSubscriptionMutation) SetWeeklyUsageCredits(i int64) {
+	m.weekly_usage_credits = &i
+	m.addweekly_usage_credits = nil
+}
+
+// WeeklyUsageCredits returns the value of the "weekly_usage_credits" field in the mutation.
+func (m *UserSubscriptionMutation) WeeklyUsageCredits() (r int64, exists bool) {
+	v := m.weekly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWeeklyUsageCredits returns the old "weekly_usage_credits" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldWeeklyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWeeklyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWeeklyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWeeklyUsageCredits: %w", err)
+	}
+	return oldValue.WeeklyUsageCredits, nil
+}
+
+// AddWeeklyUsageCredits adds i to the "weekly_usage_credits" field.
+func (m *UserSubscriptionMutation) AddWeeklyUsageCredits(i int64) {
+	if m.addweekly_usage_credits != nil {
+		*m.addweekly_usage_credits += i
+	} else {
+		m.addweekly_usage_credits = &i
+	}
+}
+
+// AddedWeeklyUsageCredits returns the value that was added to the "weekly_usage_credits" field in this mutation.
+func (m *UserSubscriptionMutation) AddedWeeklyUsageCredits() (r int64, exists bool) {
+	v := m.addweekly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetWeeklyUsageCredits resets all changes to the "weekly_usage_credits" field.
+func (m *UserSubscriptionMutation) ResetWeeklyUsageCredits() {
+	m.weekly_usage_credits = nil
+	m.addweekly_usage_credits = nil
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (m *UserSubscriptionMutation) SetMonthlyUsageUsd(f float64) {
 	m.monthly_usage_usd = &f
@@ -56253,6 +60232,62 @@ func (m *UserSubscriptionMutation) AddedMonthlyUsageUsd() (r float64, exists boo
 func (m *UserSubscriptionMutation) ResetMonthlyUsageUsd() {
 	m.monthly_usage_usd = nil
 	m.addmonthly_usage_usd = nil
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (m *UserSubscriptionMutation) SetMonthlyUsageCredits(i int64) {
+	m.monthly_usage_credits = &i
+	m.addmonthly_usage_credits = nil
+}
+
+// MonthlyUsageCredits returns the value of the "monthly_usage_credits" field in the mutation.
+func (m *UserSubscriptionMutation) MonthlyUsageCredits() (r int64, exists bool) {
+	v := m.monthly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonthlyUsageCredits returns the old "monthly_usage_credits" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldMonthlyUsageCredits(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonthlyUsageCredits is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonthlyUsageCredits requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonthlyUsageCredits: %w", err)
+	}
+	return oldValue.MonthlyUsageCredits, nil
+}
+
+// AddMonthlyUsageCredits adds i to the "monthly_usage_credits" field.
+func (m *UserSubscriptionMutation) AddMonthlyUsageCredits(i int64) {
+	if m.addmonthly_usage_credits != nil {
+		*m.addmonthly_usage_credits += i
+	} else {
+		m.addmonthly_usage_credits = &i
+	}
+}
+
+// AddedMonthlyUsageCredits returns the value that was added to the "monthly_usage_credits" field in this mutation.
+func (m *UserSubscriptionMutation) AddedMonthlyUsageCredits() (r int64, exists bool) {
+	v := m.addmonthly_usage_credits
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMonthlyUsageCredits resets all changes to the "monthly_usage_credits" field.
+func (m *UserSubscriptionMutation) ResetMonthlyUsageCredits() {
+	m.monthly_usage_credits = nil
+	m.addmonthly_usage_credits = nil
 }
 
 // SetAssignedBy sets the "assigned_by" field.
@@ -56571,7 +60606,7 @@ func (m *UserSubscriptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserSubscriptionMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 20)
 	if m.created_at != nil {
 		fields = append(fields, usersubscription.FieldCreatedAt)
 	}
@@ -56608,11 +60643,20 @@ func (m *UserSubscriptionMutation) Fields() []string {
 	if m.daily_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldDailyUsageUsd)
 	}
+	if m.daily_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldDailyUsageCredits)
+	}
 	if m.weekly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldWeeklyUsageUsd)
 	}
+	if m.weekly_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldWeeklyUsageCredits)
+	}
 	if m.monthly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldMonthlyUsageUsd)
+	}
+	if m.monthly_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldMonthlyUsageCredits)
 	}
 	if m.assigned_by_user != nil {
 		fields = append(fields, usersubscription.FieldAssignedBy)
@@ -56655,10 +60699,16 @@ func (m *UserSubscriptionMutation) Field(name string) (ent.Value, bool) {
 		return m.MonthlyWindowStart()
 	case usersubscription.FieldDailyUsageUsd:
 		return m.DailyUsageUsd()
+	case usersubscription.FieldDailyUsageCredits:
+		return m.DailyUsageCredits()
 	case usersubscription.FieldWeeklyUsageUsd:
 		return m.WeeklyUsageUsd()
+	case usersubscription.FieldWeeklyUsageCredits:
+		return m.WeeklyUsageCredits()
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.MonthlyUsageUsd()
+	case usersubscription.FieldMonthlyUsageCredits:
+		return m.MonthlyUsageCredits()
 	case usersubscription.FieldAssignedBy:
 		return m.AssignedBy()
 	case usersubscription.FieldAssignedAt:
@@ -56698,10 +60748,16 @@ func (m *UserSubscriptionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldMonthlyWindowStart(ctx)
 	case usersubscription.FieldDailyUsageUsd:
 		return m.OldDailyUsageUsd(ctx)
+	case usersubscription.FieldDailyUsageCredits:
+		return m.OldDailyUsageCredits(ctx)
 	case usersubscription.FieldWeeklyUsageUsd:
 		return m.OldWeeklyUsageUsd(ctx)
+	case usersubscription.FieldWeeklyUsageCredits:
+		return m.OldWeeklyUsageCredits(ctx)
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.OldMonthlyUsageUsd(ctx)
+	case usersubscription.FieldMonthlyUsageCredits:
+		return m.OldMonthlyUsageCredits(ctx)
 	case usersubscription.FieldAssignedBy:
 		return m.OldAssignedBy(ctx)
 	case usersubscription.FieldAssignedAt:
@@ -56801,6 +60857,13 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetDailyUsageUsd(v)
 		return nil
+	case usersubscription.FieldDailyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDailyUsageCredits(v)
+		return nil
 	case usersubscription.FieldWeeklyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -56808,12 +60871,26 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetWeeklyUsageUsd(v)
 		return nil
+	case usersubscription.FieldWeeklyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWeeklyUsageCredits(v)
+		return nil
 	case usersubscription.FieldMonthlyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMonthlyUsageUsd(v)
+		return nil
+	case usersubscription.FieldMonthlyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonthlyUsageCredits(v)
 		return nil
 	case usersubscription.FieldAssignedBy:
 		v, ok := value.(int64)
@@ -56847,11 +60924,20 @@ func (m *UserSubscriptionMutation) AddedFields() []string {
 	if m.adddaily_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldDailyUsageUsd)
 	}
+	if m.adddaily_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldDailyUsageCredits)
+	}
 	if m.addweekly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldWeeklyUsageUsd)
 	}
+	if m.addweekly_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldWeeklyUsageCredits)
+	}
 	if m.addmonthly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldMonthlyUsageUsd)
+	}
+	if m.addmonthly_usage_credits != nil {
+		fields = append(fields, usersubscription.FieldMonthlyUsageCredits)
 	}
 	return fields
 }
@@ -56863,10 +60949,16 @@ func (m *UserSubscriptionMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case usersubscription.FieldDailyUsageUsd:
 		return m.AddedDailyUsageUsd()
+	case usersubscription.FieldDailyUsageCredits:
+		return m.AddedDailyUsageCredits()
 	case usersubscription.FieldWeeklyUsageUsd:
 		return m.AddedWeeklyUsageUsd()
+	case usersubscription.FieldWeeklyUsageCredits:
+		return m.AddedWeeklyUsageCredits()
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.AddedMonthlyUsageUsd()
+	case usersubscription.FieldMonthlyUsageCredits:
+		return m.AddedMonthlyUsageCredits()
 	}
 	return nil, false
 }
@@ -56883,6 +60975,13 @@ func (m *UserSubscriptionMutation) AddField(name string, value ent.Value) error 
 		}
 		m.AddDailyUsageUsd(v)
 		return nil
+	case usersubscription.FieldDailyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDailyUsageCredits(v)
+		return nil
 	case usersubscription.FieldWeeklyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -56890,12 +60989,26 @@ func (m *UserSubscriptionMutation) AddField(name string, value ent.Value) error 
 		}
 		m.AddWeeklyUsageUsd(v)
 		return nil
+	case usersubscription.FieldWeeklyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWeeklyUsageCredits(v)
+		return nil
 	case usersubscription.FieldMonthlyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddMonthlyUsageUsd(v)
+		return nil
+	case usersubscription.FieldMonthlyUsageCredits:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMonthlyUsageCredits(v)
 		return nil
 	}
 	return fmt.Errorf("unknown UserSubscription numeric field %s", name)
@@ -56999,11 +61112,20 @@ func (m *UserSubscriptionMutation) ResetField(name string) error {
 	case usersubscription.FieldDailyUsageUsd:
 		m.ResetDailyUsageUsd()
 		return nil
+	case usersubscription.FieldDailyUsageCredits:
+		m.ResetDailyUsageCredits()
+		return nil
 	case usersubscription.FieldWeeklyUsageUsd:
 		m.ResetWeeklyUsageUsd()
 		return nil
+	case usersubscription.FieldWeeklyUsageCredits:
+		m.ResetWeeklyUsageCredits()
+		return nil
 	case usersubscription.FieldMonthlyUsageUsd:
 		m.ResetMonthlyUsageUsd()
+		return nil
+	case usersubscription.FieldMonthlyUsageCredits:
+		m.ResetMonthlyUsageCredits()
 		return nil
 	case usersubscription.FieldAssignedBy:
 		m.ResetAssignedBy()

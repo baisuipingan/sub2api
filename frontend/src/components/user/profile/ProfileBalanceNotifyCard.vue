@@ -26,14 +26,14 @@
             <span class="text-xs text-gray-400 ml-2">{{ t('profile.balanceNotify.thresholdHint') }}</span>
           </label>
           <div class="flex items-center gap-2">
-            <span class="text-gray-500">$</span>
+            <span class="text-gray-500">{{ billingSymbol }}</span>
             <input
               v-model.number="customThreshold"
               type="number"
               min="0"
               step="0.01"
               class="input flex-1"
-              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} $${systemDefaultThreshold}` : t('profile.balanceNotify.thresholdPlaceholder')"
+              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} ${formatUSD(systemDefaultThreshold, 2)}` : t('profile.balanceNotify.thresholdPlaceholder')"
             />
             <button
               @click="handleThresholdUpdate"
@@ -159,6 +159,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { billingCurrencySymbol, displayToUSD as displayAmountToUSD, formatCurrentBillingAmount, getCurrentBillingCurrencyView, usdToDisplayAmount } from '@/utils/billingCurrency'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { userAPI } from '@/api'
@@ -190,7 +191,11 @@ const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const notifyEnabled = ref(props.enabled)
-const customThreshold = ref<number | null>(props.threshold)
+const billingSymbol = computed(() => billingCurrencySymbol(getCurrentBillingCurrencyView().displayCurrency))
+const formatUSD = (value: number, digits = 2) => formatCurrentBillingAmount(value, digits)
+const usdToDisplay = (value: number) => usdToDisplayAmount(value, getCurrentBillingCurrencyView())
+const displayToUSD = (value: number) => displayAmountToUSD(value, getCurrentBillingCurrencyView())
+const customThreshold = ref<number | null>(props.threshold == null ? null : usdToDisplay(props.threshold))
 const emailEntries = ref<NotifyEmailEntry[]>([...props.extraEmails])
 const pendingEmails = ref<PendingEmail[]>([])
 const newEmail = ref('')
@@ -210,7 +215,7 @@ const canAddMore = computed(() => {
 })
 
 watch(() => props.enabled, (val) => { notifyEnabled.value = val })
-watch(() => props.threshold, (val) => { customThreshold.value = val })
+watch(() => props.threshold, (val) => { customThreshold.value = val == null ? null : usdToDisplay(val) })
 watch(() => props.extraEmails, (val) => { emailEntries.value = [...val] })
 
 // When list is empty on mount, pre-fill the add input with user's email
@@ -241,7 +246,7 @@ const handleToggle = async () => {
 const handleThresholdUpdate = async () => {
   savingThreshold.value = true
   try {
-    const threshold = customThreshold.value && customThreshold.value > 0 ? customThreshold.value : 0
+    const threshold = customThreshold.value && customThreshold.value > 0 ? displayToUSD(customThreshold.value) : 0
     const updated = await userAPI.updateProfile({ balance_notify_threshold: threshold })
     authStore.user = updated
     appStore.showSuccess(t('common.saved'))

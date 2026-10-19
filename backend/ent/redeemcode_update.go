@@ -79,6 +79,27 @@ func (_u *RedeemCodeUpdate) AddValue(v float64) *RedeemCodeUpdate {
 	return _u
 }
 
+// SetValueCredits sets the "value_credits" field.
+func (_u *RedeemCodeUpdate) SetValueCredits(v int64) *RedeemCodeUpdate {
+	_u.mutation.ResetValueCredits()
+	_u.mutation.SetValueCredits(v)
+	return _u
+}
+
+// SetNillableValueCredits sets the "value_credits" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableValueCredits(v *int64) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetValueCredits(*v)
+	}
+	return _u
+}
+
+// AddValueCredits adds value to the "value_credits" field.
+func (_u *RedeemCodeUpdate) AddValueCredits(v int64) *RedeemCodeUpdate {
+	_u.mutation.AddValueCredits(v)
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *RedeemCodeUpdate) SetStatus(v string) *RedeemCodeUpdate {
 	_u.mutation.SetStatus(v)
@@ -326,6 +347,12 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	if value, ok := _u.mutation.AddedValue(); ok {
 		_spec.AddField(redeemcode.FieldValue, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.ValueCredits(); ok {
+		_spec.SetField(redeemcode.FieldValueCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedValueCredits(); ok {
+		_spec.AddField(redeemcode.FieldValueCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(redeemcode.FieldStatus, field.TypeString, value)
 	}
@@ -477,6 +504,27 @@ func (_u *RedeemCodeUpdateOne) SetNillableValue(v *float64) *RedeemCodeUpdateOne
 // AddValue adds value to the "value" field.
 func (_u *RedeemCodeUpdateOne) AddValue(v float64) *RedeemCodeUpdateOne {
 	_u.mutation.AddValue(v)
+	return _u
+}
+
+// SetValueCredits sets the "value_credits" field.
+func (_u *RedeemCodeUpdateOne) SetValueCredits(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.ResetValueCredits()
+	_u.mutation.SetValueCredits(v)
+	return _u
+}
+
+// SetNillableValueCredits sets the "value_credits" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableValueCredits(v *int64) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetValueCredits(*v)
+	}
+	return _u
+}
+
+// AddValueCredits adds value to the "value_credits" field.
+func (_u *RedeemCodeUpdateOne) AddValueCredits(v int64) *RedeemCodeUpdateOne {
+	_u.mutation.AddValueCredits(v)
 	return _u
 }
 
@@ -756,6 +804,12 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if value, ok := _u.mutation.AddedValue(); ok {
 		_spec.AddField(redeemcode.FieldValue, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ValueCredits(); ok {
+		_spec.SetField(redeemcode.FieldValueCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedValueCredits(); ok {
+		_spec.AddField(redeemcode.FieldValueCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(redeemcode.FieldStatus, field.TypeString, value)

@@ -1,3 +1,6 @@
+import type { UserPricingInterval } from '@/api/channels'
+import { billingCurrencySymbol, getCurrentBillingCurrencyView } from '@/utils/billingCurrency'
+
 /**
  * formatScaled formats a per-token (or per-request) USD price scaled by `scale`.
  *
@@ -12,7 +15,10 @@
  */
 export function formatScaled(value: number | null, scale: number, minFractionDigits = 0): string {
   if (value == null) return '-'
-  let s = Number((value * scale).toPrecision(10)).toString()
+  const view = getCurrentBillingCurrencyView()
+  const scaled = value * scale
+  const amount = view.displayCurrency === 'CNY' ? scaled * view.usdToCny : scaled
+  let s = Number(amount.toPrecision(10)).toString()
   if (minFractionDigits > 0 && !s.includes('e')) {
     const dot = s.indexOf('.')
     const digits = dot === -1 ? 0 : s.length - dot - 1
@@ -20,10 +26,9 @@ export function formatScaled(value: number | null, scale: number, minFractionDig
       s = (dot === -1 ? `${s}.` : s) + '0'.repeat(minFractionDigits - digits)
     }
   }
-  return `$${s}`
+  return `${billingCurrencySymbol(view.displayCurrency)}${s}`
 }
 
-import type { UserPricingInterval } from '@/api/channels'
 
 type TokenPrices = Pick<UserPricingInterval, 'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'>
 

@@ -365,6 +365,76 @@ func (_c *UsageLogCreate) SetNillableActualCost(v *float64) *UsageLogCreate {
 	return _c
 }
 
+// SetChargeCredits sets the "charge_credits" field.
+func (_c *UsageLogCreate) SetChargeCredits(v int64) *UsageLogCreate {
+	_c.mutation.SetChargeCredits(v)
+	return _c
+}
+
+// SetNillableChargeCredits sets the "charge_credits" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableChargeCredits(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetChargeCredits(*v)
+	}
+	return _c
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (_c *UsageLogCreate) SetBillingCurrency(v string) *UsageLogCreate {
+	_c.mutation.SetBillingCurrency(v)
+	return _c
+}
+
+// SetNillableBillingCurrency sets the "billing_currency" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableBillingCurrency(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetBillingCurrency(*v)
+	}
+	return _c
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (_c *UsageLogCreate) SetCreditsPerUsd(v int64) *UsageLogCreate {
+	_c.mutation.SetCreditsPerUsd(v)
+	return _c
+}
+
+// SetNillableCreditsPerUsd sets the "credits_per_usd" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableCreditsPerUsd(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetCreditsPerUsd(*v)
+	}
+	return _c
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (_c *UsageLogCreate) SetUsdToCnyRate(v float64) *UsageLogCreate {
+	_c.mutation.SetUsdToCnyRate(v)
+	return _c
+}
+
+// SetNillableUsdToCnyRate sets the "usd_to_cny_rate" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUsdToCnyRate(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetUsdToCnyRate(*v)
+	}
+	return _c
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_c *UsageLogCreate) SetBillingVersion(v int64) *UsageLogCreate {
+	_c.mutation.SetBillingVersion(v)
+	return _c
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableBillingVersion(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetBillingVersion(*v)
+	}
+	return _c
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_c *UsageLogCreate) SetRateMultiplier(v float64) *UsageLogCreate {
 	_c.mutation.SetRateMultiplier(v)
@@ -745,6 +815,26 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultActualCost
 		_c.mutation.SetActualCost(v)
 	}
+	if _, ok := _c.mutation.ChargeCredits(); !ok {
+		v := usagelog.DefaultChargeCredits
+		_c.mutation.SetChargeCredits(v)
+	}
+	if _, ok := _c.mutation.BillingCurrency(); !ok {
+		v := usagelog.DefaultBillingCurrency
+		_c.mutation.SetBillingCurrency(v)
+	}
+	if _, ok := _c.mutation.CreditsPerUsd(); !ok {
+		v := usagelog.DefaultCreditsPerUsd
+		_c.mutation.SetCreditsPerUsd(v)
+	}
+	if _, ok := _c.mutation.UsdToCnyRate(); !ok {
+		v := usagelog.DefaultUsdToCnyRate
+		_c.mutation.SetUsdToCnyRate(v)
+	}
+	if _, ok := _c.mutation.BillingVersion(); !ok {
+		v := usagelog.DefaultBillingVersion
+		_c.mutation.SetBillingVersion(v)
+	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		v := usagelog.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
@@ -871,6 +961,26 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.ActualCost(); !ok {
 		return &ValidationError{Name: "actual_cost", err: errors.New(`ent: missing required field "UsageLog.actual_cost"`)}
+	}
+	if _, ok := _c.mutation.ChargeCredits(); !ok {
+		return &ValidationError{Name: "charge_credits", err: errors.New(`ent: missing required field "UsageLog.charge_credits"`)}
+	}
+	if _, ok := _c.mutation.BillingCurrency(); !ok {
+		return &ValidationError{Name: "billing_currency", err: errors.New(`ent: missing required field "UsageLog.billing_currency"`)}
+	}
+	if v, ok := _c.mutation.BillingCurrency(); ok {
+		if err := usagelog.BillingCurrencyValidator(v); err != nil {
+			return &ValidationError{Name: "billing_currency", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_currency": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.CreditsPerUsd(); !ok {
+		return &ValidationError{Name: "credits_per_usd", err: errors.New(`ent: missing required field "UsageLog.credits_per_usd"`)}
+	}
+	if _, ok := _c.mutation.UsdToCnyRate(); !ok {
+		return &ValidationError{Name: "usd_to_cny_rate", err: errors.New(`ent: missing required field "UsageLog.usd_to_cny_rate"`)}
+	}
+	if _, ok := _c.mutation.BillingVersion(); !ok {
+		return &ValidationError{Name: "billing_version", err: errors.New(`ent: missing required field "UsageLog.billing_version"`)}
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
@@ -1054,6 +1164,26 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ActualCost(); ok {
 		_spec.SetField(usagelog.FieldActualCost, field.TypeFloat64, value)
 		_node.ActualCost = value
+	}
+	if value, ok := _c.mutation.ChargeCredits(); ok {
+		_spec.SetField(usagelog.FieldChargeCredits, field.TypeInt64, value)
+		_node.ChargeCredits = value
+	}
+	if value, ok := _c.mutation.BillingCurrency(); ok {
+		_spec.SetField(usagelog.FieldBillingCurrency, field.TypeString, value)
+		_node.BillingCurrency = value
+	}
+	if value, ok := _c.mutation.CreditsPerUsd(); ok {
+		_spec.SetField(usagelog.FieldCreditsPerUsd, field.TypeInt64, value)
+		_node.CreditsPerUsd = value
+	}
+	if value, ok := _c.mutation.UsdToCnyRate(); ok {
+		_spec.SetField(usagelog.FieldUsdToCnyRate, field.TypeFloat64, value)
+		_node.UsdToCnyRate = value
+	}
+	if value, ok := _c.mutation.BillingVersion(); ok {
+		_spec.SetField(usagelog.FieldBillingVersion, field.TypeInt64, value)
+		_node.BillingVersion = value
 	}
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -1731,6 +1861,90 @@ func (u *UsageLogUpsert) UpdateActualCost() *UsageLogUpsert {
 // AddActualCost adds v to the "actual_cost" field.
 func (u *UsageLogUpsert) AddActualCost(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldActualCost, v)
+	return u
+}
+
+// SetChargeCredits sets the "charge_credits" field.
+func (u *UsageLogUpsert) SetChargeCredits(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldChargeCredits, v)
+	return u
+}
+
+// UpdateChargeCredits sets the "charge_credits" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateChargeCredits() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldChargeCredits)
+	return u
+}
+
+// AddChargeCredits adds v to the "charge_credits" field.
+func (u *UsageLogUpsert) AddChargeCredits(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldChargeCredits, v)
+	return u
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (u *UsageLogUpsert) SetBillingCurrency(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldBillingCurrency, v)
+	return u
+}
+
+// UpdateBillingCurrency sets the "billing_currency" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateBillingCurrency() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldBillingCurrency)
+	return u
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (u *UsageLogUpsert) SetCreditsPerUsd(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldCreditsPerUsd, v)
+	return u
+}
+
+// UpdateCreditsPerUsd sets the "credits_per_usd" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateCreditsPerUsd() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldCreditsPerUsd)
+	return u
+}
+
+// AddCreditsPerUsd adds v to the "credits_per_usd" field.
+func (u *UsageLogUpsert) AddCreditsPerUsd(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldCreditsPerUsd, v)
+	return u
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (u *UsageLogUpsert) SetUsdToCnyRate(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldUsdToCnyRate, v)
+	return u
+}
+
+// UpdateUsdToCnyRate sets the "usd_to_cny_rate" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUsdToCnyRate() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUsdToCnyRate)
+	return u
+}
+
+// AddUsdToCnyRate adds v to the "usd_to_cny_rate" field.
+func (u *UsageLogUpsert) AddUsdToCnyRate(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldUsdToCnyRate, v)
+	return u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *UsageLogUpsert) SetBillingVersion(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldBillingVersion, v)
+	return u
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateBillingVersion() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldBillingVersion)
+	return u
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *UsageLogUpsert) AddBillingVersion(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldBillingVersion, v)
 	return u
 }
 
@@ -2663,6 +2877,104 @@ func (u *UsageLogUpsertOne) AddActualCost(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateActualCost() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetChargeCredits sets the "charge_credits" field.
+func (u *UsageLogUpsertOne) SetChargeCredits(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChargeCredits(v)
+	})
+}
+
+// AddChargeCredits adds v to the "charge_credits" field.
+func (u *UsageLogUpsertOne) AddChargeCredits(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddChargeCredits(v)
+	})
+}
+
+// UpdateChargeCredits sets the "charge_credits" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateChargeCredits() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChargeCredits()
+	})
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (u *UsageLogUpsertOne) SetBillingCurrency(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingCurrency(v)
+	})
+}
+
+// UpdateBillingCurrency sets the "billing_currency" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateBillingCurrency() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingCurrency()
+	})
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (u *UsageLogUpsertOne) SetCreditsPerUsd(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCreditsPerUsd(v)
+	})
+}
+
+// AddCreditsPerUsd adds v to the "credits_per_usd" field.
+func (u *UsageLogUpsertOne) AddCreditsPerUsd(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCreditsPerUsd(v)
+	})
+}
+
+// UpdateCreditsPerUsd sets the "credits_per_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateCreditsPerUsd() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCreditsPerUsd()
+	})
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (u *UsageLogUpsertOne) SetUsdToCnyRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUsdToCnyRate(v)
+	})
+}
+
+// AddUsdToCnyRate adds v to the "usd_to_cny_rate" field.
+func (u *UsageLogUpsertOne) AddUsdToCnyRate(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUsdToCnyRate(v)
+	})
+}
+
+// UpdateUsdToCnyRate sets the "usd_to_cny_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUsdToCnyRate() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUsdToCnyRate()
+	})
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *UsageLogUpsertOne) SetBillingVersion(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingVersion(v)
+	})
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *UsageLogUpsertOne) AddBillingVersion(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddBillingVersion(v)
+	})
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateBillingVersion() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingVersion()
 	})
 }
 
@@ -3819,6 +4131,104 @@ func (u *UsageLogUpsertBulk) AddActualCost(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateActualCost() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetChargeCredits sets the "charge_credits" field.
+func (u *UsageLogUpsertBulk) SetChargeCredits(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetChargeCredits(v)
+	})
+}
+
+// AddChargeCredits adds v to the "charge_credits" field.
+func (u *UsageLogUpsertBulk) AddChargeCredits(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddChargeCredits(v)
+	})
+}
+
+// UpdateChargeCredits sets the "charge_credits" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateChargeCredits() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateChargeCredits()
+	})
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (u *UsageLogUpsertBulk) SetBillingCurrency(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingCurrency(v)
+	})
+}
+
+// UpdateBillingCurrency sets the "billing_currency" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateBillingCurrency() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingCurrency()
+	})
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (u *UsageLogUpsertBulk) SetCreditsPerUsd(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCreditsPerUsd(v)
+	})
+}
+
+// AddCreditsPerUsd adds v to the "credits_per_usd" field.
+func (u *UsageLogUpsertBulk) AddCreditsPerUsd(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddCreditsPerUsd(v)
+	})
+}
+
+// UpdateCreditsPerUsd sets the "credits_per_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateCreditsPerUsd() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCreditsPerUsd()
+	})
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (u *UsageLogUpsertBulk) SetUsdToCnyRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUsdToCnyRate(v)
+	})
+}
+
+// AddUsdToCnyRate adds v to the "usd_to_cny_rate" field.
+func (u *UsageLogUpsertBulk) AddUsdToCnyRate(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddUsdToCnyRate(v)
+	})
+}
+
+// UpdateUsdToCnyRate sets the "usd_to_cny_rate" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUsdToCnyRate() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUsdToCnyRate()
+	})
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *UsageLogUpsertBulk) SetBillingVersion(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingVersion(v)
+	})
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *UsageLogUpsertBulk) AddBillingVersion(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddBillingVersion(v)
+	})
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateBillingVersion() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingVersion()
 	})
 }
 

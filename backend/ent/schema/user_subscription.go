@@ -62,11 +62,17 @@ func (UserSubscription) Fields() []ent.Field {
 		field.Float("daily_usage_usd").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
 			Default(0),
+		field.Int64("daily_usage_credits").
+			Default(0),
 		field.Float("weekly_usage_usd").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
 			Default(0),
+		field.Int64("weekly_usage_credits").
+			Default(0),
 		field.Float("monthly_usage_usd").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
+			Default(0),
+		field.Int64("monthly_usage_credits").
 			Default(0),
 
 		field.Int64("assigned_by").

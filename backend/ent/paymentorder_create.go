@@ -95,6 +95,90 @@ func (_c *PaymentOrderCreate) SetNillableBonusAmount(v *float64) *PaymentOrderCr
 	return _c
 }
 
+// SetCreditedCredits sets the "credited_credits" field.
+func (_c *PaymentOrderCreate) SetCreditedCredits(v int64) *PaymentOrderCreate {
+	_c.mutation.SetCreditedCredits(v)
+	return _c
+}
+
+// SetNillableCreditedCredits sets the "credited_credits" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableCreditedCredits(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetCreditedCredits(*v)
+	}
+	return _c
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (_c *PaymentOrderCreate) SetBonusCredits(v int64) *PaymentOrderCreate {
+	_c.mutation.SetBonusCredits(v)
+	return _c
+}
+
+// SetNillableBonusCredits sets the "bonus_credits" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableBonusCredits(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetBonusCredits(*v)
+	}
+	return _c
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (_c *PaymentOrderCreate) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderCreate {
+	_c.mutation.SetCreditsPerUsdSnapshot(v)
+	return _c
+}
+
+// SetNillableCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableCreditsPerUsdSnapshot(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetCreditsPerUsdSnapshot(*v)
+	}
+	return _c
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (_c *PaymentOrderCreate) SetUsdToCnySnapshot(v float64) *PaymentOrderCreate {
+	_c.mutation.SetUsdToCnySnapshot(v)
+	return _c
+}
+
+// SetNillableUsdToCnySnapshot sets the "usd_to_cny_snapshot" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableUsdToCnySnapshot(v *float64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetUsdToCnySnapshot(*v)
+	}
+	return _c
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (_c *PaymentOrderCreate) SetRechargeRateSnapshot(v float64) *PaymentOrderCreate {
+	_c.mutation.SetRechargeRateSnapshot(v)
+	return _c
+}
+
+// SetNillableRechargeRateSnapshot sets the "recharge_rate_snapshot" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableRechargeRateSnapshot(v *float64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetRechargeRateSnapshot(*v)
+	}
+	return _c
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_c *PaymentOrderCreate) SetBillingVersion(v int64) *PaymentOrderCreate {
+	_c.mutation.SetBillingVersion(v)
+	return _c
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableBillingVersion(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetBillingVersion(*v)
+	}
+	return _c
+}
+
 // SetRechargeCode sets the "recharge_code" field.
 func (_c *PaymentOrderCreate) SetRechargeCode(v string) *PaymentOrderCreate {
 	_c.mutation.SetRechargeCode(v)
@@ -535,6 +619,30 @@ func (_c *PaymentOrderCreate) defaults() {
 		v := paymentorder.DefaultBonusAmount
 		_c.mutation.SetBonusAmount(v)
 	}
+	if _, ok := _c.mutation.CreditedCredits(); !ok {
+		v := paymentorder.DefaultCreditedCredits
+		_c.mutation.SetCreditedCredits(v)
+	}
+	if _, ok := _c.mutation.BonusCredits(); !ok {
+		v := paymentorder.DefaultBonusCredits
+		_c.mutation.SetBonusCredits(v)
+	}
+	if _, ok := _c.mutation.CreditsPerUsdSnapshot(); !ok {
+		v := paymentorder.DefaultCreditsPerUsdSnapshot
+		_c.mutation.SetCreditsPerUsdSnapshot(v)
+	}
+	if _, ok := _c.mutation.UsdToCnySnapshot(); !ok {
+		v := paymentorder.DefaultUsdToCnySnapshot
+		_c.mutation.SetUsdToCnySnapshot(v)
+	}
+	if _, ok := _c.mutation.RechargeRateSnapshot(); !ok {
+		v := paymentorder.DefaultRechargeRateSnapshot
+		_c.mutation.SetRechargeRateSnapshot(v)
+	}
+	if _, ok := _c.mutation.BillingVersion(); !ok {
+		v := paymentorder.DefaultBillingVersion
+		_c.mutation.SetBillingVersion(v)
+	}
 	if _, ok := _c.mutation.OutTradeNo(); !ok {
 		v := paymentorder.DefaultOutTradeNo
 		_c.mutation.SetOutTradeNo(v)
@@ -597,6 +705,24 @@ func (_c *PaymentOrderCreate) check() error {
 	}
 	if _, ok := _c.mutation.BonusAmount(); !ok {
 		return &ValidationError{Name: "bonus_amount", err: errors.New(`ent: missing required field "PaymentOrder.bonus_amount"`)}
+	}
+	if _, ok := _c.mutation.CreditedCredits(); !ok {
+		return &ValidationError{Name: "credited_credits", err: errors.New(`ent: missing required field "PaymentOrder.credited_credits"`)}
+	}
+	if _, ok := _c.mutation.BonusCredits(); !ok {
+		return &ValidationError{Name: "bonus_credits", err: errors.New(`ent: missing required field "PaymentOrder.bonus_credits"`)}
+	}
+	if _, ok := _c.mutation.CreditsPerUsdSnapshot(); !ok {
+		return &ValidationError{Name: "credits_per_usd_snapshot", err: errors.New(`ent: missing required field "PaymentOrder.credits_per_usd_snapshot"`)}
+	}
+	if _, ok := _c.mutation.UsdToCnySnapshot(); !ok {
+		return &ValidationError{Name: "usd_to_cny_snapshot", err: errors.New(`ent: missing required field "PaymentOrder.usd_to_cny_snapshot"`)}
+	}
+	if _, ok := _c.mutation.RechargeRateSnapshot(); !ok {
+		return &ValidationError{Name: "recharge_rate_snapshot", err: errors.New(`ent: missing required field "PaymentOrder.recharge_rate_snapshot"`)}
+	}
+	if _, ok := _c.mutation.BillingVersion(); !ok {
+		return &ValidationError{Name: "billing_version", err: errors.New(`ent: missing required field "PaymentOrder.billing_version"`)}
 	}
 	if _, ok := _c.mutation.RechargeCode(); !ok {
 		return &ValidationError{Name: "recharge_code", err: errors.New(`ent: missing required field "PaymentOrder.recharge_code"`)}
@@ -749,6 +875,30 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.BonusAmount(); ok {
 		_spec.SetField(paymentorder.FieldBonusAmount, field.TypeFloat64, value)
 		_node.BonusAmount = value
+	}
+	if value, ok := _c.mutation.CreditedCredits(); ok {
+		_spec.SetField(paymentorder.FieldCreditedCredits, field.TypeInt64, value)
+		_node.CreditedCredits = value
+	}
+	if value, ok := _c.mutation.BonusCredits(); ok {
+		_spec.SetField(paymentorder.FieldBonusCredits, field.TypeInt64, value)
+		_node.BonusCredits = value
+	}
+	if value, ok := _c.mutation.CreditsPerUsdSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldCreditsPerUsdSnapshot, field.TypeInt64, value)
+		_node.CreditsPerUsdSnapshot = value
+	}
+	if value, ok := _c.mutation.UsdToCnySnapshot(); ok {
+		_spec.SetField(paymentorder.FieldUsdToCnySnapshot, field.TypeFloat64, value)
+		_node.UsdToCnySnapshot = value
+	}
+	if value, ok := _c.mutation.RechargeRateSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldRechargeRateSnapshot, field.TypeFloat64, value)
+		_node.RechargeRateSnapshot = value
+	}
+	if value, ok := _c.mutation.BillingVersion(); ok {
+		_spec.SetField(paymentorder.FieldBillingVersion, field.TypeInt64, value)
+		_node.BillingVersion = value
 	}
 	if value, ok := _c.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
@@ -1070,6 +1220,114 @@ func (u *PaymentOrderUpsert) UpdateBonusAmount() *PaymentOrderUpsert {
 // AddBonusAmount adds v to the "bonus_amount" field.
 func (u *PaymentOrderUpsert) AddBonusAmount(v float64) *PaymentOrderUpsert {
 	u.Add(paymentorder.FieldBonusAmount, v)
+	return u
+}
+
+// SetCreditedCredits sets the "credited_credits" field.
+func (u *PaymentOrderUpsert) SetCreditedCredits(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldCreditedCredits, v)
+	return u
+}
+
+// UpdateCreditedCredits sets the "credited_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateCreditedCredits() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldCreditedCredits)
+	return u
+}
+
+// AddCreditedCredits adds v to the "credited_credits" field.
+func (u *PaymentOrderUpsert) AddCreditedCredits(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldCreditedCredits, v)
+	return u
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (u *PaymentOrderUpsert) SetBonusCredits(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldBonusCredits, v)
+	return u
+}
+
+// UpdateBonusCredits sets the "bonus_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateBonusCredits() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldBonusCredits)
+	return u
+}
+
+// AddBonusCredits adds v to the "bonus_credits" field.
+func (u *PaymentOrderUpsert) AddBonusCredits(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldBonusCredits, v)
+	return u
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsert) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldCreditsPerUsdSnapshot, v)
+	return u
+}
+
+// UpdateCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateCreditsPerUsdSnapshot() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldCreditsPerUsdSnapshot)
+	return u
+}
+
+// AddCreditsPerUsdSnapshot adds v to the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsert) AddCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldCreditsPerUsdSnapshot, v)
+	return u
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsert) SetUsdToCnySnapshot(v float64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldUsdToCnySnapshot, v)
+	return u
+}
+
+// UpdateUsdToCnySnapshot sets the "usd_to_cny_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateUsdToCnySnapshot() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldUsdToCnySnapshot)
+	return u
+}
+
+// AddUsdToCnySnapshot adds v to the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsert) AddUsdToCnySnapshot(v float64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldUsdToCnySnapshot, v)
+	return u
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsert) SetRechargeRateSnapshot(v float64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldRechargeRateSnapshot, v)
+	return u
+}
+
+// UpdateRechargeRateSnapshot sets the "recharge_rate_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateRechargeRateSnapshot() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldRechargeRateSnapshot)
+	return u
+}
+
+// AddRechargeRateSnapshot adds v to the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsert) AddRechargeRateSnapshot(v float64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldRechargeRateSnapshot, v)
+	return u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *PaymentOrderUpsert) SetBillingVersion(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldBillingVersion, v)
+	return u
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateBillingVersion() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldBillingVersion)
+	return u
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *PaymentOrderUpsert) AddBillingVersion(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldBillingVersion, v)
 	return u
 }
 
@@ -1772,6 +2030,132 @@ func (u *PaymentOrderUpsertOne) AddBonusAmount(v float64) *PaymentOrderUpsertOne
 func (u *PaymentOrderUpsertOne) UpdateBonusAmount() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.UpdateBonusAmount()
+	})
+}
+
+// SetCreditedCredits sets the "credited_credits" field.
+func (u *PaymentOrderUpsertOne) SetCreditedCredits(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditedCredits(v)
+	})
+}
+
+// AddCreditedCredits adds v to the "credited_credits" field.
+func (u *PaymentOrderUpsertOne) AddCreditedCredits(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditedCredits(v)
+	})
+}
+
+// UpdateCreditedCredits sets the "credited_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateCreditedCredits() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditedCredits()
+	})
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (u *PaymentOrderUpsertOne) SetBonusCredits(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBonusCredits(v)
+	})
+}
+
+// AddBonusCredits adds v to the "bonus_credits" field.
+func (u *PaymentOrderUpsertOne) AddBonusCredits(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBonusCredits(v)
+	})
+}
+
+// UpdateBonusCredits sets the "bonus_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateBonusCredits() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBonusCredits()
+	})
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsertOne) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditsPerUsdSnapshot(v)
+	})
+}
+
+// AddCreditsPerUsdSnapshot adds v to the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsertOne) AddCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditsPerUsdSnapshot(v)
+	})
+}
+
+// UpdateCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateCreditsPerUsdSnapshot() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditsPerUsdSnapshot()
+	})
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsertOne) SetUsdToCnySnapshot(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetUsdToCnySnapshot(v)
+	})
+}
+
+// AddUsdToCnySnapshot adds v to the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsertOne) AddUsdToCnySnapshot(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddUsdToCnySnapshot(v)
+	})
+}
+
+// UpdateUsdToCnySnapshot sets the "usd_to_cny_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateUsdToCnySnapshot() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateUsdToCnySnapshot()
+	})
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsertOne) SetRechargeRateSnapshot(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetRechargeRateSnapshot(v)
+	})
+}
+
+// AddRechargeRateSnapshot adds v to the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsertOne) AddRechargeRateSnapshot(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddRechargeRateSnapshot(v)
+	})
+}
+
+// UpdateRechargeRateSnapshot sets the "recharge_rate_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateRechargeRateSnapshot() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateRechargeRateSnapshot()
+	})
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *PaymentOrderUpsertOne) SetBillingVersion(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBillingVersion(v)
+	})
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *PaymentOrderUpsertOne) AddBillingVersion(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBillingVersion(v)
+	})
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateBillingVersion() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBillingVersion()
 	})
 }
 
@@ -2725,6 +3109,132 @@ func (u *PaymentOrderUpsertBulk) AddBonusAmount(v float64) *PaymentOrderUpsertBu
 func (u *PaymentOrderUpsertBulk) UpdateBonusAmount() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.UpdateBonusAmount()
+	})
+}
+
+// SetCreditedCredits sets the "credited_credits" field.
+func (u *PaymentOrderUpsertBulk) SetCreditedCredits(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditedCredits(v)
+	})
+}
+
+// AddCreditedCredits adds v to the "credited_credits" field.
+func (u *PaymentOrderUpsertBulk) AddCreditedCredits(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditedCredits(v)
+	})
+}
+
+// UpdateCreditedCredits sets the "credited_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateCreditedCredits() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditedCredits()
+	})
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (u *PaymentOrderUpsertBulk) SetBonusCredits(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBonusCredits(v)
+	})
+}
+
+// AddBonusCredits adds v to the "bonus_credits" field.
+func (u *PaymentOrderUpsertBulk) AddBonusCredits(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBonusCredits(v)
+	})
+}
+
+// UpdateBonusCredits sets the "bonus_credits" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateBonusCredits() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBonusCredits()
+	})
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsertBulk) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditsPerUsdSnapshot(v)
+	})
+}
+
+// AddCreditsPerUsdSnapshot adds v to the "credits_per_usd_snapshot" field.
+func (u *PaymentOrderUpsertBulk) AddCreditsPerUsdSnapshot(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditsPerUsdSnapshot(v)
+	})
+}
+
+// UpdateCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateCreditsPerUsdSnapshot() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditsPerUsdSnapshot()
+	})
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsertBulk) SetUsdToCnySnapshot(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetUsdToCnySnapshot(v)
+	})
+}
+
+// AddUsdToCnySnapshot adds v to the "usd_to_cny_snapshot" field.
+func (u *PaymentOrderUpsertBulk) AddUsdToCnySnapshot(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddUsdToCnySnapshot(v)
+	})
+}
+
+// UpdateUsdToCnySnapshot sets the "usd_to_cny_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateUsdToCnySnapshot() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateUsdToCnySnapshot()
+	})
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsertBulk) SetRechargeRateSnapshot(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetRechargeRateSnapshot(v)
+	})
+}
+
+// AddRechargeRateSnapshot adds v to the "recharge_rate_snapshot" field.
+func (u *PaymentOrderUpsertBulk) AddRechargeRateSnapshot(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddRechargeRateSnapshot(v)
+	})
+}
+
+// UpdateRechargeRateSnapshot sets the "recharge_rate_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateRechargeRateSnapshot() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateRechargeRateSnapshot()
+	})
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (u *PaymentOrderUpsertBulk) SetBillingVersion(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBillingVersion(v)
+	})
+}
+
+// AddBillingVersion adds v to the "billing_version" field.
+func (u *PaymentOrderUpsertBulk) AddBillingVersion(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddBillingVersion(v)
+	})
+}
+
+// UpdateBillingVersion sets the "billing_version" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateBillingVersion() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBillingVersion()
 	})
 }
 

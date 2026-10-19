@@ -213,13 +213,13 @@
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                  {{ formatUSD(usageStats[row.id]?.today_actual_cost ?? 0, 4) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                  {{ formatUSD(usageStats[row.id]?.total_actual_cost ?? 0, 4) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
@@ -232,7 +232,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
+                    {{ formatUSD(row.quota_used || 0, 2) }} / {{ formatUSD(row.quota || 0, 2) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -262,7 +262,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
+                    {{ formatUSD(row.usage_5h || 0, 2) }}/{{ formatUSD(row.rate_limit_5h || 0, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -290,7 +290,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
+                    {{ formatUSD(row.usage_1d || 0, 2) }}/{{ formatUSD(row.rate_limit_1d || 0, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -318,7 +318,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
+                    {{ formatUSD(row.usage_7d || 0, 2) }}/{{ formatUSD(row.rate_limit_7d || 0, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -695,7 +695,7 @@
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
@@ -714,11 +714,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    ${{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
+                    {{ formatUSD(selectedKey.quota_used || 0, 4) }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    ${{ selectedKey.quota?.toFixed(2) || '0.00' }}
+                    {{ formatUSD(selectedKey.quota || 0, 2) }}
                   </span>
                 </div>
                 <button
@@ -761,7 +761,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
@@ -781,11 +781,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
+                      {{ formatUSD(selectedKey.usage_5h || 0, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
+                      {{ formatUSD(selectedKey.rate_limit_5h || 0, 2) }}
                     </span>
                   </div>
                 </div>
@@ -807,7 +807,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
@@ -827,11 +827,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
+                      {{ formatUSD(selectedKey.usage_1d || 0, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
+                      {{ formatUSD(selectedKey.rate_limit_1d || 0, 2) }}
                     </span>
                   </div>
                 </div>
@@ -853,7 +853,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
@@ -873,11 +873,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
+                      {{ formatUSD(selectedKey.usage_7d || 0, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
+                      {{ formatUSD(selectedKey.rate_limit_7d || 0, 2) }}
                     </span>
                   </div>
                 </div>
@@ -1227,6 +1227,7 @@ import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { maskApiKey } from '@/utils/maskApiKey'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformBadgeLightClass } from '@/utils/platformColors'
@@ -1259,6 +1260,7 @@ interface GroupOption {
 }
 
 const appStore = useAppStore()
+const { formatUSD, symbol: billingSymbol, usdToDisplay, displayToUSD } = useBillingCurrency()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
@@ -1707,11 +1709,11 @@ const editKey = (key: ApiKey) => {
     ip_whitelist: (key.ip_whitelist || []).join('\n'),
     ip_blacklist: (key.ip_blacklist || []).join('\n'),
     enable_quota: key.quota > 0,
-    quota: key.quota > 0 ? key.quota : null,
+    quota: key.quota > 0 ? usdToDisplay(key.quota) : null,
     enable_rate_limit: (key.rate_limit_5h > 0) || (key.rate_limit_1d > 0) || (key.rate_limit_7d > 0),
-    rate_limit_5h: key.rate_limit_5h || null,
-    rate_limit_1d: key.rate_limit_1d || null,
-    rate_limit_7d: key.rate_limit_7d || null,
+    rate_limit_5h: key.rate_limit_5h > 0 ? usdToDisplay(key.rate_limit_5h) : null,
+    rate_limit_1d: key.rate_limit_1d > 0 ? usdToDisplay(key.rate_limit_1d) : null,
+    rate_limit_7d: key.rate_limit_7d > 0 ? usdToDisplay(key.rate_limit_7d) : null,
     enable_expiration: hasExpiration,
     expiration_preset: 'custom',
     expiration_date: key.expires_at ? formatDateTimeLocal(key.expires_at) : ''
@@ -1823,7 +1825,7 @@ const handleSubmit = async () => {
   const ipBlacklist = formData.value.enable_ip_restriction ? parseIPList(formData.value.ip_blacklist) : []
 
   // Calculate quota value (null/empty/0 = unlimited, stored as 0)
-  const quota = formData.value.quota && formData.value.quota > 0 ? formData.value.quota : 0
+  const quota = formData.value.quota && formData.value.quota > 0 ? displayToUSD(formData.value.quota) : 0
 
   // Calculate expiration
   let expiresInDays: number | undefined
@@ -1846,9 +1848,9 @@ const handleSubmit = async () => {
 
   // Calculate rate limit values (send 0 when toggle is off)
   const rateLimitData = formData.value.enable_rate_limit ? {
-    rate_limit_5h: formData.value.rate_limit_5h && formData.value.rate_limit_5h > 0 ? formData.value.rate_limit_5h : 0,
-    rate_limit_1d: formData.value.rate_limit_1d && formData.value.rate_limit_1d > 0 ? formData.value.rate_limit_1d : 0,
-    rate_limit_7d: formData.value.rate_limit_7d && formData.value.rate_limit_7d > 0 ? formData.value.rate_limit_7d : 0,
+    rate_limit_5h: formData.value.rate_limit_5h && formData.value.rate_limit_5h > 0 ? displayToUSD(formData.value.rate_limit_5h) : 0,
+    rate_limit_1d: formData.value.rate_limit_1d && formData.value.rate_limit_1d > 0 ? displayToUSD(formData.value.rate_limit_1d) : 0,
+    rate_limit_7d: formData.value.rate_limit_7d && formData.value.rate_limit_7d > 0 ? displayToUSD(formData.value.rate_limit_7d) : 0,
   } : { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }
 
   submitting.value = true

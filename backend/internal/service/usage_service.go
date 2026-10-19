@@ -92,6 +92,7 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
+	billingSettings := GetBillingCurrencySettings(ctx)
 	// 创建使用日志
 	usageLog := &UsageLog{
 		UserID:                req.UserID,
@@ -111,9 +112,16 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 		CacheReadCost:         req.CacheReadCost,
 		TotalCost:             req.TotalCost,
 		ActualCost:            req.ActualCost,
+		BillingCurrency:       billingSettings.DisplayCurrency,
+		CreditsPerUSD:         billingSettings.CreditsPerUSD,
+		USDToCNYRate:          billingSettings.USDToCNY,
+		BillingVersion:        billingSettings.Version,
 		RateMultiplier:        req.RateMultiplier,
 		Stream:                req.Stream,
 		DurationMs:            req.DurationMs,
+	}
+	if billingSettings.EffectiveEngine() != BillingEngineLegacy && req.ActualCost > 0 {
+		usageLog.ChargeCredits = billingSettings.USDToCredits(QuantizeUsageBillingAmount(req.ActualCost))
 	}
 
 	inserted, err := s.usageRepo.Create(txCtx, usageLog)

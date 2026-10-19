@@ -64,11 +64,15 @@ func (APIKey) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Quota limit in USD for this API key (0 = unlimited)"),
+		field.Int64("quota_credits").
+			Default(0),
 		// Used quota amount
 		field.Float("quota_used").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Used quota amount in USD"),
+		field.Int64("quota_used_credits").
+			Default(0),
 		// Expiration time (nil = never expires)
 		field.Time("expires_at").
 			Optional().
@@ -81,27 +85,39 @@ func (APIKey) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Rate limit in USD per 5 hours (0 = unlimited)"),
+		field.Int64("rate_limit_5h_credits").
+			Default(0),
 		field.Float("rate_limit_1d").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Rate limit in USD per day (0 = unlimited)"),
+		field.Int64("rate_limit_1d_credits").
+			Default(0),
 		field.Float("rate_limit_7d").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Rate limit in USD per 7 days (0 = unlimited)"),
+		field.Int64("rate_limit_7d_credits").
+			Default(0),
 		// Rate limit usage tracking
 		field.Float("usage_5h").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Used amount in USD for the current 5h window"),
+		field.Int64("usage_5h_credits").
+			Default(0),
 		field.Float("usage_1d").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Used amount in USD for the current 1d window"),
+		field.Int64("usage_1d_credits").
+			Default(0),
 		field.Float("usage_7d").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("Used amount in USD for the current 7d window"),
+		field.Int64("usage_7d_credits").
+			Default(0),
 		// Window start times
 		field.Time("window_5h_start").
 			Optional().

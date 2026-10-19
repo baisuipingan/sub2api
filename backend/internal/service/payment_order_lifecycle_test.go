@@ -257,7 +257,10 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 	require.Equal(t, OrderStatusCompleted, reloaded.Status)
 	require.Equal(t, "upstream-trade-123", reloaded.PaymentTradeNo)
 
-	require.Equal(t, 88.0, userRepo.getByIDUser.Balance)
+	dbUser, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.InDelta(t, 88.0, dbUser.Balance, 1e-8)
+	require.Equal(t, USDToCredits(88), dbUser.BalanceCredits)
 	require.Len(t, redeemRepo.useCalls, 1)
 	require.Equal(t, int64(1), redeemRepo.useCalls[0].id)
 	require.Equal(t, user.ID, redeemRepo.useCalls[0].userID)
@@ -665,7 +668,10 @@ func TestReconcilePendingPaymentOrdersBackfillsPaidOrder(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, OrderStatusCompleted, reloaded.Status)
 	require.Equal(t, "wxpay-upstream-trade-123", reloaded.PaymentTradeNo)
-	require.Equal(t, 50.0, userRepo.getByIDUser.Balance)
+	dbUser, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.InDelta(t, 50.0, dbUser.Balance, 1e-8)
+	require.Equal(t, USDToCredits(50), dbUser.BalanceCredits)
 	require.Len(t, redeemRepo.useCalls, 1)
 }
 

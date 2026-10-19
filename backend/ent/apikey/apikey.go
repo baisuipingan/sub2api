@@ -39,22 +39,38 @@ const (
 	FieldIPBlacklist = "ip_blacklist"
 	// FieldQuota holds the string denoting the quota field in the database.
 	FieldQuota = "quota"
+	// FieldQuotaCredits holds the string denoting the quota_credits field in the database.
+	FieldQuotaCredits = "quota_credits"
 	// FieldQuotaUsed holds the string denoting the quota_used field in the database.
 	FieldQuotaUsed = "quota_used"
+	// FieldQuotaUsedCredits holds the string denoting the quota_used_credits field in the database.
+	FieldQuotaUsedCredits = "quota_used_credits"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
 	// FieldRateLimit5h holds the string denoting the rate_limit_5h field in the database.
 	FieldRateLimit5h = "rate_limit_5h"
+	// FieldRateLimit5hCredits holds the string denoting the rate_limit_5h_credits field in the database.
+	FieldRateLimit5hCredits = "rate_limit_5h_credits"
 	// FieldRateLimit1d holds the string denoting the rate_limit_1d field in the database.
 	FieldRateLimit1d = "rate_limit_1d"
+	// FieldRateLimit1dCredits holds the string denoting the rate_limit_1d_credits field in the database.
+	FieldRateLimit1dCredits = "rate_limit_1d_credits"
 	// FieldRateLimit7d holds the string denoting the rate_limit_7d field in the database.
 	FieldRateLimit7d = "rate_limit_7d"
+	// FieldRateLimit7dCredits holds the string denoting the rate_limit_7d_credits field in the database.
+	FieldRateLimit7dCredits = "rate_limit_7d_credits"
 	// FieldUsage5h holds the string denoting the usage_5h field in the database.
 	FieldUsage5h = "usage_5h"
+	// FieldUsage5hCredits holds the string denoting the usage_5h_credits field in the database.
+	FieldUsage5hCredits = "usage_5h_credits"
 	// FieldUsage1d holds the string denoting the usage_1d field in the database.
 	FieldUsage1d = "usage_1d"
+	// FieldUsage1dCredits holds the string denoting the usage_1d_credits field in the database.
+	FieldUsage1dCredits = "usage_1d_credits"
 	// FieldUsage7d holds the string denoting the usage_7d field in the database.
 	FieldUsage7d = "usage_7d"
+	// FieldUsage7dCredits holds the string denoting the usage_7d_credits field in the database.
+	FieldUsage7dCredits = "usage_7d_credits"
 	// FieldWindow5hStart holds the string denoting the window_5h_start field in the database.
 	FieldWindow5hStart = "window_5h_start"
 	// FieldWindow1dStart holds the string denoting the window_1d_start field in the database.
@@ -107,14 +123,22 @@ var Columns = []string{
 	FieldIPWhitelist,
 	FieldIPBlacklist,
 	FieldQuota,
+	FieldQuotaCredits,
 	FieldQuotaUsed,
+	FieldQuotaUsedCredits,
 	FieldExpiresAt,
 	FieldRateLimit5h,
+	FieldRateLimit5hCredits,
 	FieldRateLimit1d,
+	FieldRateLimit1dCredits,
 	FieldRateLimit7d,
+	FieldRateLimit7dCredits,
 	FieldUsage5h,
+	FieldUsage5hCredits,
 	FieldUsage1d,
+	FieldUsage1dCredits,
 	FieldUsage7d,
+	FieldUsage7dCredits,
 	FieldWindow5hStart,
 	FieldWindow1dStart,
 	FieldWindow7dStart,
@@ -154,20 +178,36 @@ var (
 	StatusValidator func(string) error
 	// DefaultQuota holds the default value on creation for the "quota" field.
 	DefaultQuota float64
+	// DefaultQuotaCredits holds the default value on creation for the "quota_credits" field.
+	DefaultQuotaCredits int64
 	// DefaultQuotaUsed holds the default value on creation for the "quota_used" field.
 	DefaultQuotaUsed float64
+	// DefaultQuotaUsedCredits holds the default value on creation for the "quota_used_credits" field.
+	DefaultQuotaUsedCredits int64
 	// DefaultRateLimit5h holds the default value on creation for the "rate_limit_5h" field.
 	DefaultRateLimit5h float64
+	// DefaultRateLimit5hCredits holds the default value on creation for the "rate_limit_5h_credits" field.
+	DefaultRateLimit5hCredits int64
 	// DefaultRateLimit1d holds the default value on creation for the "rate_limit_1d" field.
 	DefaultRateLimit1d float64
+	// DefaultRateLimit1dCredits holds the default value on creation for the "rate_limit_1d_credits" field.
+	DefaultRateLimit1dCredits int64
 	// DefaultRateLimit7d holds the default value on creation for the "rate_limit_7d" field.
 	DefaultRateLimit7d float64
+	// DefaultRateLimit7dCredits holds the default value on creation for the "rate_limit_7d_credits" field.
+	DefaultRateLimit7dCredits int64
 	// DefaultUsage5h holds the default value on creation for the "usage_5h" field.
 	DefaultUsage5h float64
+	// DefaultUsage5hCredits holds the default value on creation for the "usage_5h_credits" field.
+	DefaultUsage5hCredits int64
 	// DefaultUsage1d holds the default value on creation for the "usage_1d" field.
 	DefaultUsage1d float64
+	// DefaultUsage1dCredits holds the default value on creation for the "usage_1d_credits" field.
+	DefaultUsage1dCredits int64
 	// DefaultUsage7d holds the default value on creation for the "usage_7d" field.
 	DefaultUsage7d float64
+	// DefaultUsage7dCredits holds the default value on creation for the "usage_7d_credits" field.
+	DefaultUsage7dCredits int64
 )
 
 // OrderOption defines the ordering options for the APIKey queries.
@@ -228,9 +268,19 @@ func ByQuota(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuota, opts...).ToFunc()
 }
 
+// ByQuotaCredits orders the results by the quota_credits field.
+func ByQuotaCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQuotaCredits, opts...).ToFunc()
+}
+
 // ByQuotaUsed orders the results by the quota_used field.
 func ByQuotaUsed(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaUsed, opts...).ToFunc()
+}
+
+// ByQuotaUsedCredits orders the results by the quota_used_credits field.
+func ByQuotaUsedCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQuotaUsedCredits, opts...).ToFunc()
 }
 
 // ByExpiresAt orders the results by the expires_at field.
@@ -243,9 +293,19 @@ func ByRateLimit5h(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateLimit5h, opts...).ToFunc()
 }
 
+// ByRateLimit5hCredits orders the results by the rate_limit_5h_credits field.
+func ByRateLimit5hCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRateLimit5hCredits, opts...).ToFunc()
+}
+
 // ByRateLimit1d orders the results by the rate_limit_1d field.
 func ByRateLimit1d(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateLimit1d, opts...).ToFunc()
+}
+
+// ByRateLimit1dCredits orders the results by the rate_limit_1d_credits field.
+func ByRateLimit1dCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRateLimit1dCredits, opts...).ToFunc()
 }
 
 // ByRateLimit7d orders the results by the rate_limit_7d field.
@@ -253,9 +313,19 @@ func ByRateLimit7d(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateLimit7d, opts...).ToFunc()
 }
 
+// ByRateLimit7dCredits orders the results by the rate_limit_7d_credits field.
+func ByRateLimit7dCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRateLimit7dCredits, opts...).ToFunc()
+}
+
 // ByUsage5h orders the results by the usage_5h field.
 func ByUsage5h(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsage5h, opts...).ToFunc()
+}
+
+// ByUsage5hCredits orders the results by the usage_5h_credits field.
+func ByUsage5hCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsage5hCredits, opts...).ToFunc()
 }
 
 // ByUsage1d orders the results by the usage_1d field.
@@ -263,9 +333,19 @@ func ByUsage1d(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsage1d, opts...).ToFunc()
 }
 
+// ByUsage1dCredits orders the results by the usage_1d_credits field.
+func ByUsage1dCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsage1dCredits, opts...).ToFunc()
+}
+
 // ByUsage7d orders the results by the usage_7d field.
 func ByUsage7d(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsage7d, opts...).ToFunc()
+}
+
+// ByUsage7dCredits orders the results by the usage_7d_credits field.
+func ByUsage7dCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsage7dCredits, opts...).ToFunc()
 }
 
 // ByWindow5hStart orders the results by the window_5h_start field.

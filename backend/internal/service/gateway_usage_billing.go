@@ -286,6 +286,39 @@ func resolveUsageBillingPayloadFingerprint(ctx context.Context, requestPayloadHa
 	return ""
 }
 
+func applyUsageBillingCreditSnapshot(cmd *UsageBillingCommand, actualCostUSD float64, usesWallet bool) {
+	if cmd == nil {
+		return
+	}
+	settings := GetBillingCurrencySettings(context.Background())
+	cmd.BillingEngine = settings.EffectiveEngine()
+	cmd.BillingCurrency = settings.DisplayCurrency
+	cmd.CreditsPerUSD = settings.CreditsPerUSD
+	cmd.USDToCNYRate = settings.USDToCNY
+	cmd.BillingVersion = settings.Version
+	if cmd.BillingEngine == BillingEngineLegacy || actualCostUSD <= 0 {
+		return
+	}
+	// Legacy deduction quantizes USD to NUMERIC(20,8). Build credits from the
+	// same value so the balance delta and the logged charge cannot diverge by a
+	// sub-cent rounding unit.
+	cmd.ChargeCredits = settings.USDToCredits(QuantizeUsageBillingAmount(actualCostUSD))
+	if cmd.BillingEngine == BillingEngineCredits {
+		if usesWallet {
+			cmd.BalanceCredits = cmd.ChargeCredits
+		}
+		if cmd.SubscriptionID != nil {
+			cmd.SubscriptionCredits = cmd.ChargeCredits
+		}
+		if cmd.APIKeyQuotaCost > 0 {
+			cmd.APIKeyQuotaCredits = cmd.ChargeCredits
+		}
+		if cmd.APIKeyRateLimitCost > 0 {
+			cmd.APIKeyRateLimitCredits = cmd.ChargeCredits
+		}
+	}
+}
+
 func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsageBillingParams) *UsageBillingCommand {
 	if p == nil || p.Cost == nil || p.APIKey == nil || p.User == nil || p.Account == nil {
 		return nil
@@ -322,6 +355,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		if p.Cost.ActualCost > 0 && p.APIKey.HasRateLimits() {
 			cmd.APIKeyRateLimitCost = p.Cost.ActualCost
 		}
+		applyUsageBillingCreditSnapshot(cmd, p.Cost.ActualCost, false)
 		cmd.Normalize()
 		return cmd
 	}
@@ -330,13 +364,14 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	// user-specific) rate multiplier consumes subscription quota at the expected
 	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
 	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
+	usesWallet := false
 	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
 		cmd.SubscriptionID = &p.Subscription.ID
 		cmd.SubscriptionCost = p.Cost.ActualCost
 	} else if p.Cost.ActualCost > 0 {
 		cmd.BalanceCost = p.Cost.ActualCost
+		usesWallet = true
 	}
-
 	if p.shouldDeductAPIKeyQuota() {
 		cmd.APIKeyQuotaCost = p.Cost.ActualCost
 	}
@@ -346,6 +381,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	if p.shouldUpdateAccountQuota() {
 		cmd.AccountQuotaCost = p.Cost.TotalCost * p.AccountRateMultiplier
 	}
+	applyUsageBillingCreditSnapshot(cmd, p.Cost.ActualCost, usesWallet)
 
 	cmd.Normalize()
 	return cmd
@@ -357,6 +393,13 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
+	if cmd != nil && usageLog != nil {
+		usageLog.ChargeCredits = cmd.ChargeCredits
+		usageLog.BillingCurrency = cmd.BillingCurrency
+		usageLog.CreditsPerUSD = cmd.CreditsPerUSD
+		usageLog.USDToCNYRate = cmd.USDToCNYRate
+		usageLog.BillingVersion = cmd.BillingVersion
+	}
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
 		if p.SimpleModeKeyRateLimitOnly {
 			return false, ErrSimpleModeKeyRateLimitBillingUnavailable

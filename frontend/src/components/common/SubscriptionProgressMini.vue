@@ -180,6 +180,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import Icon from '@/components/icons/Icon.vue'
 import { useSubscriptionStore } from '@/stores'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
@@ -187,6 +188,7 @@ import type { UserSubscription } from '@/types'
 import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
 
 const { t } = useI18n()
+const { formatUSD } = useBillingCurrency()
 
 const subscriptionStore = useSubscriptionStore()
 
@@ -256,9 +258,9 @@ function getProgressWidth(used: number | undefined, limit: number | null | undef
 }
 
 function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  const usedValue = (used || 0).toFixed(2)
-  const limitValue = limit?.toFixed(2) || '∞'
-  return `$${usedValue}/$${limitValue}`
+  const usedValue = formatUSD(used || 0, 2)
+  const limitValue = limit == null ? '∞' : formatUSD(limit, 2)
+  return `${usedValue}/${limitValue}`
 }
 
 function formatDaysRemaining(expiresAt: string): string {

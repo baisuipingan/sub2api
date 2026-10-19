@@ -183,6 +183,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
 	selectedInstanceID := ""
 	selectedProviderKey := ""
+	paidCurrency := payment.DefaultPaymentCurrency
+	if sel != nil {
+		paidCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+	}
+	billingCurrency := GetBillingCurrencySettings(ctx)
 	if sel != nil {
 		selectedInstanceID = strings.TrimSpace(sel.InstanceID)
 		selectedProviderKey = strings.TrimSpace(sel.ProviderKey)
@@ -196,6 +201,10 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		SetPayAmount(payAmount).
 		SetFeeRate(feeRate).
 		SetBonusAmount(bonusAmount).
+		SetCreditsPerUsdSnapshot(billingCurrency.CreditsPerUSD).
+		SetUsdToCnySnapshot(billingCurrency.USDToCNY).
+		SetRechargeRateSnapshot(billingCurrency.RechargeRate(paidCurrency)).
+		SetBillingVersion(billingCurrency.Version).
 		SetRechargeCode("").
 		SetOutTradeNo(outTradeNo).
 		SetPaymentType(req.PaymentType).
@@ -219,6 +228,8 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	}
 	if plan != nil {
 		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
+	} else if req.OrderType == payment.OrderTypeBalance {
+		b.SetCreditedCredits(USDToCredits(orderAmount)).SetBonusCredits(USDToCredits(bonusAmount))
 	}
 	order, err := b.Save(ctx)
 	if err != nil {

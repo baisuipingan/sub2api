@@ -85,8 +85,10 @@ export interface User {
   oidc_bound?: boolean
   wechat_bound?: boolean
   role: 'admin' | 'user' // User role for authorization
-  balance: number // User balance for API usage
-  frozen_balance?: number // Balance currently held by async batch jobs
+  balance: number // USD-equivalent compatibility balance for API usage
+  balance_credits?: number // Authoritative integer credit balance
+  frozen_balance?: number // USD-equivalent balance held by async batch jobs
+  frozen_balance_credits?: number // Integer balance held by async batch jobs
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
   status: 'active' | 'disabled' // Account status
@@ -281,6 +283,12 @@ export interface PublicSettings {
   subscription_enabled: boolean
   /** Mirrors payment config BALANCE_PAYMENT_DISABLED; true = balance top-up closed (subscription-only site). */
   payment_balance_disabled: boolean
+  billing_currency_enabled?: boolean
+  billing_engine?: 'legacy' | 'shadow' | 'credits'
+  billing_display_currency?: 'USD' | 'CNY'
+  billing_usd_to_cny?: number
+  billing_credits_per_usd?: number
+  billing_settings_version?: number
   model_plaza_enabled: boolean
   model_plaza_require_auth: boolean
   plugin_management_enabled: boolean
@@ -1793,6 +1801,11 @@ export interface UsageLog {
   cache_read_cost: number
   total_cost: number
   actual_cost: number
+  charge_credits?: number
+  billing_currency?: 'USD' | 'CNY' | string
+  credits_per_usd?: number
+  usd_to_cny_rate?: number
+  billing_version?: number
   rate_multiplier: number
   long_context_billing_applied: boolean
   billing_type: number

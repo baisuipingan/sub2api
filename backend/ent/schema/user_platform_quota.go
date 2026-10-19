@@ -55,25 +55,40 @@ func (UserPlatformQuota) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("daily_limit_credits").
+			Optional().
+			Nillable(),
 		field.Float("weekly_limit_usd").
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("weekly_limit_credits").
+			Optional().
+			Nillable(),
 		field.Float("monthly_limit_usd").
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("monthly_limit_credits").
+			Optional().
+			Nillable(),
 
 		// 当前窗口已用量（USD，preflight 时与 limit 比较）
 		field.Float("daily_usage_usd").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("daily_usage_credits").
+			Default(0),
 		field.Float("weekly_usage_usd").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("weekly_usage_credits").
+			Default(0),
 		field.Float("monthly_usage_usd").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
+		field.Int64("monthly_usage_credits").
+			Default(0),
 
 		// 窗口起点（NULL = 首次还未初始化，由 InitWindowStarts 用 COALESCE 兜底）
 		field.Time("daily_window_start").

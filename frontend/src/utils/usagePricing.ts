@@ -1,3 +1,5 @@
+import { billingCurrencySymbol, getCurrentBillingCurrencyView } from '@/utils/billingCurrency'
+
 export const TOKENS_PER_MILLION = 1_000_000
 
 interface TokenPriceFormatOptions {
@@ -44,6 +46,10 @@ export function formatTokenPricePerMillion(
   }
 
   const fractionDigits = options.fractionDigits ?? 4
-  const formatted = pricePerMillion.toFixed(fractionDigits)
-  return options.withCurrencySymbol == false ? formatted : `$${formatted}`
+  const view = getCurrentBillingCurrencyView()
+  const amount = view.displayCurrency === 'CNY' ? pricePerMillion * view.usdToCny : pricePerMillion
+  const formatted = amount.toFixed(fractionDigits)
+  return options.withCurrencySymbol == false
+    ? formatted
+    : `${billingCurrencySymbol(view.displayCurrency)}${formatted}`
 }

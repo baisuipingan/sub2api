@@ -68,6 +68,16 @@ const (
 	FieldTotalCost = "total_cost"
 	// FieldActualCost holds the string denoting the actual_cost field in the database.
 	FieldActualCost = "actual_cost"
+	// FieldChargeCredits holds the string denoting the charge_credits field in the database.
+	FieldChargeCredits = "charge_credits"
+	// FieldBillingCurrency holds the string denoting the billing_currency field in the database.
+	FieldBillingCurrency = "billing_currency"
+	// FieldCreditsPerUsd holds the string denoting the credits_per_usd field in the database.
+	FieldCreditsPerUsd = "credits_per_usd"
+	// FieldUsdToCnyRate holds the string denoting the usd_to_cny_rate field in the database.
+	FieldUsdToCnyRate = "usd_to_cny_rate"
+	// FieldBillingVersion holds the string denoting the billing_version field in the database.
+	FieldBillingVersion = "billing_version"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldLongContextBillingApplied holds the string denoting the long_context_billing_applied field in the database.
@@ -187,6 +197,11 @@ var Columns = []string{
 	FieldCacheReadCost,
 	FieldTotalCost,
 	FieldActualCost,
+	FieldChargeCredits,
+	FieldBillingCurrency,
+	FieldCreditsPerUsd,
+	FieldUsdToCnyRate,
+	FieldBillingVersion,
 	FieldRateMultiplier,
 	FieldLongContextBillingApplied,
 	FieldAccountRateMultiplier,
@@ -260,6 +275,18 @@ var (
 	DefaultTotalCost float64
 	// DefaultActualCost holds the default value on creation for the "actual_cost" field.
 	DefaultActualCost float64
+	// DefaultChargeCredits holds the default value on creation for the "charge_credits" field.
+	DefaultChargeCredits int64
+	// DefaultBillingCurrency holds the default value on creation for the "billing_currency" field.
+	DefaultBillingCurrency string
+	// BillingCurrencyValidator is a validator for the "billing_currency" field. It is called by the builders before save.
+	BillingCurrencyValidator func(string) error
+	// DefaultCreditsPerUsd holds the default value on creation for the "credits_per_usd" field.
+	DefaultCreditsPerUsd int64
+	// DefaultUsdToCnyRate holds the default value on creation for the "usd_to_cny_rate" field.
+	DefaultUsdToCnyRate float64
+	// DefaultBillingVersion holds the default value on creation for the "billing_version" field.
+	DefaultBillingVersion int64
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
 	// DefaultLongContextBillingApplied holds the default value on creation for the "long_context_billing_applied" field.
@@ -433,6 +460,31 @@ func ByTotalCost(opts ...sql.OrderTermOption) OrderOption {
 // ByActualCost orders the results by the actual_cost field.
 func ByActualCost(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldActualCost, opts...).ToFunc()
+}
+
+// ByChargeCredits orders the results by the charge_credits field.
+func ByChargeCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChargeCredits, opts...).ToFunc()
+}
+
+// ByBillingCurrency orders the results by the billing_currency field.
+func ByBillingCurrency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingCurrency, opts...).ToFunc()
+}
+
+// ByCreditsPerUsd orders the results by the credits_per_usd field.
+func ByCreditsPerUsd(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreditsPerUsd, opts...).ToFunc()
+}
+
+// ByUsdToCnyRate orders the results by the usd_to_cny_rate field.
+func ByUsdToCnyRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsdToCnyRate, opts...).ToFunc()
+}
+
+// ByBillingVersion orders the results by the billing_version field.
+func ByBillingVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBillingVersion, opts...).ToFunc()
 }
 
 // ByRateMultiplier orders the results by the rate_multiplier field.

@@ -252,6 +252,20 @@ func (_c *GroupCreate) SetNillableDailyLimitUsd(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (_c *GroupCreate) SetDailyLimitCredits(v int64) *GroupCreate {
+	_c.mutation.SetDailyLimitCredits(v)
+	return _c
+}
+
+// SetNillableDailyLimitCredits sets the "daily_limit_credits" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableDailyLimitCredits(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetDailyLimitCredits(*v)
+	}
+	return _c
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (_c *GroupCreate) SetWeeklyLimitUsd(v float64) *GroupCreate {
 	_c.mutation.SetWeeklyLimitUsd(v)
@@ -266,6 +280,20 @@ func (_c *GroupCreate) SetNillableWeeklyLimitUsd(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (_c *GroupCreate) SetWeeklyLimitCredits(v int64) *GroupCreate {
+	_c.mutation.SetWeeklyLimitCredits(v)
+	return _c
+}
+
+// SetNillableWeeklyLimitCredits sets the "weekly_limit_credits" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableWeeklyLimitCredits(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetWeeklyLimitCredits(*v)
+	}
+	return _c
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (_c *GroupCreate) SetMonthlyLimitUsd(v float64) *GroupCreate {
 	_c.mutation.SetMonthlyLimitUsd(v)
@@ -276,6 +304,20 @@ func (_c *GroupCreate) SetMonthlyLimitUsd(v float64) *GroupCreate {
 func (_c *GroupCreate) SetNillableMonthlyLimitUsd(v *float64) *GroupCreate {
 	if v != nil {
 		_c.SetMonthlyLimitUsd(*v)
+	}
+	return _c
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (_c *GroupCreate) SetMonthlyLimitCredits(v int64) *GroupCreate {
+	_c.mutation.SetMonthlyLimitCredits(v)
+	return _c
+}
+
+// SetNillableMonthlyLimitCredits sets the "monthly_limit_credits" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableMonthlyLimitCredits(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetMonthlyLimitCredits(*v)
 	}
 	return _c
 }
@@ -1526,13 +1568,25 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
 		_node.DailyLimitUsd = &value
 	}
+	if value, ok := _c.mutation.DailyLimitCredits(); ok {
+		_spec.SetField(group.FieldDailyLimitCredits, field.TypeInt64, value)
+		_node.DailyLimitCredits = &value
+	}
 	if value, ok := _c.mutation.WeeklyLimitUsd(); ok {
 		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
 		_node.WeeklyLimitUsd = &value
 	}
+	if value, ok := _c.mutation.WeeklyLimitCredits(); ok {
+		_spec.SetField(group.FieldWeeklyLimitCredits, field.TypeInt64, value)
+		_node.WeeklyLimitCredits = &value
+	}
 	if value, ok := _c.mutation.MonthlyLimitUsd(); ok {
 		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
 		_node.MonthlyLimitUsd = &value
+	}
+	if value, ok := _c.mutation.MonthlyLimitCredits(); ok {
+		_spec.SetField(group.FieldMonthlyLimitCredits, field.TypeInt64, value)
+		_node.MonthlyLimitCredits = &value
 	}
 	if value, ok := _c.mutation.DefaultValidityDays(); ok {
 		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
@@ -2098,6 +2152,30 @@ func (u *GroupUpsert) ClearDailyLimitUsd() *GroupUpsert {
 	return u
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *GroupUpsert) SetDailyLimitCredits(v int64) *GroupUpsert {
+	u.Set(group.FieldDailyLimitCredits, v)
+	return u
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDailyLimitCredits() *GroupUpsert {
+	u.SetExcluded(group.FieldDailyLimitCredits)
+	return u
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *GroupUpsert) AddDailyLimitCredits(v int64) *GroupUpsert {
+	u.Add(group.FieldDailyLimitCredits, v)
+	return u
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *GroupUpsert) ClearDailyLimitCredits() *GroupUpsert {
+	u.SetNull(group.FieldDailyLimitCredits)
+	return u
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *GroupUpsert) SetWeeklyLimitUsd(v float64) *GroupUpsert {
 	u.Set(group.FieldWeeklyLimitUsd, v)
@@ -2122,6 +2200,30 @@ func (u *GroupUpsert) ClearWeeklyLimitUsd() *GroupUpsert {
 	return u
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *GroupUpsert) SetWeeklyLimitCredits(v int64) *GroupUpsert {
+	u.Set(group.FieldWeeklyLimitCredits, v)
+	return u
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateWeeklyLimitCredits() *GroupUpsert {
+	u.SetExcluded(group.FieldWeeklyLimitCredits)
+	return u
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *GroupUpsert) AddWeeklyLimitCredits(v int64) *GroupUpsert {
+	u.Add(group.FieldWeeklyLimitCredits, v)
+	return u
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *GroupUpsert) ClearWeeklyLimitCredits() *GroupUpsert {
+	u.SetNull(group.FieldWeeklyLimitCredits)
+	return u
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (u *GroupUpsert) SetMonthlyLimitUsd(v float64) *GroupUpsert {
 	u.Set(group.FieldMonthlyLimitUsd, v)
@@ -2143,6 +2245,30 @@ func (u *GroupUpsert) AddMonthlyLimitUsd(v float64) *GroupUpsert {
 // ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
 func (u *GroupUpsert) ClearMonthlyLimitUsd() *GroupUpsert {
 	u.SetNull(group.FieldMonthlyLimitUsd)
+	return u
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *GroupUpsert) SetMonthlyLimitCredits(v int64) *GroupUpsert {
+	u.Set(group.FieldMonthlyLimitCredits, v)
+	return u
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateMonthlyLimitCredits() *GroupUpsert {
+	u.SetExcluded(group.FieldMonthlyLimitCredits)
+	return u
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *GroupUpsert) AddMonthlyLimitCredits(v int64) *GroupUpsert {
+	u.Add(group.FieldMonthlyLimitCredits, v)
+	return u
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *GroupUpsert) ClearMonthlyLimitCredits() *GroupUpsert {
+	u.SetNull(group.FieldMonthlyLimitCredits)
 	return u
 }
 
@@ -3250,6 +3376,34 @@ func (u *GroupUpsertOne) ClearDailyLimitUsd() *GroupUpsertOne {
 	})
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *GroupUpsertOne) SetDailyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDailyLimitCredits(v)
+	})
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *GroupUpsertOne) AddDailyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDailyLimitCredits(v)
+	})
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDailyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDailyLimitCredits()
+	})
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *GroupUpsertOne) ClearDailyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDailyLimitCredits()
+	})
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *GroupUpsertOne) SetWeeklyLimitUsd(v float64) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -3278,6 +3432,34 @@ func (u *GroupUpsertOne) ClearWeeklyLimitUsd() *GroupUpsertOne {
 	})
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *GroupUpsertOne) SetWeeklyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetWeeklyLimitCredits(v)
+	})
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *GroupUpsertOne) AddWeeklyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddWeeklyLimitCredits(v)
+	})
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateWeeklyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateWeeklyLimitCredits()
+	})
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *GroupUpsertOne) ClearWeeklyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearWeeklyLimitCredits()
+	})
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (u *GroupUpsertOne) SetMonthlyLimitUsd(v float64) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -3303,6 +3485,34 @@ func (u *GroupUpsertOne) UpdateMonthlyLimitUsd() *GroupUpsertOne {
 func (u *GroupUpsertOne) ClearMonthlyLimitUsd() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearMonthlyLimitUsd()
+	})
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *GroupUpsertOne) SetMonthlyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMonthlyLimitCredits(v)
+	})
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *GroupUpsertOne) AddMonthlyLimitCredits(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddMonthlyLimitCredits(v)
+	})
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateMonthlyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMonthlyLimitCredits()
+	})
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *GroupUpsertOne) ClearMonthlyLimitCredits() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearMonthlyLimitCredits()
 	})
 }
 
@@ -4710,6 +4920,34 @@ func (u *GroupUpsertBulk) ClearDailyLimitUsd() *GroupUpsertBulk {
 	})
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *GroupUpsertBulk) SetDailyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDailyLimitCredits(v)
+	})
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *GroupUpsertBulk) AddDailyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddDailyLimitCredits(v)
+	})
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDailyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDailyLimitCredits()
+	})
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *GroupUpsertBulk) ClearDailyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearDailyLimitCredits()
+	})
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *GroupUpsertBulk) SetWeeklyLimitUsd(v float64) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -4738,6 +4976,34 @@ func (u *GroupUpsertBulk) ClearWeeklyLimitUsd() *GroupUpsertBulk {
 	})
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *GroupUpsertBulk) SetWeeklyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetWeeklyLimitCredits(v)
+	})
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *GroupUpsertBulk) AddWeeklyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddWeeklyLimitCredits(v)
+	})
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateWeeklyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateWeeklyLimitCredits()
+	})
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *GroupUpsertBulk) ClearWeeklyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearWeeklyLimitCredits()
+	})
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (u *GroupUpsertBulk) SetMonthlyLimitUsd(v float64) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -4763,6 +5029,34 @@ func (u *GroupUpsertBulk) UpdateMonthlyLimitUsd() *GroupUpsertBulk {
 func (u *GroupUpsertBulk) ClearMonthlyLimitUsd() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearMonthlyLimitUsd()
+	})
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *GroupUpsertBulk) SetMonthlyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetMonthlyLimitCredits(v)
+	})
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *GroupUpsertBulk) AddMonthlyLimitCredits(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddMonthlyLimitCredits(v)
+	})
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateMonthlyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateMonthlyLimitCredits()
+	})
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *GroupUpsertBulk) ClearMonthlyLimitCredits() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearMonthlyLimitCredits()
 	})
 }
 

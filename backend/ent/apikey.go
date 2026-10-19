@@ -44,22 +44,38 @@ type APIKey struct {
 	IPBlacklist []string `json:"ip_blacklist,omitempty"`
 	// Quota limit in USD for this API key (0 = unlimited)
 	Quota float64 `json:"quota,omitempty"`
+	// QuotaCredits holds the value of the "quota_credits" field.
+	QuotaCredits int64 `json:"quota_credits,omitempty"`
 	// Used quota amount in USD
 	QuotaUsed float64 `json:"quota_used,omitempty"`
+	// QuotaUsedCredits holds the value of the "quota_used_credits" field.
+	QuotaUsedCredits int64 `json:"quota_used_credits,omitempty"`
 	// Expiration time for this API key (null = never expires)
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// Rate limit in USD per 5 hours (0 = unlimited)
 	RateLimit5h float64 `json:"rate_limit_5h,omitempty"`
+	// RateLimit5hCredits holds the value of the "rate_limit_5h_credits" field.
+	RateLimit5hCredits int64 `json:"rate_limit_5h_credits,omitempty"`
 	// Rate limit in USD per day (0 = unlimited)
 	RateLimit1d float64 `json:"rate_limit_1d,omitempty"`
+	// RateLimit1dCredits holds the value of the "rate_limit_1d_credits" field.
+	RateLimit1dCredits int64 `json:"rate_limit_1d_credits,omitempty"`
 	// Rate limit in USD per 7 days (0 = unlimited)
 	RateLimit7d float64 `json:"rate_limit_7d,omitempty"`
+	// RateLimit7dCredits holds the value of the "rate_limit_7d_credits" field.
+	RateLimit7dCredits int64 `json:"rate_limit_7d_credits,omitempty"`
 	// Used amount in USD for the current 5h window
 	Usage5h float64 `json:"usage_5h,omitempty"`
+	// Usage5hCredits holds the value of the "usage_5h_credits" field.
+	Usage5hCredits int64 `json:"usage_5h_credits,omitempty"`
 	// Used amount in USD for the current 1d window
 	Usage1d float64 `json:"usage_1d,omitempty"`
+	// Usage1dCredits holds the value of the "usage_1d_credits" field.
+	Usage1dCredits int64 `json:"usage_1d_credits,omitempty"`
 	// Used amount in USD for the current 7d window
 	Usage7d float64 `json:"usage_7d,omitempty"`
+	// Usage7dCredits holds the value of the "usage_7d_credits" field.
+	Usage7dCredits int64 `json:"usage_7d_credits,omitempty"`
 	// Start time of the current 5h rate limit window
 	Window5hStart *time.Time `json:"window_5h_start,omitempty"`
 	// Start time of the current 1d rate limit window
@@ -125,7 +141,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
-		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID:
+		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID, apikey.FieldQuotaCredits, apikey.FieldQuotaUsedCredits, apikey.FieldRateLimit5hCredits, apikey.FieldRateLimit1dCredits, apikey.FieldRateLimit7dCredits, apikey.FieldUsage5hCredits, apikey.FieldUsage1dCredits, apikey.FieldUsage7dCredits:
 			values[i] = new(sql.NullInt64)
 		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus:
 			values[i] = new(sql.NullString)
@@ -231,11 +247,23 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Quota = value.Float64
 			}
+		case apikey.FieldQuotaCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field quota_credits", values[i])
+			} else if value.Valid {
+				_m.QuotaCredits = value.Int64
+			}
 		case apikey.FieldQuotaUsed:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field quota_used", values[i])
 			} else if value.Valid {
 				_m.QuotaUsed = value.Float64
+			}
+		case apikey.FieldQuotaUsedCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field quota_used_credits", values[i])
+			} else if value.Valid {
+				_m.QuotaUsedCredits = value.Int64
 			}
 		case apikey.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -250,11 +278,23 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RateLimit5h = value.Float64
 			}
+		case apikey.FieldRateLimit5hCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rate_limit_5h_credits", values[i])
+			} else if value.Valid {
+				_m.RateLimit5hCredits = value.Int64
+			}
 		case apikey.FieldRateLimit1d:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field rate_limit_1d", values[i])
 			} else if value.Valid {
 				_m.RateLimit1d = value.Float64
+			}
+		case apikey.FieldRateLimit1dCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rate_limit_1d_credits", values[i])
+			} else if value.Valid {
+				_m.RateLimit1dCredits = value.Int64
 			}
 		case apikey.FieldRateLimit7d:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -262,11 +302,23 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RateLimit7d = value.Float64
 			}
+		case apikey.FieldRateLimit7dCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rate_limit_7d_credits", values[i])
+			} else if value.Valid {
+				_m.RateLimit7dCredits = value.Int64
+			}
 		case apikey.FieldUsage5h:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field usage_5h", values[i])
 			} else if value.Valid {
 				_m.Usage5h = value.Float64
+			}
+		case apikey.FieldUsage5hCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_5h_credits", values[i])
+			} else if value.Valid {
+				_m.Usage5hCredits = value.Int64
 			}
 		case apikey.FieldUsage1d:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -274,11 +326,23 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Usage1d = value.Float64
 			}
+		case apikey.FieldUsage1dCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_1d_credits", values[i])
+			} else if value.Valid {
+				_m.Usage1dCredits = value.Int64
+			}
 		case apikey.FieldUsage7d:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field usage_7d", values[i])
 			} else if value.Valid {
 				_m.Usage7d = value.Float64
+			}
+		case apikey.FieldUsage7dCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field usage_7d_credits", values[i])
+			} else if value.Valid {
+				_m.Usage7dCredits = value.Int64
 			}
 		case apikey.FieldWindow5hStart:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -394,8 +458,14 @@ func (_m *APIKey) String() string {
 	builder.WriteString("quota=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Quota))
 	builder.WriteString(", ")
+	builder.WriteString("quota_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.QuotaCredits))
+	builder.WriteString(", ")
 	builder.WriteString("quota_used=")
 	builder.WriteString(fmt.Sprintf("%v", _m.QuotaUsed))
+	builder.WriteString(", ")
+	builder.WriteString("quota_used_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.QuotaUsedCredits))
 	builder.WriteString(", ")
 	if v := _m.ExpiresAt; v != nil {
 		builder.WriteString("expires_at=")
@@ -405,20 +475,38 @@ func (_m *APIKey) String() string {
 	builder.WriteString("rate_limit_5h=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit5h))
 	builder.WriteString(", ")
+	builder.WriteString("rate_limit_5h_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit5hCredits))
+	builder.WriteString(", ")
 	builder.WriteString("rate_limit_1d=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit1d))
+	builder.WriteString(", ")
+	builder.WriteString("rate_limit_1d_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit1dCredits))
 	builder.WriteString(", ")
 	builder.WriteString("rate_limit_7d=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit7d))
 	builder.WriteString(", ")
+	builder.WriteString("rate_limit_7d_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RateLimit7dCredits))
+	builder.WriteString(", ")
 	builder.WriteString("usage_5h=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Usage5h))
+	builder.WriteString(", ")
+	builder.WriteString("usage_5h_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Usage5hCredits))
 	builder.WriteString(", ")
 	builder.WriteString("usage_1d=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Usage1d))
 	builder.WriteString(", ")
+	builder.WriteString("usage_1d_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Usage1dCredits))
+	builder.WriteString(", ")
 	builder.WriteString("usage_7d=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Usage7d))
+	builder.WriteString(", ")
+	builder.WriteString("usage_7d_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Usage7dCredits))
 	builder.WriteString(", ")
 	if v := _m.Window5hStart; v != nil {
 		builder.WriteString("window_5h_start=")

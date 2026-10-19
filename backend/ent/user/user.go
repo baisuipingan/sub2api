@@ -29,8 +29,14 @@ const (
 	FieldRole = "role"
 	// FieldBalance holds the string denoting the balance field in the database.
 	FieldBalance = "balance"
+	// FieldBalanceCredits holds the string denoting the balance_credits field in the database.
+	FieldBalanceCredits = "balance_credits"
+	// FieldBalanceCreditsVersion holds the string denoting the balance_credits_version field in the database.
+	FieldBalanceCreditsVersion = "balance_credits_version"
 	// FieldFrozenBalance holds the string denoting the frozen_balance field in the database.
 	FieldFrozenBalance = "frozen_balance"
+	// FieldFrozenBalanceCredits holds the string denoting the frozen_balance_credits field in the database.
+	FieldFrozenBalanceCredits = "frozen_balance_credits"
 	// FieldConcurrency holds the string denoting the concurrency field in the database.
 	FieldConcurrency = "concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -203,7 +209,10 @@ var Columns = []string{
 	FieldPasswordHash,
 	FieldRole,
 	FieldBalance,
+	FieldBalanceCredits,
+	FieldBalanceCreditsVersion,
 	FieldFrozenBalance,
+	FieldFrozenBalanceCredits,
 	FieldConcurrency,
 	FieldStatus,
 	FieldUsername,
@@ -263,8 +272,14 @@ var (
 	RoleValidator func(string) error
 	// DefaultBalance holds the default value on creation for the "balance" field.
 	DefaultBalance float64
+	// DefaultBalanceCredits holds the default value on creation for the "balance_credits" field.
+	DefaultBalanceCredits int64
+	// DefaultBalanceCreditsVersion holds the default value on creation for the "balance_credits_version" field.
+	DefaultBalanceCreditsVersion int64
 	// DefaultFrozenBalance holds the default value on creation for the "frozen_balance" field.
 	DefaultFrozenBalance float64
+	// DefaultFrozenBalanceCredits holds the default value on creation for the "frozen_balance_credits" field.
+	DefaultFrozenBalanceCredits int64
 	// DefaultConcurrency holds the default value on creation for the "concurrency" field.
 	DefaultConcurrency int
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -340,9 +355,24 @@ func ByBalance(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBalance, opts...).ToFunc()
 }
 
+// ByBalanceCredits orders the results by the balance_credits field.
+func ByBalanceCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalanceCredits, opts...).ToFunc()
+}
+
+// ByBalanceCreditsVersion orders the results by the balance_credits_version field.
+func ByBalanceCreditsVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalanceCreditsVersion, opts...).ToFunc()
+}
+
 // ByFrozenBalance orders the results by the frozen_balance field.
 func ByFrozenBalance(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFrozenBalance, opts...).ToFunc()
+}
+
+// ByFrozenBalanceCredits orders the results by the frozen_balance_credits field.
+func ByFrozenBalanceCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFrozenBalanceCredits, opts...).ToFunc()
 }
 
 // ByConcurrency orders the results by the concurrency field.

@@ -85,9 +85,19 @@ func DailyLimitUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyLimitUsd, v))
 }
 
+// DailyLimitCredits applies equality check predicate on the "daily_limit_credits" field. It's identical to DailyLimitCreditsEQ.
+func DailyLimitCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyLimitCredits, v))
+}
+
 // WeeklyLimitUsd applies equality check predicate on the "weekly_limit_usd" field. It's identical to WeeklyLimitUsdEQ.
 func WeeklyLimitUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyLimitUsd, v))
+}
+
+// WeeklyLimitCredits applies equality check predicate on the "weekly_limit_credits" field. It's identical to WeeklyLimitCreditsEQ.
+func WeeklyLimitCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyLimitCredits, v))
 }
 
 // MonthlyLimitUsd applies equality check predicate on the "monthly_limit_usd" field. It's identical to MonthlyLimitUsdEQ.
@@ -95,9 +105,19 @@ func MonthlyLimitUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyLimitUsd, v))
 }
 
+// MonthlyLimitCredits applies equality check predicate on the "monthly_limit_credits" field. It's identical to MonthlyLimitCreditsEQ.
+func MonthlyLimitCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyLimitCredits, v))
+}
+
 // DailyUsageUsd applies equality check predicate on the "daily_usage_usd" field. It's identical to DailyUsageUsdEQ.
 func DailyUsageUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyUsageUsd, v))
+}
+
+// DailyUsageCredits applies equality check predicate on the "daily_usage_credits" field. It's identical to DailyUsageCreditsEQ.
+func DailyUsageCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyUsageCredits, v))
 }
 
 // WeeklyUsageUsd applies equality check predicate on the "weekly_usage_usd" field. It's identical to WeeklyUsageUsdEQ.
@@ -105,9 +125,19 @@ func WeeklyUsageUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyUsageUsd, v))
 }
 
+// WeeklyUsageCredits applies equality check predicate on the "weekly_usage_credits" field. It's identical to WeeklyUsageCreditsEQ.
+func WeeklyUsageCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyUsageCredits, v))
+}
+
 // MonthlyUsageUsd applies equality check predicate on the "monthly_usage_usd" field. It's identical to MonthlyUsageUsdEQ.
 func MonthlyUsageUsd(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyUsageUsd, v))
+}
+
+// MonthlyUsageCredits applies equality check predicate on the "monthly_usage_credits" field. It's identical to MonthlyUsageCreditsEQ.
+func MonthlyUsageCredits(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyUsageCredits, v))
 }
 
 // DailyWindowStart applies equality check predicate on the "daily_window_start" field. It's identical to DailyWindowStartEQ.
@@ -390,6 +420,56 @@ func DailyLimitUsdNotNil() predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldDailyLimitUsd))
 }
 
+// DailyLimitCreditsEQ applies the EQ predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsNEQ applies the NEQ predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsIn applies the In predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldDailyLimitCredits, vs...))
+}
+
+// DailyLimitCreditsNotIn applies the NotIn predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldDailyLimitCredits, vs...))
+}
+
+// DailyLimitCreditsGT applies the GT predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsGTE applies the GTE predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsLT applies the LT predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsLTE applies the LTE predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsIsNil applies the IsNil predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsIsNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIsNull(FieldDailyLimitCredits))
+}
+
+// DailyLimitCreditsNotNil applies the NotNil predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNotNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldDailyLimitCredits))
+}
+
 // WeeklyLimitUsdEQ applies the EQ predicate on the "weekly_limit_usd" field.
 func WeeklyLimitUsdEQ(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyLimitUsd, v))
@@ -438,6 +518,56 @@ func WeeklyLimitUsdIsNil() predicate.UserPlatformQuota {
 // WeeklyLimitUsdNotNil applies the NotNil predicate on the "weekly_limit_usd" field.
 func WeeklyLimitUsdNotNil() predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldWeeklyLimitUsd))
+}
+
+// WeeklyLimitCreditsEQ applies the EQ predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsNEQ applies the NEQ predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsIn applies the In predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldWeeklyLimitCredits, vs...))
+}
+
+// WeeklyLimitCreditsNotIn applies the NotIn predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldWeeklyLimitCredits, vs...))
+}
+
+// WeeklyLimitCreditsGT applies the GT predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsGTE applies the GTE predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsLT applies the LT predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsLTE applies the LTE predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsIsNil applies the IsNil predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsIsNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIsNull(FieldWeeklyLimitCredits))
+}
+
+// WeeklyLimitCreditsNotNil applies the NotNil predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNotNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldWeeklyLimitCredits))
 }
 
 // MonthlyLimitUsdEQ applies the EQ predicate on the "monthly_limit_usd" field.
@@ -490,6 +620,56 @@ func MonthlyLimitUsdNotNil() predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldMonthlyLimitUsd))
 }
 
+// MonthlyLimitCreditsEQ applies the EQ predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsNEQ applies the NEQ predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsIn applies the In predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldMonthlyLimitCredits, vs...))
+}
+
+// MonthlyLimitCreditsNotIn applies the NotIn predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldMonthlyLimitCredits, vs...))
+}
+
+// MonthlyLimitCreditsGT applies the GT predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsGTE applies the GTE predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsLT applies the LT predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsLTE applies the LTE predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsIsNil applies the IsNil predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsIsNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIsNull(FieldMonthlyLimitCredits))
+}
+
+// MonthlyLimitCreditsNotNil applies the NotNil predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNotNil() predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotNull(FieldMonthlyLimitCredits))
+}
+
 // DailyUsageUsdEQ applies the EQ predicate on the "daily_usage_usd" field.
 func DailyUsageUsdEQ(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyUsageUsd, v))
@@ -528,6 +708,46 @@ func DailyUsageUsdLT(v float64) predicate.UserPlatformQuota {
 // DailyUsageUsdLTE applies the LTE predicate on the "daily_usage_usd" field.
 func DailyUsageUsdLTE(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldLTE(FieldDailyUsageUsd, v))
+}
+
+// DailyUsageCreditsEQ applies the EQ predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldDailyUsageCredits, v))
+}
+
+// DailyUsageCreditsNEQ applies the NEQ predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldDailyUsageCredits, v))
+}
+
+// DailyUsageCreditsIn applies the In predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldDailyUsageCredits, vs...))
+}
+
+// DailyUsageCreditsNotIn applies the NotIn predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldDailyUsageCredits, vs...))
+}
+
+// DailyUsageCreditsGT applies the GT predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldDailyUsageCredits, v))
+}
+
+// DailyUsageCreditsGTE applies the GTE predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldDailyUsageCredits, v))
+}
+
+// DailyUsageCreditsLT applies the LT predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldDailyUsageCredits, v))
+}
+
+// DailyUsageCreditsLTE applies the LTE predicate on the "daily_usage_credits" field.
+func DailyUsageCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldDailyUsageCredits, v))
 }
 
 // WeeklyUsageUsdEQ applies the EQ predicate on the "weekly_usage_usd" field.
@@ -570,6 +790,46 @@ func WeeklyUsageUsdLTE(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldLTE(FieldWeeklyUsageUsd, v))
 }
 
+// WeeklyUsageCreditsEQ applies the EQ predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldWeeklyUsageCredits, v))
+}
+
+// WeeklyUsageCreditsNEQ applies the NEQ predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldWeeklyUsageCredits, v))
+}
+
+// WeeklyUsageCreditsIn applies the In predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldWeeklyUsageCredits, vs...))
+}
+
+// WeeklyUsageCreditsNotIn applies the NotIn predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldWeeklyUsageCredits, vs...))
+}
+
+// WeeklyUsageCreditsGT applies the GT predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldWeeklyUsageCredits, v))
+}
+
+// WeeklyUsageCreditsGTE applies the GTE predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldWeeklyUsageCredits, v))
+}
+
+// WeeklyUsageCreditsLT applies the LT predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldWeeklyUsageCredits, v))
+}
+
+// WeeklyUsageCreditsLTE applies the LTE predicate on the "weekly_usage_credits" field.
+func WeeklyUsageCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldWeeklyUsageCredits, v))
+}
+
 // MonthlyUsageUsdEQ applies the EQ predicate on the "monthly_usage_usd" field.
 func MonthlyUsageUsdEQ(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyUsageUsd, v))
@@ -608,6 +868,46 @@ func MonthlyUsageUsdLT(v float64) predicate.UserPlatformQuota {
 // MonthlyUsageUsdLTE applies the LTE predicate on the "monthly_usage_usd" field.
 func MonthlyUsageUsdLTE(v float64) predicate.UserPlatformQuota {
 	return predicate.UserPlatformQuota(sql.FieldLTE(FieldMonthlyUsageUsd, v))
+}
+
+// MonthlyUsageCreditsEQ applies the EQ predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldEQ(FieldMonthlyUsageCredits, v))
+}
+
+// MonthlyUsageCreditsNEQ applies the NEQ predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsNEQ(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNEQ(FieldMonthlyUsageCredits, v))
+}
+
+// MonthlyUsageCreditsIn applies the In predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldIn(FieldMonthlyUsageCredits, vs...))
+}
+
+// MonthlyUsageCreditsNotIn applies the NotIn predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsNotIn(vs ...int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldNotIn(FieldMonthlyUsageCredits, vs...))
+}
+
+// MonthlyUsageCreditsGT applies the GT predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsGT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGT(FieldMonthlyUsageCredits, v))
+}
+
+// MonthlyUsageCreditsGTE applies the GTE predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsGTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldGTE(FieldMonthlyUsageCredits, v))
+}
+
+// MonthlyUsageCreditsLT applies the LT predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsLT(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLT(FieldMonthlyUsageCredits, v))
+}
+
+// MonthlyUsageCreditsLTE applies the LTE predicate on the "monthly_usage_credits" field.
+func MonthlyUsageCreditsLTE(v int64) predicate.UserPlatformQuota {
+	return predicate.UserPlatformQuota(sql.FieldLTE(FieldMonthlyUsageCredits, v))
 }
 
 // DailyWindowStartEQ applies the EQ predicate on the "daily_window_start" field.

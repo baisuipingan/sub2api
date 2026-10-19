@@ -45,6 +45,12 @@ func TestBuildPaymentOrderProviderSnapshot_ExcludesSensitiveConfig(t *testing.T)
 
 func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	ctx := context.Background()
+	previousBilling := GetBillingCurrencySettings(ctx)
+	billing := DefaultBillingCurrencyConfig()
+	billing.USDToCNY = 7.2
+	billing.RechargeRates = map[string]float64{BillingDisplayCNY: 7.2, BillingDisplayUSD: 1}
+	publishBillingCurrencyConfig(billing)
+	t.Cleanup(func() { publishBillingCurrencyConfig(previousBilling) })
 	client := newPaymentConfigServiceTestClient(t)
 
 	user, err := client.User.Create().
@@ -110,6 +116,11 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	require.NotContains(t, order.ProviderSnapshot, "secretKey")
 	require.NotContains(t, order.ProviderSnapshot, "supported_types")
 	require.NotContains(t, order.ProviderSnapshot, "instance_name")
+	require.Equal(t, USDToCredits(88), order.CreditedCredits)
+	require.Equal(t, CreditsPerUSD, order.CreditsPerUsdSnapshot)
+	require.InDelta(t, 7.2, order.UsdToCnySnapshot, 1e-12)
+	require.InDelta(t, 7.2, order.RechargeRateSnapshot, 1e-12)
+	require.Equal(t, billing.Version, order.BillingVersion)
 }
 
 func TestBuildPaymentOrderProviderSnapshot_UsesWxpayJSAPIAppIDForOpenIDOrders(t *testing.T) {

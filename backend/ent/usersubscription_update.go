@@ -208,6 +208,27 @@ func (_u *UserSubscriptionUpdate) AddDailyUsageUsd(v float64) *UserSubscriptionU
 	return _u
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (_u *UserSubscriptionUpdate) SetDailyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.ResetDailyUsageCredits()
+	_u.mutation.SetDailyUsageCredits(v)
+	return _u
+}
+
+// SetNillableDailyUsageCredits sets the "daily_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableDailyUsageCredits(v *int64) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetDailyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddDailyUsageCredits adds value to the "daily_usage_credits" field.
+func (_u *UserSubscriptionUpdate) AddDailyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.AddDailyUsageCredits(v)
+	return _u
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (_u *UserSubscriptionUpdate) SetWeeklyUsageUsd(v float64) *UserSubscriptionUpdate {
 	_u.mutation.ResetWeeklyUsageUsd()
@@ -229,6 +250,27 @@ func (_u *UserSubscriptionUpdate) AddWeeklyUsageUsd(v float64) *UserSubscription
 	return _u
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (_u *UserSubscriptionUpdate) SetWeeklyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.ResetWeeklyUsageCredits()
+	_u.mutation.SetWeeklyUsageCredits(v)
+	return _u
+}
+
+// SetNillableWeeklyUsageCredits sets the "weekly_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableWeeklyUsageCredits(v *int64) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetWeeklyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddWeeklyUsageCredits adds value to the "weekly_usage_credits" field.
+func (_u *UserSubscriptionUpdate) AddWeeklyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.AddWeeklyUsageCredits(v)
+	return _u
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (_u *UserSubscriptionUpdate) SetMonthlyUsageUsd(v float64) *UserSubscriptionUpdate {
 	_u.mutation.ResetMonthlyUsageUsd()
@@ -247,6 +289,27 @@ func (_u *UserSubscriptionUpdate) SetNillableMonthlyUsageUsd(v *float64) *UserSu
 // AddMonthlyUsageUsd adds value to the "monthly_usage_usd" field.
 func (_u *UserSubscriptionUpdate) AddMonthlyUsageUsd(v float64) *UserSubscriptionUpdate {
 	_u.mutation.AddMonthlyUsageUsd(v)
+	return _u
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (_u *UserSubscriptionUpdate) SetMonthlyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.ResetMonthlyUsageCredits()
+	_u.mutation.SetMonthlyUsageCredits(v)
+	return _u
+}
+
+// SetNillableMonthlyUsageCredits sets the "monthly_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdate) SetNillableMonthlyUsageCredits(v *int64) *UserSubscriptionUpdate {
+	if v != nil {
+		_u.SetMonthlyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddMonthlyUsageCredits adds value to the "monthly_usage_credits" field.
+func (_u *UserSubscriptionUpdate) AddMonthlyUsageCredits(v int64) *UserSubscriptionUpdate {
+	_u.mutation.AddMonthlyUsageCredits(v)
 	return _u
 }
 
@@ -504,17 +567,35 @@ func (_u *UserSubscriptionUpdate) sqlSave(ctx context.Context) (_node int, err e
 	if value, ok := _u.mutation.AddedDailyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldDailyUsageUsd, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.DailyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldDailyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldDailyUsageCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.WeeklyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedWeeklyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.WeeklyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldWeeklyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedWeeklyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldWeeklyUsageCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.MonthlyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedMonthlyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.MonthlyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldMonthlyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldMonthlyUsageCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)
@@ -854,6 +935,27 @@ func (_u *UserSubscriptionUpdateOne) AddDailyUsageUsd(v float64) *UserSubscripti
 	return _u
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) SetDailyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.ResetDailyUsageCredits()
+	_u.mutation.SetDailyUsageCredits(v)
+	return _u
+}
+
+// SetNillableDailyUsageCredits sets the "daily_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableDailyUsageCredits(v *int64) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetDailyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddDailyUsageCredits adds value to the "daily_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) AddDailyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.AddDailyUsageCredits(v)
+	return _u
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (_u *UserSubscriptionUpdateOne) SetWeeklyUsageUsd(v float64) *UserSubscriptionUpdateOne {
 	_u.mutation.ResetWeeklyUsageUsd()
@@ -875,6 +977,27 @@ func (_u *UserSubscriptionUpdateOne) AddWeeklyUsageUsd(v float64) *UserSubscript
 	return _u
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) SetWeeklyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.ResetWeeklyUsageCredits()
+	_u.mutation.SetWeeklyUsageCredits(v)
+	return _u
+}
+
+// SetNillableWeeklyUsageCredits sets the "weekly_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableWeeklyUsageCredits(v *int64) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetWeeklyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddWeeklyUsageCredits adds value to the "weekly_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) AddWeeklyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.AddWeeklyUsageCredits(v)
+	return _u
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (_u *UserSubscriptionUpdateOne) SetMonthlyUsageUsd(v float64) *UserSubscriptionUpdateOne {
 	_u.mutation.ResetMonthlyUsageUsd()
@@ -893,6 +1016,27 @@ func (_u *UserSubscriptionUpdateOne) SetNillableMonthlyUsageUsd(v *float64) *Use
 // AddMonthlyUsageUsd adds value to the "monthly_usage_usd" field.
 func (_u *UserSubscriptionUpdateOne) AddMonthlyUsageUsd(v float64) *UserSubscriptionUpdateOne {
 	_u.mutation.AddMonthlyUsageUsd(v)
+	return _u
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) SetMonthlyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.ResetMonthlyUsageCredits()
+	_u.mutation.SetMonthlyUsageCredits(v)
+	return _u
+}
+
+// SetNillableMonthlyUsageCredits sets the "monthly_usage_credits" field if the given value is not nil.
+func (_u *UserSubscriptionUpdateOne) SetNillableMonthlyUsageCredits(v *int64) *UserSubscriptionUpdateOne {
+	if v != nil {
+		_u.SetMonthlyUsageCredits(*v)
+	}
+	return _u
+}
+
+// AddMonthlyUsageCredits adds value to the "monthly_usage_credits" field.
+func (_u *UserSubscriptionUpdateOne) AddMonthlyUsageCredits(v int64) *UserSubscriptionUpdateOne {
+	_u.mutation.AddMonthlyUsageCredits(v)
 	return _u
 }
 
@@ -1180,17 +1324,35 @@ func (_u *UserSubscriptionUpdateOne) sqlSave(ctx context.Context) (_node *UserSu
 	if value, ok := _u.mutation.AddedDailyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldDailyUsageUsd, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.DailyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldDailyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldDailyUsageCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.WeeklyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedWeeklyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.WeeklyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldWeeklyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedWeeklyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldWeeklyUsageCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.MonthlyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedMonthlyUsageUsd(); ok {
 		_spec.AddField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.MonthlyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldMonthlyUsageCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyUsageCredits(); ok {
+		_spec.AddField(usersubscription.FieldMonthlyUsageCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)

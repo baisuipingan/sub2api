@@ -794,8 +794,14 @@ func ProvideOpsIngressRejectAggregator(opsRepo OpsRepository, opsService *OpsSer
 // ProvideSettingService wires SettingService with group reader and proxy repo.
 func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
+	_ = svc.GetBillingCurrencyConfig(context.Background())
+	svc.StartBillingCurrencyRefresh(context.Background())
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
+	// Warm the billing-currency snapshot and let the hot path refresh it
+	// asynchronously when another instance updates the shared setting.
+	setBillingCurrencyConfigLoader(svc.GetBillingCurrencyConfig)
+	_ = svc.GetBillingCurrencyConfig(context.Background())
 	if err := svc.LoadForwardedClientIPSettings(context.Background()); err != nil {
 		logger.LegacyPrintf("service.setting", "Warning: load forwarded client IP settings failed: %v", err)
 	}

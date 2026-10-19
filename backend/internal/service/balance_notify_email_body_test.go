@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -16,6 +17,12 @@ import (
 // ---------- buildBalanceLowEmailBody ----------
 
 func TestBuildBalanceLowEmailBody_ContainsRequiredFields(t *testing.T) {
+	previous := GetBillingCurrencySettings(context.Background())
+	cfg := DefaultBillingCurrencyConfig()
+	cfg.DisplayCurrency = BillingDisplayUSD
+	publishBillingCurrencyConfig(cfg)
+	t.Cleanup(func() { publishBillingCurrencyConfig(previous) })
+
 	s := &BalanceNotifyService{}
 	body := s.buildBalanceLowEmailBody("Alice", 3.14, 10.0, "MySite", "")
 

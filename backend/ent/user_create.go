@@ -116,6 +116,34 @@ func (_c *UserCreate) SetNillableBalance(v *float64) *UserCreate {
 	return _c
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (_c *UserCreate) SetBalanceCredits(v int64) *UserCreate {
+	_c.mutation.SetBalanceCredits(v)
+	return _c
+}
+
+// SetNillableBalanceCredits sets the "balance_credits" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBalanceCredits(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetBalanceCredits(*v)
+	}
+	return _c
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (_c *UserCreate) SetBalanceCreditsVersion(v int64) *UserCreate {
+	_c.mutation.SetBalanceCreditsVersion(v)
+	return _c
+}
+
+// SetNillableBalanceCreditsVersion sets the "balance_credits_version" field if the given value is not nil.
+func (_c *UserCreate) SetNillableBalanceCreditsVersion(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetBalanceCreditsVersion(*v)
+	}
+	return _c
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (_c *UserCreate) SetFrozenBalance(v float64) *UserCreate {
 	_c.mutation.SetFrozenBalance(v)
@@ -126,6 +154,20 @@ func (_c *UserCreate) SetFrozenBalance(v float64) *UserCreate {
 func (_c *UserCreate) SetNillableFrozenBalance(v *float64) *UserCreate {
 	if v != nil {
 		_c.SetFrozenBalance(*v)
+	}
+	return _c
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (_c *UserCreate) SetFrozenBalanceCredits(v int64) *UserCreate {
+	_c.mutation.SetFrozenBalanceCredits(v)
+	return _c
+}
+
+// SetNillableFrozenBalanceCredits sets the "frozen_balance_credits" field if the given value is not nil.
+func (_c *UserCreate) SetNillableFrozenBalanceCredits(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetFrozenBalanceCredits(*v)
 	}
 	return _c
 }
@@ -622,9 +664,21 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultBalance
 		_c.mutation.SetBalance(v)
 	}
+	if _, ok := _c.mutation.BalanceCredits(); !ok {
+		v := user.DefaultBalanceCredits
+		_c.mutation.SetBalanceCredits(v)
+	}
+	if _, ok := _c.mutation.BalanceCreditsVersion(); !ok {
+		v := user.DefaultBalanceCreditsVersion
+		_c.mutation.SetBalanceCreditsVersion(v)
+	}
 	if _, ok := _c.mutation.FrozenBalance(); !ok {
 		v := user.DefaultFrozenBalance
 		_c.mutation.SetFrozenBalance(v)
+	}
+	if _, ok := _c.mutation.FrozenBalanceCredits(); !ok {
+		v := user.DefaultFrozenBalanceCredits
+		_c.mutation.SetFrozenBalanceCredits(v)
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		v := user.DefaultConcurrency
@@ -712,8 +766,17 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.Balance(); !ok {
 		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "User.balance"`)}
 	}
+	if _, ok := _c.mutation.BalanceCredits(); !ok {
+		return &ValidationError{Name: "balance_credits", err: errors.New(`ent: missing required field "User.balance_credits"`)}
+	}
+	if _, ok := _c.mutation.BalanceCreditsVersion(); !ok {
+		return &ValidationError{Name: "balance_credits_version", err: errors.New(`ent: missing required field "User.balance_credits_version"`)}
+	}
 	if _, ok := _c.mutation.FrozenBalance(); !ok {
 		return &ValidationError{Name: "frozen_balance", err: errors.New(`ent: missing required field "User.frozen_balance"`)}
+	}
+	if _, ok := _c.mutation.FrozenBalanceCredits(); !ok {
+		return &ValidationError{Name: "frozen_balance_credits", err: errors.New(`ent: missing required field "User.frozen_balance_credits"`)}
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
@@ -821,9 +884,21 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 		_node.Balance = value
 	}
+	if value, ok := _c.mutation.BalanceCredits(); ok {
+		_spec.SetField(user.FieldBalanceCredits, field.TypeInt64, value)
+		_node.BalanceCredits = value
+	}
+	if value, ok := _c.mutation.BalanceCreditsVersion(); ok {
+		_spec.SetField(user.FieldBalanceCreditsVersion, field.TypeInt64, value)
+		_node.BalanceCreditsVersion = value
+	}
 	if value, ok := _c.mutation.FrozenBalance(); ok {
 		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
 		_node.FrozenBalance = value
+	}
+	if value, ok := _c.mutation.FrozenBalanceCredits(); ok {
+		_spec.SetField(user.FieldFrozenBalanceCredits, field.TypeInt64, value)
+		_node.FrozenBalanceCredits = value
 	}
 	if value, ok := _c.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1241,6 +1316,42 @@ func (u *UserUpsert) AddBalance(v float64) *UserUpsert {
 	return u
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (u *UserUpsert) SetBalanceCredits(v int64) *UserUpsert {
+	u.Set(user.FieldBalanceCredits, v)
+	return u
+}
+
+// UpdateBalanceCredits sets the "balance_credits" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBalanceCredits() *UserUpsert {
+	u.SetExcluded(user.FieldBalanceCredits)
+	return u
+}
+
+// AddBalanceCredits adds v to the "balance_credits" field.
+func (u *UserUpsert) AddBalanceCredits(v int64) *UserUpsert {
+	u.Add(user.FieldBalanceCredits, v)
+	return u
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (u *UserUpsert) SetBalanceCreditsVersion(v int64) *UserUpsert {
+	u.Set(user.FieldBalanceCreditsVersion, v)
+	return u
+}
+
+// UpdateBalanceCreditsVersion sets the "balance_credits_version" field to the value that was provided on create.
+func (u *UserUpsert) UpdateBalanceCreditsVersion() *UserUpsert {
+	u.SetExcluded(user.FieldBalanceCreditsVersion)
+	return u
+}
+
+// AddBalanceCreditsVersion adds v to the "balance_credits_version" field.
+func (u *UserUpsert) AddBalanceCreditsVersion(v int64) *UserUpsert {
+	u.Add(user.FieldBalanceCreditsVersion, v)
+	return u
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (u *UserUpsert) SetFrozenBalance(v float64) *UserUpsert {
 	u.Set(user.FieldFrozenBalance, v)
@@ -1256,6 +1367,24 @@ func (u *UserUpsert) UpdateFrozenBalance() *UserUpsert {
 // AddFrozenBalance adds v to the "frozen_balance" field.
 func (u *UserUpsert) AddFrozenBalance(v float64) *UserUpsert {
 	u.Add(user.FieldFrozenBalance, v)
+	return u
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (u *UserUpsert) SetFrozenBalanceCredits(v int64) *UserUpsert {
+	u.Set(user.FieldFrozenBalanceCredits, v)
+	return u
+}
+
+// UpdateFrozenBalanceCredits sets the "frozen_balance_credits" field to the value that was provided on create.
+func (u *UserUpsert) UpdateFrozenBalanceCredits() *UserUpsert {
+	u.SetExcluded(user.FieldFrozenBalanceCredits)
+	return u
+}
+
+// AddFrozenBalanceCredits adds v to the "frozen_balance_credits" field.
+func (u *UserUpsert) AddFrozenBalanceCredits(v int64) *UserUpsert {
+	u.Add(user.FieldFrozenBalanceCredits, v)
 	return u
 }
 
@@ -1660,6 +1789,48 @@ func (u *UserUpsertOne) UpdateBalance() *UserUpsertOne {
 	})
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (u *UserUpsertOne) SetBalanceCredits(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceCredits(v)
+	})
+}
+
+// AddBalanceCredits adds v to the "balance_credits" field.
+func (u *UserUpsertOne) AddBalanceCredits(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceCredits(v)
+	})
+}
+
+// UpdateBalanceCredits sets the "balance_credits" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBalanceCredits() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceCredits()
+	})
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (u *UserUpsertOne) SetBalanceCreditsVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceCreditsVersion(v)
+	})
+}
+
+// AddBalanceCreditsVersion adds v to the "balance_credits_version" field.
+func (u *UserUpsertOne) AddBalanceCreditsVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceCreditsVersion(v)
+	})
+}
+
+// UpdateBalanceCreditsVersion sets the "balance_credits_version" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateBalanceCreditsVersion() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceCreditsVersion()
+	})
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (u *UserUpsertOne) SetFrozenBalance(v float64) *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
@@ -1678,6 +1849,27 @@ func (u *UserUpsertOne) AddFrozenBalance(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateFrozenBalance() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (u *UserUpsertOne) SetFrozenBalanceCredits(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFrozenBalanceCredits(v)
+	})
+}
+
+// AddFrozenBalanceCredits adds v to the "frozen_balance_credits" field.
+func (u *UserUpsertOne) AddFrozenBalanceCredits(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddFrozenBalanceCredits(v)
+	})
+}
+
+// UpdateFrozenBalanceCredits sets the "frozen_balance_credits" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateFrozenBalanceCredits() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFrozenBalanceCredits()
 	})
 }
 
@@ -2291,6 +2483,48 @@ func (u *UserUpsertBulk) UpdateBalance() *UserUpsertBulk {
 	})
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (u *UserUpsertBulk) SetBalanceCredits(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceCredits(v)
+	})
+}
+
+// AddBalanceCredits adds v to the "balance_credits" field.
+func (u *UserUpsertBulk) AddBalanceCredits(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceCredits(v)
+	})
+}
+
+// UpdateBalanceCredits sets the "balance_credits" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBalanceCredits() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceCredits()
+	})
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (u *UserUpsertBulk) SetBalanceCreditsVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetBalanceCreditsVersion(v)
+	})
+}
+
+// AddBalanceCreditsVersion adds v to the "balance_credits_version" field.
+func (u *UserUpsertBulk) AddBalanceCreditsVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddBalanceCreditsVersion(v)
+	})
+}
+
+// UpdateBalanceCreditsVersion sets the "balance_credits_version" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateBalanceCreditsVersion() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateBalanceCreditsVersion()
+	})
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (u *UserUpsertBulk) SetFrozenBalance(v float64) *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
@@ -2309,6 +2543,27 @@ func (u *UserUpsertBulk) AddFrozenBalance(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateFrozenBalance() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateFrozenBalance()
+	})
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (u *UserUpsertBulk) SetFrozenBalanceCredits(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetFrozenBalanceCredits(v)
+	})
+}
+
+// AddFrozenBalanceCredits adds v to the "frozen_balance_credits" field.
+func (u *UserUpsertBulk) AddFrozenBalanceCredits(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddFrozenBalanceCredits(v)
+	})
+}
+
+// UpdateFrozenBalanceCredits sets the "frozen_balance_credits" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateFrozenBalanceCredits() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateFrozenBalanceCredits()
 	})
 }
 

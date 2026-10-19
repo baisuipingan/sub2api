@@ -353,6 +353,12 @@ type PublicSettings struct {
 	AliyunCaptchaRegion                 string
 	SiteName                            string
 	SiteLogo                            string
+	BillingCurrencyEnabled              bool    `json:"billing_currency_enabled"`
+	BillingEngine                       string  `json:"billing_engine"`
+	BillingDisplayCurrency              string  `json:"billing_display_currency"`
+	BillingUSDToCNY                     float64 `json:"billing_usd_to_cny"`
+	BillingCreditsPerUSD                int64   `json:"billing_credits_per_usd"`
+	BillingSettingsVersion              int64   `json:"billing_settings_version"`
 	SiteSubtitle                        string
 	APIBaseURL                          string
 	ContactInfo                         string

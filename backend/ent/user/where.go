@@ -90,9 +90,24 @@ func Balance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldBalance, v))
 }
 
+// BalanceCredits applies equality check predicate on the "balance_credits" field. It's identical to BalanceCreditsEQ.
+func BalanceCredits(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsVersion applies equality check predicate on the "balance_credits_version" field. It's identical to BalanceCreditsVersionEQ.
+func BalanceCreditsVersion(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceCreditsVersion, v))
+}
+
 // FrozenBalance applies equality check predicate on the "frozen_balance" field. It's identical to FrozenBalanceEQ.
 func FrozenBalance(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldFrozenBalance, v))
+}
+
+// FrozenBalanceCredits applies equality check predicate on the "frozen_balance_credits" field. It's identical to FrozenBalanceCreditsEQ.
+func FrozenBalanceCredits(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFrozenBalanceCredits, v))
 }
 
 // Concurrency applies equality check predicate on the "concurrency" field. It's identical to ConcurrencyEQ.
@@ -545,6 +560,86 @@ func BalanceLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldBalance, v))
 }
 
+// BalanceCreditsEQ applies the EQ predicate on the "balance_credits" field.
+func BalanceCreditsEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsNEQ applies the NEQ predicate on the "balance_credits" field.
+func BalanceCreditsNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsIn applies the In predicate on the "balance_credits" field.
+func BalanceCreditsIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldBalanceCredits, vs...))
+}
+
+// BalanceCreditsNotIn applies the NotIn predicate on the "balance_credits" field.
+func BalanceCreditsNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldBalanceCredits, vs...))
+}
+
+// BalanceCreditsGT applies the GT predicate on the "balance_credits" field.
+func BalanceCreditsGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsGTE applies the GTE predicate on the "balance_credits" field.
+func BalanceCreditsGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsLT applies the LT predicate on the "balance_credits" field.
+func BalanceCreditsLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsLTE applies the LTE predicate on the "balance_credits" field.
+func BalanceCreditsLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldBalanceCredits, v))
+}
+
+// BalanceCreditsVersionEQ applies the EQ predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldBalanceCreditsVersion, v))
+}
+
+// BalanceCreditsVersionNEQ applies the NEQ predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldBalanceCreditsVersion, v))
+}
+
+// BalanceCreditsVersionIn applies the In predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldBalanceCreditsVersion, vs...))
+}
+
+// BalanceCreditsVersionNotIn applies the NotIn predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldBalanceCreditsVersion, vs...))
+}
+
+// BalanceCreditsVersionGT applies the GT predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldBalanceCreditsVersion, v))
+}
+
+// BalanceCreditsVersionGTE applies the GTE predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldBalanceCreditsVersion, v))
+}
+
+// BalanceCreditsVersionLT applies the LT predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldBalanceCreditsVersion, v))
+}
+
+// BalanceCreditsVersionLTE applies the LTE predicate on the "balance_credits_version" field.
+func BalanceCreditsVersionLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldBalanceCreditsVersion, v))
+}
+
 // FrozenBalanceEQ applies the EQ predicate on the "frozen_balance" field.
 func FrozenBalanceEQ(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldFrozenBalance, v))
@@ -583,6 +678,46 @@ func FrozenBalanceLT(v float64) predicate.User {
 // FrozenBalanceLTE applies the LTE predicate on the "frozen_balance" field.
 func FrozenBalanceLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldFrozenBalance, v))
+}
+
+// FrozenBalanceCreditsEQ applies the EQ predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldFrozenBalanceCredits, v))
+}
+
+// FrozenBalanceCreditsNEQ applies the NEQ predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldFrozenBalanceCredits, v))
+}
+
+// FrozenBalanceCreditsIn applies the In predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldFrozenBalanceCredits, vs...))
+}
+
+// FrozenBalanceCreditsNotIn applies the NotIn predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldFrozenBalanceCredits, vs...))
+}
+
+// FrozenBalanceCreditsGT applies the GT predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldFrozenBalanceCredits, v))
+}
+
+// FrozenBalanceCreditsGTE applies the GTE predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldFrozenBalanceCredits, v))
+}
+
+// FrozenBalanceCreditsLT applies the LT predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldFrozenBalanceCredits, v))
+}
+
+// FrozenBalanceCreditsLTE applies the LTE predicate on the "frozen_balance_credits" field.
+func FrozenBalanceCreditsLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldFrozenBalanceCredits, v))
 }
 
 // ConcurrencyEQ applies the EQ predicate on the "concurrency" field.

@@ -166,6 +166,11 @@ type UsageLog struct {
 	CacheReadCost             float64
 	TotalCost                 float64
 	ActualCost                float64
+	ChargeCredits             int64
+	BillingCurrency           string
+	CreditsPerUSD             int64
+	USDToCNYRate              float64
+	BillingVersion            int64
 	RateMultiplier            float64
 	LongContextBillingApplied bool
 	// AccountRateMultiplier 账号计费倍率快照（nil 表示历史数据，按 1.0 处理）

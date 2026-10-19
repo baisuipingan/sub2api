@@ -153,6 +153,20 @@ func (_c *APIKeyCreate) SetNillableQuota(v *float64) *APIKeyCreate {
 	return _c
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (_c *APIKeyCreate) SetQuotaCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetQuotaCredits(v)
+	return _c
+}
+
+// SetNillableQuotaCredits sets the "quota_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableQuotaCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetQuotaCredits(*v)
+	}
+	return _c
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (_c *APIKeyCreate) SetQuotaUsed(v float64) *APIKeyCreate {
 	_c.mutation.SetQuotaUsed(v)
@@ -163,6 +177,20 @@ func (_c *APIKeyCreate) SetQuotaUsed(v float64) *APIKeyCreate {
 func (_c *APIKeyCreate) SetNillableQuotaUsed(v *float64) *APIKeyCreate {
 	if v != nil {
 		_c.SetQuotaUsed(*v)
+	}
+	return _c
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (_c *APIKeyCreate) SetQuotaUsedCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetQuotaUsedCredits(v)
+	return _c
+}
+
+// SetNillableQuotaUsedCredits sets the "quota_used_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableQuotaUsedCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetQuotaUsedCredits(*v)
 	}
 	return _c
 }
@@ -195,6 +223,20 @@ func (_c *APIKeyCreate) SetNillableRateLimit5h(v *float64) *APIKeyCreate {
 	return _c
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (_c *APIKeyCreate) SetRateLimit5hCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetRateLimit5hCredits(v)
+	return _c
+}
+
+// SetNillableRateLimit5hCredits sets the "rate_limit_5h_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableRateLimit5hCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetRateLimit5hCredits(*v)
+	}
+	return _c
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (_c *APIKeyCreate) SetRateLimit1d(v float64) *APIKeyCreate {
 	_c.mutation.SetRateLimit1d(v)
@@ -205,6 +247,20 @@ func (_c *APIKeyCreate) SetRateLimit1d(v float64) *APIKeyCreate {
 func (_c *APIKeyCreate) SetNillableRateLimit1d(v *float64) *APIKeyCreate {
 	if v != nil {
 		_c.SetRateLimit1d(*v)
+	}
+	return _c
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (_c *APIKeyCreate) SetRateLimit1dCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetRateLimit1dCredits(v)
+	return _c
+}
+
+// SetNillableRateLimit1dCredits sets the "rate_limit_1d_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableRateLimit1dCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetRateLimit1dCredits(*v)
 	}
 	return _c
 }
@@ -223,6 +279,20 @@ func (_c *APIKeyCreate) SetNillableRateLimit7d(v *float64) *APIKeyCreate {
 	return _c
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (_c *APIKeyCreate) SetRateLimit7dCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetRateLimit7dCredits(v)
+	return _c
+}
+
+// SetNillableRateLimit7dCredits sets the "rate_limit_7d_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableRateLimit7dCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetRateLimit7dCredits(*v)
+	}
+	return _c
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (_c *APIKeyCreate) SetUsage5h(v float64) *APIKeyCreate {
 	_c.mutation.SetUsage5h(v)
@@ -233,6 +303,20 @@ func (_c *APIKeyCreate) SetUsage5h(v float64) *APIKeyCreate {
 func (_c *APIKeyCreate) SetNillableUsage5h(v *float64) *APIKeyCreate {
 	if v != nil {
 		_c.SetUsage5h(*v)
+	}
+	return _c
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (_c *APIKeyCreate) SetUsage5hCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetUsage5hCredits(v)
+	return _c
+}
+
+// SetNillableUsage5hCredits sets the "usage_5h_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableUsage5hCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetUsage5hCredits(*v)
 	}
 	return _c
 }
@@ -251,6 +335,20 @@ func (_c *APIKeyCreate) SetNillableUsage1d(v *float64) *APIKeyCreate {
 	return _c
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (_c *APIKeyCreate) SetUsage1dCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetUsage1dCredits(v)
+	return _c
+}
+
+// SetNillableUsage1dCredits sets the "usage_1d_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableUsage1dCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetUsage1dCredits(*v)
+	}
+	return _c
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (_c *APIKeyCreate) SetUsage7d(v float64) *APIKeyCreate {
 	_c.mutation.SetUsage7d(v)
@@ -261,6 +359,20 @@ func (_c *APIKeyCreate) SetUsage7d(v float64) *APIKeyCreate {
 func (_c *APIKeyCreate) SetNillableUsage7d(v *float64) *APIKeyCreate {
 	if v != nil {
 		_c.SetUsage7d(*v)
+	}
+	return _c
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (_c *APIKeyCreate) SetUsage7dCredits(v int64) *APIKeyCreate {
+	_c.mutation.SetUsage7dCredits(v)
+	return _c
+}
+
+// SetNillableUsage7dCredits sets the "usage_7d_credits" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableUsage7dCredits(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetUsage7dCredits(*v)
 	}
 	return _c
 }
@@ -391,33 +503,65 @@ func (_c *APIKeyCreate) defaults() error {
 		v := apikey.DefaultQuota
 		_c.mutation.SetQuota(v)
 	}
+	if _, ok := _c.mutation.QuotaCredits(); !ok {
+		v := apikey.DefaultQuotaCredits
+		_c.mutation.SetQuotaCredits(v)
+	}
 	if _, ok := _c.mutation.QuotaUsed(); !ok {
 		v := apikey.DefaultQuotaUsed
 		_c.mutation.SetQuotaUsed(v)
+	}
+	if _, ok := _c.mutation.QuotaUsedCredits(); !ok {
+		v := apikey.DefaultQuotaUsedCredits
+		_c.mutation.SetQuotaUsedCredits(v)
 	}
 	if _, ok := _c.mutation.RateLimit5h(); !ok {
 		v := apikey.DefaultRateLimit5h
 		_c.mutation.SetRateLimit5h(v)
 	}
+	if _, ok := _c.mutation.RateLimit5hCredits(); !ok {
+		v := apikey.DefaultRateLimit5hCredits
+		_c.mutation.SetRateLimit5hCredits(v)
+	}
 	if _, ok := _c.mutation.RateLimit1d(); !ok {
 		v := apikey.DefaultRateLimit1d
 		_c.mutation.SetRateLimit1d(v)
+	}
+	if _, ok := _c.mutation.RateLimit1dCredits(); !ok {
+		v := apikey.DefaultRateLimit1dCredits
+		_c.mutation.SetRateLimit1dCredits(v)
 	}
 	if _, ok := _c.mutation.RateLimit7d(); !ok {
 		v := apikey.DefaultRateLimit7d
 		_c.mutation.SetRateLimit7d(v)
 	}
+	if _, ok := _c.mutation.RateLimit7dCredits(); !ok {
+		v := apikey.DefaultRateLimit7dCredits
+		_c.mutation.SetRateLimit7dCredits(v)
+	}
 	if _, ok := _c.mutation.Usage5h(); !ok {
 		v := apikey.DefaultUsage5h
 		_c.mutation.SetUsage5h(v)
+	}
+	if _, ok := _c.mutation.Usage5hCredits(); !ok {
+		v := apikey.DefaultUsage5hCredits
+		_c.mutation.SetUsage5hCredits(v)
 	}
 	if _, ok := _c.mutation.Usage1d(); !ok {
 		v := apikey.DefaultUsage1d
 		_c.mutation.SetUsage1d(v)
 	}
+	if _, ok := _c.mutation.Usage1dCredits(); !ok {
+		v := apikey.DefaultUsage1dCredits
+		_c.mutation.SetUsage1dCredits(v)
+	}
 	if _, ok := _c.mutation.Usage7d(); !ok {
 		v := apikey.DefaultUsage7d
 		_c.mutation.SetUsage7d(v)
+	}
+	if _, ok := _c.mutation.Usage7dCredits(); !ok {
+		v := apikey.DefaultUsage7dCredits
+		_c.mutation.SetUsage7dCredits(v)
 	}
 	return nil
 }
@@ -460,26 +604,50 @@ func (_c *APIKeyCreate) check() error {
 	if _, ok := _c.mutation.Quota(); !ok {
 		return &ValidationError{Name: "quota", err: errors.New(`ent: missing required field "APIKey.quota"`)}
 	}
+	if _, ok := _c.mutation.QuotaCredits(); !ok {
+		return &ValidationError{Name: "quota_credits", err: errors.New(`ent: missing required field "APIKey.quota_credits"`)}
+	}
 	if _, ok := _c.mutation.QuotaUsed(); !ok {
 		return &ValidationError{Name: "quota_used", err: errors.New(`ent: missing required field "APIKey.quota_used"`)}
+	}
+	if _, ok := _c.mutation.QuotaUsedCredits(); !ok {
+		return &ValidationError{Name: "quota_used_credits", err: errors.New(`ent: missing required field "APIKey.quota_used_credits"`)}
 	}
 	if _, ok := _c.mutation.RateLimit5h(); !ok {
 		return &ValidationError{Name: "rate_limit_5h", err: errors.New(`ent: missing required field "APIKey.rate_limit_5h"`)}
 	}
+	if _, ok := _c.mutation.RateLimit5hCredits(); !ok {
+		return &ValidationError{Name: "rate_limit_5h_credits", err: errors.New(`ent: missing required field "APIKey.rate_limit_5h_credits"`)}
+	}
 	if _, ok := _c.mutation.RateLimit1d(); !ok {
 		return &ValidationError{Name: "rate_limit_1d", err: errors.New(`ent: missing required field "APIKey.rate_limit_1d"`)}
+	}
+	if _, ok := _c.mutation.RateLimit1dCredits(); !ok {
+		return &ValidationError{Name: "rate_limit_1d_credits", err: errors.New(`ent: missing required field "APIKey.rate_limit_1d_credits"`)}
 	}
 	if _, ok := _c.mutation.RateLimit7d(); !ok {
 		return &ValidationError{Name: "rate_limit_7d", err: errors.New(`ent: missing required field "APIKey.rate_limit_7d"`)}
 	}
+	if _, ok := _c.mutation.RateLimit7dCredits(); !ok {
+		return &ValidationError{Name: "rate_limit_7d_credits", err: errors.New(`ent: missing required field "APIKey.rate_limit_7d_credits"`)}
+	}
 	if _, ok := _c.mutation.Usage5h(); !ok {
 		return &ValidationError{Name: "usage_5h", err: errors.New(`ent: missing required field "APIKey.usage_5h"`)}
+	}
+	if _, ok := _c.mutation.Usage5hCredits(); !ok {
+		return &ValidationError{Name: "usage_5h_credits", err: errors.New(`ent: missing required field "APIKey.usage_5h_credits"`)}
 	}
 	if _, ok := _c.mutation.Usage1d(); !ok {
 		return &ValidationError{Name: "usage_1d", err: errors.New(`ent: missing required field "APIKey.usage_1d"`)}
 	}
+	if _, ok := _c.mutation.Usage1dCredits(); !ok {
+		return &ValidationError{Name: "usage_1d_credits", err: errors.New(`ent: missing required field "APIKey.usage_1d_credits"`)}
+	}
 	if _, ok := _c.mutation.Usage7d(); !ok {
 		return &ValidationError{Name: "usage_7d", err: errors.New(`ent: missing required field "APIKey.usage_7d"`)}
+	}
+	if _, ok := _c.mutation.Usage7dCredits(); !ok {
+		return &ValidationError{Name: "usage_7d_credits", err: errors.New(`ent: missing required field "APIKey.usage_7d_credits"`)}
 	}
 	if len(_c.mutation.UserIDs()) == 0 {
 		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "APIKey.user"`)}
@@ -551,9 +719,17 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 		_spec.SetField(apikey.FieldQuota, field.TypeFloat64, value)
 		_node.Quota = value
 	}
+	if value, ok := _c.mutation.QuotaCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaCredits, field.TypeInt64, value)
+		_node.QuotaCredits = value
+	}
 	if value, ok := _c.mutation.QuotaUsed(); ok {
 		_spec.SetField(apikey.FieldQuotaUsed, field.TypeFloat64, value)
 		_node.QuotaUsed = value
+	}
+	if value, ok := _c.mutation.QuotaUsedCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaUsedCredits, field.TypeInt64, value)
+		_node.QuotaUsedCredits = value
 	}
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
@@ -563,25 +739,49 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 		_spec.SetField(apikey.FieldRateLimit5h, field.TypeFloat64, value)
 		_node.RateLimit5h = value
 	}
+	if value, ok := _c.mutation.RateLimit5hCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit5hCredits, field.TypeInt64, value)
+		_node.RateLimit5hCredits = value
+	}
 	if value, ok := _c.mutation.RateLimit1d(); ok {
 		_spec.SetField(apikey.FieldRateLimit1d, field.TypeFloat64, value)
 		_node.RateLimit1d = value
+	}
+	if value, ok := _c.mutation.RateLimit1dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit1dCredits, field.TypeInt64, value)
+		_node.RateLimit1dCredits = value
 	}
 	if value, ok := _c.mutation.RateLimit7d(); ok {
 		_spec.SetField(apikey.FieldRateLimit7d, field.TypeFloat64, value)
 		_node.RateLimit7d = value
 	}
+	if value, ok := _c.mutation.RateLimit7dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit7dCredits, field.TypeInt64, value)
+		_node.RateLimit7dCredits = value
+	}
 	if value, ok := _c.mutation.Usage5h(); ok {
 		_spec.SetField(apikey.FieldUsage5h, field.TypeFloat64, value)
 		_node.Usage5h = value
+	}
+	if value, ok := _c.mutation.Usage5hCredits(); ok {
+		_spec.SetField(apikey.FieldUsage5hCredits, field.TypeInt64, value)
+		_node.Usage5hCredits = value
 	}
 	if value, ok := _c.mutation.Usage1d(); ok {
 		_spec.SetField(apikey.FieldUsage1d, field.TypeFloat64, value)
 		_node.Usage1d = value
 	}
+	if value, ok := _c.mutation.Usage1dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage1dCredits, field.TypeInt64, value)
+		_node.Usage1dCredits = value
+	}
 	if value, ok := _c.mutation.Usage7d(); ok {
 		_spec.SetField(apikey.FieldUsage7d, field.TypeFloat64, value)
 		_node.Usage7d = value
+	}
+	if value, ok := _c.mutation.Usage7dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage7dCredits, field.TypeInt64, value)
+		_node.Usage7dCredits = value
 	}
 	if value, ok := _c.mutation.Window5hStart(); ok {
 		_spec.SetField(apikey.FieldWindow5hStart, field.TypeTime, value)
@@ -865,6 +1065,24 @@ func (u *APIKeyUpsert) AddQuota(v float64) *APIKeyUpsert {
 	return u
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (u *APIKeyUpsert) SetQuotaCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldQuotaCredits, v)
+	return u
+}
+
+// UpdateQuotaCredits sets the "quota_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateQuotaCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldQuotaCredits)
+	return u
+}
+
+// AddQuotaCredits adds v to the "quota_credits" field.
+func (u *APIKeyUpsert) AddQuotaCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldQuotaCredits, v)
+	return u
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (u *APIKeyUpsert) SetQuotaUsed(v float64) *APIKeyUpsert {
 	u.Set(apikey.FieldQuotaUsed, v)
@@ -880,6 +1098,24 @@ func (u *APIKeyUpsert) UpdateQuotaUsed() *APIKeyUpsert {
 // AddQuotaUsed adds v to the "quota_used" field.
 func (u *APIKeyUpsert) AddQuotaUsed(v float64) *APIKeyUpsert {
 	u.Add(apikey.FieldQuotaUsed, v)
+	return u
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (u *APIKeyUpsert) SetQuotaUsedCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldQuotaUsedCredits, v)
+	return u
+}
+
+// UpdateQuotaUsedCredits sets the "quota_used_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateQuotaUsedCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldQuotaUsedCredits)
+	return u
+}
+
+// AddQuotaUsedCredits adds v to the "quota_used_credits" field.
+func (u *APIKeyUpsert) AddQuotaUsedCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldQuotaUsedCredits, v)
 	return u
 }
 
@@ -919,6 +1155,24 @@ func (u *APIKeyUpsert) AddRateLimit5h(v float64) *APIKeyUpsert {
 	return u
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsert) SetRateLimit5hCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldRateLimit5hCredits, v)
+	return u
+}
+
+// UpdateRateLimit5hCredits sets the "rate_limit_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateRateLimit5hCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldRateLimit5hCredits)
+	return u
+}
+
+// AddRateLimit5hCredits adds v to the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsert) AddRateLimit5hCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldRateLimit5hCredits, v)
+	return u
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (u *APIKeyUpsert) SetRateLimit1d(v float64) *APIKeyUpsert {
 	u.Set(apikey.FieldRateLimit1d, v)
@@ -934,6 +1188,24 @@ func (u *APIKeyUpsert) UpdateRateLimit1d() *APIKeyUpsert {
 // AddRateLimit1d adds v to the "rate_limit_1d" field.
 func (u *APIKeyUpsert) AddRateLimit1d(v float64) *APIKeyUpsert {
 	u.Add(apikey.FieldRateLimit1d, v)
+	return u
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsert) SetRateLimit1dCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldRateLimit1dCredits, v)
+	return u
+}
+
+// UpdateRateLimit1dCredits sets the "rate_limit_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateRateLimit1dCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldRateLimit1dCredits)
+	return u
+}
+
+// AddRateLimit1dCredits adds v to the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsert) AddRateLimit1dCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldRateLimit1dCredits, v)
 	return u
 }
 
@@ -955,6 +1227,24 @@ func (u *APIKeyUpsert) AddRateLimit7d(v float64) *APIKeyUpsert {
 	return u
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsert) SetRateLimit7dCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldRateLimit7dCredits, v)
+	return u
+}
+
+// UpdateRateLimit7dCredits sets the "rate_limit_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateRateLimit7dCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldRateLimit7dCredits)
+	return u
+}
+
+// AddRateLimit7dCredits adds v to the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsert) AddRateLimit7dCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldRateLimit7dCredits, v)
+	return u
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (u *APIKeyUpsert) SetUsage5h(v float64) *APIKeyUpsert {
 	u.Set(apikey.FieldUsage5h, v)
@@ -970,6 +1260,24 @@ func (u *APIKeyUpsert) UpdateUsage5h() *APIKeyUpsert {
 // AddUsage5h adds v to the "usage_5h" field.
 func (u *APIKeyUpsert) AddUsage5h(v float64) *APIKeyUpsert {
 	u.Add(apikey.FieldUsage5h, v)
+	return u
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (u *APIKeyUpsert) SetUsage5hCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldUsage5hCredits, v)
+	return u
+}
+
+// UpdateUsage5hCredits sets the "usage_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateUsage5hCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldUsage5hCredits)
+	return u
+}
+
+// AddUsage5hCredits adds v to the "usage_5h_credits" field.
+func (u *APIKeyUpsert) AddUsage5hCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldUsage5hCredits, v)
 	return u
 }
 
@@ -991,6 +1299,24 @@ func (u *APIKeyUpsert) AddUsage1d(v float64) *APIKeyUpsert {
 	return u
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (u *APIKeyUpsert) SetUsage1dCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldUsage1dCredits, v)
+	return u
+}
+
+// UpdateUsage1dCredits sets the "usage_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateUsage1dCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldUsage1dCredits)
+	return u
+}
+
+// AddUsage1dCredits adds v to the "usage_1d_credits" field.
+func (u *APIKeyUpsert) AddUsage1dCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldUsage1dCredits, v)
+	return u
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (u *APIKeyUpsert) SetUsage7d(v float64) *APIKeyUpsert {
 	u.Set(apikey.FieldUsage7d, v)
@@ -1006,6 +1332,24 @@ func (u *APIKeyUpsert) UpdateUsage7d() *APIKeyUpsert {
 // AddUsage7d adds v to the "usage_7d" field.
 func (u *APIKeyUpsert) AddUsage7d(v float64) *APIKeyUpsert {
 	u.Add(apikey.FieldUsage7d, v)
+	return u
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (u *APIKeyUpsert) SetUsage7dCredits(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldUsage7dCredits, v)
+	return u
+}
+
+// UpdateUsage7dCredits sets the "usage_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateUsage7dCredits() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldUsage7dCredits)
+	return u
+}
+
+// AddUsage7dCredits adds v to the "usage_7d_credits" field.
+func (u *APIKeyUpsert) AddUsage7dCredits(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldUsage7dCredits, v)
 	return u
 }
 
@@ -1304,6 +1648,27 @@ func (u *APIKeyUpsertOne) UpdateQuota() *APIKeyUpsertOne {
 	})
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (u *APIKeyUpsertOne) SetQuotaCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetQuotaCredits(v)
+	})
+}
+
+// AddQuotaCredits adds v to the "quota_credits" field.
+func (u *APIKeyUpsertOne) AddQuotaCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddQuotaCredits(v)
+	})
+}
+
+// UpdateQuotaCredits sets the "quota_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateQuotaCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateQuotaCredits()
+	})
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (u *APIKeyUpsertOne) SetQuotaUsed(v float64) *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -1322,6 +1687,27 @@ func (u *APIKeyUpsertOne) AddQuotaUsed(v float64) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateQuotaUsed() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateQuotaUsed()
+	})
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (u *APIKeyUpsertOne) SetQuotaUsedCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetQuotaUsedCredits(v)
+	})
+}
+
+// AddQuotaUsedCredits adds v to the "quota_used_credits" field.
+func (u *APIKeyUpsertOne) AddQuotaUsedCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddQuotaUsedCredits(v)
+	})
+}
+
+// UpdateQuotaUsedCredits sets the "quota_used_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateQuotaUsedCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateQuotaUsedCredits()
 	})
 }
 
@@ -1367,6 +1753,27 @@ func (u *APIKeyUpsertOne) UpdateRateLimit5h() *APIKeyUpsertOne {
 	})
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsertOne) SetRateLimit5hCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit5hCredits(v)
+	})
+}
+
+// AddRateLimit5hCredits adds v to the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsertOne) AddRateLimit5hCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit5hCredits(v)
+	})
+}
+
+// UpdateRateLimit5hCredits sets the "rate_limit_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateRateLimit5hCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit5hCredits()
+	})
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (u *APIKeyUpsertOne) SetRateLimit1d(v float64) *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -1385,6 +1792,27 @@ func (u *APIKeyUpsertOne) AddRateLimit1d(v float64) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateRateLimit1d() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateRateLimit1d()
+	})
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsertOne) SetRateLimit1dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit1dCredits(v)
+	})
+}
+
+// AddRateLimit1dCredits adds v to the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsertOne) AddRateLimit1dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit1dCredits(v)
+	})
+}
+
+// UpdateRateLimit1dCredits sets the "rate_limit_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateRateLimit1dCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit1dCredits()
 	})
 }
 
@@ -1409,6 +1837,27 @@ func (u *APIKeyUpsertOne) UpdateRateLimit7d() *APIKeyUpsertOne {
 	})
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsertOne) SetRateLimit7dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit7dCredits(v)
+	})
+}
+
+// AddRateLimit7dCredits adds v to the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsertOne) AddRateLimit7dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit7dCredits(v)
+	})
+}
+
+// UpdateRateLimit7dCredits sets the "rate_limit_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateRateLimit7dCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit7dCredits()
+	})
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (u *APIKeyUpsertOne) SetUsage5h(v float64) *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -1427,6 +1876,27 @@ func (u *APIKeyUpsertOne) AddUsage5h(v float64) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateUsage5h() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateUsage5h()
+	})
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (u *APIKeyUpsertOne) SetUsage5hCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage5hCredits(v)
+	})
+}
+
+// AddUsage5hCredits adds v to the "usage_5h_credits" field.
+func (u *APIKeyUpsertOne) AddUsage5hCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage5hCredits(v)
+	})
+}
+
+// UpdateUsage5hCredits sets the "usage_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateUsage5hCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage5hCredits()
 	})
 }
 
@@ -1451,6 +1921,27 @@ func (u *APIKeyUpsertOne) UpdateUsage1d() *APIKeyUpsertOne {
 	})
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (u *APIKeyUpsertOne) SetUsage1dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage1dCredits(v)
+	})
+}
+
+// AddUsage1dCredits adds v to the "usage_1d_credits" field.
+func (u *APIKeyUpsertOne) AddUsage1dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage1dCredits(v)
+	})
+}
+
+// UpdateUsage1dCredits sets the "usage_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateUsage1dCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage1dCredits()
+	})
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (u *APIKeyUpsertOne) SetUsage7d(v float64) *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -1469,6 +1960,27 @@ func (u *APIKeyUpsertOne) AddUsage7d(v float64) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateUsage7d() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateUsage7d()
+	})
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (u *APIKeyUpsertOne) SetUsage7dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage7dCredits(v)
+	})
+}
+
+// AddUsage7dCredits adds v to the "usage_7d_credits" field.
+func (u *APIKeyUpsertOne) AddUsage7dCredits(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage7dCredits(v)
+	})
+}
+
+// UpdateUsage7dCredits sets the "usage_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateUsage7dCredits() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage7dCredits()
 	})
 }
 
@@ -1942,6 +2454,27 @@ func (u *APIKeyUpsertBulk) UpdateQuota() *APIKeyUpsertBulk {
 	})
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (u *APIKeyUpsertBulk) SetQuotaCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetQuotaCredits(v)
+	})
+}
+
+// AddQuotaCredits adds v to the "quota_credits" field.
+func (u *APIKeyUpsertBulk) AddQuotaCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddQuotaCredits(v)
+	})
+}
+
+// UpdateQuotaCredits sets the "quota_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateQuotaCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateQuotaCredits()
+	})
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (u *APIKeyUpsertBulk) SetQuotaUsed(v float64) *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -1960,6 +2493,27 @@ func (u *APIKeyUpsertBulk) AddQuotaUsed(v float64) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateQuotaUsed() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateQuotaUsed()
+	})
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (u *APIKeyUpsertBulk) SetQuotaUsedCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetQuotaUsedCredits(v)
+	})
+}
+
+// AddQuotaUsedCredits adds v to the "quota_used_credits" field.
+func (u *APIKeyUpsertBulk) AddQuotaUsedCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddQuotaUsedCredits(v)
+	})
+}
+
+// UpdateQuotaUsedCredits sets the "quota_used_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateQuotaUsedCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateQuotaUsedCredits()
 	})
 }
 
@@ -2005,6 +2559,27 @@ func (u *APIKeyUpsertBulk) UpdateRateLimit5h() *APIKeyUpsertBulk {
 	})
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsertBulk) SetRateLimit5hCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit5hCredits(v)
+	})
+}
+
+// AddRateLimit5hCredits adds v to the "rate_limit_5h_credits" field.
+func (u *APIKeyUpsertBulk) AddRateLimit5hCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit5hCredits(v)
+	})
+}
+
+// UpdateRateLimit5hCredits sets the "rate_limit_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateRateLimit5hCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit5hCredits()
+	})
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (u *APIKeyUpsertBulk) SetRateLimit1d(v float64) *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -2023,6 +2598,27 @@ func (u *APIKeyUpsertBulk) AddRateLimit1d(v float64) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateRateLimit1d() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateRateLimit1d()
+	})
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsertBulk) SetRateLimit1dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit1dCredits(v)
+	})
+}
+
+// AddRateLimit1dCredits adds v to the "rate_limit_1d_credits" field.
+func (u *APIKeyUpsertBulk) AddRateLimit1dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit1dCredits(v)
+	})
+}
+
+// UpdateRateLimit1dCredits sets the "rate_limit_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateRateLimit1dCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit1dCredits()
 	})
 }
 
@@ -2047,6 +2643,27 @@ func (u *APIKeyUpsertBulk) UpdateRateLimit7d() *APIKeyUpsertBulk {
 	})
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsertBulk) SetRateLimit7dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetRateLimit7dCredits(v)
+	})
+}
+
+// AddRateLimit7dCredits adds v to the "rate_limit_7d_credits" field.
+func (u *APIKeyUpsertBulk) AddRateLimit7dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddRateLimit7dCredits(v)
+	})
+}
+
+// UpdateRateLimit7dCredits sets the "rate_limit_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateRateLimit7dCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateRateLimit7dCredits()
+	})
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (u *APIKeyUpsertBulk) SetUsage5h(v float64) *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -2065,6 +2682,27 @@ func (u *APIKeyUpsertBulk) AddUsage5h(v float64) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateUsage5h() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateUsage5h()
+	})
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (u *APIKeyUpsertBulk) SetUsage5hCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage5hCredits(v)
+	})
+}
+
+// AddUsage5hCredits adds v to the "usage_5h_credits" field.
+func (u *APIKeyUpsertBulk) AddUsage5hCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage5hCredits(v)
+	})
+}
+
+// UpdateUsage5hCredits sets the "usage_5h_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateUsage5hCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage5hCredits()
 	})
 }
 
@@ -2089,6 +2727,27 @@ func (u *APIKeyUpsertBulk) UpdateUsage1d() *APIKeyUpsertBulk {
 	})
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (u *APIKeyUpsertBulk) SetUsage1dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage1dCredits(v)
+	})
+}
+
+// AddUsage1dCredits adds v to the "usage_1d_credits" field.
+func (u *APIKeyUpsertBulk) AddUsage1dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage1dCredits(v)
+	})
+}
+
+// UpdateUsage1dCredits sets the "usage_1d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateUsage1dCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage1dCredits()
+	})
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (u *APIKeyUpsertBulk) SetUsage7d(v float64) *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
@@ -2107,6 +2766,27 @@ func (u *APIKeyUpsertBulk) AddUsage7d(v float64) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateUsage7d() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateUsage7d()
+	})
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (u *APIKeyUpsertBulk) SetUsage7dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetUsage7dCredits(v)
+	})
+}
+
+// AddUsage7dCredits adds v to the "usage_7d_credits" field.
+func (u *APIKeyUpsertBulk) AddUsage7dCredits(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddUsage7dCredits(v)
+	})
+}
+
+// UpdateUsage7dCredits sets the "usage_7d_credits" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateUsage7dCredits() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateUsage7dCredits()
 	})
 }
 

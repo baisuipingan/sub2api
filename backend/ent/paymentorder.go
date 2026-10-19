@@ -35,6 +35,18 @@ type PaymentOrder struct {
 	FeeRate float64 `json:"fee_rate,omitempty"`
 	// BonusAmount holds the value of the "bonus_amount" field.
 	BonusAmount float64 `json:"bonus_amount,omitempty"`
+	// CreditedCredits holds the value of the "credited_credits" field.
+	CreditedCredits int64 `json:"credited_credits,omitempty"`
+	// BonusCredits holds the value of the "bonus_credits" field.
+	BonusCredits int64 `json:"bonus_credits,omitempty"`
+	// CreditsPerUsdSnapshot holds the value of the "credits_per_usd_snapshot" field.
+	CreditsPerUsdSnapshot int64 `json:"credits_per_usd_snapshot,omitempty"`
+	// UsdToCnySnapshot holds the value of the "usd_to_cny_snapshot" field.
+	UsdToCnySnapshot float64 `json:"usd_to_cny_snapshot,omitempty"`
+	// RechargeRateSnapshot holds the value of the "recharge_rate_snapshot" field.
+	RechargeRateSnapshot float64 `json:"recharge_rate_snapshot,omitempty"`
+	// BillingVersion holds the value of the "billing_version" field.
+	BillingVersion int64 `json:"billing_version,omitempty"`
 	// RechargeCode holds the value of the "recharge_code" field.
 	RechargeCode string `json:"recharge_code,omitempty"`
 	// OutTradeNo holds the value of the "out_trade_no" field.
@@ -134,9 +146,9 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case paymentorder.FieldForceRefund:
 			values[i] = new(sql.NullBool)
-		case paymentorder.FieldAmount, paymentorder.FieldPayAmount, paymentorder.FieldFeeRate, paymentorder.FieldBonusAmount, paymentorder.FieldRefundAmount:
+		case paymentorder.FieldAmount, paymentorder.FieldPayAmount, paymentorder.FieldFeeRate, paymentorder.FieldBonusAmount, paymentorder.FieldUsdToCnySnapshot, paymentorder.FieldRechargeRateSnapshot, paymentorder.FieldRefundAmount:
 			values[i] = new(sql.NullFloat64)
-		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
+		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldCreditedCredits, paymentorder.FieldBonusCredits, paymentorder.FieldCreditsPerUsdSnapshot, paymentorder.FieldBillingVersion, paymentorder.FieldPlanID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
 			values[i] = new(sql.NullInt64)
 		case paymentorder.FieldUserEmail, paymentorder.FieldUserName, paymentorder.FieldUserNotes, paymentorder.FieldRechargeCode, paymentorder.FieldOutTradeNo, paymentorder.FieldPaymentType, paymentorder.FieldPaymentTradeNo, paymentorder.FieldPayURL, paymentorder.FieldQrCode, paymentorder.FieldQrCodeImg, paymentorder.FieldOrderType, paymentorder.FieldProviderInstanceID, paymentorder.FieldProviderKey, paymentorder.FieldStatus, paymentorder.FieldRefundReason, paymentorder.FieldRefundRequestReason, paymentorder.FieldRefundRequestedBy, paymentorder.FieldFailedReason, paymentorder.FieldClientIP, paymentorder.FieldSrcHost, paymentorder.FieldSrcURL:
 			values[i] = new(sql.NullString)
@@ -211,6 +223,42 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field bonus_amount", values[i])
 			} else if value.Valid {
 				_m.BonusAmount = value.Float64
+			}
+		case paymentorder.FieldCreditedCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field credited_credits", values[i])
+			} else if value.Valid {
+				_m.CreditedCredits = value.Int64
+			}
+		case paymentorder.FieldBonusCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field bonus_credits", values[i])
+			} else if value.Valid {
+				_m.BonusCredits = value.Int64
+			}
+		case paymentorder.FieldCreditsPerUsdSnapshot:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field credits_per_usd_snapshot", values[i])
+			} else if value.Valid {
+				_m.CreditsPerUsdSnapshot = value.Int64
+			}
+		case paymentorder.FieldUsdToCnySnapshot:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field usd_to_cny_snapshot", values[i])
+			} else if value.Valid {
+				_m.UsdToCnySnapshot = value.Float64
+			}
+		case paymentorder.FieldRechargeRateSnapshot:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field recharge_rate_snapshot", values[i])
+			} else if value.Valid {
+				_m.RechargeRateSnapshot = value.Float64
+			}
+		case paymentorder.FieldBillingVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field billing_version", values[i])
+			} else if value.Valid {
+				_m.BillingVersion = value.Int64
 			}
 		case paymentorder.FieldRechargeCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -490,6 +538,24 @@ func (_m *PaymentOrder) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("bonus_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BonusAmount))
+	builder.WriteString(", ")
+	builder.WriteString("credited_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CreditedCredits))
+	builder.WriteString(", ")
+	builder.WriteString("bonus_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BonusCredits))
+	builder.WriteString(", ")
+	builder.WriteString("credits_per_usd_snapshot=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CreditsPerUsdSnapshot))
+	builder.WriteString(", ")
+	builder.WriteString("usd_to_cny_snapshot=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UsdToCnySnapshot))
+	builder.WriteString(", ")
+	builder.WriteString("recharge_rate_snapshot=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RechargeRateSnapshot))
+	builder.WriteString(", ")
+	builder.WriteString("billing_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BillingVersion))
 	builder.WriteString(", ")
 	builder.WriteString("recharge_code=")
 	builder.WriteString(_m.RechargeCode)

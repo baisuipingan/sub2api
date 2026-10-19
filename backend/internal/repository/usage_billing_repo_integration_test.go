@@ -420,3 +420,83 @@ func TestUsageBillingRepositoryApply_DeduplicatesAgainstArchivedKey(t *testing.T
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
 	require.InDelta(t, 98.75, balance, 0.000001)
 }
+
+func TestUsageBillingRepositoryApply_CreditsWritesLedger(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-credit-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      10,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID:      user.ID,
+		Key:         "sk-usage-credit-" + uuid.NewString(),
+		Name:        "billing-credit",
+		Quota:       10,
+		RateLimit5h: 10,
+		RateLimit1d: 10,
+		RateLimit7d: 10,
+	})
+	account := mustCreateAccount(t, client, &service.Account{
+		Name: "usage-credit-account-" + uuid.NewString(),
+		Type: service.AccountTypeAPIKey,
+	})
+
+	requestID := uuid.NewString()
+	cmd := &service.UsageBillingCommand{
+		RequestID:              requestID,
+		APIKeyID:               apiKey.ID,
+		UserID:                 user.ID,
+		AccountID:              account.ID,
+		AccountType:            service.AccountTypeAPIKey,
+		BalanceCost:            1.25,
+		BalanceCredits:         125_000_000,
+		APIKeyQuotaCost:        1.25,
+		APIKeyQuotaCredits:     125_000_000,
+		APIKeyRateLimitCost:    1.25,
+		APIKeyRateLimitCredits: 125_000_000,
+		BillingEngine:          service.BillingEngineCredits,
+		CreditsPerUSD:          service.CreditsPerUSD,
+		USDToCNYRate:           7.2,
+		BillingVersion:         1,
+	}
+
+	first, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	second, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.False(t, second.Applied)
+
+	var balance float64
+	var balanceCredits int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT balance, balance_credits FROM users WHERE id = $1`, user.ID).
+		Scan(&balance, &balanceCredits))
+	require.InDelta(t, 8.75, balance, 1e-8)
+	require.Equal(t, int64(875_000_000), balanceCredits)
+
+	var quotaUsed float64
+	var quotaUsedCredits, usage5hCredits int64
+	var usage5h float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT quota_used, quota_used_credits, usage_5h, usage_5h_credits FROM api_keys WHERE id = $1`, apiKey.ID).
+		Scan(&quotaUsed, &quotaUsedCredits, &usage5h, &usage5hCredits))
+	require.InDelta(t, 1.25, quotaUsed, 1e-8)
+	require.Equal(t, int64(125_000_000), quotaUsedCredits)
+	require.InDelta(t, 1.25, usage5h, 1e-8)
+	require.Equal(t, int64(125_000_000), usage5hCredits)
+
+	var ledgerCount int
+	var delta, balanceAfter int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `
+		SELECT count(*), coalesce(min(delta_credits), 0), coalesce(min(balance_after), 0)
+		FROM billing_ledger WHERE user_id = $1 AND reference_type = 'usage'
+	`, user.ID).Scan(&ledgerCount, &delta, &balanceAfter))
+	require.Equal(t, 1, ledgerCount)
+	require.Equal(t, int64(-125_000_000), delta)
+	require.Equal(t, int64(875_000_000), balanceAfter)
+}
