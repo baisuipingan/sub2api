@@ -1,0 +1,7 @@
+{
+  "schema_epoch": 1,
+  "database": {
+    "rollback": "image-only",
+    "reason": "dsapi_001 and dsapi_002 are additive or dual-write compatible; the previous application can run on the expanded schema."
+  }
+}

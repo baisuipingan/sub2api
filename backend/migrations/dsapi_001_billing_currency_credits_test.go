@@ -8,7 +8,7 @@ import (
 )
 
 func TestBillingCurrencyCreditsMigration(t *testing.T) {
-	content, err := FS.ReadFile("246_billing_currency_credits.sql")
+	content, err := FS.ReadFile("dsapi_001_billing_currency_credits.sql")
 	require.NoError(t, err)
 	sql := strings.Join(strings.Fields(string(content)), " ")
 

@@ -54,8 +54,15 @@ FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS backend-builder
 
 # Build arguments for version info (set by CI)
 ARG VERSION=
+ARG UPSTREAM_VERSION=
+ARG UPSTREAM_COMMIT=unknown
+ARG GIT_TAG=unknown
+ARG SCHEMA_EPOCH=1
+ARG MAX_MIGRATION=unknown
+ARG DATABASE_ROLLBACK=backup-required
 ARG COMMIT=docker
 ARG DATE
+ARG BUILD_TYPE=release
 ARG GOPROXY
 ARG GOSUMDB
 # Populated by buildx from the --platform target (e.g. linux/amd64).
@@ -92,7 +99,7 @@ RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
     -tags embed \
-    -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
+    -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.UpstreamVersion=${UPSTREAM_VERSION} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=${BUILD_TYPE}" \
     -trimpath \
     -o /app/sub2api \
     ./cmd/server
@@ -107,10 +114,32 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
+# Fork release metadata is baked into the image so deployment can verify the
+# exact source, upstream baseline, and database rollback policy.
+ARG VERSION=unknown
+ARG UPSTREAM_VERSION=unknown
+ARG UPSTREAM_COMMIT=unknown
+ARG GIT_TAG=unknown
+ARG COMMIT=unknown
+ARG BUILD_TYPE=unknown
+ARG SCHEMA_EPOCH=1
+ARG MAX_MIGRATION=unknown
+ARG DATABASE_ROLLBACK=backup-required
+
 # Labels
 LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
-LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
+LABEL org.opencontainers.image.source="https://github.com/baisuipingan/sub2api"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT}"
+LABEL io.baisuipingan.release.version="${VERSION}"
+LABEL io.baisuipingan.upstream.version="${UPSTREAM_VERSION}"
+LABEL io.baisuipingan.upstream.commit="${UPSTREAM_COMMIT}"
+LABEL io.baisuipingan.git.tag="${GIT_TAG}"
+LABEL io.baisuipingan.build.type="${BUILD_TYPE}"
+LABEL io.baisuipingan.database.schema-epoch="${SCHEMA_EPOCH}"
+LABEL io.baisuipingan.database.max-migration="${MAX_MIGRATION}"
+LABEL io.baisuipingan.database.rollback="${DATABASE_ROLLBACK}"
 
 # Install runtime dependencies
 RUN apk add --no-cache \

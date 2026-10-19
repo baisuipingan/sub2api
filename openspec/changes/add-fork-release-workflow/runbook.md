@@ -174,10 +174,10 @@ curl -fsS http://127.0.0.1:8080/health
 显式回退到更早版本：
 
 ```bash
-/root/sub2api-deploy/bin/sub2api-release rollback \
-  --release 0.2.17-ds.1 \
-  --digest sha256:<digest>
+/root/sub2api-deploy/bin/sub2api-release rollback --release 0.2.17-ds.1
 ```
+
+发布记录中已经固定了该版本的 registry repository 和 digest，因此 `--release` 不需要再传 digest。只有明确要部署一个已单独验证、但尚未登记为 release record 的镜像时，才直接使用 `deploy ghcr.io/<owner>/<repo>@sha256:<digest>`。
 
 如果目标版本的 `schema_epoch` 与当前不同，或目标版本是 `backup-required`，脚本只打印对应备份路径并拒绝静默切换。数据库恢复需要独立的维护操作和人工确认，因为会丢失备份时间点之后的新数据。
 

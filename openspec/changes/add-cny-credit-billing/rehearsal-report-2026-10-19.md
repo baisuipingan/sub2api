@@ -18,8 +18,8 @@
 ## 迁移结果
 
 - 迁移前 `schema_migrations` 最新记录：`245_gemini_cached_contents_mutation_lease.sql`。
-- `246_billing_currency_credits.sql` 执行成功。
-- `247_add_credit_quota_columns.sql` 执行成功。
+- `246_billing_currency_credits.sql` 执行成功（正式发布前已更名为 `dsapi_001_billing_currency_credits.sql`）。
+- `247_add_credit_quota_columns.sql` 执行成功（正式发布前已更名为 `dsapi_002_add_credit_quota_columns.sql`）。
 - `billing_ledger` 表和四个索引创建成功。
 - 6 张表的积分双向同步触发器创建成功。
 - 默认配置写入成功：`engine=shadow`、`display_currency=CNY`、`usd_to_cny=7.2`。

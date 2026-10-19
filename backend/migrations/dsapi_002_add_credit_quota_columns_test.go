@@ -8,7 +8,7 @@ import (
 )
 
 func TestAddCreditQuotaColumnsMigration(t *testing.T) {
-	content, err := FS.ReadFile("247_add_credit_quota_columns.sql")
+	content, err := FS.ReadFile("dsapi_002_add_credit_quota_columns.sql")
 	require.NoError(t, err)
 	sql := strings.Join(strings.Fields(string(content)), " ")
 

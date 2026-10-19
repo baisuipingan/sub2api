@@ -1,7 +1,12 @@
 <template>
   <div class="relative">
-    <!-- Admin: Full version badge with dropdown -->
-    <template v-if="isAdmin">
+    <!-- Fork admin: upstream notification stays read-only; deployment is handled by CLI. -->
+    <template v-if="isAdmin && isForkBuild">
+      <ForkVersionPanel :version="props.version" />
+    </template>
+
+    <!-- Official or source admin: retain the upstream update UI. -->
+    <template v-else-if="isAdmin">
       <button
         @click="toggleDropdown"
         class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
@@ -10,7 +15,7 @@
             ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-800 dark:text-dark-400 dark:hover:bg-dark-700'
         ]"
-        :title="hasUpdate ? t('version.updateAvailable') : t('version.upToDate')"
+        :title="badgeTitle"
       >
         <span v-if="currentVersion" class="font-medium">v{{ currentVersion }}</span>
         <span
@@ -650,6 +655,7 @@ import {
 } from '@/api/admin/system'
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
+import ForkVersionPanel from '@/components/common/ForkVersionPanel.vue'
 
 const GITHUB_REPO = 'Wei-Shaw/sub2api'
 // Docker Hub image published by CI (tags carry no "v" prefix, e.g. weishaw/sub2api:0.1.146)
@@ -676,6 +682,10 @@ const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
+const isForkBuild = computed(() => buildType.value === 'fork')
+const badgeTitle = computed(() =>
+  hasUpdate.value ? t('version.updateAvailable') : t('version.upToDate')
+)
 
 // Update process states (local to this component)
 const updating = ref(false)

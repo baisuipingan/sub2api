@@ -121,7 +121,10 @@ tests
 !deploy/tests/**
 CLAUDE.md
 .claude
-scripts
+scripts/*
+!scripts/fork-release.sh
+!scripts/tests/
+!scripts/tests/fork-release-test.sh
 !backend/scripts/
 !backend/scripts/resolve-version.sh
 .code-review-state
