@@ -50,7 +50,7 @@ export default {
       tokens: 'Token',
       cache: '缓存',
       recentUsage: '最近使用',
-      actualSpending: '实际消费 ($)',
+      actualSpending: '实际消费 ({currency})',
       viewModelDistribution: '模型分布',
       viewSpendingRanking: '用户消费榜',
       spendingRankingTitle: '用户消费榜',

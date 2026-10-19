@@ -324,7 +324,7 @@
                 <button v-for="metric in (['tokens', 'actual_cost'] as const)" :key="metric" type="button"
                   class="rounded px-2 py-1 text-xs" :class="userTrendMetric === metric ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300'"
                   :aria-pressed="userTrendMetric === metric" @click="setUserTrendMetric(metric)">
-                  {{ t(metric === 'tokens' ? 'admin.dashboard.tokens' : 'admin.dashboard.actualSpending') }}
+                  {{ t(metric === 'tokens' ? 'admin.dashboard.tokens' : 'admin.dashboard.actualSpending', { currency: billingSymbol }) }}
                 </button>
               </div>
             </div>
@@ -397,7 +397,7 @@ ChartJS.register(
 
 const appStore = useAppStore()
 const router = useRouter()
-const { formatCompact } = useBillingCurrency()
+const { formatCompact, symbol: billingSymbol } = useBillingCurrency()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)

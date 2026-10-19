@@ -8788,7 +8788,7 @@
                 <div class="relative">
                   <span
                     class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    >$</span
+                    >{{ billingSymbol }}</span
                   >
                   <input
                     v-model.number="form.balance_low_notify_threshold"
@@ -9045,6 +9045,7 @@ import {
 } from "@/utils/rechargeBonus";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
+import { useBillingCurrency } from "@/composables/useBillingCurrency";
 import {
   useStepUp,
   isStepUpCancelled,
@@ -9071,6 +9072,11 @@ import {
 } from "./codexFingerprintSignals";
 
 const { t, locale } = useI18n();
+const {
+  usdToDisplay,
+  displayToUSD,
+  symbol: billingSymbol,
+} = useBillingCurrency();
 const appStore = useAppStore();
 // 关闭 step-up 开关是敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 码重试
 const settingsStepUp = useStepUp();
@@ -11058,6 +11064,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.balance_low_notify_threshold = usdToDisplay(
+      Number(form.balance_low_notify_threshold) || 0,
+    );
     // For this optional override, null explicitly selects per-account rates.
     if (settings.openai_oauth_scheduling_rate_multiplier === null) {
       form.openai_oauth_scheduling_rate_multiplier = null;
@@ -11776,7 +11785,7 @@ async function saveSettings() {
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:
-        Number(form.balance_low_notify_threshold) || 0,
+        displayToUSD(Number(form.balance_low_notify_threshold) || 0),
       balance_low_notify_recharge_url: (form.balance_low_notify_recharge_url =
         form.balance_low_notify_recharge_url || currentOrigin),
       subscription_expiry_notify_enabled:

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import GroupDistributionChart from '../GroupDistributionChart.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 const messages: Record<string, string> = {
   'admin.dashboard.groupDistribution': 'Group Distribution',
@@ -111,6 +112,36 @@ describe('GroupDistributionChart', () => {
       dataset: { data: [0.9, 0.1] },
     })
     expect(label).toBe('group-b: $0.900 (90.0%)')
+  })
+
+  it('renders actual-cost rows and tooltip in CNY after USD conversion', () => {
+    const previousConfig = window.__APP_CONFIG__
+    window.__APP_CONFIG__ = {
+      ...(previousConfig ?? {}),
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    } as any
+    setCurrentBillingCurrencySettings(window.__APP_CONFIG__)
+
+    try {
+      const wrapper = mount(GroupDistributionChart, {
+        props: { groupStats, metric: 'actual_cost' },
+        global: { stubs: { LoadingSpinner: true } },
+      })
+
+      expect(wrapper.findAll('tbody tr')[0].text()).toContain('¥6.48')
+      expect(wrapper.text()).not.toContain('$0.900')
+      const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+      const label = options.plugins.tooltip.callbacks.label({
+        label: 'group-b',
+        raw: 0.9,
+        dataset: { data: [0.9, 0.1] },
+      })
+      expect(label).toBe('group-b: ¥6.48 (90.0%)')
+    } finally {
+      window.__APP_CONFIG__ = previousConfig
+      setCurrentBillingCurrencySettings(previousConfig)
+    }
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {
