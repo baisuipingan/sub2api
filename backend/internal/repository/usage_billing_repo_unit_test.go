@@ -23,6 +23,9 @@ const (
 	userExistsForBillingSQL     = `(?s)SELECT 1\s+FROM users\s+WHERE id = \$1 AND deleted_at IS NULL`
 	apiKeyQuotaIncrementSQL     = `(?s)UPDATE api_keys\s+SET quota_used = quota_used \+ \$1,.*WHERE id = \$2 AND deleted_at IS NULL\s+RETURNING`
 	apiKeyRateLimitIncrementSQL = `(?s)UPDATE api_keys SET\s+usage_5h = .*WHERE id = \$2 AND deleted_at IS NULL`
+	subscriptionUsageCreditsSQL = `(?s)UPDATE user_subscriptions us\s+SET\s+daily_usage_credits = .*WHERE us.id = \$2`
+	apiKeyQuotaCreditsSQL       = `(?s)UPDATE api_keys\s+SET quota_used_credits = .*RETURNING quota_credits > 0`
+	apiKeyRateLimitCreditsSQL   = `(?s)UPDATE api_keys SET\s+usage_5h_credits = .*WHERE id = \$2 AND deleted_at IS NULL`
 	accountQuotaIncrementSQL    = `(?s)UPDATE accounts SET extra = .*WHERE id = \$2 AND deleted_at IS NULL.*RETURNING`
 )
 
@@ -450,6 +453,167 @@ func TestReleaseUsageBillingBatchImageBalance_SkipsWhenHoldNeverReserved(t *test
 	require.NoError(t, err)
 	require.Nil(t, result.NewBalance)
 	require.Nil(t, result.FrozenBalance)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+var (
+	conditionalCreditDeductSQL = `(?s)UPDATE users\s+SET balance_credits = balance_credits - \$1,.*AND balance_credits >= \$1\s+RETURNING balance, balance_credits`
+	overdraftCreditDeductSQL   = `(?s)UPDATE users\s+SET balance_credits = balance_credits - \$1,.*WHERE id = \$2 AND deleted_at IS NULL\s+RETURNING balance, balance_credits`
+	creditLedgerInsertSQL      = `(?s)INSERT INTO billing_ledger.*ON CONFLICT \(bucket_type, bucket_id, reference_type, reference_id\) DO NOTHING`
+)
+
+func TestDeductUsageBillingCredits_UsesSufficientBalanceGuard(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(conditionalCreditDeductSQL).
+		WithArgs(int64(125_000_000), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance", "balance_credits"}).AddRow(8.75, int64(875_000_000)))
+	mock.ExpectCommit()
+
+	balance, credits, sufficient, err := deductUsageBillingCredits(ctx, tx, 42, 125_000_000)
+	require.NoError(t, err)
+	require.True(t, sufficient)
+	require.InDelta(t, 8.75, balance, 0.000001)
+	require.Equal(t, int64(875_000_000), credits)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeductUsageBillingCredits_RecordsOverdraftWhenGuardMisses(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(conditionalCreditDeductSQL).
+		WithArgs(int64(500_000_000), int64(42)).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(overdraftCreditDeductSQL).
+		WithArgs(int64(500_000_000), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance", "balance_credits"}).AddRow(-5.0, int64(-500_000_000)))
+	mock.ExpectCommit()
+
+	balance, credits, sufficient, err := deductUsageBillingCredits(ctx, tx, 42, 500_000_000)
+	require.NoError(t, err)
+	require.False(t, sufficient)
+	require.InDelta(t, -5.0, balance, 0.000001)
+	require.Equal(t, int64(-500_000_000), credits)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyUsageBillingEffects_CreditWalletWritesLedger(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(conditionalCreditDeductSQL).
+		WithArgs(int64(125_000_000), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance", "balance_credits"}).AddRow(8.75, int64(875_000_000)))
+	mock.ExpectExec(creditLedgerInsertSQL).
+		WithArgs(
+			int64(42),
+			int64(125_000_000),
+			int64(875_000_000),
+			"req-credit-1",
+			"credits",
+			1.25,
+			int64(100_000_000),
+			7.2,
+			int64(3),
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	result := &service.UsageBillingApplyResult{Applied: true}
+	err = (&usageBillingRepository{}).applyUsageBillingEffects(ctx, tx, &service.UsageBillingCommand{
+		RequestID:      "req-credit-1",
+		UserID:         42,
+		BalanceCost:    1.25,
+		BalanceCredits: 125_000_000,
+		BillingEngine:  service.BillingEngineCredits,
+		CreditsPerUSD:  service.CreditsPerUSD,
+		USDToCNYRate:   7.2,
+		BillingVersion: 3,
+	}, result)
+	require.NoError(t, err)
+	require.NotNil(t, result.NewBalance)
+	require.NotNil(t, result.NewBalanceCredits)
+	require.InDelta(t, 8.75, *result.NewBalance, 0.000001)
+	require.Equal(t, int64(875_000_000), *result.NewBalanceCredits)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIncrementUsageBillingSubscriptionCredits(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectExec(subscriptionUsageCreditsSQL).
+		WithArgs(int64(125_000_000), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	require.NoError(t, incrementUsageBillingSubscriptionCredits(ctx, tx, 7, 125_000_000))
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIncrementUsageBillingAPIKeyQuotaCredits(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(apiKeyQuotaCreditsSQL).
+		WithArgs(int64(125_000_000), int64(9), service.StatusAPIKeyActive, service.StatusAPIKeyQuotaExhausted).
+		WillReturnRows(sqlmock.NewRows([]string{"exhausted"}).AddRow(true))
+	mock.ExpectCommit()
+
+	exhausted, err := incrementUsageBillingAPIKeyQuotaCredits(ctx, tx, 9, 125_000_000)
+	require.NoError(t, err)
+	require.True(t, exhausted)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIncrementUsageBillingAPIKeyRateLimitCredits(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectExec(apiKeyRateLimitCreditsSQL).
+		WithArgs(int64(125_000_000), int64(9)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	require.NoError(t, incrementUsageBillingAPIKeyRateLimitCredits(ctx, tx, 9, 125_000_000))
 	require.NoError(t, tx.Commit())
 	require.NoError(t, mock.ExpectationsWereMet())
 }

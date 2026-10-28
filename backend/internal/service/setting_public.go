@@ -181,6 +181,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAliyunCaptchaRegion,
 		SettingKeyAPIKeyACLTrustForwardedIP,
 		SettingKeySiteName,
+		SettingKeyBillingCurrencyConfig,
 		SettingKeySiteLogo,
 		SettingKeySiteSubtitle,
 		SettingKeyAPIBaseURL,
@@ -248,6 +249,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if err != nil {
 		return nil, fmt.Errorf("get public settings: %w", err)
 	}
+	billingCurrency := s.GetBillingCurrencyConfig(ctx)
 
 	linuxDoEnabled := false
 	if raw, ok := settings[SettingKeyLinuxDoConnectEnabled]; ok {
@@ -326,6 +328,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		AliyunCaptchaRegion:                 normalizeAliyunCaptchaRegion(settings[SettingKeyAliyunCaptchaRegion]),
 		SiteName:                            s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                            settings[SettingKeySiteLogo],
+		BillingCurrencyEnabled:              billingCurrency.Enabled,
+		BillingEngine:                       billingCurrency.EffectiveEngine(),
+		BillingDisplayCurrency:              billingCurrency.DisplayCurrency,
+		BillingUSDToCNY:                     billingCurrency.USDToCNY,
+		BillingCreditsPerUSD:                billingCurrency.CreditsPerUSD,
+		BillingSettingsVersion:              billingCurrency.Version,
 		SiteSubtitle:                        s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                          settings[SettingKeyAPIBaseURL],
 		ContactInfo:                         settings[SettingKeyContactInfo],
@@ -611,6 +619,12 @@ type PublicSettingsInjectionPayload struct {
 	BackendModeEnabled                  bool                     `json:"backend_mode_enabled"`
 	PaymentEnabled                      bool                     `json:"payment_enabled"`
 	PaymentBalanceDisabled              bool                     `json:"payment_balance_disabled"`
+	BillingCurrencyEnabled              bool                     `json:"billing_currency_enabled"`
+	BillingEngine                       string                   `json:"billing_engine"`
+	BillingCreditsPerUSD                int64                    `json:"billing_credits_per_usd"`
+	BillingDisplayCurrency              string                   `json:"billing_display_currency"`
+	BillingUSDToCNY                     float64                  `json:"billing_usd_to_cny"`
+	BillingSettingsVersion              int64                    `json:"billing_settings_version"`
 	Version                             string                   `json:"version"`
 	// 服务器全局时区（IANA 名称与当前 UTC 偏移），高峰时段等服务端本地时间窗口的展示标注用
 	ServerTimezone              string  `json:"server_timezone"`
@@ -705,6 +719,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		BackendModeEnabled:                  settings.BackendModeEnabled,
 		PaymentEnabled:                      settings.PaymentEnabled,
 		PaymentBalanceDisabled:              settings.PaymentBalanceDisabled,
+		BillingCurrencyEnabled:              settings.BillingCurrencyEnabled,
+		BillingEngine:                       settings.BillingEngine,
+		BillingCreditsPerUSD:                settings.BillingCreditsPerUSD,
+		BillingDisplayCurrency:              settings.BillingDisplayCurrency,
+		BillingUSDToCNY:                     settings.BillingUSDToCNY,
+		BillingSettingsVersion:              settings.BillingSettingsVersion,
 		Version:                             s.version,
 		ServerTimezone:                      timezone.Name(),
 		ServerUTCOffset:                     timezone.UTCOffset(),

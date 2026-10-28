@@ -54,6 +54,22 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Float("bonus_amount").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,2)"}).
 			Default(0),
+		// Credits snapshot allocated to the wallet by this order. Future rate
+		// changes must never rewrite an already completed order.
+		field.Int64("credited_credits").
+			Default(0),
+		field.Int64("bonus_credits").
+			Default(0),
+		field.Int64("credits_per_usd_snapshot").
+			Default(0),
+		field.Float("usd_to_cny_snapshot").
+			Default(0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Float("recharge_rate_snapshot").
+			Default(0).
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Int64("billing_version").
+			Default(0),
 		field.String("recharge_code").
 			MaxLen(64),
 

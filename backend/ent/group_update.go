@@ -270,6 +270,33 @@ func (_u *GroupUpdate) ClearDailyLimitUsd() *GroupUpdate {
 	return _u
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (_u *GroupUpdate) SetDailyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.ResetDailyLimitCredits()
+	_u.mutation.SetDailyLimitCredits(v)
+	return _u
+}
+
+// SetNillableDailyLimitCredits sets the "daily_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableDailyLimitCredits(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetDailyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddDailyLimitCredits adds value to the "daily_limit_credits" field.
+func (_u *GroupUpdate) AddDailyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.AddDailyLimitCredits(v)
+	return _u
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (_u *GroupUpdate) ClearDailyLimitCredits() *GroupUpdate {
+	_u.mutation.ClearDailyLimitCredits()
+	return _u
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (_u *GroupUpdate) SetWeeklyLimitUsd(v float64) *GroupUpdate {
 	_u.mutation.ResetWeeklyLimitUsd()
@@ -297,6 +324,33 @@ func (_u *GroupUpdate) ClearWeeklyLimitUsd() *GroupUpdate {
 	return _u
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (_u *GroupUpdate) SetWeeklyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.ResetWeeklyLimitCredits()
+	_u.mutation.SetWeeklyLimitCredits(v)
+	return _u
+}
+
+// SetNillableWeeklyLimitCredits sets the "weekly_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableWeeklyLimitCredits(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetWeeklyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddWeeklyLimitCredits adds value to the "weekly_limit_credits" field.
+func (_u *GroupUpdate) AddWeeklyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.AddWeeklyLimitCredits(v)
+	return _u
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (_u *GroupUpdate) ClearWeeklyLimitCredits() *GroupUpdate {
+	_u.mutation.ClearWeeklyLimitCredits()
+	return _u
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (_u *GroupUpdate) SetMonthlyLimitUsd(v float64) *GroupUpdate {
 	_u.mutation.ResetMonthlyLimitUsd()
@@ -321,6 +375,33 @@ func (_u *GroupUpdate) AddMonthlyLimitUsd(v float64) *GroupUpdate {
 // ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
 func (_u *GroupUpdate) ClearMonthlyLimitUsd() *GroupUpdate {
 	_u.mutation.ClearMonthlyLimitUsd()
+	return _u
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (_u *GroupUpdate) SetMonthlyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.ResetMonthlyLimitCredits()
+	_u.mutation.SetMonthlyLimitCredits(v)
+	return _u
+}
+
+// SetNillableMonthlyLimitCredits sets the "monthly_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMonthlyLimitCredits(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetMonthlyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddMonthlyLimitCredits adds value to the "monthly_limit_credits" field.
+func (_u *GroupUpdate) AddMonthlyLimitCredits(v int64) *GroupUpdate {
+	_u.mutation.AddMonthlyLimitCredits(v)
+	return _u
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (_u *GroupUpdate) ClearMonthlyLimitCredits() *GroupUpdate {
+	_u.mutation.ClearMonthlyLimitCredits()
 	return _u
 }
 
@@ -1649,6 +1730,15 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.DailyLimitUsdCleared() {
 		_spec.ClearField(group.FieldDailyLimitUsd, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.DailyLimitCredits(); ok {
+		_spec.SetField(group.FieldDailyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyLimitCredits(); ok {
+		_spec.AddField(group.FieldDailyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.DailyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldDailyLimitCredits, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.WeeklyLimitUsd(); ok {
 		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
 	}
@@ -1658,6 +1748,15 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.WeeklyLimitUsdCleared() {
 		_spec.ClearField(group.FieldWeeklyLimitUsd, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.WeeklyLimitCredits(); ok {
+		_spec.SetField(group.FieldWeeklyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedWeeklyLimitCredits(); ok {
+		_spec.AddField(group.FieldWeeklyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.WeeklyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldWeeklyLimitCredits, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.MonthlyLimitUsd(); ok {
 		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
 	}
@@ -1666,6 +1765,15 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.MonthlyLimitUsdCleared() {
 		_spec.ClearField(group.FieldMonthlyLimitUsd, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.MonthlyLimitCredits(); ok {
+		_spec.SetField(group.FieldMonthlyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyLimitCredits(); ok {
+		_spec.AddField(group.FieldMonthlyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.MonthlyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldMonthlyLimitCredits, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.DefaultValidityDays(); ok {
 		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
@@ -2490,6 +2598,33 @@ func (_u *GroupUpdateOne) ClearDailyLimitUsd() *GroupUpdateOne {
 	return _u
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (_u *GroupUpdateOne) SetDailyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.ResetDailyLimitCredits()
+	_u.mutation.SetDailyLimitCredits(v)
+	return _u
+}
+
+// SetNillableDailyLimitCredits sets the "daily_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableDailyLimitCredits(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetDailyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddDailyLimitCredits adds value to the "daily_limit_credits" field.
+func (_u *GroupUpdateOne) AddDailyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.AddDailyLimitCredits(v)
+	return _u
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (_u *GroupUpdateOne) ClearDailyLimitCredits() *GroupUpdateOne {
+	_u.mutation.ClearDailyLimitCredits()
+	return _u
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (_u *GroupUpdateOne) SetWeeklyLimitUsd(v float64) *GroupUpdateOne {
 	_u.mutation.ResetWeeklyLimitUsd()
@@ -2517,6 +2652,33 @@ func (_u *GroupUpdateOne) ClearWeeklyLimitUsd() *GroupUpdateOne {
 	return _u
 }
 
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (_u *GroupUpdateOne) SetWeeklyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.ResetWeeklyLimitCredits()
+	_u.mutation.SetWeeklyLimitCredits(v)
+	return _u
+}
+
+// SetNillableWeeklyLimitCredits sets the "weekly_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableWeeklyLimitCredits(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetWeeklyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddWeeklyLimitCredits adds value to the "weekly_limit_credits" field.
+func (_u *GroupUpdateOne) AddWeeklyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.AddWeeklyLimitCredits(v)
+	return _u
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (_u *GroupUpdateOne) ClearWeeklyLimitCredits() *GroupUpdateOne {
+	_u.mutation.ClearWeeklyLimitCredits()
+	return _u
+}
+
 // SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
 func (_u *GroupUpdateOne) SetMonthlyLimitUsd(v float64) *GroupUpdateOne {
 	_u.mutation.ResetMonthlyLimitUsd()
@@ -2541,6 +2703,33 @@ func (_u *GroupUpdateOne) AddMonthlyLimitUsd(v float64) *GroupUpdateOne {
 // ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
 func (_u *GroupUpdateOne) ClearMonthlyLimitUsd() *GroupUpdateOne {
 	_u.mutation.ClearMonthlyLimitUsd()
+	return _u
+}
+
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (_u *GroupUpdateOne) SetMonthlyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.ResetMonthlyLimitCredits()
+	_u.mutation.SetMonthlyLimitCredits(v)
+	return _u
+}
+
+// SetNillableMonthlyLimitCredits sets the "monthly_limit_credits" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMonthlyLimitCredits(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMonthlyLimitCredits(*v)
+	}
+	return _u
+}
+
+// AddMonthlyLimitCredits adds value to the "monthly_limit_credits" field.
+func (_u *GroupUpdateOne) AddMonthlyLimitCredits(v int64) *GroupUpdateOne {
+	_u.mutation.AddMonthlyLimitCredits(v)
+	return _u
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (_u *GroupUpdateOne) ClearMonthlyLimitCredits() *GroupUpdateOne {
+	_u.mutation.ClearMonthlyLimitCredits()
 	return _u
 }
 
@@ -3899,6 +4088,15 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if _u.mutation.DailyLimitUsdCleared() {
 		_spec.ClearField(group.FieldDailyLimitUsd, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.DailyLimitCredits(); ok {
+		_spec.SetField(group.FieldDailyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDailyLimitCredits(); ok {
+		_spec.AddField(group.FieldDailyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.DailyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldDailyLimitCredits, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.WeeklyLimitUsd(); ok {
 		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
 	}
@@ -3908,6 +4106,15 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if _u.mutation.WeeklyLimitUsdCleared() {
 		_spec.ClearField(group.FieldWeeklyLimitUsd, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.WeeklyLimitCredits(); ok {
+		_spec.SetField(group.FieldWeeklyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedWeeklyLimitCredits(); ok {
+		_spec.AddField(group.FieldWeeklyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.WeeklyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldWeeklyLimitCredits, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.MonthlyLimitUsd(); ok {
 		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
 	}
@@ -3916,6 +4123,15 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if _u.mutation.MonthlyLimitUsdCleared() {
 		_spec.ClearField(group.FieldMonthlyLimitUsd, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.MonthlyLimitCredits(); ok {
+		_spec.SetField(group.FieldMonthlyLimitCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyLimitCredits(); ok {
+		_spec.AddField(group.FieldMonthlyLimitCredits, field.TypeInt64, value)
+	}
+	if _u.mutation.MonthlyLimitCreditsCleared() {
+		_spec.ClearField(group.FieldMonthlyLimitCredits, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.DefaultValidityDays(); ok {
 		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)

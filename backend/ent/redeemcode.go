@@ -25,6 +25,8 @@ type RedeemCode struct {
 	Type string `json:"type,omitempty"`
 	// Value holds the value of the "value" field.
 	Value float64 `json:"value,omitempty"`
+	// ValueCredits holds the value of the "value_credits" field.
+	ValueCredits int64 `json:"value_credits,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// UsedBy holds the value of the "used_by" field.
@@ -87,7 +89,7 @@ func (*RedeemCode) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case redeemcode.FieldValue:
 			values[i] = new(sql.NullFloat64)
-		case redeemcode.FieldID, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
+		case redeemcode.FieldID, redeemcode.FieldValueCredits, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
 			values[i] = new(sql.NullInt64)
 		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes:
 			values[i] = new(sql.NullString)
@@ -131,6 +133,12 @@ func (_m *RedeemCode) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field value", values[i])
 			} else if value.Valid {
 				_m.Value = value.Float64
+			}
+		case redeemcode.FieldValueCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field value_credits", values[i])
+			} else if value.Valid {
+				_m.ValueCredits = value.Int64
 			}
 		case redeemcode.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -239,6 +247,9 @@ func (_m *RedeemCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("value=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Value))
+	builder.WriteString(", ")
+	builder.WriteString("value_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ValueCredits))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

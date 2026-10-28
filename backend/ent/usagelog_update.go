@@ -561,6 +561,104 @@ func (_u *UsageLogUpdate) AddActualCost(v float64) *UsageLogUpdate {
 	return _u
 }
 
+// SetChargeCredits sets the "charge_credits" field.
+func (_u *UsageLogUpdate) SetChargeCredits(v int64) *UsageLogUpdate {
+	_u.mutation.ResetChargeCredits()
+	_u.mutation.SetChargeCredits(v)
+	return _u
+}
+
+// SetNillableChargeCredits sets the "charge_credits" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableChargeCredits(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetChargeCredits(*v)
+	}
+	return _u
+}
+
+// AddChargeCredits adds value to the "charge_credits" field.
+func (_u *UsageLogUpdate) AddChargeCredits(v int64) *UsageLogUpdate {
+	_u.mutation.AddChargeCredits(v)
+	return _u
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (_u *UsageLogUpdate) SetBillingCurrency(v string) *UsageLogUpdate {
+	_u.mutation.SetBillingCurrency(v)
+	return _u
+}
+
+// SetNillableBillingCurrency sets the "billing_currency" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableBillingCurrency(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetBillingCurrency(*v)
+	}
+	return _u
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (_u *UsageLogUpdate) SetCreditsPerUsd(v int64) *UsageLogUpdate {
+	_u.mutation.ResetCreditsPerUsd()
+	_u.mutation.SetCreditsPerUsd(v)
+	return _u
+}
+
+// SetNillableCreditsPerUsd sets the "credits_per_usd" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableCreditsPerUsd(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetCreditsPerUsd(*v)
+	}
+	return _u
+}
+
+// AddCreditsPerUsd adds value to the "credits_per_usd" field.
+func (_u *UsageLogUpdate) AddCreditsPerUsd(v int64) *UsageLogUpdate {
+	_u.mutation.AddCreditsPerUsd(v)
+	return _u
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (_u *UsageLogUpdate) SetUsdToCnyRate(v float64) *UsageLogUpdate {
+	_u.mutation.ResetUsdToCnyRate()
+	_u.mutation.SetUsdToCnyRate(v)
+	return _u
+}
+
+// SetNillableUsdToCnyRate sets the "usd_to_cny_rate" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUsdToCnyRate(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUsdToCnyRate(*v)
+	}
+	return _u
+}
+
+// AddUsdToCnyRate adds value to the "usd_to_cny_rate" field.
+func (_u *UsageLogUpdate) AddUsdToCnyRate(v float64) *UsageLogUpdate {
+	_u.mutation.AddUsdToCnyRate(v)
+	return _u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_u *UsageLogUpdate) SetBillingVersion(v int64) *UsageLogUpdate {
+	_u.mutation.ResetBillingVersion()
+	_u.mutation.SetBillingVersion(v)
+	return _u
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableBillingVersion(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetBillingVersion(*v)
+	}
+	return _u
+}
+
+// AddBillingVersion adds value to the "billing_version" field.
+func (_u *UsageLogUpdate) AddBillingVersion(v int64) *UsageLogUpdate {
+	_u.mutation.AddBillingVersion(v)
+	return _u
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_u *UsageLogUpdate) SetRateMultiplier(v float64) *UsageLogUpdate {
 	_u.mutation.ResetRateMultiplier()
@@ -1076,6 +1174,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BillingCurrency(); ok {
+		if err := usagelog.BillingCurrencyValidator(v); err != nil {
+			return &ValidationError{Name: "billing_currency", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_currency": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -1263,6 +1366,33 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ChargeCredits(); ok {
+		_spec.SetField(usagelog.FieldChargeCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedChargeCredits(); ok {
+		_spec.AddField(usagelog.FieldChargeCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BillingCurrency(); ok {
+		_spec.SetField(usagelog.FieldBillingCurrency, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CreditsPerUsd(); ok {
+		_spec.SetField(usagelog.FieldCreditsPerUsd, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditsPerUsd(); ok {
+		_spec.AddField(usagelog.FieldCreditsPerUsd, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.UsdToCnyRate(); ok {
+		_spec.SetField(usagelog.FieldUsdToCnyRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUsdToCnyRate(); ok {
+		_spec.AddField(usagelog.FieldUsdToCnyRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingVersion(); ok {
+		_spec.SetField(usagelog.FieldBillingVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBillingVersion(); ok {
+		_spec.AddField(usagelog.FieldBillingVersion, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -2075,6 +2205,104 @@ func (_u *UsageLogUpdateOne) AddActualCost(v float64) *UsageLogUpdateOne {
 	return _u
 }
 
+// SetChargeCredits sets the "charge_credits" field.
+func (_u *UsageLogUpdateOne) SetChargeCredits(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetChargeCredits()
+	_u.mutation.SetChargeCredits(v)
+	return _u
+}
+
+// SetNillableChargeCredits sets the "charge_credits" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableChargeCredits(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetChargeCredits(*v)
+	}
+	return _u
+}
+
+// AddChargeCredits adds value to the "charge_credits" field.
+func (_u *UsageLogUpdateOne) AddChargeCredits(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddChargeCredits(v)
+	return _u
+}
+
+// SetBillingCurrency sets the "billing_currency" field.
+func (_u *UsageLogUpdateOne) SetBillingCurrency(v string) *UsageLogUpdateOne {
+	_u.mutation.SetBillingCurrency(v)
+	return _u
+}
+
+// SetNillableBillingCurrency sets the "billing_currency" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableBillingCurrency(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetBillingCurrency(*v)
+	}
+	return _u
+}
+
+// SetCreditsPerUsd sets the "credits_per_usd" field.
+func (_u *UsageLogUpdateOne) SetCreditsPerUsd(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetCreditsPerUsd()
+	_u.mutation.SetCreditsPerUsd(v)
+	return _u
+}
+
+// SetNillableCreditsPerUsd sets the "credits_per_usd" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableCreditsPerUsd(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetCreditsPerUsd(*v)
+	}
+	return _u
+}
+
+// AddCreditsPerUsd adds value to the "credits_per_usd" field.
+func (_u *UsageLogUpdateOne) AddCreditsPerUsd(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddCreditsPerUsd(v)
+	return _u
+}
+
+// SetUsdToCnyRate sets the "usd_to_cny_rate" field.
+func (_u *UsageLogUpdateOne) SetUsdToCnyRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetUsdToCnyRate()
+	_u.mutation.SetUsdToCnyRate(v)
+	return _u
+}
+
+// SetNillableUsdToCnyRate sets the "usd_to_cny_rate" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUsdToCnyRate(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUsdToCnyRate(*v)
+	}
+	return _u
+}
+
+// AddUsdToCnyRate adds value to the "usd_to_cny_rate" field.
+func (_u *UsageLogUpdateOne) AddUsdToCnyRate(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddUsdToCnyRate(v)
+	return _u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_u *UsageLogUpdateOne) SetBillingVersion(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetBillingVersion()
+	_u.mutation.SetBillingVersion(v)
+	return _u
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableBillingVersion(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetBillingVersion(*v)
+	}
+	return _u
+}
+
+// AddBillingVersion adds value to the "billing_version" field.
+func (_u *UsageLogUpdateOne) AddBillingVersion(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddBillingVersion(v)
+	return _u
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_u *UsageLogUpdateOne) SetRateMultiplier(v float64) *UsageLogUpdateOne {
 	_u.mutation.ResetRateMultiplier()
@@ -2603,6 +2831,11 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BillingCurrency(); ok {
+		if err := usagelog.BillingCurrencyValidator(v); err != nil {
+			return &ValidationError{Name: "billing_currency", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_currency": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -2807,6 +3040,33 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ChargeCredits(); ok {
+		_spec.SetField(usagelog.FieldChargeCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedChargeCredits(); ok {
+		_spec.AddField(usagelog.FieldChargeCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BillingCurrency(); ok {
+		_spec.SetField(usagelog.FieldBillingCurrency, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CreditsPerUsd(); ok {
+		_spec.SetField(usagelog.FieldCreditsPerUsd, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditsPerUsd(); ok {
+		_spec.AddField(usagelog.FieldCreditsPerUsd, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.UsdToCnyRate(); ok {
+		_spec.SetField(usagelog.FieldUsdToCnyRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUsdToCnyRate(); ok {
+		_spec.AddField(usagelog.FieldUsdToCnyRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingVersion(); ok {
+		_spec.SetField(usagelog.FieldBillingVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBillingVersion(); ok {
+		_spec.AddField(usagelog.FieldBillingVersion, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)

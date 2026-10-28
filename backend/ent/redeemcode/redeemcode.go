@@ -20,6 +20,8 @@ const (
 	FieldType = "type"
 	// FieldValue holds the string denoting the value field in the database.
 	FieldValue = "value"
+	// FieldValueCredits holds the string denoting the value_credits field in the database.
+	FieldValueCredits = "value_credits"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldUsedBy holds the string denoting the used_by field in the database.
@@ -64,6 +66,7 @@ var Columns = []string{
 	FieldCode,
 	FieldType,
 	FieldValue,
+	FieldValueCredits,
 	FieldStatus,
 	FieldUsedBy,
 	FieldUsedAt,
@@ -93,6 +96,8 @@ var (
 	TypeValidator func(string) error
 	// DefaultValue holds the default value on creation for the "value" field.
 	DefaultValue float64
+	// DefaultValueCredits holds the default value on creation for the "value_credits" field.
+	DefaultValueCredits int64
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -124,6 +129,11 @@ func ByType(opts ...sql.OrderTermOption) OrderOption {
 // ByValue orders the results by the value field.
 func ByValue(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldValue, opts...).ToFunc()
+}
+
+// ByValueCredits orders the results by the value_credits field.
+func ByValueCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldValueCredits, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

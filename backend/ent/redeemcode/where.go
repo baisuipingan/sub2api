@@ -70,6 +70,11 @@ func Value(v float64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldValue, v))
 }
 
+// ValueCredits applies equality check predicate on the "value_credits" field. It's identical to ValueCreditsEQ.
+func ValueCredits(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldValueCredits, v))
+}
+
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldStatus, v))
@@ -278,6 +283,46 @@ func ValueLT(v float64) predicate.RedeemCode {
 // ValueLTE applies the LTE predicate on the "value" field.
 func ValueLTE(v float64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldValue, v))
+}
+
+// ValueCreditsEQ applies the EQ predicate on the "value_credits" field.
+func ValueCreditsEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldValueCredits, v))
+}
+
+// ValueCreditsNEQ applies the NEQ predicate on the "value_credits" field.
+func ValueCreditsNEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldValueCredits, v))
+}
+
+// ValueCreditsIn applies the In predicate on the "value_credits" field.
+func ValueCreditsIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldValueCredits, vs...))
+}
+
+// ValueCreditsNotIn applies the NotIn predicate on the "value_credits" field.
+func ValueCreditsNotIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldValueCredits, vs...))
+}
+
+// ValueCreditsGT applies the GT predicate on the "value_credits" field.
+func ValueCreditsGT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldValueCredits, v))
+}
+
+// ValueCreditsGTE applies the GTE predicate on the "value_credits" field.
+func ValueCreditsGTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldValueCredits, v))
+}
+
+// ValueCreditsLT applies the LT predicate on the "value_credits" field.
+func ValueCreditsLT(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldValueCredits, v))
+}
+
+// ValueCreditsLTE applies the LTE predicate on the "value_credits" field.
+func ValueCreditsLTE(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldValueCredits, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.

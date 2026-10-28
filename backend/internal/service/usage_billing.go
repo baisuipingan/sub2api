@@ -43,6 +43,20 @@ type UsageBillingCommand struct {
 	APIKeyRateLimitCost float64
 	AccountQuotaCost    float64
 
+	// Credit-ledger snapshot captured for this request. ChargeCredits describes
+	// the value consumed from the selected subscription or wallet; BalanceCredits
+	// is non-zero only when the wallet is the actual funding source.
+	ChargeCredits          int64
+	BalanceCredits         int64
+	SubscriptionCredits    int64
+	APIKeyQuotaCredits     int64
+	APIKeyRateLimitCredits int64
+	BillingEngine          string
+	BillingCurrency        string
+	CreditsPerUSD          int64
+	USDToCNYRate           float64
+	BillingVersion         int64
+
 	// AccountQuotaHasDailyLimit / AccountQuotaHasWeeklyLimit 记录构造命令时账号是否设置了日/周上限，
 	// 只用于选择账号配额累加语句，不参与幂等指纹；实际累加哪些维度以数据库中的账号配置为准。
 	AccountQuotaHasDailyLimit  bool
@@ -170,7 +184,8 @@ type AccountQuotaState struct {
 type UsageBillingApplyResult struct {
 	Applied              bool
 	APIKeyQuotaExhausted bool
-	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)
+	NewBalance           *float64           // post-deduction USD-equivalent balance (nil = no balance deduction)
+	NewBalanceCredits    *int64             // authoritative post-deduction credit balance
 	BalanceOverdrafted   bool               // true when the sufficient-balance guard missed and debt was still recorded
 	QuotaState           *AccountQuotaState // post-increment quota state (nil = no quota increment)
 }

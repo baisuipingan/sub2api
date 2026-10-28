@@ -50,10 +50,16 @@ const (
 	FieldSubscriptionType = "subscription_type"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
 	FieldDailyLimitUsd = "daily_limit_usd"
+	// FieldDailyLimitCredits holds the string denoting the daily_limit_credits field in the database.
+	FieldDailyLimitCredits = "daily_limit_credits"
 	// FieldWeeklyLimitUsd holds the string denoting the weekly_limit_usd field in the database.
 	FieldWeeklyLimitUsd = "weekly_limit_usd"
+	// FieldWeeklyLimitCredits holds the string denoting the weekly_limit_credits field in the database.
+	FieldWeeklyLimitCredits = "weekly_limit_credits"
 	// FieldMonthlyLimitUsd holds the string denoting the monthly_limit_usd field in the database.
 	FieldMonthlyLimitUsd = "monthly_limit_usd"
+	// FieldMonthlyLimitCredits holds the string denoting the monthly_limit_credits field in the database.
+	FieldMonthlyLimitCredits = "monthly_limit_credits"
 	// FieldDefaultValidityDays holds the string denoting the default_validity_days field in the database.
 	FieldDefaultValidityDays = "default_validity_days"
 	// FieldAllowImageGeneration holds the string denoting the allow_image_generation field in the database.
@@ -244,8 +250,11 @@ var Columns = []string{
 	FieldPlatform,
 	FieldSubscriptionType,
 	FieldDailyLimitUsd,
+	FieldDailyLimitCredits,
 	FieldWeeklyLimitUsd,
+	FieldWeeklyLimitCredits,
 	FieldMonthlyLimitUsd,
+	FieldMonthlyLimitCredits,
 	FieldDefaultValidityDays,
 	FieldAllowImageGeneration,
 	FieldAllowBatchImageGeneration,
@@ -534,14 +543,29 @@ func ByDailyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDailyLimitUsd, opts...).ToFunc()
 }
 
+// ByDailyLimitCredits orders the results by the daily_limit_credits field.
+func ByDailyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyLimitCredits, opts...).ToFunc()
+}
+
 // ByWeeklyLimitUsd orders the results by the weekly_limit_usd field.
 func ByWeeklyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWeeklyLimitUsd, opts...).ToFunc()
 }
 
+// ByWeeklyLimitCredits orders the results by the weekly_limit_credits field.
+func ByWeeklyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWeeklyLimitCredits, opts...).ToFunc()
+}
+
 // ByMonthlyLimitUsd orders the results by the monthly_limit_usd field.
 func ByMonthlyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMonthlyLimitUsd, opts...).ToFunc()
+}
+
+// ByMonthlyLimitCredits orders the results by the monthly_limit_credits field.
+func ByMonthlyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyLimitCredits, opts...).ToFunc()
 }
 
 // ByDefaultValidityDays orders the results by the default_validity_days field.

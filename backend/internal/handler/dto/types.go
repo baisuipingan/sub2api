@@ -10,19 +10,21 @@ import (
 )
 
 type User struct {
-	ID            int64      `json:"id"`
-	Email         string     `json:"email"`
-	Username      string     `json:"username"`
-	Role          string     `json:"role"`
-	Balance       float64    `json:"balance"`
-	FrozenBalance float64    `json:"frozen_balance"`
-	Concurrency   int        `json:"concurrency"`
-	Status        string     `json:"status"`
-	AllowedGroups []int64    `json:"allowed_groups"`
-	LastActiveAt  *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+	ID                   int64      `json:"id"`
+	Email                string     `json:"email"`
+	Username             string     `json:"username"`
+	Role                 string     `json:"role"`
+	Balance              float64    `json:"balance"`
+	BalanceCredits       int64      `json:"balance_credits"`
+	FrozenBalance        float64    `json:"frozen_balance"`
+	FrozenBalanceCredits int64      `json:"frozen_balance_credits"`
+	Concurrency          int        `json:"concurrency"`
+	Status               string     `json:"status"`
+	AllowedGroups        []int64    `json:"allowed_groups"`
+	LastActiveAt         *time.Time `json:"last_active_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
 	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
@@ -629,6 +631,11 @@ type UsageLog struct {
 	CacheReadCost             float64 `json:"cache_read_cost"`
 	TotalCost                 float64 `json:"total_cost"`
 	ActualCost                float64 `json:"actual_cost"`
+	ChargeCredits             int64   `json:"charge_credits"`
+	BillingCurrency           string  `json:"billing_currency,omitempty"`
+	CreditsPerUSD             int64   `json:"credits_per_usd,omitempty"`
+	USDToCNYRate              float64 `json:"usd_to_cny_rate,omitempty"`
+	BillingVersion            int64   `json:"billing_version,omitempty"`
 	RateMultiplier            float64 `json:"rate_multiplier"`
 	LongContextBillingApplied bool    `json:"long_context_billing_applied"`
 

@@ -31,8 +31,14 @@ type User struct {
 	Role string `json:"role,omitempty"`
 	// Balance holds the value of the "balance" field.
 	Balance float64 `json:"balance,omitempty"`
+	// BalanceCredits holds the value of the "balance_credits" field.
+	BalanceCredits int64 `json:"balance_credits,omitempty"`
+	// BalanceCreditsVersion holds the value of the "balance_credits_version" field.
+	BalanceCreditsVersion int64 `json:"balance_credits_version,omitempty"`
 	// FrozenBalance holds the value of the "frozen_balance" field.
 	FrozenBalance float64 `json:"frozen_balance,omitempty"`
+	// FrozenBalanceCredits holds the value of the "frozen_balance_credits" field.
+	FrozenBalanceCredits int64 `json:"frozen_balance_credits,omitempty"`
 	// Concurrency holds the value of the "concurrency" field.
 	Concurrency int `json:"concurrency,omitempty"`
 	// Status holds the value of the "status" field.
@@ -243,7 +249,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
 			values[i] = new(sql.NullFloat64)
-		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
+		case user.FieldID, user.FieldBalanceCredits, user.FieldBalanceCreditsVersion, user.FieldFrozenBalanceCredits, user.FieldConcurrency, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldSignupSource, user.FieldBalanceNotifyThresholdType, user.FieldBalanceNotifyExtraEmails:
 			values[i] = new(sql.NullString)
@@ -313,11 +319,29 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Balance = value.Float64
 			}
+		case user.FieldBalanceCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field balance_credits", values[i])
+			} else if value.Valid {
+				_m.BalanceCredits = value.Int64
+			}
+		case user.FieldBalanceCreditsVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field balance_credits_version", values[i])
+			} else if value.Valid {
+				_m.BalanceCreditsVersion = value.Int64
+			}
 		case user.FieldFrozenBalance:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field frozen_balance", values[i])
 			} else if value.Valid {
 				_m.FrozenBalance = value.Float64
+			}
+		case user.FieldFrozenBalanceCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field frozen_balance_credits", values[i])
+			} else if value.Valid {
+				_m.FrozenBalanceCredits = value.Int64
 			}
 		case user.FieldConcurrency:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -555,8 +579,17 @@ func (_m *User) String() string {
 	builder.WriteString("balance=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Balance))
 	builder.WriteString(", ")
+	builder.WriteString("balance_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BalanceCredits))
+	builder.WriteString(", ")
+	builder.WriteString("balance_credits_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BalanceCreditsVersion))
+	builder.WriteString(", ")
 	builder.WriteString("frozen_balance=")
 	builder.WriteString(fmt.Sprintf("%v", _m.FrozenBalance))
+	builder.WriteString(", ")
+	builder.WriteString("frozen_balance_credits=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrozenBalanceCredits))
 	builder.WriteString(", ")
 	builder.WriteString("concurrency=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Concurrency))

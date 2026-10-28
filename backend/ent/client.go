@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/batchimageevent"
 	"github.com/Wei-Shaw/sub2api/ent/batchimageitem"
 	"github.com/Wei-Shaw/sub2api/ent/batchimagejob"
+	"github.com/Wei-Shaw/sub2api/ent/billingledger"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
@@ -83,6 +84,8 @@ type Client struct {
 	BatchImageItem *BatchImageItemClient
 	// BatchImageJob is the client for interacting with the BatchImageJob builders.
 	BatchImageJob *BatchImageJobClient
+	// BillingLedger is the client for interacting with the BillingLedger builders.
+	BillingLedger *BillingLedgerClient
 	// ChannelMonitor is the client for interacting with the ChannelMonitor builders.
 	ChannelMonitor *ChannelMonitorClient
 	// ChannelMonitorDailyRollup is the client for interacting with the ChannelMonitorDailyRollup builders.
@@ -162,6 +165,7 @@ func (c *Client) init() {
 	c.BatchImageEvent = NewBatchImageEventClient(c.config)
 	c.BatchImageItem = NewBatchImageItemClient(c.config)
 	c.BatchImageJob = NewBatchImageJobClient(c.config)
+	c.BillingLedger = NewBillingLedgerClient(c.config)
 	c.ChannelMonitor = NewChannelMonitorClient(c.config)
 	c.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(c.config)
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
@@ -293,6 +297,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		BatchImageEvent:               NewBatchImageEventClient(cfg),
 		BatchImageItem:                NewBatchImageItemClient(cfg),
 		BatchImageJob:                 NewBatchImageJobClient(cfg),
+		BillingLedger:                 NewBillingLedgerClient(cfg),
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
@@ -351,6 +356,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		BatchImageEvent:               NewBatchImageEventClient(cfg),
 		BatchImageItem:                NewBatchImageItemClient(cfg),
 		BatchImageJob:                 NewBatchImageJobClient(cfg),
+		BillingLedger:                 NewBillingLedgerClient(cfg),
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
@@ -411,14 +417,14 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
-		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.BatchImageJob, c.BillingLedger, c.ChannelMonitor,
+		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
@@ -431,14 +437,14 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
 		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
-		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.CompositeModelRoute, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.BatchImageJob, c.BillingLedger, c.ChannelMonitor,
+		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
 		c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
@@ -468,6 +474,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.BatchImageItem.mutate(ctx, m)
 	case *BatchImageJobMutation:
 		return c.BatchImageJob.mutate(ctx, m)
+	case *BillingLedgerMutation:
+		return c.BillingLedger.mutate(ctx, m)
 	case *ChannelMonitorMutation:
 		return c.ChannelMonitor.mutate(ctx, m)
 	case *ChannelMonitorDailyRollupMutation:
@@ -2101,6 +2109,139 @@ func (c *BatchImageJobClient) mutate(ctx context.Context, m *BatchImageJobMutati
 		return (&BatchImageJobDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown BatchImageJob mutation op: %q", m.Op())
+	}
+}
+
+// BillingLedgerClient is a client for the BillingLedger schema.
+type BillingLedgerClient struct {
+	config
+}
+
+// NewBillingLedgerClient returns a client for the BillingLedger from the given config.
+func NewBillingLedgerClient(c config) *BillingLedgerClient {
+	return &BillingLedgerClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `billingledger.Hooks(f(g(h())))`.
+func (c *BillingLedgerClient) Use(hooks ...Hook) {
+	c.hooks.BillingLedger = append(c.hooks.BillingLedger, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `billingledger.Intercept(f(g(h())))`.
+func (c *BillingLedgerClient) Intercept(interceptors ...Interceptor) {
+	c.inters.BillingLedger = append(c.inters.BillingLedger, interceptors...)
+}
+
+// Create returns a builder for creating a BillingLedger entity.
+func (c *BillingLedgerClient) Create() *BillingLedgerCreate {
+	mutation := newBillingLedgerMutation(c.config, OpCreate)
+	return &BillingLedgerCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of BillingLedger entities.
+func (c *BillingLedgerClient) CreateBulk(builders ...*BillingLedgerCreate) *BillingLedgerCreateBulk {
+	return &BillingLedgerCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *BillingLedgerClient) MapCreateBulk(slice any, setFunc func(*BillingLedgerCreate, int)) *BillingLedgerCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &BillingLedgerCreateBulk{err: fmt.Errorf("calling to BillingLedgerClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*BillingLedgerCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &BillingLedgerCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for BillingLedger.
+func (c *BillingLedgerClient) Update() *BillingLedgerUpdate {
+	mutation := newBillingLedgerMutation(c.config, OpUpdate)
+	return &BillingLedgerUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *BillingLedgerClient) UpdateOne(_m *BillingLedger) *BillingLedgerUpdateOne {
+	mutation := newBillingLedgerMutation(c.config, OpUpdateOne, withBillingLedger(_m))
+	return &BillingLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *BillingLedgerClient) UpdateOneID(id int64) *BillingLedgerUpdateOne {
+	mutation := newBillingLedgerMutation(c.config, OpUpdateOne, withBillingLedgerID(id))
+	return &BillingLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for BillingLedger.
+func (c *BillingLedgerClient) Delete() *BillingLedgerDelete {
+	mutation := newBillingLedgerMutation(c.config, OpDelete)
+	return &BillingLedgerDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *BillingLedgerClient) DeleteOne(_m *BillingLedger) *BillingLedgerDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *BillingLedgerClient) DeleteOneID(id int64) *BillingLedgerDeleteOne {
+	builder := c.Delete().Where(billingledger.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &BillingLedgerDeleteOne{builder}
+}
+
+// Query returns a query builder for BillingLedger.
+func (c *BillingLedgerClient) Query() *BillingLedgerQuery {
+	return &BillingLedgerQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeBillingLedger},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a BillingLedger entity by its id.
+func (c *BillingLedgerClient) Get(ctx context.Context, id int64) (*BillingLedger, error) {
+	return c.Query().Where(billingledger.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *BillingLedgerClient) GetX(ctx context.Context, id int64) *BillingLedger {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *BillingLedgerClient) Hooks() []Hook {
+	return c.hooks.BillingLedger
+}
+
+// Interceptors returns the client interceptors.
+func (c *BillingLedgerClient) Interceptors() []Interceptor {
+	return c.inters.BillingLedger
+}
+
+func (c *BillingLedgerClient) mutate(ctx context.Context, m *BillingLedgerMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&BillingLedgerCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&BillingLedgerUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&BillingLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&BillingLedgerDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown BillingLedger mutation op: %q", m.Op())
 	}
 }
 
@@ -6843,26 +6984,26 @@ type (
 	hooks struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
-		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Hook
+		BillingLedger, ChannelMonitor, ChannelMonitorDailyRollup,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
 		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
-		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, CompositeModelRoute, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog,
-		PaymentOrder, PaymentProviderInstance, PendingAuthSession, PromoCode,
-		PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserPlatformQuota,
-		UserSubscription []ent.Interceptor
+		BillingLedger, ChannelMonitor, ChannelMonitorDailyRollup,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

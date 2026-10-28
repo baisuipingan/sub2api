@@ -49,8 +49,17 @@ func (User) Fields() []ent.Field {
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
+		// BalanceCredits is the authoritative integer wallet balance. Balance is
+		// retained as a USD-equivalent compatibility column and kept in sync by a
+		// database trigger plus the billing SQL paths.
+		field.Int64("balance_credits").
+			Default(0),
+		field.Int64("balance_credits_version").
+			Default(0),
 		field.Float("frozen_balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
+		field.Int64("frozen_balance_credits").
 			Default(0),
 		field.Int("concurrency").
 			Default(5),

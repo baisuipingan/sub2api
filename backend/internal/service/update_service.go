@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -25,6 +26,7 @@ import (
 var (
 	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
+	ErrUpdateManagedExternally   = infraerrors.Conflict("UPDATE_MANAGED_EXTERNALLY", "this fork build is deployed as an image; use the fork release workflow to update or roll back")
 )
 
 const (
@@ -61,10 +63,11 @@ type GitHubReleaseClient interface {
 
 // UpdateService handles software updates
 type UpdateService struct {
-	cache          UpdateCache
-	githubClient   GitHubReleaseClient
-	currentVersion string
-	buildType      string // "source" for manual builds, "release" for CI builds
+	cache           UpdateCache
+	githubClient    GitHubReleaseClient
+	currentVersion  string
+	upstreamVersion string
+	buildType       string // "source", "release", or "fork"
 }
 
 // NewUpdateService creates a new UpdateService
@@ -77,15 +80,25 @@ func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, versi
 	}
 }
 
+// WithUpstreamVersion records the official release baseline embedded in a fork
+// build. It is separate from Version, which identifies the fork image itself.
+func (s *UpdateService) WithUpstreamVersion(upstreamVersion string) *UpdateService {
+	s.upstreamVersion = strings.TrimSpace(upstreamVersion)
+	return s
+}
+
 // UpdateInfo contains update information
 type UpdateInfo struct {
-	CurrentVersion string       `json:"current_version"`
-	LatestVersion  string       `json:"latest_version"`
-	HasUpdate      bool         `json:"has_update"`
-	ReleaseInfo    *ReleaseInfo `json:"release_info,omitempty"`
-	Cached         bool         `json:"cached"`
-	Warning        string       `json:"warning,omitempty"`
-	BuildType      string       `json:"build_type"` // "source" or "release"
+	CurrentVersion  string       `json:"current_version"`
+	UpstreamVersion string       `json:"upstream_version,omitempty"`
+	LatestVersion   string       `json:"latest_version"`
+	HasUpdate       bool         `json:"has_update"`
+	ReleaseInfo     *ReleaseInfo `json:"release_info,omitempty"`
+	Cached          bool         `json:"cached"`
+	Warning         string       `json:"warning,omitempty"`
+	BuildType       string       `json:"build_type"` // "source", "release", or "fork"
+	UpdateMode      string       `json:"update_mode"`
+	CanSelfUpdate   bool         `json:"can_self_update"`
 }
 
 // ReleaseInfo contains GitHub release details
@@ -143,15 +156,17 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 	if err != nil {
 		// Return cached on error
 		if cached, cacheErr := s.getFromCache(ctx); cacheErr == nil && cached != nil {
-			cached.Warning = "Using cached data: " + err.Error()
+			cached.Warning = joinWarnings(cached.Warning, "Using cached data: "+err.Error())
 			return cached, nil
 		}
 		return &UpdateInfo{
-			CurrentVersion: s.currentVersion,
-			LatestVersion:  s.currentVersion,
-			HasUpdate:      false,
-			Warning:        err.Error(),
-			BuildType:      s.buildType,
+			CurrentVersion:  s.currentVersion,
+			UpstreamVersion: s.upstreamVersion,
+			HasUpdate:       false,
+			Warning:         joinWarnings(s.metadataWarning(), err.Error()),
+			BuildType:       s.buildType,
+			UpdateMode:      s.updateMode(),
+			CanSelfUpdate:   s.canSelfUpdate(),
 		}, nil
 	}
 
@@ -163,6 +178,9 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
+	if s.isForkBuild() {
+		return ErrUpdateManagedExternally
+	}
 	info, err := s.CheckUpdate(ctx, true)
 	if err != nil {
 		return err
@@ -281,6 +299,9 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 // Rollback restores the previous version
 func (s *UpdateService) Rollback() error {
+	if s.isForkBuild() {
+		return ErrUpdateManagedExternally
+	}
 	exePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -307,6 +328,9 @@ func (s *UpdateService) Rollback() error {
 // strictly older than the current version (the current version itself is excluded),
 // newest first. Draft and prerelease entries are skipped.
 func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
+	if s.isForkBuild() {
+		return []RollbackVersion{}, nil
+	}
 	releases, err := s.fetchRollbackCandidates(ctx)
 	if err != nil {
 		return nil, err
@@ -327,6 +351,9 @@ func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVer
 // The target must be one of the versions returned by ListRollbackVersions;
 // anything else (including the current version) is rejected.
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	if s.isForkBuild() {
+		return ErrUpdateManagedExternally
+	}
 	target := strings.TrimPrefix(strings.TrimSpace(version), "v")
 	if target == "" {
 		return ErrRollbackVersionNotAllowed
@@ -417,9 +444,10 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 	}
 
 	return &UpdateInfo{
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  latestVersion,
-		HasUpdate:      compareVersions(s.currentVersion, latestVersion) < 0,
+		CurrentVersion:  s.currentVersion,
+		UpstreamVersion: s.upstreamVersion,
+		LatestVersion:   latestVersion,
+		HasUpdate:       s.hasUpdateFor(latestVersion),
 		ReleaseInfo: &ReleaseInfo{
 			Name:        release.Name,
 			Body:        release.Body,
@@ -427,8 +455,11 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:        false,
+		Warning:       s.metadataWarning(),
+		BuildType:     s.buildType,
+		UpdateMode:    s.updateMode(),
+		CanSelfUpdate: s.canSelfUpdate(),
 	}, nil
 }
 
@@ -613,13 +644,76 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	return &UpdateInfo{
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  cached.Latest,
-		HasUpdate:      compareVersions(s.currentVersion, cached.Latest) < 0,
-		ReleaseInfo:    cached.ReleaseInfo,
-		Cached:         true,
-		BuildType:      s.buildType,
+		CurrentVersion:  s.currentVersion,
+		UpstreamVersion: s.upstreamVersion,
+		LatestVersion:   cached.Latest,
+		HasUpdate:       s.hasUpdateFor(cached.Latest),
+		ReleaseInfo:     cached.ReleaseInfo,
+		Cached:          true,
+		Warning:         s.metadataWarning(),
+		BuildType:       s.buildType,
+		UpdateMode:      s.updateMode(),
+		CanSelfUpdate:   s.canSelfUpdate(),
 	}, nil
+}
+
+func (s *UpdateService) isForkBuild() bool {
+	return strings.EqualFold(strings.TrimSpace(s.buildType), "fork")
+}
+
+func (s *UpdateService) canSelfUpdate() bool {
+	return strings.EqualFold(strings.TrimSpace(s.buildType), "release")
+}
+
+func (s *UpdateService) updateMode() string {
+	switch {
+	case s.isForkBuild():
+		return "external"
+	case s.canSelfUpdate():
+		return "self"
+	default:
+		return "manual"
+	}
+}
+
+func (s *UpdateService) comparisonVersion() string {
+	if s.isForkBuild() {
+		return strings.TrimSpace(s.upstreamVersion)
+	}
+	return s.currentVersion
+}
+
+func (s *UpdateService) hasUpdateFor(latestVersion string) bool {
+	baseline := s.comparisonVersion()
+	if !isValidVersion(baseline) || !isValidVersion(latestVersion) {
+		return false
+	}
+	return compareVersions(baseline, latestVersion) < 0
+}
+
+func (s *UpdateService) metadataWarning() string {
+	if s.isForkBuild() && !isValidVersion(s.upstreamVersion) {
+		return "fork build metadata is invalid: upstream_version is required"
+	}
+	return ""
+}
+
+func joinWarnings(existing, next string) string {
+	existing = strings.TrimSpace(existing)
+	next = strings.TrimSpace(next)
+	if existing == "" {
+		return next
+	}
+	if next == "" {
+		return existing
+	}
+	return existing + "; " + next
+}
+
+var semverPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
+
+func isValidVersion(version string) bool {
+	return semverPattern.MatchString(strings.TrimSpace(version))
 }
 
 func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {

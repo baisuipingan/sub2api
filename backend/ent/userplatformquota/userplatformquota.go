@@ -27,16 +27,28 @@ const (
 	FieldPlatform = "platform"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
 	FieldDailyLimitUsd = "daily_limit_usd"
+	// FieldDailyLimitCredits holds the string denoting the daily_limit_credits field in the database.
+	FieldDailyLimitCredits = "daily_limit_credits"
 	// FieldWeeklyLimitUsd holds the string denoting the weekly_limit_usd field in the database.
 	FieldWeeklyLimitUsd = "weekly_limit_usd"
+	// FieldWeeklyLimitCredits holds the string denoting the weekly_limit_credits field in the database.
+	FieldWeeklyLimitCredits = "weekly_limit_credits"
 	// FieldMonthlyLimitUsd holds the string denoting the monthly_limit_usd field in the database.
 	FieldMonthlyLimitUsd = "monthly_limit_usd"
+	// FieldMonthlyLimitCredits holds the string denoting the monthly_limit_credits field in the database.
+	FieldMonthlyLimitCredits = "monthly_limit_credits"
 	// FieldDailyUsageUsd holds the string denoting the daily_usage_usd field in the database.
 	FieldDailyUsageUsd = "daily_usage_usd"
+	// FieldDailyUsageCredits holds the string denoting the daily_usage_credits field in the database.
+	FieldDailyUsageCredits = "daily_usage_credits"
 	// FieldWeeklyUsageUsd holds the string denoting the weekly_usage_usd field in the database.
 	FieldWeeklyUsageUsd = "weekly_usage_usd"
+	// FieldWeeklyUsageCredits holds the string denoting the weekly_usage_credits field in the database.
+	FieldWeeklyUsageCredits = "weekly_usage_credits"
 	// FieldMonthlyUsageUsd holds the string denoting the monthly_usage_usd field in the database.
 	FieldMonthlyUsageUsd = "monthly_usage_usd"
+	// FieldMonthlyUsageCredits holds the string denoting the monthly_usage_credits field in the database.
+	FieldMonthlyUsageCredits = "monthly_usage_credits"
 	// FieldDailyWindowStart holds the string denoting the daily_window_start field in the database.
 	FieldDailyWindowStart = "daily_window_start"
 	// FieldWeeklyWindowStart holds the string denoting the weekly_window_start field in the database.
@@ -65,11 +77,17 @@ var Columns = []string{
 	FieldUserID,
 	FieldPlatform,
 	FieldDailyLimitUsd,
+	FieldDailyLimitCredits,
 	FieldWeeklyLimitUsd,
+	FieldWeeklyLimitCredits,
 	FieldMonthlyLimitUsd,
+	FieldMonthlyLimitCredits,
 	FieldDailyUsageUsd,
+	FieldDailyUsageCredits,
 	FieldWeeklyUsageUsd,
+	FieldWeeklyUsageCredits,
 	FieldMonthlyUsageUsd,
+	FieldMonthlyUsageCredits,
 	FieldDailyWindowStart,
 	FieldWeeklyWindowStart,
 	FieldMonthlyWindowStart,
@@ -103,10 +121,16 @@ var (
 	PlatformValidator func(string) error
 	// DefaultDailyUsageUsd holds the default value on creation for the "daily_usage_usd" field.
 	DefaultDailyUsageUsd float64
+	// DefaultDailyUsageCredits holds the default value on creation for the "daily_usage_credits" field.
+	DefaultDailyUsageCredits int64
 	// DefaultWeeklyUsageUsd holds the default value on creation for the "weekly_usage_usd" field.
 	DefaultWeeklyUsageUsd float64
+	// DefaultWeeklyUsageCredits holds the default value on creation for the "weekly_usage_credits" field.
+	DefaultWeeklyUsageCredits int64
 	// DefaultMonthlyUsageUsd holds the default value on creation for the "monthly_usage_usd" field.
 	DefaultMonthlyUsageUsd float64
+	// DefaultMonthlyUsageCredits holds the default value on creation for the "monthly_usage_credits" field.
+	DefaultMonthlyUsageCredits int64
 )
 
 // OrderOption defines the ordering options for the UserPlatformQuota queries.
@@ -147,9 +171,19 @@ func ByDailyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDailyLimitUsd, opts...).ToFunc()
 }
 
+// ByDailyLimitCredits orders the results by the daily_limit_credits field.
+func ByDailyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyLimitCredits, opts...).ToFunc()
+}
+
 // ByWeeklyLimitUsd orders the results by the weekly_limit_usd field.
 func ByWeeklyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWeeklyLimitUsd, opts...).ToFunc()
+}
+
+// ByWeeklyLimitCredits orders the results by the weekly_limit_credits field.
+func ByWeeklyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWeeklyLimitCredits, opts...).ToFunc()
 }
 
 // ByMonthlyLimitUsd orders the results by the monthly_limit_usd field.
@@ -157,9 +191,19 @@ func ByMonthlyLimitUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMonthlyLimitUsd, opts...).ToFunc()
 }
 
+// ByMonthlyLimitCredits orders the results by the monthly_limit_credits field.
+func ByMonthlyLimitCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyLimitCredits, opts...).ToFunc()
+}
+
 // ByDailyUsageUsd orders the results by the daily_usage_usd field.
 func ByDailyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDailyUsageUsd, opts...).ToFunc()
+}
+
+// ByDailyUsageCredits orders the results by the daily_usage_credits field.
+func ByDailyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyUsageCredits, opts...).ToFunc()
 }
 
 // ByWeeklyUsageUsd orders the results by the weekly_usage_usd field.
@@ -167,9 +211,19 @@ func ByWeeklyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWeeklyUsageUsd, opts...).ToFunc()
 }
 
+// ByWeeklyUsageCredits orders the results by the weekly_usage_credits field.
+func ByWeeklyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWeeklyUsageCredits, opts...).ToFunc()
+}
+
 // ByMonthlyUsageUsd orders the results by the monthly_usage_usd field.
 func ByMonthlyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMonthlyUsageUsd, opts...).ToFunc()
+}
+
+// ByMonthlyUsageCredits orders the results by the monthly_usage_credits field.
+func ByMonthlyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyUsageCredits, opts...).ToFunc()
 }
 
 // ByDailyWindowStart orders the results by the daily_window_start field.

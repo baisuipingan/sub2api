@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
 // UserPlatformQuotaRecord 是 repository 层的传输结构体，
@@ -195,15 +196,22 @@ func (r *userPlatformQuotaRepository) IncrementUsageWithReset(ctx context.Contex
 			return err
 		}
 
+		costCredits := service.USDToCredits(cost)
 		newDaily := maybeReset(existing.DailyUsageUsd, existing.DailyWindowStart, timezone.StartOfDay(now), cost)
 		newWeekly := maybeReset(existing.WeeklyUsageUsd, existing.WeeklyWindowStart, timezone.StartOfWeek(now), cost)
 		// 30 天滚动月度窗口：过期时重置为 cost 并以 now 为新起始，否则累加保留原起始
 		newMonthly, newMonthlyStart := monthlyMaybeReset(existing.MonthlyUsageUsd, existing.MonthlyWindowStart, cost, now)
+		newDailyCredits := maybeResetInt64(existing.DailyUsageCredits, existing.DailyWindowStart, timezone.StartOfDay(now), costCredits)
+		newWeeklyCredits := maybeResetInt64(existing.WeeklyUsageCredits, existing.WeeklyWindowStart, timezone.StartOfWeek(now), costCredits)
+		newMonthlyCredits, _ := monthlyMaybeResetInt64(existing.MonthlyUsageCredits, existing.MonthlyWindowStart, costCredits, now)
 
 		_, e := existing.Update().
 			SetDailyUsageUsd(newDaily).
 			SetWeeklyUsageUsd(newWeekly).
 			SetMonthlyUsageUsd(newMonthly).
+			SetDailyUsageCredits(newDailyCredits).
+			SetWeeklyUsageCredits(newWeeklyCredits).
+			SetMonthlyUsageCredits(newMonthlyCredits).
 			SetDailyWindowStart(timezone.StartOfDay(now)).
 			SetWeeklyWindowStart(timezone.StartOfWeek(now)).
 			SetMonthlyWindowStart(newMonthlyStart). // 30 天滚动：仅过期时更新起始
@@ -235,11 +243,11 @@ func (r *userPlatformQuotaRepository) ResetExpiredWindow(ctx context.Context, us
 		)
 	switch window {
 	case "daily":
-		upd = upd.SetDailyUsageUsd(0).SetDailyWindowStart(newStart)
+		upd = upd.SetDailyUsageUsd(0).SetDailyUsageCredits(0).SetDailyWindowStart(newStart)
 	case "weekly":
-		upd = upd.SetWeeklyUsageUsd(0).SetWeeklyWindowStart(newStart)
+		upd = upd.SetWeeklyUsageUsd(0).SetWeeklyUsageCredits(0).SetWeeklyWindowStart(newStart)
 	case "monthly":
-		upd = upd.SetMonthlyUsageUsd(0).SetMonthlyWindowStart(newStart)
+		upd = upd.SetMonthlyUsageUsd(0).SetMonthlyUsageCredits(0).SetMonthlyWindowStart(newStart)
 	default:
 		return fmt.Errorf("unknown window %q", window)
 	}
@@ -511,4 +519,18 @@ func configuredRecords(records []UserPlatformQuotaRecord) []UserPlatformQuotaRec
 		}
 	}
 	return out
+}
+
+func maybeResetInt64(prevUsage int64, prevStart *time.Time, currStart time.Time, cost int64) int64 {
+	if prevStart == nil || !prevStart.Equal(currStart) {
+		return cost
+	}
+	return prevUsage + cost
+}
+
+func monthlyMaybeResetInt64(prevUsage int64, prevStart *time.Time, cost int64, now time.Time) (int64, time.Time) {
+	if prevStart == nil || now.Sub(*prevStart) >= 30*24*time.Hour {
+		return cost, now
+	}
+	return prevUsage + cost, *prevStart
 }

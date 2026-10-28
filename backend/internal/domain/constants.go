@@ -223,3 +223,9 @@ var DefaultBedrockModelMapping = map[string]string{
 	"claude-haiku-4-5":          "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 	"claude-haiku-4-5-20251001": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 }
+
+// Currency codes used by the fixed-credit billing ledger and its display layer.
+const (
+	CurrencyUSD = "USD"
+	CurrencyCNY = "CNY"
+)

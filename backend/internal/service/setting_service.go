@@ -145,6 +145,11 @@ type SettingService struct {
 	panelRateLimitCache atomic.Value
 	panelRateLimitSF    singleflight.Group
 
+	// billingCurrencyCache stores the validated display-currency snapshot used by
+	// public settings and billing views. Expired entries are refreshed from the
+	// settings table; a transient DB failure keeps serving the last known value.
+	billingCurrencyCache atomic.Pointer[cachedBillingCurrencyConfig]
+
 	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
 	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
 	// path without ever blocking on the DB; when the cached entry expires, a background

@@ -105,9 +105,19 @@ func Quota(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldQuota, v))
 }
 
+// QuotaCredits applies equality check predicate on the "quota_credits" field. It's identical to QuotaCreditsEQ.
+func QuotaCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldQuotaCredits, v))
+}
+
 // QuotaUsed applies equality check predicate on the "quota_used" field. It's identical to QuotaUsedEQ.
 func QuotaUsed(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldQuotaUsed, v))
+}
+
+// QuotaUsedCredits applies equality check predicate on the "quota_used_credits" field. It's identical to QuotaUsedCreditsEQ.
+func QuotaUsedCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldQuotaUsedCredits, v))
 }
 
 // ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
@@ -120,9 +130,19 @@ func RateLimit5h(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldRateLimit5h, v))
 }
 
+// RateLimit5hCredits applies equality check predicate on the "rate_limit_5h_credits" field. It's identical to RateLimit5hCreditsEQ.
+func RateLimit5hCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit5hCredits, v))
+}
+
 // RateLimit1d applies equality check predicate on the "rate_limit_1d" field. It's identical to RateLimit1dEQ.
 func RateLimit1d(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldRateLimit1d, v))
+}
+
+// RateLimit1dCredits applies equality check predicate on the "rate_limit_1d_credits" field. It's identical to RateLimit1dCreditsEQ.
+func RateLimit1dCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit1dCredits, v))
 }
 
 // RateLimit7d applies equality check predicate on the "rate_limit_7d" field. It's identical to RateLimit7dEQ.
@@ -130,9 +150,19 @@ func RateLimit7d(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldRateLimit7d, v))
 }
 
+// RateLimit7dCredits applies equality check predicate on the "rate_limit_7d_credits" field. It's identical to RateLimit7dCreditsEQ.
+func RateLimit7dCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit7dCredits, v))
+}
+
 // Usage5h applies equality check predicate on the "usage_5h" field. It's identical to Usage5hEQ.
 func Usage5h(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldUsage5h, v))
+}
+
+// Usage5hCredits applies equality check predicate on the "usage_5h_credits" field. It's identical to Usage5hCreditsEQ.
+func Usage5hCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage5hCredits, v))
 }
 
 // Usage1d applies equality check predicate on the "usage_1d" field. It's identical to Usage1dEQ.
@@ -140,9 +170,19 @@ func Usage1d(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldUsage1d, v))
 }
 
+// Usage1dCredits applies equality check predicate on the "usage_1d_credits" field. It's identical to Usage1dCreditsEQ.
+func Usage1dCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage1dCredits, v))
+}
+
 // Usage7d applies equality check predicate on the "usage_7d" field. It's identical to Usage7dEQ.
 func Usage7d(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldUsage7d, v))
+}
+
+// Usage7dCredits applies equality check predicate on the "usage_7d_credits" field. It's identical to Usage7dCreditsEQ.
+func Usage7dCredits(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage7dCredits, v))
 }
 
 // Window5hStart applies equality check predicate on the "window_5h_start" field. It's identical to Window5hStartEQ.
@@ -645,6 +685,46 @@ func QuotaLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldQuota, v))
 }
 
+// QuotaCreditsEQ applies the EQ predicate on the "quota_credits" field.
+func QuotaCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldQuotaCredits, v))
+}
+
+// QuotaCreditsNEQ applies the NEQ predicate on the "quota_credits" field.
+func QuotaCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldQuotaCredits, v))
+}
+
+// QuotaCreditsIn applies the In predicate on the "quota_credits" field.
+func QuotaCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldQuotaCredits, vs...))
+}
+
+// QuotaCreditsNotIn applies the NotIn predicate on the "quota_credits" field.
+func QuotaCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldQuotaCredits, vs...))
+}
+
+// QuotaCreditsGT applies the GT predicate on the "quota_credits" field.
+func QuotaCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldQuotaCredits, v))
+}
+
+// QuotaCreditsGTE applies the GTE predicate on the "quota_credits" field.
+func QuotaCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldQuotaCredits, v))
+}
+
+// QuotaCreditsLT applies the LT predicate on the "quota_credits" field.
+func QuotaCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldQuotaCredits, v))
+}
+
+// QuotaCreditsLTE applies the LTE predicate on the "quota_credits" field.
+func QuotaCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldQuotaCredits, v))
+}
+
 // QuotaUsedEQ applies the EQ predicate on the "quota_used" field.
 func QuotaUsedEQ(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldQuotaUsed, v))
@@ -683,6 +763,46 @@ func QuotaUsedLT(v float64) predicate.APIKey {
 // QuotaUsedLTE applies the LTE predicate on the "quota_used" field.
 func QuotaUsedLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldQuotaUsed, v))
+}
+
+// QuotaUsedCreditsEQ applies the EQ predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldQuotaUsedCredits, v))
+}
+
+// QuotaUsedCreditsNEQ applies the NEQ predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldQuotaUsedCredits, v))
+}
+
+// QuotaUsedCreditsIn applies the In predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldQuotaUsedCredits, vs...))
+}
+
+// QuotaUsedCreditsNotIn applies the NotIn predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldQuotaUsedCredits, vs...))
+}
+
+// QuotaUsedCreditsGT applies the GT predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldQuotaUsedCredits, v))
+}
+
+// QuotaUsedCreditsGTE applies the GTE predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldQuotaUsedCredits, v))
+}
+
+// QuotaUsedCreditsLT applies the LT predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldQuotaUsedCredits, v))
+}
+
+// QuotaUsedCreditsLTE applies the LTE predicate on the "quota_used_credits" field.
+func QuotaUsedCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldQuotaUsedCredits, v))
 }
 
 // ExpiresAtEQ applies the EQ predicate on the "expires_at" field.
@@ -775,6 +895,46 @@ func RateLimit5hLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldRateLimit5h, v))
 }
 
+// RateLimit5hCreditsEQ applies the EQ predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit5hCredits, v))
+}
+
+// RateLimit5hCreditsNEQ applies the NEQ predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldRateLimit5hCredits, v))
+}
+
+// RateLimit5hCreditsIn applies the In predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldRateLimit5hCredits, vs...))
+}
+
+// RateLimit5hCreditsNotIn applies the NotIn predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldRateLimit5hCredits, vs...))
+}
+
+// RateLimit5hCreditsGT applies the GT predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldRateLimit5hCredits, v))
+}
+
+// RateLimit5hCreditsGTE applies the GTE predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldRateLimit5hCredits, v))
+}
+
+// RateLimit5hCreditsLT applies the LT predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldRateLimit5hCredits, v))
+}
+
+// RateLimit5hCreditsLTE applies the LTE predicate on the "rate_limit_5h_credits" field.
+func RateLimit5hCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldRateLimit5hCredits, v))
+}
+
 // RateLimit1dEQ applies the EQ predicate on the "rate_limit_1d" field.
 func RateLimit1dEQ(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldRateLimit1d, v))
@@ -813,6 +973,46 @@ func RateLimit1dLT(v float64) predicate.APIKey {
 // RateLimit1dLTE applies the LTE predicate on the "rate_limit_1d" field.
 func RateLimit1dLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldRateLimit1d, v))
+}
+
+// RateLimit1dCreditsEQ applies the EQ predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit1dCredits, v))
+}
+
+// RateLimit1dCreditsNEQ applies the NEQ predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldRateLimit1dCredits, v))
+}
+
+// RateLimit1dCreditsIn applies the In predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldRateLimit1dCredits, vs...))
+}
+
+// RateLimit1dCreditsNotIn applies the NotIn predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldRateLimit1dCredits, vs...))
+}
+
+// RateLimit1dCreditsGT applies the GT predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldRateLimit1dCredits, v))
+}
+
+// RateLimit1dCreditsGTE applies the GTE predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldRateLimit1dCredits, v))
+}
+
+// RateLimit1dCreditsLT applies the LT predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldRateLimit1dCredits, v))
+}
+
+// RateLimit1dCreditsLTE applies the LTE predicate on the "rate_limit_1d_credits" field.
+func RateLimit1dCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldRateLimit1dCredits, v))
 }
 
 // RateLimit7dEQ applies the EQ predicate on the "rate_limit_7d" field.
@@ -855,6 +1055,46 @@ func RateLimit7dLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldRateLimit7d, v))
 }
 
+// RateLimit7dCreditsEQ applies the EQ predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRateLimit7dCredits, v))
+}
+
+// RateLimit7dCreditsNEQ applies the NEQ predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldRateLimit7dCredits, v))
+}
+
+// RateLimit7dCreditsIn applies the In predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldRateLimit7dCredits, vs...))
+}
+
+// RateLimit7dCreditsNotIn applies the NotIn predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldRateLimit7dCredits, vs...))
+}
+
+// RateLimit7dCreditsGT applies the GT predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldRateLimit7dCredits, v))
+}
+
+// RateLimit7dCreditsGTE applies the GTE predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldRateLimit7dCredits, v))
+}
+
+// RateLimit7dCreditsLT applies the LT predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldRateLimit7dCredits, v))
+}
+
+// RateLimit7dCreditsLTE applies the LTE predicate on the "rate_limit_7d_credits" field.
+func RateLimit7dCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldRateLimit7dCredits, v))
+}
+
 // Usage5hEQ applies the EQ predicate on the "usage_5h" field.
 func Usage5hEQ(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldUsage5h, v))
@@ -893,6 +1133,46 @@ func Usage5hLT(v float64) predicate.APIKey {
 // Usage5hLTE applies the LTE predicate on the "usage_5h" field.
 func Usage5hLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldUsage5h, v))
+}
+
+// Usage5hCreditsEQ applies the EQ predicate on the "usage_5h_credits" field.
+func Usage5hCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage5hCredits, v))
+}
+
+// Usage5hCreditsNEQ applies the NEQ predicate on the "usage_5h_credits" field.
+func Usage5hCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldUsage5hCredits, v))
+}
+
+// Usage5hCreditsIn applies the In predicate on the "usage_5h_credits" field.
+func Usage5hCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldUsage5hCredits, vs...))
+}
+
+// Usage5hCreditsNotIn applies the NotIn predicate on the "usage_5h_credits" field.
+func Usage5hCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldUsage5hCredits, vs...))
+}
+
+// Usage5hCreditsGT applies the GT predicate on the "usage_5h_credits" field.
+func Usage5hCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldUsage5hCredits, v))
+}
+
+// Usage5hCreditsGTE applies the GTE predicate on the "usage_5h_credits" field.
+func Usage5hCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldUsage5hCredits, v))
+}
+
+// Usage5hCreditsLT applies the LT predicate on the "usage_5h_credits" field.
+func Usage5hCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldUsage5hCredits, v))
+}
+
+// Usage5hCreditsLTE applies the LTE predicate on the "usage_5h_credits" field.
+func Usage5hCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldUsage5hCredits, v))
 }
 
 // Usage1dEQ applies the EQ predicate on the "usage_1d" field.
@@ -935,6 +1215,46 @@ func Usage1dLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldUsage1d, v))
 }
 
+// Usage1dCreditsEQ applies the EQ predicate on the "usage_1d_credits" field.
+func Usage1dCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage1dCredits, v))
+}
+
+// Usage1dCreditsNEQ applies the NEQ predicate on the "usage_1d_credits" field.
+func Usage1dCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldUsage1dCredits, v))
+}
+
+// Usage1dCreditsIn applies the In predicate on the "usage_1d_credits" field.
+func Usage1dCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldUsage1dCredits, vs...))
+}
+
+// Usage1dCreditsNotIn applies the NotIn predicate on the "usage_1d_credits" field.
+func Usage1dCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldUsage1dCredits, vs...))
+}
+
+// Usage1dCreditsGT applies the GT predicate on the "usage_1d_credits" field.
+func Usage1dCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldUsage1dCredits, v))
+}
+
+// Usage1dCreditsGTE applies the GTE predicate on the "usage_1d_credits" field.
+func Usage1dCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldUsage1dCredits, v))
+}
+
+// Usage1dCreditsLT applies the LT predicate on the "usage_1d_credits" field.
+func Usage1dCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldUsage1dCredits, v))
+}
+
+// Usage1dCreditsLTE applies the LTE predicate on the "usage_1d_credits" field.
+func Usage1dCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldUsage1dCredits, v))
+}
+
 // Usage7dEQ applies the EQ predicate on the "usage_7d" field.
 func Usage7dEQ(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldUsage7d, v))
@@ -973,6 +1293,46 @@ func Usage7dLT(v float64) predicate.APIKey {
 // Usage7dLTE applies the LTE predicate on the "usage_7d" field.
 func Usage7dLTE(v float64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldLTE(FieldUsage7d, v))
+}
+
+// Usage7dCreditsEQ applies the EQ predicate on the "usage_7d_credits" field.
+func Usage7dCreditsEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldUsage7dCredits, v))
+}
+
+// Usage7dCreditsNEQ applies the NEQ predicate on the "usage_7d_credits" field.
+func Usage7dCreditsNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldUsage7dCredits, v))
+}
+
+// Usage7dCreditsIn applies the In predicate on the "usage_7d_credits" field.
+func Usage7dCreditsIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldUsage7dCredits, vs...))
+}
+
+// Usage7dCreditsNotIn applies the NotIn predicate on the "usage_7d_credits" field.
+func Usage7dCreditsNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldUsage7dCredits, vs...))
+}
+
+// Usage7dCreditsGT applies the GT predicate on the "usage_7d_credits" field.
+func Usage7dCreditsGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldUsage7dCredits, v))
+}
+
+// Usage7dCreditsGTE applies the GTE predicate on the "usage_7d_credits" field.
+func Usage7dCreditsGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldUsage7dCredits, v))
+}
+
+// Usage7dCreditsLT applies the LT predicate on the "usage_7d_credits" field.
+func Usage7dCreditsLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldUsage7dCredits, v))
+}
+
+// Usage7dCreditsLTE applies the LTE predicate on the "usage_7d_credits" field.
+func Usage7dCreditsLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldUsage7dCredits, v))
 }
 
 // Window5hStartEQ applies the EQ predicate on the "window_5h_start" field.

@@ -29,8 +29,9 @@ func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthCli
 
 // BuildInfo contains build information
 type BuildInfo struct {
-	Version   string
-	BuildType string
+	Version         string
+	UpstreamVersion string
+	BuildType       string
 }
 
 // ProvidePricingService creates and initializes PricingService
@@ -45,7 +46,8 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 
 // ProvideUpdateService creates UpdateService with BuildInfo
 func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
-	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
+	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType).
+		WithUpstreamVersion(buildInfo.UpstreamVersion)
 }
 
 // ProvideEmailQueueService creates EmailQueueService with default worker count
@@ -795,8 +797,14 @@ func ProvideOpsIngressRejectAggregator(opsRepo OpsRepository, opsService *OpsSer
 func ProvideSettingService(scopedKeys ScopedAdminKeyRepository, settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
 	svc.scopedAdminKeyRepo = scopedKeys
+	_ = svc.GetBillingCurrencyConfig(context.Background())
+	svc.StartBillingCurrencyRefresh(context.Background())
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
+	// Warm the billing-currency snapshot and let the hot path refresh it
+	// asynchronously when another instance updates the shared setting.
+	setBillingCurrencyConfigLoader(svc.GetBillingCurrencyConfig)
+	_ = svc.GetBillingCurrencyConfig(context.Background())
 	if err := svc.LoadForwardedClientIPSettings(context.Background()); err != nil {
 		logger.LegacyPrintf("service.setting", "Warning: load forwarded client IP settings failed: %v", err)
 	}

@@ -175,6 +175,132 @@ func (_u *PaymentOrderUpdate) AddBonusAmount(v float64) *PaymentOrderUpdate {
 	return _u
 }
 
+// SetCreditedCredits sets the "credited_credits" field.
+func (_u *PaymentOrderUpdate) SetCreditedCredits(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetCreditedCredits()
+	_u.mutation.SetCreditedCredits(v)
+	return _u
+}
+
+// SetNillableCreditedCredits sets the "credited_credits" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableCreditedCredits(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetCreditedCredits(*v)
+	}
+	return _u
+}
+
+// AddCreditedCredits adds value to the "credited_credits" field.
+func (_u *PaymentOrderUpdate) AddCreditedCredits(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddCreditedCredits(v)
+	return _u
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (_u *PaymentOrderUpdate) SetBonusCredits(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetBonusCredits()
+	_u.mutation.SetBonusCredits(v)
+	return _u
+}
+
+// SetNillableBonusCredits sets the "bonus_credits" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableBonusCredits(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetBonusCredits(*v)
+	}
+	return _u
+}
+
+// AddBonusCredits adds value to the "bonus_credits" field.
+func (_u *PaymentOrderUpdate) AddBonusCredits(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddBonusCredits(v)
+	return _u
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (_u *PaymentOrderUpdate) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetCreditsPerUsdSnapshot()
+	_u.mutation.SetCreditsPerUsdSnapshot(v)
+	return _u
+}
+
+// SetNillableCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableCreditsPerUsdSnapshot(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetCreditsPerUsdSnapshot(*v)
+	}
+	return _u
+}
+
+// AddCreditsPerUsdSnapshot adds value to the "credits_per_usd_snapshot" field.
+func (_u *PaymentOrderUpdate) AddCreditsPerUsdSnapshot(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddCreditsPerUsdSnapshot(v)
+	return _u
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (_u *PaymentOrderUpdate) SetUsdToCnySnapshot(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetUsdToCnySnapshot()
+	_u.mutation.SetUsdToCnySnapshot(v)
+	return _u
+}
+
+// SetNillableUsdToCnySnapshot sets the "usd_to_cny_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableUsdToCnySnapshot(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetUsdToCnySnapshot(*v)
+	}
+	return _u
+}
+
+// AddUsdToCnySnapshot adds value to the "usd_to_cny_snapshot" field.
+func (_u *PaymentOrderUpdate) AddUsdToCnySnapshot(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddUsdToCnySnapshot(v)
+	return _u
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (_u *PaymentOrderUpdate) SetRechargeRateSnapshot(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetRechargeRateSnapshot()
+	_u.mutation.SetRechargeRateSnapshot(v)
+	return _u
+}
+
+// SetNillableRechargeRateSnapshot sets the "recharge_rate_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableRechargeRateSnapshot(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetRechargeRateSnapshot(*v)
+	}
+	return _u
+}
+
+// AddRechargeRateSnapshot adds value to the "recharge_rate_snapshot" field.
+func (_u *PaymentOrderUpdate) AddRechargeRateSnapshot(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddRechargeRateSnapshot(v)
+	return _u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_u *PaymentOrderUpdate) SetBillingVersion(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetBillingVersion()
+	_u.mutation.SetBillingVersion(v)
+	return _u
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableBillingVersion(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetBillingVersion(*v)
+	}
+	return _u
+}
+
+// AddBillingVersion adds value to the "billing_version" field.
+func (_u *PaymentOrderUpdate) AddBillingVersion(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddBillingVersion(v)
+	return _u
+}
+
 // SetRechargeCode sets the "recharge_code" field.
 func (_u *PaymentOrderUpdate) SetRechargeCode(v string) *PaymentOrderUpdate {
 	_u.mutation.SetRechargeCode(v)
@@ -908,6 +1034,42 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(paymentorder.FieldBonusAmount, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.CreditedCredits(); ok {
+		_spec.SetField(paymentorder.FieldCreditedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditedCredits(); ok {
+		_spec.AddField(paymentorder.FieldCreditedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BonusCredits(); ok {
+		_spec.SetField(paymentorder.FieldBonusCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBonusCredits(); ok {
+		_spec.AddField(paymentorder.FieldBonusCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.CreditsPerUsdSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldCreditsPerUsdSnapshot, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditsPerUsdSnapshot(); ok {
+		_spec.AddField(paymentorder.FieldCreditsPerUsdSnapshot, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.UsdToCnySnapshot(); ok {
+		_spec.SetField(paymentorder.FieldUsdToCnySnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUsdToCnySnapshot(); ok {
+		_spec.AddField(paymentorder.FieldUsdToCnySnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.RechargeRateSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldRechargeRateSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedRechargeRateSnapshot(); ok {
+		_spec.AddField(paymentorder.FieldRechargeRateSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingVersion(); ok {
+		_spec.SetField(paymentorder.FieldBillingVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBillingVersion(); ok {
+		_spec.AddField(paymentorder.FieldBillingVersion, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
 	}
@@ -1262,6 +1424,132 @@ func (_u *PaymentOrderUpdateOne) SetNillableBonusAmount(v *float64) *PaymentOrde
 // AddBonusAmount adds value to the "bonus_amount" field.
 func (_u *PaymentOrderUpdateOne) AddBonusAmount(v float64) *PaymentOrderUpdateOne {
 	_u.mutation.AddBonusAmount(v)
+	return _u
+}
+
+// SetCreditedCredits sets the "credited_credits" field.
+func (_u *PaymentOrderUpdateOne) SetCreditedCredits(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetCreditedCredits()
+	_u.mutation.SetCreditedCredits(v)
+	return _u
+}
+
+// SetNillableCreditedCredits sets the "credited_credits" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableCreditedCredits(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetCreditedCredits(*v)
+	}
+	return _u
+}
+
+// AddCreditedCredits adds value to the "credited_credits" field.
+func (_u *PaymentOrderUpdateOne) AddCreditedCredits(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddCreditedCredits(v)
+	return _u
+}
+
+// SetBonusCredits sets the "bonus_credits" field.
+func (_u *PaymentOrderUpdateOne) SetBonusCredits(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetBonusCredits()
+	_u.mutation.SetBonusCredits(v)
+	return _u
+}
+
+// SetNillableBonusCredits sets the "bonus_credits" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableBonusCredits(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetBonusCredits(*v)
+	}
+	return _u
+}
+
+// AddBonusCredits adds value to the "bonus_credits" field.
+func (_u *PaymentOrderUpdateOne) AddBonusCredits(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddBonusCredits(v)
+	return _u
+}
+
+// SetCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field.
+func (_u *PaymentOrderUpdateOne) SetCreditsPerUsdSnapshot(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetCreditsPerUsdSnapshot()
+	_u.mutation.SetCreditsPerUsdSnapshot(v)
+	return _u
+}
+
+// SetNillableCreditsPerUsdSnapshot sets the "credits_per_usd_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableCreditsPerUsdSnapshot(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetCreditsPerUsdSnapshot(*v)
+	}
+	return _u
+}
+
+// AddCreditsPerUsdSnapshot adds value to the "credits_per_usd_snapshot" field.
+func (_u *PaymentOrderUpdateOne) AddCreditsPerUsdSnapshot(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddCreditsPerUsdSnapshot(v)
+	return _u
+}
+
+// SetUsdToCnySnapshot sets the "usd_to_cny_snapshot" field.
+func (_u *PaymentOrderUpdateOne) SetUsdToCnySnapshot(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetUsdToCnySnapshot()
+	_u.mutation.SetUsdToCnySnapshot(v)
+	return _u
+}
+
+// SetNillableUsdToCnySnapshot sets the "usd_to_cny_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableUsdToCnySnapshot(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetUsdToCnySnapshot(*v)
+	}
+	return _u
+}
+
+// AddUsdToCnySnapshot adds value to the "usd_to_cny_snapshot" field.
+func (_u *PaymentOrderUpdateOne) AddUsdToCnySnapshot(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddUsdToCnySnapshot(v)
+	return _u
+}
+
+// SetRechargeRateSnapshot sets the "recharge_rate_snapshot" field.
+func (_u *PaymentOrderUpdateOne) SetRechargeRateSnapshot(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetRechargeRateSnapshot()
+	_u.mutation.SetRechargeRateSnapshot(v)
+	return _u
+}
+
+// SetNillableRechargeRateSnapshot sets the "recharge_rate_snapshot" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableRechargeRateSnapshot(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetRechargeRateSnapshot(*v)
+	}
+	return _u
+}
+
+// AddRechargeRateSnapshot adds value to the "recharge_rate_snapshot" field.
+func (_u *PaymentOrderUpdateOne) AddRechargeRateSnapshot(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddRechargeRateSnapshot(v)
+	return _u
+}
+
+// SetBillingVersion sets the "billing_version" field.
+func (_u *PaymentOrderUpdateOne) SetBillingVersion(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetBillingVersion()
+	_u.mutation.SetBillingVersion(v)
+	return _u
+}
+
+// SetNillableBillingVersion sets the "billing_version" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableBillingVersion(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetBillingVersion(*v)
+	}
+	return _u
+}
+
+// AddBillingVersion adds value to the "billing_version" field.
+func (_u *PaymentOrderUpdateOne) AddBillingVersion(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddBillingVersion(v)
 	return _u
 }
 
@@ -2027,6 +2315,42 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(paymentorder.FieldBonusAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.CreditedCredits(); ok {
+		_spec.SetField(paymentorder.FieldCreditedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditedCredits(); ok {
+		_spec.AddField(paymentorder.FieldCreditedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BonusCredits(); ok {
+		_spec.SetField(paymentorder.FieldBonusCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBonusCredits(); ok {
+		_spec.AddField(paymentorder.FieldBonusCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.CreditsPerUsdSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldCreditsPerUsdSnapshot, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditsPerUsdSnapshot(); ok {
+		_spec.AddField(paymentorder.FieldCreditsPerUsdSnapshot, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.UsdToCnySnapshot(); ok {
+		_spec.SetField(paymentorder.FieldUsdToCnySnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedUsdToCnySnapshot(); ok {
+		_spec.AddField(paymentorder.FieldUsdToCnySnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.RechargeRateSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldRechargeRateSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedRechargeRateSnapshot(); ok {
+		_spec.AddField(paymentorder.FieldRechargeRateSnapshot, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingVersion(); ok {
+		_spec.SetField(paymentorder.FieldBillingVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBillingVersion(); ok {
+		_spec.AddField(paymentorder.FieldBillingVersion, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)

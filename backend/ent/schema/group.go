@@ -91,14 +91,23 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Int64("daily_limit_credits").
+			Optional().
+			Nillable(),
 		field.Float("weekly_limit_usd").
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Int64("weekly_limit_credits").
+			Optional().
+			Nillable(),
 		field.Float("monthly_limit_usd").
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Int64("monthly_limit_credits").
+			Optional().
+			Nillable(),
 		field.Int("default_validity_days").
 			Default(30),
 

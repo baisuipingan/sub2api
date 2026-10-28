@@ -211,6 +211,27 @@ func (_u *APIKeyUpdate) AddQuota(v float64) *APIKeyUpdate {
 	return _u
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (_u *APIKeyUpdate) SetQuotaCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetQuotaCredits()
+	_u.mutation.SetQuotaCredits(v)
+	return _u
+}
+
+// SetNillableQuotaCredits sets the "quota_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableQuotaCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetQuotaCredits(*v)
+	}
+	return _u
+}
+
+// AddQuotaCredits adds value to the "quota_credits" field.
+func (_u *APIKeyUpdate) AddQuotaCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddQuotaCredits(v)
+	return _u
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (_u *APIKeyUpdate) SetQuotaUsed(v float64) *APIKeyUpdate {
 	_u.mutation.ResetQuotaUsed()
@@ -229,6 +250,27 @@ func (_u *APIKeyUpdate) SetNillableQuotaUsed(v *float64) *APIKeyUpdate {
 // AddQuotaUsed adds value to the "quota_used" field.
 func (_u *APIKeyUpdate) AddQuotaUsed(v float64) *APIKeyUpdate {
 	_u.mutation.AddQuotaUsed(v)
+	return _u
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (_u *APIKeyUpdate) SetQuotaUsedCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetQuotaUsedCredits()
+	_u.mutation.SetQuotaUsedCredits(v)
+	return _u
+}
+
+// SetNillableQuotaUsedCredits sets the "quota_used_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableQuotaUsedCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetQuotaUsedCredits(*v)
+	}
+	return _u
+}
+
+// AddQuotaUsedCredits adds value to the "quota_used_credits" field.
+func (_u *APIKeyUpdate) AddQuotaUsedCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddQuotaUsedCredits(v)
 	return _u
 }
 
@@ -273,6 +315,27 @@ func (_u *APIKeyUpdate) AddRateLimit5h(v float64) *APIKeyUpdate {
 	return _u
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (_u *APIKeyUpdate) SetRateLimit5hCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetRateLimit5hCredits()
+	_u.mutation.SetRateLimit5hCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit5hCredits sets the "rate_limit_5h_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableRateLimit5hCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetRateLimit5hCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit5hCredits adds value to the "rate_limit_5h_credits" field.
+func (_u *APIKeyUpdate) AddRateLimit5hCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddRateLimit5hCredits(v)
+	return _u
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (_u *APIKeyUpdate) SetRateLimit1d(v float64) *APIKeyUpdate {
 	_u.mutation.ResetRateLimit1d()
@@ -291,6 +354,27 @@ func (_u *APIKeyUpdate) SetNillableRateLimit1d(v *float64) *APIKeyUpdate {
 // AddRateLimit1d adds value to the "rate_limit_1d" field.
 func (_u *APIKeyUpdate) AddRateLimit1d(v float64) *APIKeyUpdate {
 	_u.mutation.AddRateLimit1d(v)
+	return _u
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (_u *APIKeyUpdate) SetRateLimit1dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetRateLimit1dCredits()
+	_u.mutation.SetRateLimit1dCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit1dCredits sets the "rate_limit_1d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableRateLimit1dCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetRateLimit1dCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit1dCredits adds value to the "rate_limit_1d_credits" field.
+func (_u *APIKeyUpdate) AddRateLimit1dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddRateLimit1dCredits(v)
 	return _u
 }
 
@@ -315,6 +399,27 @@ func (_u *APIKeyUpdate) AddRateLimit7d(v float64) *APIKeyUpdate {
 	return _u
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (_u *APIKeyUpdate) SetRateLimit7dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetRateLimit7dCredits()
+	_u.mutation.SetRateLimit7dCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit7dCredits sets the "rate_limit_7d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableRateLimit7dCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetRateLimit7dCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit7dCredits adds value to the "rate_limit_7d_credits" field.
+func (_u *APIKeyUpdate) AddRateLimit7dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddRateLimit7dCredits(v)
+	return _u
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (_u *APIKeyUpdate) SetUsage5h(v float64) *APIKeyUpdate {
 	_u.mutation.ResetUsage5h()
@@ -333,6 +438,27 @@ func (_u *APIKeyUpdate) SetNillableUsage5h(v *float64) *APIKeyUpdate {
 // AddUsage5h adds value to the "usage_5h" field.
 func (_u *APIKeyUpdate) AddUsage5h(v float64) *APIKeyUpdate {
 	_u.mutation.AddUsage5h(v)
+	return _u
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (_u *APIKeyUpdate) SetUsage5hCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetUsage5hCredits()
+	_u.mutation.SetUsage5hCredits(v)
+	return _u
+}
+
+// SetNillableUsage5hCredits sets the "usage_5h_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableUsage5hCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetUsage5hCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage5hCredits adds value to the "usage_5h_credits" field.
+func (_u *APIKeyUpdate) AddUsage5hCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddUsage5hCredits(v)
 	return _u
 }
 
@@ -357,6 +483,27 @@ func (_u *APIKeyUpdate) AddUsage1d(v float64) *APIKeyUpdate {
 	return _u
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (_u *APIKeyUpdate) SetUsage1dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetUsage1dCredits()
+	_u.mutation.SetUsage1dCredits(v)
+	return _u
+}
+
+// SetNillableUsage1dCredits sets the "usage_1d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableUsage1dCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetUsage1dCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage1dCredits adds value to the "usage_1d_credits" field.
+func (_u *APIKeyUpdate) AddUsage1dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddUsage1dCredits(v)
+	return _u
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (_u *APIKeyUpdate) SetUsage7d(v float64) *APIKeyUpdate {
 	_u.mutation.ResetUsage7d()
@@ -375,6 +522,27 @@ func (_u *APIKeyUpdate) SetNillableUsage7d(v *float64) *APIKeyUpdate {
 // AddUsage7d adds value to the "usage_7d" field.
 func (_u *APIKeyUpdate) AddUsage7d(v float64) *APIKeyUpdate {
 	_u.mutation.AddUsage7d(v)
+	return _u
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (_u *APIKeyUpdate) SetUsage7dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.ResetUsage7dCredits()
+	_u.mutation.SetUsage7dCredits(v)
+	return _u
+}
+
+// SetNillableUsage7dCredits sets the "usage_7d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableUsage7dCredits(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetUsage7dCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage7dCredits adds value to the "usage_7d_credits" field.
+func (_u *APIKeyUpdate) AddUsage7dCredits(v int64) *APIKeyUpdate {
+	_u.mutation.AddUsage7dCredits(v)
 	return _u
 }
 
@@ -630,11 +798,23 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedQuota(); ok {
 		_spec.AddField(apikey.FieldQuota, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.QuotaCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedQuotaCredits(); ok {
+		_spec.AddField(apikey.FieldQuotaCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.QuotaUsed(); ok {
 		_spec.SetField(apikey.FieldQuotaUsed, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedQuotaUsed(); ok {
 		_spec.AddField(apikey.FieldQuotaUsed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.QuotaUsedCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaUsedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedQuotaUsedCredits(); ok {
+		_spec.AddField(apikey.FieldQuotaUsedCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
@@ -648,11 +828,23 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRateLimit5h(); ok {
 		_spec.AddField(apikey.FieldRateLimit5h, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.RateLimit5hCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit5hCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit5hCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit5hCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.RateLimit1d(); ok {
 		_spec.SetField(apikey.FieldRateLimit1d, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedRateLimit1d(); ok {
 		_spec.AddField(apikey.FieldRateLimit1d, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.RateLimit1dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit1dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit1dCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit1dCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RateLimit7d(); ok {
 		_spec.SetField(apikey.FieldRateLimit7d, field.TypeFloat64, value)
@@ -660,11 +852,23 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRateLimit7d(); ok {
 		_spec.AddField(apikey.FieldRateLimit7d, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.RateLimit7dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit7dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit7dCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit7dCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Usage5h(); ok {
 		_spec.SetField(apikey.FieldUsage5h, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedUsage5h(); ok {
 		_spec.AddField(apikey.FieldUsage5h, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.Usage5hCredits(); ok {
+		_spec.SetField(apikey.FieldUsage5hCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage5hCredits(); ok {
+		_spec.AddField(apikey.FieldUsage5hCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Usage1d(); ok {
 		_spec.SetField(apikey.FieldUsage1d, field.TypeFloat64, value)
@@ -672,11 +876,23 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedUsage1d(); ok {
 		_spec.AddField(apikey.FieldUsage1d, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.Usage1dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage1dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage1dCredits(); ok {
+		_spec.AddField(apikey.FieldUsage1dCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Usage7d(); ok {
 		_spec.SetField(apikey.FieldUsage7d, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedUsage7d(); ok {
 		_spec.AddField(apikey.FieldUsage7d, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.Usage7dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage7dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage7dCredits(); ok {
+		_spec.AddField(apikey.FieldUsage7dCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Window5hStart(); ok {
 		_spec.SetField(apikey.FieldWindow5hStart, field.TypeTime, value)
@@ -998,6 +1214,27 @@ func (_u *APIKeyUpdateOne) AddQuota(v float64) *APIKeyUpdateOne {
 	return _u
 }
 
+// SetQuotaCredits sets the "quota_credits" field.
+func (_u *APIKeyUpdateOne) SetQuotaCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetQuotaCredits()
+	_u.mutation.SetQuotaCredits(v)
+	return _u
+}
+
+// SetNillableQuotaCredits sets the "quota_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableQuotaCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetQuotaCredits(*v)
+	}
+	return _u
+}
+
+// AddQuotaCredits adds value to the "quota_credits" field.
+func (_u *APIKeyUpdateOne) AddQuotaCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddQuotaCredits(v)
+	return _u
+}
+
 // SetQuotaUsed sets the "quota_used" field.
 func (_u *APIKeyUpdateOne) SetQuotaUsed(v float64) *APIKeyUpdateOne {
 	_u.mutation.ResetQuotaUsed()
@@ -1016,6 +1253,27 @@ func (_u *APIKeyUpdateOne) SetNillableQuotaUsed(v *float64) *APIKeyUpdateOne {
 // AddQuotaUsed adds value to the "quota_used" field.
 func (_u *APIKeyUpdateOne) AddQuotaUsed(v float64) *APIKeyUpdateOne {
 	_u.mutation.AddQuotaUsed(v)
+	return _u
+}
+
+// SetQuotaUsedCredits sets the "quota_used_credits" field.
+func (_u *APIKeyUpdateOne) SetQuotaUsedCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetQuotaUsedCredits()
+	_u.mutation.SetQuotaUsedCredits(v)
+	return _u
+}
+
+// SetNillableQuotaUsedCredits sets the "quota_used_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableQuotaUsedCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetQuotaUsedCredits(*v)
+	}
+	return _u
+}
+
+// AddQuotaUsedCredits adds value to the "quota_used_credits" field.
+func (_u *APIKeyUpdateOne) AddQuotaUsedCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddQuotaUsedCredits(v)
 	return _u
 }
 
@@ -1060,6 +1318,27 @@ func (_u *APIKeyUpdateOne) AddRateLimit5h(v float64) *APIKeyUpdateOne {
 	return _u
 }
 
+// SetRateLimit5hCredits sets the "rate_limit_5h_credits" field.
+func (_u *APIKeyUpdateOne) SetRateLimit5hCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetRateLimit5hCredits()
+	_u.mutation.SetRateLimit5hCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit5hCredits sets the "rate_limit_5h_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableRateLimit5hCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetRateLimit5hCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit5hCredits adds value to the "rate_limit_5h_credits" field.
+func (_u *APIKeyUpdateOne) AddRateLimit5hCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddRateLimit5hCredits(v)
+	return _u
+}
+
 // SetRateLimit1d sets the "rate_limit_1d" field.
 func (_u *APIKeyUpdateOne) SetRateLimit1d(v float64) *APIKeyUpdateOne {
 	_u.mutation.ResetRateLimit1d()
@@ -1078,6 +1357,27 @@ func (_u *APIKeyUpdateOne) SetNillableRateLimit1d(v *float64) *APIKeyUpdateOne {
 // AddRateLimit1d adds value to the "rate_limit_1d" field.
 func (_u *APIKeyUpdateOne) AddRateLimit1d(v float64) *APIKeyUpdateOne {
 	_u.mutation.AddRateLimit1d(v)
+	return _u
+}
+
+// SetRateLimit1dCredits sets the "rate_limit_1d_credits" field.
+func (_u *APIKeyUpdateOne) SetRateLimit1dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetRateLimit1dCredits()
+	_u.mutation.SetRateLimit1dCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit1dCredits sets the "rate_limit_1d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableRateLimit1dCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetRateLimit1dCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit1dCredits adds value to the "rate_limit_1d_credits" field.
+func (_u *APIKeyUpdateOne) AddRateLimit1dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddRateLimit1dCredits(v)
 	return _u
 }
 
@@ -1102,6 +1402,27 @@ func (_u *APIKeyUpdateOne) AddRateLimit7d(v float64) *APIKeyUpdateOne {
 	return _u
 }
 
+// SetRateLimit7dCredits sets the "rate_limit_7d_credits" field.
+func (_u *APIKeyUpdateOne) SetRateLimit7dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetRateLimit7dCredits()
+	_u.mutation.SetRateLimit7dCredits(v)
+	return _u
+}
+
+// SetNillableRateLimit7dCredits sets the "rate_limit_7d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableRateLimit7dCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetRateLimit7dCredits(*v)
+	}
+	return _u
+}
+
+// AddRateLimit7dCredits adds value to the "rate_limit_7d_credits" field.
+func (_u *APIKeyUpdateOne) AddRateLimit7dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddRateLimit7dCredits(v)
+	return _u
+}
+
 // SetUsage5h sets the "usage_5h" field.
 func (_u *APIKeyUpdateOne) SetUsage5h(v float64) *APIKeyUpdateOne {
 	_u.mutation.ResetUsage5h()
@@ -1120,6 +1441,27 @@ func (_u *APIKeyUpdateOne) SetNillableUsage5h(v *float64) *APIKeyUpdateOne {
 // AddUsage5h adds value to the "usage_5h" field.
 func (_u *APIKeyUpdateOne) AddUsage5h(v float64) *APIKeyUpdateOne {
 	_u.mutation.AddUsage5h(v)
+	return _u
+}
+
+// SetUsage5hCredits sets the "usage_5h_credits" field.
+func (_u *APIKeyUpdateOne) SetUsage5hCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetUsage5hCredits()
+	_u.mutation.SetUsage5hCredits(v)
+	return _u
+}
+
+// SetNillableUsage5hCredits sets the "usage_5h_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableUsage5hCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetUsage5hCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage5hCredits adds value to the "usage_5h_credits" field.
+func (_u *APIKeyUpdateOne) AddUsage5hCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddUsage5hCredits(v)
 	return _u
 }
 
@@ -1144,6 +1486,27 @@ func (_u *APIKeyUpdateOne) AddUsage1d(v float64) *APIKeyUpdateOne {
 	return _u
 }
 
+// SetUsage1dCredits sets the "usage_1d_credits" field.
+func (_u *APIKeyUpdateOne) SetUsage1dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetUsage1dCredits()
+	_u.mutation.SetUsage1dCredits(v)
+	return _u
+}
+
+// SetNillableUsage1dCredits sets the "usage_1d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableUsage1dCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetUsage1dCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage1dCredits adds value to the "usage_1d_credits" field.
+func (_u *APIKeyUpdateOne) AddUsage1dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddUsage1dCredits(v)
+	return _u
+}
+
 // SetUsage7d sets the "usage_7d" field.
 func (_u *APIKeyUpdateOne) SetUsage7d(v float64) *APIKeyUpdateOne {
 	_u.mutation.ResetUsage7d()
@@ -1162,6 +1525,27 @@ func (_u *APIKeyUpdateOne) SetNillableUsage7d(v *float64) *APIKeyUpdateOne {
 // AddUsage7d adds value to the "usage_7d" field.
 func (_u *APIKeyUpdateOne) AddUsage7d(v float64) *APIKeyUpdateOne {
 	_u.mutation.AddUsage7d(v)
+	return _u
+}
+
+// SetUsage7dCredits sets the "usage_7d_credits" field.
+func (_u *APIKeyUpdateOne) SetUsage7dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetUsage7dCredits()
+	_u.mutation.SetUsage7dCredits(v)
+	return _u
+}
+
+// SetNillableUsage7dCredits sets the "usage_7d_credits" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableUsage7dCredits(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetUsage7dCredits(*v)
+	}
+	return _u
+}
+
+// AddUsage7dCredits adds value to the "usage_7d_credits" field.
+func (_u *APIKeyUpdateOne) AddUsage7dCredits(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddUsage7dCredits(v)
 	return _u
 }
 
@@ -1447,11 +1831,23 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	if value, ok := _u.mutation.AddedQuota(); ok {
 		_spec.AddField(apikey.FieldQuota, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.QuotaCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedQuotaCredits(); ok {
+		_spec.AddField(apikey.FieldQuotaCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.QuotaUsed(); ok {
 		_spec.SetField(apikey.FieldQuotaUsed, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedQuotaUsed(); ok {
 		_spec.AddField(apikey.FieldQuotaUsed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.QuotaUsedCredits(); ok {
+		_spec.SetField(apikey.FieldQuotaUsedCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedQuotaUsedCredits(); ok {
+		_spec.AddField(apikey.FieldQuotaUsedCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
@@ -1465,11 +1861,23 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	if value, ok := _u.mutation.AddedRateLimit5h(); ok {
 		_spec.AddField(apikey.FieldRateLimit5h, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.RateLimit5hCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit5hCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit5hCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit5hCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.RateLimit1d(); ok {
 		_spec.SetField(apikey.FieldRateLimit1d, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedRateLimit1d(); ok {
 		_spec.AddField(apikey.FieldRateLimit1d, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.RateLimit1dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit1dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit1dCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit1dCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RateLimit7d(); ok {
 		_spec.SetField(apikey.FieldRateLimit7d, field.TypeFloat64, value)
@@ -1477,11 +1885,23 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	if value, ok := _u.mutation.AddedRateLimit7d(); ok {
 		_spec.AddField(apikey.FieldRateLimit7d, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.RateLimit7dCredits(); ok {
+		_spec.SetField(apikey.FieldRateLimit7dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimit7dCredits(); ok {
+		_spec.AddField(apikey.FieldRateLimit7dCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Usage5h(); ok {
 		_spec.SetField(apikey.FieldUsage5h, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedUsage5h(); ok {
 		_spec.AddField(apikey.FieldUsage5h, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.Usage5hCredits(); ok {
+		_spec.SetField(apikey.FieldUsage5hCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage5hCredits(); ok {
+		_spec.AddField(apikey.FieldUsage5hCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Usage1d(); ok {
 		_spec.SetField(apikey.FieldUsage1d, field.TypeFloat64, value)
@@ -1489,11 +1909,23 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	if value, ok := _u.mutation.AddedUsage1d(); ok {
 		_spec.AddField(apikey.FieldUsage1d, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.Usage1dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage1dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage1dCredits(); ok {
+		_spec.AddField(apikey.FieldUsage1dCredits, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Usage7d(); ok {
 		_spec.SetField(apikey.FieldUsage7d, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedUsage7d(); ok {
 		_spec.AddField(apikey.FieldUsage7d, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.Usage7dCredits(); ok {
+		_spec.SetField(apikey.FieldUsage7dCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedUsage7dCredits(); ok {
+		_spec.AddField(apikey.FieldUsage7dCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Window5hStart(); ok {
 		_spec.SetField(apikey.FieldWindow5hStart, field.TypeTime, value)

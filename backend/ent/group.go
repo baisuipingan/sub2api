@@ -54,10 +54,16 @@ type Group struct {
 	SubscriptionType string `json:"subscription_type,omitempty"`
 	// DailyLimitUsd holds the value of the "daily_limit_usd" field.
 	DailyLimitUsd *float64 `json:"daily_limit_usd,omitempty"`
+	// DailyLimitCredits holds the value of the "daily_limit_credits" field.
+	DailyLimitCredits *int64 `json:"daily_limit_credits,omitempty"`
 	// WeeklyLimitUsd holds the value of the "weekly_limit_usd" field.
 	WeeklyLimitUsd *float64 `json:"weekly_limit_usd,omitempty"`
+	// WeeklyLimitCredits holds the value of the "weekly_limit_credits" field.
+	WeeklyLimitCredits *int64 `json:"weekly_limit_credits,omitempty"`
 	// MonthlyLimitUsd holds the value of the "monthly_limit_usd" field.
 	MonthlyLimitUsd *float64 `json:"monthly_limit_usd,omitempty"`
+	// MonthlyLimitCredits holds the value of the "monthly_limit_credits" field.
+	MonthlyLimitCredits *int64 `json:"monthly_limit_credits,omitempty"`
 	// DefaultValidityDays holds the value of the "default_validity_days" field.
 	DefaultValidityDays int `json:"default_validity_days,omitempty"`
 	// 是否允许该分组使用图片生成能力
@@ -268,7 +274,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldDailyLimitCredits, group.FieldWeeklyLimitCredits, group.FieldMonthlyLimitCredits, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
 			values[i] = new(sql.NullString)
@@ -403,6 +409,13 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				_m.DailyLimitUsd = new(float64)
 				*_m.DailyLimitUsd = value.Float64
 			}
+		case group.FieldDailyLimitCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field daily_limit_credits", values[i])
+			} else if value.Valid {
+				_m.DailyLimitCredits = new(int64)
+				*_m.DailyLimitCredits = value.Int64
+			}
 		case group.FieldWeeklyLimitUsd:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field weekly_limit_usd", values[i])
@@ -410,12 +423,26 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				_m.WeeklyLimitUsd = new(float64)
 				*_m.WeeklyLimitUsd = value.Float64
 			}
+		case group.FieldWeeklyLimitCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field weekly_limit_credits", values[i])
+			} else if value.Valid {
+				_m.WeeklyLimitCredits = new(int64)
+				*_m.WeeklyLimitCredits = value.Int64
+			}
 		case group.FieldMonthlyLimitUsd:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field monthly_limit_usd", values[i])
 			} else if value.Valid {
 				_m.MonthlyLimitUsd = new(float64)
 				*_m.MonthlyLimitUsd = value.Float64
+			}
+		case group.FieldMonthlyLimitCredits:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field monthly_limit_credits", values[i])
+			} else if value.Valid {
+				_m.MonthlyLimitCredits = new(int64)
+				*_m.MonthlyLimitCredits = value.Int64
 			}
 		case group.FieldDefaultValidityDays:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -875,13 +902,28 @@ func (_m *Group) String() string {
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
+	if v := _m.DailyLimitCredits; v != nil {
+		builder.WriteString("daily_limit_credits=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
 	if v := _m.WeeklyLimitUsd; v != nil {
 		builder.WriteString("weekly_limit_usd=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
+	if v := _m.WeeklyLimitCredits; v != nil {
+		builder.WriteString("weekly_limit_credits=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
 	if v := _m.MonthlyLimitUsd; v != nil {
 		builder.WriteString("monthly_limit_usd=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.MonthlyLimitCredits; v != nil {
+		builder.WriteString("monthly_limit_credits=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

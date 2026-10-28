@@ -58,6 +58,20 @@ func (_c *RedeemCodeCreate) SetNillableValue(v *float64) *RedeemCodeCreate {
 	return _c
 }
 
+// SetValueCredits sets the "value_credits" field.
+func (_c *RedeemCodeCreate) SetValueCredits(v int64) *RedeemCodeCreate {
+	_c.mutation.SetValueCredits(v)
+	return _c
+}
+
+// SetNillableValueCredits sets the "value_credits" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableValueCredits(v *int64) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetValueCredits(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *RedeemCodeCreate) SetStatus(v string) *RedeemCodeCreate {
 	_c.mutation.SetStatus(v)
@@ -237,6 +251,10 @@ func (_c *RedeemCodeCreate) defaults() {
 		v := redeemcode.DefaultValue
 		_c.mutation.SetValue(v)
 	}
+	if _, ok := _c.mutation.ValueCredits(); !ok {
+		v := redeemcode.DefaultValueCredits
+		_c.mutation.SetValueCredits(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := redeemcode.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -271,6 +289,9 @@ func (_c *RedeemCodeCreate) check() error {
 	}
 	if _, ok := _c.mutation.Value(); !ok {
 		return &ValidationError{Name: "value", err: errors.New(`ent: missing required field "RedeemCode.value"`)}
+	}
+	if _, ok := _c.mutation.ValueCredits(); !ok {
+		return &ValidationError{Name: "value_credits", err: errors.New(`ent: missing required field "RedeemCode.value_credits"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "RedeemCode.status"`)}
@@ -324,6 +345,10 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Value(); ok {
 		_spec.SetField(redeemcode.FieldValue, field.TypeFloat64, value)
 		_node.Value = value
+	}
+	if value, ok := _c.mutation.ValueCredits(); ok {
+		_spec.SetField(redeemcode.FieldValueCredits, field.TypeInt64, value)
+		_node.ValueCredits = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(redeemcode.FieldStatus, field.TypeString, value)
@@ -474,6 +499,24 @@ func (u *RedeemCodeUpsert) UpdateValue() *RedeemCodeUpsert {
 // AddValue adds v to the "value" field.
 func (u *RedeemCodeUpsert) AddValue(v float64) *RedeemCodeUpsert {
 	u.Add(redeemcode.FieldValue, v)
+	return u
+}
+
+// SetValueCredits sets the "value_credits" field.
+func (u *RedeemCodeUpsert) SetValueCredits(v int64) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldValueCredits, v)
+	return u
+}
+
+// UpdateValueCredits sets the "value_credits" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateValueCredits() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldValueCredits)
+	return u
+}
+
+// AddValueCredits adds v to the "value_credits" field.
+func (u *RedeemCodeUpsert) AddValueCredits(v int64) *RedeemCodeUpsert {
+	u.Add(redeemcode.FieldValueCredits, v)
 	return u
 }
 
@@ -688,6 +731,27 @@ func (u *RedeemCodeUpsertOne) AddValue(v float64) *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) UpdateValue() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValue()
+	})
+}
+
+// SetValueCredits sets the "value_credits" field.
+func (u *RedeemCodeUpsertOne) SetValueCredits(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetValueCredits(v)
+	})
+}
+
+// AddValueCredits adds v to the "value_credits" field.
+func (u *RedeemCodeUpsertOne) AddValueCredits(v int64) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddValueCredits(v)
+	})
+}
+
+// UpdateValueCredits sets the "value_credits" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateValueCredits() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateValueCredits()
 	})
 }
 
@@ -1088,6 +1152,27 @@ func (u *RedeemCodeUpsertBulk) AddValue(v float64) *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) UpdateValue() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValue()
+	})
+}
+
+// SetValueCredits sets the "value_credits" field.
+func (u *RedeemCodeUpsertBulk) SetValueCredits(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetValueCredits(v)
+	})
+}
+
+// AddValueCredits adds v to the "value_credits" field.
+func (u *RedeemCodeUpsertBulk) AddValueCredits(v int64) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.AddValueCredits(v)
+	})
+}
+
+// UpdateValueCredits sets the "value_credits" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateValueCredits() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateValueCredits()
 	})
 }
 

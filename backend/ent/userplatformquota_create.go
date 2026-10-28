@@ -91,6 +91,20 @@ func (_c *UserPlatformQuotaCreate) SetNillableDailyLimitUsd(v *float64) *UserPla
 	return _c
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (_c *UserPlatformQuotaCreate) SetDailyLimitCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetDailyLimitCredits(v)
+	return _c
+}
+
+// SetNillableDailyLimitCredits sets the "daily_limit_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableDailyLimitCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetDailyLimitCredits(*v)
+	}
+	return _c
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (_c *UserPlatformQuotaCreate) SetWeeklyLimitUsd(v float64) *UserPlatformQuotaCreate {
 	_c.mutation.SetWeeklyLimitUsd(v)
@@ -101,6 +115,20 @@ func (_c *UserPlatformQuotaCreate) SetWeeklyLimitUsd(v float64) *UserPlatformQuo
 func (_c *UserPlatformQuotaCreate) SetNillableWeeklyLimitUsd(v *float64) *UserPlatformQuotaCreate {
 	if v != nil {
 		_c.SetWeeklyLimitUsd(*v)
+	}
+	return _c
+}
+
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (_c *UserPlatformQuotaCreate) SetWeeklyLimitCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetWeeklyLimitCredits(v)
+	return _c
+}
+
+// SetNillableWeeklyLimitCredits sets the "weekly_limit_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableWeeklyLimitCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetWeeklyLimitCredits(*v)
 	}
 	return _c
 }
@@ -119,6 +147,20 @@ func (_c *UserPlatformQuotaCreate) SetNillableMonthlyLimitUsd(v *float64) *UserP
 	return _c
 }
 
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (_c *UserPlatformQuotaCreate) SetMonthlyLimitCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetMonthlyLimitCredits(v)
+	return _c
+}
+
+// SetNillableMonthlyLimitCredits sets the "monthly_limit_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableMonthlyLimitCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetMonthlyLimitCredits(*v)
+	}
+	return _c
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (_c *UserPlatformQuotaCreate) SetDailyUsageUsd(v float64) *UserPlatformQuotaCreate {
 	_c.mutation.SetDailyUsageUsd(v)
@@ -129,6 +171,20 @@ func (_c *UserPlatformQuotaCreate) SetDailyUsageUsd(v float64) *UserPlatformQuot
 func (_c *UserPlatformQuotaCreate) SetNillableDailyUsageUsd(v *float64) *UserPlatformQuotaCreate {
 	if v != nil {
 		_c.SetDailyUsageUsd(*v)
+	}
+	return _c
+}
+
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (_c *UserPlatformQuotaCreate) SetDailyUsageCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetDailyUsageCredits(v)
+	return _c
+}
+
+// SetNillableDailyUsageCredits sets the "daily_usage_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableDailyUsageCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetDailyUsageCredits(*v)
 	}
 	return _c
 }
@@ -147,6 +203,20 @@ func (_c *UserPlatformQuotaCreate) SetNillableWeeklyUsageUsd(v *float64) *UserPl
 	return _c
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (_c *UserPlatformQuotaCreate) SetWeeklyUsageCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetWeeklyUsageCredits(v)
+	return _c
+}
+
+// SetNillableWeeklyUsageCredits sets the "weekly_usage_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableWeeklyUsageCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetWeeklyUsageCredits(*v)
+	}
+	return _c
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (_c *UserPlatformQuotaCreate) SetMonthlyUsageUsd(v float64) *UserPlatformQuotaCreate {
 	_c.mutation.SetMonthlyUsageUsd(v)
@@ -157,6 +227,20 @@ func (_c *UserPlatformQuotaCreate) SetMonthlyUsageUsd(v float64) *UserPlatformQu
 func (_c *UserPlatformQuotaCreate) SetNillableMonthlyUsageUsd(v *float64) *UserPlatformQuotaCreate {
 	if v != nil {
 		_c.SetMonthlyUsageUsd(*v)
+	}
+	return _c
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (_c *UserPlatformQuotaCreate) SetMonthlyUsageCredits(v int64) *UserPlatformQuotaCreate {
+	_c.mutation.SetMonthlyUsageCredits(v)
+	return _c
+}
+
+// SetNillableMonthlyUsageCredits sets the "monthly_usage_credits" field if the given value is not nil.
+func (_c *UserPlatformQuotaCreate) SetNillableMonthlyUsageCredits(v *int64) *UserPlatformQuotaCreate {
+	if v != nil {
+		_c.SetMonthlyUsageCredits(*v)
 	}
 	return _c
 }
@@ -263,13 +347,25 @@ func (_c *UserPlatformQuotaCreate) defaults() error {
 		v := userplatformquota.DefaultDailyUsageUsd
 		_c.mutation.SetDailyUsageUsd(v)
 	}
+	if _, ok := _c.mutation.DailyUsageCredits(); !ok {
+		v := userplatformquota.DefaultDailyUsageCredits
+		_c.mutation.SetDailyUsageCredits(v)
+	}
 	if _, ok := _c.mutation.WeeklyUsageUsd(); !ok {
 		v := userplatformquota.DefaultWeeklyUsageUsd
 		_c.mutation.SetWeeklyUsageUsd(v)
 	}
+	if _, ok := _c.mutation.WeeklyUsageCredits(); !ok {
+		v := userplatformquota.DefaultWeeklyUsageCredits
+		_c.mutation.SetWeeklyUsageCredits(v)
+	}
 	if _, ok := _c.mutation.MonthlyUsageUsd(); !ok {
 		v := userplatformquota.DefaultMonthlyUsageUsd
 		_c.mutation.SetMonthlyUsageUsd(v)
+	}
+	if _, ok := _c.mutation.MonthlyUsageCredits(); !ok {
+		v := userplatformquota.DefaultMonthlyUsageCredits
+		_c.mutation.SetMonthlyUsageCredits(v)
 	}
 	return nil
 }
@@ -296,11 +392,20 @@ func (_c *UserPlatformQuotaCreate) check() error {
 	if _, ok := _c.mutation.DailyUsageUsd(); !ok {
 		return &ValidationError{Name: "daily_usage_usd", err: errors.New(`ent: missing required field "UserPlatformQuota.daily_usage_usd"`)}
 	}
+	if _, ok := _c.mutation.DailyUsageCredits(); !ok {
+		return &ValidationError{Name: "daily_usage_credits", err: errors.New(`ent: missing required field "UserPlatformQuota.daily_usage_credits"`)}
+	}
 	if _, ok := _c.mutation.WeeklyUsageUsd(); !ok {
 		return &ValidationError{Name: "weekly_usage_usd", err: errors.New(`ent: missing required field "UserPlatformQuota.weekly_usage_usd"`)}
 	}
+	if _, ok := _c.mutation.WeeklyUsageCredits(); !ok {
+		return &ValidationError{Name: "weekly_usage_credits", err: errors.New(`ent: missing required field "UserPlatformQuota.weekly_usage_credits"`)}
+	}
 	if _, ok := _c.mutation.MonthlyUsageUsd(); !ok {
 		return &ValidationError{Name: "monthly_usage_usd", err: errors.New(`ent: missing required field "UserPlatformQuota.monthly_usage_usd"`)}
+	}
+	if _, ok := _c.mutation.MonthlyUsageCredits(); !ok {
+		return &ValidationError{Name: "monthly_usage_credits", err: errors.New(`ent: missing required field "UserPlatformQuota.monthly_usage_credits"`)}
 	}
 	if len(_c.mutation.UserIDs()) == 0 {
 		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "UserPlatformQuota.user"`)}
@@ -352,25 +457,49 @@ func (_c *UserPlatformQuotaCreate) createSpec() (*UserPlatformQuota, *sqlgraph.C
 		_spec.SetField(userplatformquota.FieldDailyLimitUsd, field.TypeFloat64, value)
 		_node.DailyLimitUsd = &value
 	}
+	if value, ok := _c.mutation.DailyLimitCredits(); ok {
+		_spec.SetField(userplatformquota.FieldDailyLimitCredits, field.TypeInt64, value)
+		_node.DailyLimitCredits = &value
+	}
 	if value, ok := _c.mutation.WeeklyLimitUsd(); ok {
 		_spec.SetField(userplatformquota.FieldWeeklyLimitUsd, field.TypeFloat64, value)
 		_node.WeeklyLimitUsd = &value
+	}
+	if value, ok := _c.mutation.WeeklyLimitCredits(); ok {
+		_spec.SetField(userplatformquota.FieldWeeklyLimitCredits, field.TypeInt64, value)
+		_node.WeeklyLimitCredits = &value
 	}
 	if value, ok := _c.mutation.MonthlyLimitUsd(); ok {
 		_spec.SetField(userplatformquota.FieldMonthlyLimitUsd, field.TypeFloat64, value)
 		_node.MonthlyLimitUsd = &value
 	}
+	if value, ok := _c.mutation.MonthlyLimitCredits(); ok {
+		_spec.SetField(userplatformquota.FieldMonthlyLimitCredits, field.TypeInt64, value)
+		_node.MonthlyLimitCredits = &value
+	}
 	if value, ok := _c.mutation.DailyUsageUsd(); ok {
 		_spec.SetField(userplatformquota.FieldDailyUsageUsd, field.TypeFloat64, value)
 		_node.DailyUsageUsd = value
+	}
+	if value, ok := _c.mutation.DailyUsageCredits(); ok {
+		_spec.SetField(userplatformquota.FieldDailyUsageCredits, field.TypeInt64, value)
+		_node.DailyUsageCredits = value
 	}
 	if value, ok := _c.mutation.WeeklyUsageUsd(); ok {
 		_spec.SetField(userplatformquota.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 		_node.WeeklyUsageUsd = value
 	}
+	if value, ok := _c.mutation.WeeklyUsageCredits(); ok {
+		_spec.SetField(userplatformquota.FieldWeeklyUsageCredits, field.TypeInt64, value)
+		_node.WeeklyUsageCredits = value
+	}
 	if value, ok := _c.mutation.MonthlyUsageUsd(); ok {
 		_spec.SetField(userplatformquota.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 		_node.MonthlyUsageUsd = value
+	}
+	if value, ok := _c.mutation.MonthlyUsageCredits(); ok {
+		_spec.SetField(userplatformquota.FieldMonthlyUsageCredits, field.TypeInt64, value)
+		_node.MonthlyUsageCredits = value
 	}
 	if value, ok := _c.mutation.DailyWindowStart(); ok {
 		_spec.SetField(userplatformquota.FieldDailyWindowStart, field.TypeTime, value)
@@ -531,6 +660,30 @@ func (u *UserPlatformQuotaUpsert) ClearDailyLimitUsd() *UserPlatformQuotaUpsert 
 	return u
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) SetDailyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldDailyLimitCredits, v)
+	return u
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateDailyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldDailyLimitCredits)
+	return u
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) AddDailyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldDailyLimitCredits, v)
+	return u
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) ClearDailyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetNull(userplatformquota.FieldDailyLimitCredits)
+	return u
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *UserPlatformQuotaUpsert) SetWeeklyLimitUsd(v float64) *UserPlatformQuotaUpsert {
 	u.Set(userplatformquota.FieldWeeklyLimitUsd, v)
@@ -552,6 +705,30 @@ func (u *UserPlatformQuotaUpsert) AddWeeklyLimitUsd(v float64) *UserPlatformQuot
 // ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
 func (u *UserPlatformQuotaUpsert) ClearWeeklyLimitUsd() *UserPlatformQuotaUpsert {
 	u.SetNull(userplatformquota.FieldWeeklyLimitUsd)
+	return u
+}
+
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) SetWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldWeeklyLimitCredits, v)
+	return u
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateWeeklyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldWeeklyLimitCredits)
+	return u
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) AddWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldWeeklyLimitCredits, v)
+	return u
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) ClearWeeklyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetNull(userplatformquota.FieldWeeklyLimitCredits)
 	return u
 }
 
@@ -579,6 +756,30 @@ func (u *UserPlatformQuotaUpsert) ClearMonthlyLimitUsd() *UserPlatformQuotaUpser
 	return u
 }
 
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) SetMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldMonthlyLimitCredits, v)
+	return u
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateMonthlyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldMonthlyLimitCredits)
+	return u
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) AddMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldMonthlyLimitCredits, v)
+	return u
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsert) ClearMonthlyLimitCredits() *UserPlatformQuotaUpsert {
+	u.SetNull(userplatformquota.FieldMonthlyLimitCredits)
+	return u
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (u *UserPlatformQuotaUpsert) SetDailyUsageUsd(v float64) *UserPlatformQuotaUpsert {
 	u.Set(userplatformquota.FieldDailyUsageUsd, v)
@@ -594,6 +795,24 @@ func (u *UserPlatformQuotaUpsert) UpdateDailyUsageUsd() *UserPlatformQuotaUpsert
 // AddDailyUsageUsd adds v to the "daily_usage_usd" field.
 func (u *UserPlatformQuotaUpsert) AddDailyUsageUsd(v float64) *UserPlatformQuotaUpsert {
 	u.Add(userplatformquota.FieldDailyUsageUsd, v)
+	return u
+}
+
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) SetDailyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldDailyUsageCredits, v)
+	return u
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateDailyUsageCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldDailyUsageCredits)
+	return u
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) AddDailyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldDailyUsageCredits, v)
 	return u
 }
 
@@ -615,6 +834,24 @@ func (u *UserPlatformQuotaUpsert) AddWeeklyUsageUsd(v float64) *UserPlatformQuot
 	return u
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) SetWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldWeeklyUsageCredits, v)
+	return u
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateWeeklyUsageCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldWeeklyUsageCredits)
+	return u
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) AddWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldWeeklyUsageCredits, v)
+	return u
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserPlatformQuotaUpsert) SetMonthlyUsageUsd(v float64) *UserPlatformQuotaUpsert {
 	u.Set(userplatformquota.FieldMonthlyUsageUsd, v)
@@ -630,6 +867,24 @@ func (u *UserPlatformQuotaUpsert) UpdateMonthlyUsageUsd() *UserPlatformQuotaUpse
 // AddMonthlyUsageUsd adds v to the "monthly_usage_usd" field.
 func (u *UserPlatformQuotaUpsert) AddMonthlyUsageUsd(v float64) *UserPlatformQuotaUpsert {
 	u.Add(userplatformquota.FieldMonthlyUsageUsd, v)
+	return u
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) SetMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Set(userplatformquota.FieldMonthlyUsageCredits, v)
+	return u
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsert) UpdateMonthlyUsageCredits() *UserPlatformQuotaUpsert {
+	u.SetExcluded(userplatformquota.FieldMonthlyUsageCredits)
+	return u
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsert) AddMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsert {
+	u.Add(userplatformquota.FieldMonthlyUsageCredits, v)
 	return u
 }
 
@@ -823,6 +1078,34 @@ func (u *UserPlatformQuotaUpsertOne) ClearDailyLimitUsd() *UserPlatformQuotaUpse
 	})
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetDailyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetDailyLimitCredits(v)
+	})
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddDailyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddDailyLimitCredits(v)
+	})
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateDailyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateDailyLimitCredits()
+	})
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) ClearDailyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearDailyLimitCredits()
+	})
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *UserPlatformQuotaUpsertOne) SetWeeklyLimitUsd(v float64) *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -848,6 +1131,34 @@ func (u *UserPlatformQuotaUpsertOne) UpdateWeeklyLimitUsd() *UserPlatformQuotaUp
 func (u *UserPlatformQuotaUpsertOne) ClearWeeklyLimitUsd() *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.ClearWeeklyLimitUsd()
+	})
+}
+
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetWeeklyLimitCredits(v)
+	})
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddWeeklyLimitCredits(v)
+	})
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateWeeklyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateWeeklyLimitCredits()
+	})
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) ClearWeeklyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearWeeklyLimitCredits()
 	})
 }
 
@@ -879,6 +1190,34 @@ func (u *UserPlatformQuotaUpsertOne) ClearMonthlyLimitUsd() *UserPlatformQuotaUp
 	})
 }
 
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetMonthlyLimitCredits(v)
+	})
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddMonthlyLimitCredits(v)
+	})
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateMonthlyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateMonthlyLimitCredits()
+	})
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertOne) ClearMonthlyLimitCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearMonthlyLimitCredits()
+	})
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (u *UserPlatformQuotaUpsertOne) SetDailyUsageUsd(v float64) *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -897,6 +1236,27 @@ func (u *UserPlatformQuotaUpsertOne) AddDailyUsageUsd(v float64) *UserPlatformQu
 func (u *UserPlatformQuotaUpsertOne) UpdateDailyUsageUsd() *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.UpdateDailyUsageUsd()
+	})
+}
+
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetDailyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetDailyUsageCredits(v)
+	})
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddDailyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddDailyUsageCredits(v)
+	})
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateDailyUsageCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateDailyUsageCredits()
 	})
 }
 
@@ -921,6 +1281,27 @@ func (u *UserPlatformQuotaUpsertOne) UpdateWeeklyUsageUsd() *UserPlatformQuotaUp
 	})
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetWeeklyUsageCredits(v)
+	})
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddWeeklyUsageCredits(v)
+	})
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateWeeklyUsageCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateWeeklyUsageCredits()
+	})
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserPlatformQuotaUpsertOne) SetMonthlyUsageUsd(v float64) *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -939,6 +1320,27 @@ func (u *UserPlatformQuotaUpsertOne) AddMonthlyUsageUsd(v float64) *UserPlatform
 func (u *UserPlatformQuotaUpsertOne) UpdateMonthlyUsageUsd() *UserPlatformQuotaUpsertOne {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) SetMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetMonthlyUsageCredits(v)
+	})
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertOne) AddMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddMonthlyUsageCredits(v)
+	})
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertOne) UpdateMonthlyUsageCredits() *UserPlatformQuotaUpsertOne {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateMonthlyUsageCredits()
 	})
 }
 
@@ -1307,6 +1709,34 @@ func (u *UserPlatformQuotaUpsertBulk) ClearDailyLimitUsd() *UserPlatformQuotaUps
 	})
 }
 
+// SetDailyLimitCredits sets the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetDailyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetDailyLimitCredits(v)
+	})
+}
+
+// AddDailyLimitCredits adds v to the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddDailyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddDailyLimitCredits(v)
+	})
+}
+
+// UpdateDailyLimitCredits sets the "daily_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateDailyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateDailyLimitCredits()
+	})
+}
+
+// ClearDailyLimitCredits clears the value of the "daily_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) ClearDailyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearDailyLimitCredits()
+	})
+}
+
 // SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
 func (u *UserPlatformQuotaUpsertBulk) SetWeeklyLimitUsd(v float64) *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -1332,6 +1762,34 @@ func (u *UserPlatformQuotaUpsertBulk) UpdateWeeklyLimitUsd() *UserPlatformQuotaU
 func (u *UserPlatformQuotaUpsertBulk) ClearWeeklyLimitUsd() *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.ClearWeeklyLimitUsd()
+	})
+}
+
+// SetWeeklyLimitCredits sets the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetWeeklyLimitCredits(v)
+	})
+}
+
+// AddWeeklyLimitCredits adds v to the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddWeeklyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddWeeklyLimitCredits(v)
+	})
+}
+
+// UpdateWeeklyLimitCredits sets the "weekly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateWeeklyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateWeeklyLimitCredits()
+	})
+}
+
+// ClearWeeklyLimitCredits clears the value of the "weekly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) ClearWeeklyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearWeeklyLimitCredits()
 	})
 }
 
@@ -1363,6 +1821,34 @@ func (u *UserPlatformQuotaUpsertBulk) ClearMonthlyLimitUsd() *UserPlatformQuotaU
 	})
 }
 
+// SetMonthlyLimitCredits sets the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetMonthlyLimitCredits(v)
+	})
+}
+
+// AddMonthlyLimitCredits adds v to the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddMonthlyLimitCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddMonthlyLimitCredits(v)
+	})
+}
+
+// UpdateMonthlyLimitCredits sets the "monthly_limit_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateMonthlyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateMonthlyLimitCredits()
+	})
+}
+
+// ClearMonthlyLimitCredits clears the value of the "monthly_limit_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) ClearMonthlyLimitCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.ClearMonthlyLimitCredits()
+	})
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (u *UserPlatformQuotaUpsertBulk) SetDailyUsageUsd(v float64) *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -1381,6 +1867,27 @@ func (u *UserPlatformQuotaUpsertBulk) AddDailyUsageUsd(v float64) *UserPlatformQ
 func (u *UserPlatformQuotaUpsertBulk) UpdateDailyUsageUsd() *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.UpdateDailyUsageUsd()
+	})
+}
+
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetDailyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetDailyUsageCredits(v)
+	})
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddDailyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddDailyUsageCredits(v)
+	})
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateDailyUsageCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateDailyUsageCredits()
 	})
 }
 
@@ -1405,6 +1912,27 @@ func (u *UserPlatformQuotaUpsertBulk) UpdateWeeklyUsageUsd() *UserPlatformQuotaU
 	})
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetWeeklyUsageCredits(v)
+	})
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddWeeklyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddWeeklyUsageCredits(v)
+	})
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateWeeklyUsageCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateWeeklyUsageCredits()
+	})
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserPlatformQuotaUpsertBulk) SetMonthlyUsageUsd(v float64) *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
@@ -1423,6 +1951,27 @@ func (u *UserPlatformQuotaUpsertBulk) AddMonthlyUsageUsd(v float64) *UserPlatfor
 func (u *UserPlatformQuotaUpsertBulk) UpdateMonthlyUsageUsd() *UserPlatformQuotaUpsertBulk {
 	return u.Update(func(s *UserPlatformQuotaUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) SetMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.SetMonthlyUsageCredits(v)
+	})
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserPlatformQuotaUpsertBulk) AddMonthlyUsageCredits(v int64) *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.AddMonthlyUsageCredits(v)
+	})
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserPlatformQuotaUpsertBulk) UpdateMonthlyUsageCredits() *UserPlatformQuotaUpsertBulk {
+	return u.Update(func(s *UserPlatformQuotaUpsert) {
+		s.UpdateMonthlyUsageCredits()
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/billingledger"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -808,7 +809,7 @@ func TestPaymentRedeemDoesNotIncrementFailureLimit(t *testing.T) {
 	}}
 	svc := &RedeemService{redeemRepo: redeemRepo, cache: cache}
 
-	result, err := svc.redeemForPaymentFulfillment(ctx, 42, redeemRepo.code.Code)
+	result, err := svc.redeemForPaymentFulfillment(ctx, 42, redeemRepo.code.Code, nil)
 
 	require.Nil(t, result)
 	require.ErrorIs(t, err, ErrRedeemCodeExpired)
@@ -832,19 +833,23 @@ func TestExecuteBalanceFulfillmentBypassesUserRedeemRateLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	redeemRepo := &paymentFulfillmentRedeemRepo{}
-	credited := 0.0
 	userRepo := &mockUserRepo{getByIDUser: &User{ID: order.UserID, Balance: 0}}
-	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
-		require.Equal(t, order.UserID, id)
-		credited += amount
-		return nil
-	}
 	cache := &paymentFulfillmentRedeemCacheStub{count: redeemMaxFailedAttempts}
 	redeemService := NewRedeemService(redeemRepo, userRepo, nil, cache, nil, client, nil, nil)
 	svc := &PaymentService{entClient: client, redeemService: redeemService, userRepo: userRepo}
 
 	require.NoError(t, svc.ExecuteBalanceFulfillment(ctx, order.ID))
-	require.InDelta(t, order.Amount, credited, 1e-8)
+	user, err := client.User.Get(ctx, order.UserID)
+	require.NoError(t, err)
+	require.InDelta(t, order.Amount, user.Balance, 1e-8)
+	require.Equal(t, USDToCredits(order.Amount), user.BalanceCredits)
+	ledger, err := client.BillingLedger.Query().Where(
+		billingledger.ReferenceTypeEQ("payment"),
+		billingledger.ReferenceIDEQ(strconv.FormatInt(order.ID, 10)),
+	).Only(ctx)
+	require.NoError(t, err)
+	require.Equal(t, USDToCredits(order.Amount), ledger.DeltaCredits)
+	require.Equal(t, user.BalanceCredits, ledger.BalanceAfter)
 	require.Zero(t, cache.getCalls, "trusted payment fulfillment must not read the public failure counter")
 	require.Zero(t, cache.incrementCalls, "trusted payment fulfillment must not mutate the public failure counter")
 	require.Equal(t, 1, cache.acquireCalls)

@@ -39,10 +39,16 @@ const (
 	FieldMonthlyWindowStart = "monthly_window_start"
 	// FieldDailyUsageUsd holds the string denoting the daily_usage_usd field in the database.
 	FieldDailyUsageUsd = "daily_usage_usd"
+	// FieldDailyUsageCredits holds the string denoting the daily_usage_credits field in the database.
+	FieldDailyUsageCredits = "daily_usage_credits"
 	// FieldWeeklyUsageUsd holds the string denoting the weekly_usage_usd field in the database.
 	FieldWeeklyUsageUsd = "weekly_usage_usd"
+	// FieldWeeklyUsageCredits holds the string denoting the weekly_usage_credits field in the database.
+	FieldWeeklyUsageCredits = "weekly_usage_credits"
 	// FieldMonthlyUsageUsd holds the string denoting the monthly_usage_usd field in the database.
 	FieldMonthlyUsageUsd = "monthly_usage_usd"
+	// FieldMonthlyUsageCredits holds the string denoting the monthly_usage_credits field in the database.
+	FieldMonthlyUsageCredits = "monthly_usage_credits"
 	// FieldAssignedBy holds the string denoting the assigned_by field in the database.
 	FieldAssignedBy = "assigned_by"
 	// FieldAssignedAt holds the string denoting the assigned_at field in the database.
@@ -104,8 +110,11 @@ var Columns = []string{
 	FieldWeeklyWindowStart,
 	FieldMonthlyWindowStart,
 	FieldDailyUsageUsd,
+	FieldDailyUsageCredits,
 	FieldWeeklyUsageUsd,
+	FieldWeeklyUsageCredits,
 	FieldMonthlyUsageUsd,
+	FieldMonthlyUsageCredits,
 	FieldAssignedBy,
 	FieldAssignedAt,
 	FieldNotes,
@@ -141,10 +150,16 @@ var (
 	StatusValidator func(string) error
 	// DefaultDailyUsageUsd holds the default value on creation for the "daily_usage_usd" field.
 	DefaultDailyUsageUsd float64
+	// DefaultDailyUsageCredits holds the default value on creation for the "daily_usage_credits" field.
+	DefaultDailyUsageCredits int64
 	// DefaultWeeklyUsageUsd holds the default value on creation for the "weekly_usage_usd" field.
 	DefaultWeeklyUsageUsd float64
+	// DefaultWeeklyUsageCredits holds the default value on creation for the "weekly_usage_credits" field.
+	DefaultWeeklyUsageCredits int64
 	// DefaultMonthlyUsageUsd holds the default value on creation for the "monthly_usage_usd" field.
 	DefaultMonthlyUsageUsd float64
+	// DefaultMonthlyUsageCredits holds the default value on creation for the "monthly_usage_credits" field.
+	DefaultMonthlyUsageCredits int64
 	// DefaultAssignedAt holds the default value on creation for the "assigned_at" field.
 	DefaultAssignedAt func() time.Time
 )
@@ -217,14 +232,29 @@ func ByDailyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDailyUsageUsd, opts...).ToFunc()
 }
 
+// ByDailyUsageCredits orders the results by the daily_usage_credits field.
+func ByDailyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyUsageCredits, opts...).ToFunc()
+}
+
 // ByWeeklyUsageUsd orders the results by the weekly_usage_usd field.
 func ByWeeklyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWeeklyUsageUsd, opts...).ToFunc()
 }
 
+// ByWeeklyUsageCredits orders the results by the weekly_usage_credits field.
+func ByWeeklyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWeeklyUsageCredits, opts...).ToFunc()
+}
+
 // ByMonthlyUsageUsd orders the results by the monthly_usage_usd field.
 func ByMonthlyUsageUsd(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMonthlyUsageUsd, opts...).ToFunc()
+}
+
+// ByMonthlyUsageCredits orders the results by the monthly_usage_credits field.
+func ByMonthlyUsageCredits(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyUsageCredits, opts...).ToFunc()
 }
 
 // ByAssignedBy orders the results by the assigned_by field.

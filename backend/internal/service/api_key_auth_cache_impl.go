@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 25 // v25: group image_count_billing switch (per-image billing on image endpoints)
+const apiKeyAuthSnapshotVersion = 26 // v26: group image_count_billing switch + integer credit wallet fields
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -355,6 +355,9 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			Status:                     apiKey.User.Status,
 			Role:                       apiKey.User.Role,
 			Balance:                    apiKey.User.Balance,
+			BalanceCredits:             apiKey.User.BalanceCredits,
+			FrozenBalance:              apiKey.User.FrozenBalance,
+			FrozenBalanceCredits:       apiKey.User.FrozenBalanceCredits,
 			Concurrency:                apiKey.User.Concurrency,
 			AllowedGroups:              apiKey.User.AllowedGroups,
 			Email:                      apiKey.User.Email,
@@ -465,6 +468,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Status:                     snapshot.User.Status,
 			Role:                       snapshot.User.Role,
 			Balance:                    snapshot.User.Balance,
+			BalanceCredits:             snapshot.User.BalanceCredits,
+			FrozenBalance:              snapshot.User.FrozenBalance,
+			FrozenBalanceCredits:       snapshot.User.FrozenBalanceCredits,
 			Concurrency:                snapshot.User.Concurrency,
 			AllowedGroups:              snapshot.User.AllowedGroups,
 			Email:                      snapshot.User.Email,

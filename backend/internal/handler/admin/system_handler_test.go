@@ -80,6 +80,7 @@ type systemUpdateResponseEnvelope struct {
 
 type systemUpdateErrorEnvelope struct {
 	Code    int    `json:"code"`
+	Reason  string `json:"reason"`
 	Message string `json:"message"`
 }
 
@@ -171,6 +172,25 @@ func TestSystemHandlerPerformUpdateFailureStillReturnsInternalError(t *testing.T
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, http.StatusInternalServerError, body.Code)
 	require.Equal(t, "internal error", body.Message)
+}
+
+func TestSystemHandlerForkBuildRejectsInPlaceUpdate(t *testing.T) {
+	updateSvc := &systemHandlerUpdateServiceStub{performErr: service.ErrUpdateManagedExternally}
+	repo := newMemoryIdempotencyRepoStub()
+	router := newSystemHandlerTestRouter(t, updateSvc, repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/system/update", nil)
+	req.Header.Set("Idempotency-Key", "fork-update-rejected")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Equal(t, 1, updateSvc.performCall)
+
+	var body systemUpdateErrorEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, http.StatusConflict, body.Code)
+	require.Equal(t, "UPDATE_MANAGED_EXTERNALLY", body.Reason)
 }
 
 // TestSystemHandlerPerformUpdateSurvivesClientDisconnect reproduces #4504:

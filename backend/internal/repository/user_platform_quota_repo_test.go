@@ -33,6 +33,31 @@ func TestMaybeReset(t *testing.T) {
 	}
 }
 
+func TestMaybeResetInt64(t *testing.T) {
+	start := time.Date(2026, 5, 22, 0, 0, 0, 0, time.UTC)
+	other := start.AddDate(0, 0, -1)
+	if got := maybeResetInt64(10, &start, start, 3); got != 13 {
+		t.Fatalf("same window = %d, want 13", got)
+	}
+	if got := maybeResetInt64(10, &other, start, 3); got != 3 {
+		t.Fatalf("changed window = %d, want 3", got)
+	}
+}
+
+func TestMonthlyMaybeResetInt64(t *testing.T) {
+	start := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+	now := start.Add(11 * 24 * time.Hour)
+	usage, next := monthlyMaybeResetInt64(5, &start, 2, now)
+	if usage != 7 || !next.Equal(start) {
+		t.Fatalf("active window = (%d, %v), want (7, %v)", usage, next, start)
+	}
+	expired := start.Add(30 * 24 * time.Hour)
+	usage, next = monthlyMaybeResetInt64(5, &start, 2, expired)
+	if usage != 2 || !next.Equal(expired) {
+		t.Fatalf("expired window = (%d, %v), want (2, %v)", usage, next, expired)
+	}
+}
+
 // TestMonthlyMaybeReset_NilStart 验证 prevStart=nil 时重置。
 func TestMonthlyMaybeReset_NilStart(t *testing.T) {
 	now := time.Date(2026, 5, 22, 12, 0, 0, 0, time.UTC)

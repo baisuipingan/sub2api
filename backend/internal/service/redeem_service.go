@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,6 +136,17 @@ type RedeemCodeBatchUpdateInput struct {
 
 type RedeemCodeBatchUpdateResult struct {
 	Updated int64 `json:"updated"`
+}
+
+// redeemFulfillmentMeta carries the immutable payment-order credit snapshot
+// into the redeem transaction so recharge balance and ledger commit together.
+type redeemFulfillmentMeta struct {
+	PaymentOrderID  int64
+	CreditedCredits int64
+	BonusCredits    int64
+	CreditsPerUSD   int64
+	USDToCNYRate    float64
+	BillingVersion  int64
 }
 
 // RedeemService 兑换码服务
@@ -392,15 +404,15 @@ func unsupportedRedeemTypeError(codeType string) error {
 
 // Redeem 使用兑换码
 func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ctx, userID, code, enforceRedeemRateLimit)
+	return s.redeem(ctx, userID, code, enforceRedeemRateLimit, nil)
 }
 
 // redeemForPaymentFulfillment is restricted to trusted payment fulfillment.
 // Payment retries must not be blocked by, or contribute to, a user's public
 // redeem failure counter. All code validation and transactional updates remain
 // identical to the public redemption path.
-func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ContextSkipRedeemAffiliate(ctx), userID, code, bypassRedeemRateLimit)
+func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID int64, code string, meta *redeemFulfillmentMeta) (*RedeemCode, error) {
+	return s.redeem(ContextSkipRedeemAffiliate(ctx), userID, code, bypassRedeemRateLimit, meta)
 }
 
 // RedeemForAdminFulfillment is restricted to trusted admin fulfillment.
@@ -408,10 +420,10 @@ func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID 
 // redeem failure counter. Unlike payment fulfillment, the normal redeem-level
 // affiliate rebate remains enabled.
 func (s *RedeemService) RedeemForAdminFulfillment(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ctx, userID, code, bypassRedeemRateLimit)
+	return s.redeem(ctx, userID, code, bypassRedeemRateLimit, nil)
 }
 
-func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, rateLimitPolicy redeemRateLimitPolicy) (*RedeemCode, error) {
+func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, rateLimitPolicy redeemRateLimitPolicy, meta *redeemFulfillmentMeta) (*RedeemCode, error) {
 	if rateLimitPolicy == enforceRedeemRateLimit {
 		if err := s.checkRedeemRateLimit(ctx, userID); err != nil {
 			return nil, err
@@ -496,6 +508,10 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 			}
 			if err := s.redeemUserRepo.ApplyRedeemBalanceAdjustment(txCtx, userID, amount); err != nil {
 				return nil, fmt.Errorf("update user balance: %w", err)
+			}
+		} else if meta != nil && meta.CreditedCredits > 0 {
+			if err := applyPaymentCreditRecharge(txCtx, tx, userID, meta); err != nil {
+				return nil, fmt.Errorf("credit payment balance: %w", err)
 			}
 		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
@@ -754,4 +770,58 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 // GetUserHistoryPaginated returns all redemption types for the authenticated user.
 func (s *RedeemService) GetUserHistoryPaginated(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {
 	return s.redeemRepo.ListByUserPaginated(ctx, userID, params, "")
+}
+
+func applyPaymentCreditRecharge(ctx context.Context, tx *dbent.Tx, userID int64, meta *redeemFulfillmentMeta) error {
+	if tx == nil || meta == nil || meta.PaymentOrderID <= 0 || meta.CreditedCredits <= 0 {
+		return nil
+	}
+	client := tx.Client()
+	rows, err := client.QueryContext(ctx, `
+		UPDATE users
+		SET balance_credits = balance_credits + $1,
+			balance_credits_version = balance_credits_version + 1,
+			balance = (balance_credits + $1) * 1.0 / 100000000,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2 AND deleted_at IS NULL
+		RETURNING balance_credits
+	`, meta.CreditedCredits, userID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return ErrUserNotFound
+	}
+	var balanceAfter int64
+	if err := rows.Scan(&balanceAfter); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	referenceID := strconv.FormatInt(meta.PaymentOrderID, 10)
+	err = client.BillingLedger.Create().
+		SetUserID(userID).
+		SetDeltaCredits(meta.CreditedCredits).
+		SetBalanceAfter(balanceAfter).
+		SetBucketType("wallet").
+		SetBucketID(userID).
+		SetReferenceType("payment").
+		SetReferenceID(referenceID).
+		SetRequestID("payment:"+referenceID).
+		SetMetadata(map[string]any{
+			"payment_order_id": meta.PaymentOrderID,
+			"bonus_credits":    meta.BonusCredits,
+			"credits_per_usd":  meta.CreditsPerUSD,
+			"usd_to_cny":       meta.USDToCNYRate,
+			"billing_version":  meta.BillingVersion,
+		}).
+		OnConflictColumns("bucket_type", "bucket_id", "reference_type", "reference_id").
+		DoNothing().
+		Exec(ctx)
+	return err
 }

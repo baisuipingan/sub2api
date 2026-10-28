@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,15 +30,20 @@ func (s *updateServiceCacheStub) SetUpdateInfo(_ context.Context, data string, _
 
 type updateServiceGitHubClientStub struct {
 	release        *GitHubRelease
+	latestErr      error
 	recentReleases []*GitHubRelease
 	recentErr      error
+	latestCalls    int
+	recentCalls    int
 }
 
 func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
-	return s.release, nil
+	s.latestCalls++
+	return s.release, s.latestErr
 }
 
 func (s *updateServiceGitHubClientStub) FetchRecentReleases(context.Context, string, int) ([]*GitHubRelease, error) {
+	s.recentCalls++
 	return s.recentReleases, s.recentErr
 }
 
@@ -184,4 +190,125 @@ func TestUpdateServiceRollbackToVersionAcceptsVPrefix(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, ErrRollbackVersionNotAllowed)
 	require.Contains(t, err.Error(), "no compatible release found")
+}
+
+func newForkUpdateService(current, upstream string, release *GitHubRelease) (*UpdateService, *updateServiceCacheStub, *updateServiceGitHubClientStub) {
+	cache := &updateServiceCacheStub{}
+	client := &updateServiceGitHubClientStub{release: release}
+	svc := NewUpdateService(cache, client, current, "fork").WithUpstreamVersion(upstream)
+	return svc, cache, client
+}
+
+func TestUpdateServiceSourceBuildReportsManualUpdateMode(t *testing.T) {
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{release: &GitHubRelease{TagName: "v0.2.18"}},
+		"0.2.17",
+		"source",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "manual", info.UpdateMode)
+	require.False(t, info.CanSelfUpdate)
+	require.True(t, info.HasUpdate)
+}
+
+func TestUpdateServiceForkComparesOfficialBaseline(t *testing.T) {
+	svc, _, _ := newForkUpdateService("0.2.17-ds.1", "0.2.17", &GitHubRelease{
+		TagName: "v0.2.18",
+		Name:    "v0.2.18",
+	})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "0.2.17-ds.1", info.CurrentVersion)
+	require.Equal(t, "0.2.17", info.UpstreamVersion)
+	require.Equal(t, "0.2.18", info.LatestVersion)
+	require.True(t, info.HasUpdate)
+	require.Equal(t, "fork", info.BuildType)
+	require.Equal(t, "external", info.UpdateMode)
+	require.False(t, info.CanSelfUpdate)
+	require.Empty(t, info.Warning)
+}
+
+func TestUpdateServiceForkClearsUpdateWhenBaselineMatches(t *testing.T) {
+	svc, _, _ := newForkUpdateService("0.2.18-ds.1", "0.2.18", &GitHubRelease{TagName: "v0.2.18"})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.False(t, info.HasUpdate)
+}
+
+func TestUpdateServiceForkCachedReleaseStillUsesCurrentBaseline(t *testing.T) {
+	cache := &updateServiceCacheStub{data: `{"latest":"0.2.18","release_info":{"name":"v0.2.18"},"timestamp":` + formatUnix(time.Now()) + `}`}
+	client := &updateServiceGitHubClientStub{}
+	svc := NewUpdateService(cache, client, "0.2.18-ds.1", "fork").WithUpstreamVersion("0.2.18")
+
+	info, err := svc.CheckUpdate(context.Background(), false)
+
+	require.NoError(t, err)
+	require.True(t, info.Cached)
+	require.False(t, info.HasUpdate)
+	require.Equal(t, 0, client.latestCalls)
+}
+
+func TestUpdateServiceForkMissingUpstreamReturnsDiagnostic(t *testing.T) {
+	svc, _, _ := newForkUpdateService("0.2.17-ds.1", "", &GitHubRelease{TagName: "v0.2.18"})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.False(t, info.HasUpdate)
+	require.Contains(t, info.Warning, "upstream_version is required")
+}
+
+func TestUpdateServiceForkBlocksInPlaceWrites(t *testing.T) {
+	svc, _, client := newForkUpdateService("0.2.17-ds.1", "0.2.17", &GitHubRelease{TagName: "v0.2.18"})
+
+	require.ErrorIs(t, svc.PerformUpdate(context.Background()), ErrUpdateManagedExternally)
+	require.ErrorIs(t, svc.Rollback(), ErrUpdateManagedExternally)
+	require.ErrorIs(t, svc.RollbackToVersion(context.Background(), "0.2.16"), ErrUpdateManagedExternally)
+	require.Equal(t, 0, client.latestCalls)
+
+	versions, err := svc.ListRollbackVersions(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, versions)
+	require.Equal(t, 0, client.recentCalls)
+}
+
+func formatUnix(t time.Time) string {
+	return strconv.FormatInt(t.Unix(), 10)
+}
+
+func TestUpdateServiceForkDoesNotDowngradeForOlderOfficialRelease(t *testing.T) {
+	svc, _, _ := newForkUpdateService("0.2.18-ds.3", "0.2.18", &GitHubRelease{TagName: "v0.2.17"})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.False(t, info.HasUpdate)
+	require.Equal(t, "0.2.17", info.LatestVersion)
+}
+
+func TestUpdateServiceForkUsesUpstreamBaselineInsteadOfForkVersion(t *testing.T) {
+	svc, _, _ := newForkUpdateService("9.9.9-ds.1", "0.2.17", &GitHubRelease{TagName: "v0.2.18"})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.True(t, info.HasUpdate)
+}
+
+func TestUpdateServiceForkMalformedUpstreamReturnsDiagnostic(t *testing.T) {
+	svc, _, _ := newForkUpdateService("0.2.17-ds.1", "not-a-version", &GitHubRelease{TagName: "v0.2.18"})
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.False(t, info.HasUpdate)
+	require.Contains(t, info.Warning, "upstream_version is required")
 }

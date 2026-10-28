@@ -365,8 +365,8 @@ func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userID 
 				SourceID:       firstNonEmpty(strconv.FormatInt(userID, 10), userEmail),
 				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
 				Variables: map[string]string{
-					"current_balance": fmt.Sprintf("%.2f", balance),
-					"threshold":       fmt.Sprintf("%.2f", threshold),
+					"current_balance": FormatBillingDisplayAmount(balance),
+					"threshold":       FormatBillingDisplayAmount(threshold),
 					"recharge_url":    rechargeURL,
 				},
 			})
@@ -480,10 +480,10 @@ const balanceLowEmailTemplate = `<!DOCTYPE html>
         <div class="content">
             <p style="font-size: 18px; color: #333;">%s，您的余额不足</p>
             <p style="color: #666;">Dear %s, your balance is running low</p>
-            <div class="balance">$%.2f</div>
+            <div class="balance">%s</div>
             <div class="info">
-                <p>您的账户余额已低于提醒阈值 <strong>$%.2f</strong>。</p>
-                <p>Your account balance has fallen below the alert threshold of <strong>$%.2f</strong>.</p>
+                <p>您的账户余额已低于提醒阈值 <strong>%s</strong>。</p>
+                <p>Your account balance has fallen below the alert threshold of <strong>%s</strong>.</p>
                 <p>请及时充值以免服务中断。</p>
                 <p>Please top up to avoid service interruption.</p>
             </div>
@@ -542,7 +542,16 @@ func (s *BalanceNotifyService) buildBalanceLowEmailBody(userName string, balance
 	if rechargeURL != "" {
 		rechargeBlock = fmt.Sprintf(`<a href="%s" class="recharge-btn">立即充值 / Top Up Now</a>`, html.EscapeString(rechargeURL))
 	}
-	return fmt.Sprintf(balanceLowEmailTemplate, siteName, userName, userName, balance, threshold, threshold, rechargeBlock)
+	return fmt.Sprintf(
+		balanceLowEmailTemplate,
+		siteName,
+		userName,
+		userName,
+		FormatBillingDisplayAmount(balance),
+		FormatBillingDisplayAmount(threshold),
+		FormatBillingDisplayAmount(threshold),
+		rechargeBlock,
+	)
 }
 
 // buildQuotaAlertEmailBody builds HTML email for account quota alert.

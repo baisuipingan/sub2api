@@ -129,6 +129,48 @@ func (_u *UserUpdate) AddBalance(v float64) *UserUpdate {
 	return _u
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (_u *UserUpdate) SetBalanceCredits(v int64) *UserUpdate {
+	_u.mutation.ResetBalanceCredits()
+	_u.mutation.SetBalanceCredits(v)
+	return _u
+}
+
+// SetNillableBalanceCredits sets the "balance_credits" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBalanceCredits(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetBalanceCredits(*v)
+	}
+	return _u
+}
+
+// AddBalanceCredits adds value to the "balance_credits" field.
+func (_u *UserUpdate) AddBalanceCredits(v int64) *UserUpdate {
+	_u.mutation.AddBalanceCredits(v)
+	return _u
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (_u *UserUpdate) SetBalanceCreditsVersion(v int64) *UserUpdate {
+	_u.mutation.ResetBalanceCreditsVersion()
+	_u.mutation.SetBalanceCreditsVersion(v)
+	return _u
+}
+
+// SetNillableBalanceCreditsVersion sets the "balance_credits_version" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableBalanceCreditsVersion(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetBalanceCreditsVersion(*v)
+	}
+	return _u
+}
+
+// AddBalanceCreditsVersion adds value to the "balance_credits_version" field.
+func (_u *UserUpdate) AddBalanceCreditsVersion(v int64) *UserUpdate {
+	_u.mutation.AddBalanceCreditsVersion(v)
+	return _u
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (_u *UserUpdate) SetFrozenBalance(v float64) *UserUpdate {
 	_u.mutation.ResetFrozenBalance()
@@ -147,6 +189,27 @@ func (_u *UserUpdate) SetNillableFrozenBalance(v *float64) *UserUpdate {
 // AddFrozenBalance adds value to the "frozen_balance" field.
 func (_u *UserUpdate) AddFrozenBalance(v float64) *UserUpdate {
 	_u.mutation.AddFrozenBalance(v)
+	return _u
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (_u *UserUpdate) SetFrozenBalanceCredits(v int64) *UserUpdate {
+	_u.mutation.ResetFrozenBalanceCredits()
+	_u.mutation.SetFrozenBalanceCredits(v)
+	return _u
+}
+
+// SetNillableFrozenBalanceCredits sets the "frozen_balance_credits" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableFrozenBalanceCredits(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetFrozenBalanceCredits(*v)
+	}
+	return _u
+}
+
+// AddFrozenBalanceCredits adds value to the "frozen_balance_credits" field.
+func (_u *UserUpdate) AddFrozenBalanceCredits(v int64) *UserUpdate {
+	_u.mutation.AddFrozenBalanceCredits(v)
 	return _u
 }
 
@@ -1032,11 +1095,29 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.BalanceCredits(); ok {
+		_spec.SetField(user.FieldBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceCredits(); ok {
+		_spec.AddField(user.FieldBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BalanceCreditsVersion(); ok {
+		_spec.SetField(user.FieldBalanceCreditsVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceCreditsVersion(); ok {
+		_spec.AddField(user.FieldBalanceCreditsVersion, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.FrozenBalance(); ok {
 		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
 		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FrozenBalanceCredits(); ok {
+		_spec.SetField(user.FieldFrozenBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFrozenBalanceCredits(); ok {
+		_spec.AddField(user.FieldFrozenBalanceCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1822,6 +1903,48 @@ func (_u *UserUpdateOne) AddBalance(v float64) *UserUpdateOne {
 	return _u
 }
 
+// SetBalanceCredits sets the "balance_credits" field.
+func (_u *UserUpdateOne) SetBalanceCredits(v int64) *UserUpdateOne {
+	_u.mutation.ResetBalanceCredits()
+	_u.mutation.SetBalanceCredits(v)
+	return _u
+}
+
+// SetNillableBalanceCredits sets the "balance_credits" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBalanceCredits(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetBalanceCredits(*v)
+	}
+	return _u
+}
+
+// AddBalanceCredits adds value to the "balance_credits" field.
+func (_u *UserUpdateOne) AddBalanceCredits(v int64) *UserUpdateOne {
+	_u.mutation.AddBalanceCredits(v)
+	return _u
+}
+
+// SetBalanceCreditsVersion sets the "balance_credits_version" field.
+func (_u *UserUpdateOne) SetBalanceCreditsVersion(v int64) *UserUpdateOne {
+	_u.mutation.ResetBalanceCreditsVersion()
+	_u.mutation.SetBalanceCreditsVersion(v)
+	return _u
+}
+
+// SetNillableBalanceCreditsVersion sets the "balance_credits_version" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableBalanceCreditsVersion(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetBalanceCreditsVersion(*v)
+	}
+	return _u
+}
+
+// AddBalanceCreditsVersion adds value to the "balance_credits_version" field.
+func (_u *UserUpdateOne) AddBalanceCreditsVersion(v int64) *UserUpdateOne {
+	_u.mutation.AddBalanceCreditsVersion(v)
+	return _u
+}
+
 // SetFrozenBalance sets the "frozen_balance" field.
 func (_u *UserUpdateOne) SetFrozenBalance(v float64) *UserUpdateOne {
 	_u.mutation.ResetFrozenBalance()
@@ -1840,6 +1963,27 @@ func (_u *UserUpdateOne) SetNillableFrozenBalance(v *float64) *UserUpdateOne {
 // AddFrozenBalance adds value to the "frozen_balance" field.
 func (_u *UserUpdateOne) AddFrozenBalance(v float64) *UserUpdateOne {
 	_u.mutation.AddFrozenBalance(v)
+	return _u
+}
+
+// SetFrozenBalanceCredits sets the "frozen_balance_credits" field.
+func (_u *UserUpdateOne) SetFrozenBalanceCredits(v int64) *UserUpdateOne {
+	_u.mutation.ResetFrozenBalanceCredits()
+	_u.mutation.SetFrozenBalanceCredits(v)
+	return _u
+}
+
+// SetNillableFrozenBalanceCredits sets the "frozen_balance_credits" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableFrozenBalanceCredits(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetFrozenBalanceCredits(*v)
+	}
+	return _u
+}
+
+// AddFrozenBalanceCredits adds value to the "frozen_balance_credits" field.
+func (_u *UserUpdateOne) AddFrozenBalanceCredits(v int64) *UserUpdateOne {
+	_u.mutation.AddFrozenBalanceCredits(v)
 	return _u
 }
 
@@ -2755,11 +2899,29 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.BalanceCredits(); ok {
+		_spec.SetField(user.FieldBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceCredits(); ok {
+		_spec.AddField(user.FieldBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.BalanceCreditsVersion(); ok {
+		_spec.SetField(user.FieldBalanceCreditsVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceCreditsVersion(); ok {
+		_spec.AddField(user.FieldBalanceCreditsVersion, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.FrozenBalance(); ok {
 		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
 		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FrozenBalanceCredits(); ok {
+		_spec.SetField(user.FieldFrozenBalanceCredits, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFrozenBalanceCredits(); ok {
+		_spec.AddField(user.FieldFrozenBalanceCredits, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)

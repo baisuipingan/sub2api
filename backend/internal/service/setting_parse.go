@@ -52,6 +52,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("marshal default forwarded client IP headers: %w", err)
 	}
+	billingCurrencyDefault, err := json.Marshal(DefaultBillingCurrencyConfig())
+	if err != nil {
+		return fmt.Errorf("marshal default billing currency settings: %w", err)
+	}
 
 	// 初始化默认设置
 	defaults := map[string]string{
@@ -68,6 +72,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyForwardedClientIPHeaders:                  string(forwardedClientIPHeadersJSON),
 		settingKeyForwardedClientIPModeV2:                   "true",
 		SettingKeySiteName:                                  "Sub2API",
+		SettingKeyBillingCurrencyConfig:                     string(billingCurrencyDefault),
 		SettingKeySiteLogo:                                  "",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",

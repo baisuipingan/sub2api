@@ -161,6 +161,20 @@ func (_c *UserSubscriptionCreate) SetNillableDailyUsageUsd(v *float64) *UserSubs
 	return _c
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (_c *UserSubscriptionCreate) SetDailyUsageCredits(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetDailyUsageCredits(v)
+	return _c
+}
+
+// SetNillableDailyUsageCredits sets the "daily_usage_credits" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableDailyUsageCredits(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetDailyUsageCredits(*v)
+	}
+	return _c
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (_c *UserSubscriptionCreate) SetWeeklyUsageUsd(v float64) *UserSubscriptionCreate {
 	_c.mutation.SetWeeklyUsageUsd(v)
@@ -175,6 +189,20 @@ func (_c *UserSubscriptionCreate) SetNillableWeeklyUsageUsd(v *float64) *UserSub
 	return _c
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (_c *UserSubscriptionCreate) SetWeeklyUsageCredits(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetWeeklyUsageCredits(v)
+	return _c
+}
+
+// SetNillableWeeklyUsageCredits sets the "weekly_usage_credits" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableWeeklyUsageCredits(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetWeeklyUsageCredits(*v)
+	}
+	return _c
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (_c *UserSubscriptionCreate) SetMonthlyUsageUsd(v float64) *UserSubscriptionCreate {
 	_c.mutation.SetMonthlyUsageUsd(v)
@@ -185,6 +213,20 @@ func (_c *UserSubscriptionCreate) SetMonthlyUsageUsd(v float64) *UserSubscriptio
 func (_c *UserSubscriptionCreate) SetNillableMonthlyUsageUsd(v *float64) *UserSubscriptionCreate {
 	if v != nil {
 		_c.SetMonthlyUsageUsd(*v)
+	}
+	return _c
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (_c *UserSubscriptionCreate) SetMonthlyUsageCredits(v int64) *UserSubscriptionCreate {
+	_c.mutation.SetMonthlyUsageCredits(v)
+	return _c
+}
+
+// SetNillableMonthlyUsageCredits sets the "monthly_usage_credits" field if the given value is not nil.
+func (_c *UserSubscriptionCreate) SetNillableMonthlyUsageCredits(v *int64) *UserSubscriptionCreate {
+	if v != nil {
+		_c.SetMonthlyUsageCredits(*v)
 	}
 	return _c
 }
@@ -334,13 +376,25 @@ func (_c *UserSubscriptionCreate) defaults() error {
 		v := usersubscription.DefaultDailyUsageUsd
 		_c.mutation.SetDailyUsageUsd(v)
 	}
+	if _, ok := _c.mutation.DailyUsageCredits(); !ok {
+		v := usersubscription.DefaultDailyUsageCredits
+		_c.mutation.SetDailyUsageCredits(v)
+	}
 	if _, ok := _c.mutation.WeeklyUsageUsd(); !ok {
 		v := usersubscription.DefaultWeeklyUsageUsd
 		_c.mutation.SetWeeklyUsageUsd(v)
 	}
+	if _, ok := _c.mutation.WeeklyUsageCredits(); !ok {
+		v := usersubscription.DefaultWeeklyUsageCredits
+		_c.mutation.SetWeeklyUsageCredits(v)
+	}
 	if _, ok := _c.mutation.MonthlyUsageUsd(); !ok {
 		v := usersubscription.DefaultMonthlyUsageUsd
 		_c.mutation.SetMonthlyUsageUsd(v)
+	}
+	if _, ok := _c.mutation.MonthlyUsageCredits(); !ok {
+		v := usersubscription.DefaultMonthlyUsageCredits
+		_c.mutation.SetMonthlyUsageCredits(v)
 	}
 	if _, ok := _c.mutation.AssignedAt(); !ok {
 		if usersubscription.DefaultAssignedAt == nil {
@@ -383,11 +437,20 @@ func (_c *UserSubscriptionCreate) check() error {
 	if _, ok := _c.mutation.DailyUsageUsd(); !ok {
 		return &ValidationError{Name: "daily_usage_usd", err: errors.New(`ent: missing required field "UserSubscription.daily_usage_usd"`)}
 	}
+	if _, ok := _c.mutation.DailyUsageCredits(); !ok {
+		return &ValidationError{Name: "daily_usage_credits", err: errors.New(`ent: missing required field "UserSubscription.daily_usage_credits"`)}
+	}
 	if _, ok := _c.mutation.WeeklyUsageUsd(); !ok {
 		return &ValidationError{Name: "weekly_usage_usd", err: errors.New(`ent: missing required field "UserSubscription.weekly_usage_usd"`)}
 	}
+	if _, ok := _c.mutation.WeeklyUsageCredits(); !ok {
+		return &ValidationError{Name: "weekly_usage_credits", err: errors.New(`ent: missing required field "UserSubscription.weekly_usage_credits"`)}
+	}
 	if _, ok := _c.mutation.MonthlyUsageUsd(); !ok {
 		return &ValidationError{Name: "monthly_usage_usd", err: errors.New(`ent: missing required field "UserSubscription.monthly_usage_usd"`)}
+	}
+	if _, ok := _c.mutation.MonthlyUsageCredits(); !ok {
+		return &ValidationError{Name: "monthly_usage_credits", err: errors.New(`ent: missing required field "UserSubscription.monthly_usage_credits"`)}
 	}
 	if _, ok := _c.mutation.AssignedAt(); !ok {
 		return &ValidationError{Name: "assigned_at", err: errors.New(`ent: missing required field "UserSubscription.assigned_at"`)}
@@ -465,13 +528,25 @@ func (_c *UserSubscriptionCreate) createSpec() (*UserSubscription, *sqlgraph.Cre
 		_spec.SetField(usersubscription.FieldDailyUsageUsd, field.TypeFloat64, value)
 		_node.DailyUsageUsd = value
 	}
+	if value, ok := _c.mutation.DailyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldDailyUsageCredits, field.TypeInt64, value)
+		_node.DailyUsageCredits = value
+	}
 	if value, ok := _c.mutation.WeeklyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldWeeklyUsageUsd, field.TypeFloat64, value)
 		_node.WeeklyUsageUsd = value
 	}
+	if value, ok := _c.mutation.WeeklyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldWeeklyUsageCredits, field.TypeInt64, value)
+		_node.WeeklyUsageCredits = value
+	}
 	if value, ok := _c.mutation.MonthlyUsageUsd(); ok {
 		_spec.SetField(usersubscription.FieldMonthlyUsageUsd, field.TypeFloat64, value)
 		_node.MonthlyUsageUsd = value
+	}
+	if value, ok := _c.mutation.MonthlyUsageCredits(); ok {
+		_spec.SetField(usersubscription.FieldMonthlyUsageCredits, field.TypeInt64, value)
+		_node.MonthlyUsageCredits = value
 	}
 	if value, ok := _c.mutation.AssignedAt(); ok {
 		_spec.SetField(usersubscription.FieldAssignedAt, field.TypeTime, value)
@@ -762,6 +837,24 @@ func (u *UserSubscriptionUpsert) AddDailyUsageUsd(v float64) *UserSubscriptionUp
 	return u
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsert) SetDailyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldDailyUsageCredits, v)
+	return u
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateDailyUsageCredits() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldDailyUsageCredits)
+	return u
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsert) AddDailyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldDailyUsageCredits, v)
+	return u
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (u *UserSubscriptionUpsert) SetWeeklyUsageUsd(v float64) *UserSubscriptionUpsert {
 	u.Set(usersubscription.FieldWeeklyUsageUsd, v)
@@ -780,6 +873,24 @@ func (u *UserSubscriptionUpsert) AddWeeklyUsageUsd(v float64) *UserSubscriptionU
 	return u
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsert) SetWeeklyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldWeeklyUsageCredits, v)
+	return u
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateWeeklyUsageCredits() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldWeeklyUsageCredits)
+	return u
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsert) AddWeeklyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldWeeklyUsageCredits, v)
+	return u
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserSubscriptionUpsert) SetMonthlyUsageUsd(v float64) *UserSubscriptionUpsert {
 	u.Set(usersubscription.FieldMonthlyUsageUsd, v)
@@ -795,6 +906,24 @@ func (u *UserSubscriptionUpsert) UpdateMonthlyUsageUsd() *UserSubscriptionUpsert
 // AddMonthlyUsageUsd adds v to the "monthly_usage_usd" field.
 func (u *UserSubscriptionUpsert) AddMonthlyUsageUsd(v float64) *UserSubscriptionUpsert {
 	u.Add(usersubscription.FieldMonthlyUsageUsd, v)
+	return u
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsert) SetMonthlyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Set(usersubscription.FieldMonthlyUsageCredits, v)
+	return u
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsert) UpdateMonthlyUsageCredits() *UserSubscriptionUpsert {
+	u.SetExcluded(usersubscription.FieldMonthlyUsageCredits)
+	return u
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsert) AddMonthlyUsageCredits(v int64) *UserSubscriptionUpsert {
+	u.Add(usersubscription.FieldMonthlyUsageCredits, v)
 	return u
 }
 
@@ -1080,6 +1209,27 @@ func (u *UserSubscriptionUpsertOne) UpdateDailyUsageUsd() *UserSubscriptionUpser
 	})
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) SetDailyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetDailyUsageCredits(v)
+	})
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) AddDailyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddDailyUsageCredits(v)
+	})
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateDailyUsageCredits() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateDailyUsageCredits()
+	})
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (u *UserSubscriptionUpsertOne) SetWeeklyUsageUsd(v float64) *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
@@ -1101,6 +1251,27 @@ func (u *UserSubscriptionUpsertOne) UpdateWeeklyUsageUsd() *UserSubscriptionUpse
 	})
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) SetWeeklyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetWeeklyUsageCredits(v)
+	})
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) AddWeeklyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddWeeklyUsageCredits(v)
+	})
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateWeeklyUsageCredits() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateWeeklyUsageCredits()
+	})
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserSubscriptionUpsertOne) SetMonthlyUsageUsd(v float64) *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
@@ -1119,6 +1290,27 @@ func (u *UserSubscriptionUpsertOne) AddMonthlyUsageUsd(v float64) *UserSubscript
 func (u *UserSubscriptionUpsertOne) UpdateMonthlyUsageUsd() *UserSubscriptionUpsertOne {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) SetMonthlyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetMonthlyUsageCredits(v)
+	})
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsertOne) AddMonthlyUsageCredits(v int64) *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddMonthlyUsageCredits(v)
+	})
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertOne) UpdateMonthlyUsageCredits() *UserSubscriptionUpsertOne {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateMonthlyUsageCredits()
 	})
 }
 
@@ -1578,6 +1770,27 @@ func (u *UserSubscriptionUpsertBulk) UpdateDailyUsageUsd() *UserSubscriptionUpse
 	})
 }
 
+// SetDailyUsageCredits sets the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) SetDailyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetDailyUsageCredits(v)
+	})
+}
+
+// AddDailyUsageCredits adds v to the "daily_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) AddDailyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddDailyUsageCredits(v)
+	})
+}
+
+// UpdateDailyUsageCredits sets the "daily_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateDailyUsageCredits() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateDailyUsageCredits()
+	})
+}
+
 // SetWeeklyUsageUsd sets the "weekly_usage_usd" field.
 func (u *UserSubscriptionUpsertBulk) SetWeeklyUsageUsd(v float64) *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
@@ -1599,6 +1812,27 @@ func (u *UserSubscriptionUpsertBulk) UpdateWeeklyUsageUsd() *UserSubscriptionUps
 	})
 }
 
+// SetWeeklyUsageCredits sets the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) SetWeeklyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetWeeklyUsageCredits(v)
+	})
+}
+
+// AddWeeklyUsageCredits adds v to the "weekly_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) AddWeeklyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddWeeklyUsageCredits(v)
+	})
+}
+
+// UpdateWeeklyUsageCredits sets the "weekly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateWeeklyUsageCredits() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateWeeklyUsageCredits()
+	})
+}
+
 // SetMonthlyUsageUsd sets the "monthly_usage_usd" field.
 func (u *UserSubscriptionUpsertBulk) SetMonthlyUsageUsd(v float64) *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
@@ -1617,6 +1851,27 @@ func (u *UserSubscriptionUpsertBulk) AddMonthlyUsageUsd(v float64) *UserSubscrip
 func (u *UserSubscriptionUpsertBulk) UpdateMonthlyUsageUsd() *UserSubscriptionUpsertBulk {
 	return u.Update(func(s *UserSubscriptionUpsert) {
 		s.UpdateMonthlyUsageUsd()
+	})
+}
+
+// SetMonthlyUsageCredits sets the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) SetMonthlyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.SetMonthlyUsageCredits(v)
+	})
+}
+
+// AddMonthlyUsageCredits adds v to the "monthly_usage_credits" field.
+func (u *UserSubscriptionUpsertBulk) AddMonthlyUsageCredits(v int64) *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.AddMonthlyUsageCredits(v)
+	})
+}
+
+// UpdateMonthlyUsageCredits sets the "monthly_usage_credits" field to the value that was provided on create.
+func (u *UserSubscriptionUpsertBulk) UpdateMonthlyUsageCredits() *UserSubscriptionUpsertBulk {
+	return u.Update(func(s *UserSubscriptionUpsert) {
+		s.UpdateMonthlyUsageCredits()
 	})
 }
 

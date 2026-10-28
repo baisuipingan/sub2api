@@ -1,0 +1,296 @@
+name: Fork Release
+
+on:
+  push:
+    tags:
+      - 'fork-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing fork-v* tag to build'
+        required: true
+        type: string
+      dry_run:
+        description: 'Build and test without publishing an image or Release'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: fork-release-${{ github.repository }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      upstream_version: ${{ steps.meta.outputs.upstream_version }}
+      release_version: ${{ steps.meta.outputs.release_version }}
+      sequence: ${{ steps.meta.outputs.sequence }}
+      upstream_commit: ${{ steps.meta.outputs.upstream_commit }}
+      source_commit: ${{ steps.meta.outputs.source_commit }}
+      source_short: ${{ steps.meta.outputs.source_short }}
+      build_date: ${{ steps.meta.outputs.build_date }}
+      schema_epoch: ${{ steps.meta.outputs.schema_epoch }}
+      database_rollback: ${{ steps.meta.outputs.database_rollback }}
+      max_migration: ${{ steps.meta.outputs.max_migration }}
+      owner_lower: ${{ steps.meta.outputs.owner_lower }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Validate fork tag and upstream ancestry
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          [[ "$tag" =~ ^fork-v([0-9]+\.[0-9]+\.[0-9]+)-([1-9][0-9]*)$ ]]
+          upstream_version="${BASH_REMATCH[1]}"
+          sequence="${BASH_REMATCH[2]}"
+          release_version="${upstream_version}-ds.${sequence}"
+          upstream_tag="v${upstream_version}"
+          version_file="$(tr -d '[:space:]' < backend/cmd/server/VERSION)"
+          [[ "$version_file" == "$upstream_version" ]]
+
+          git fetch --no-tags https://github.com/Wei-Shaw/sub2api.git \
+            "refs/tags/${upstream_tag}:refs/tags/${upstream_tag}"
+          git merge-base --is-ancestor "$upstream_tag" HEAD
+
+          python3 - <<'PY'
+          import json
+          with open('.fork-release.json', encoding='utf-8') as fh:
+              policy = json.load(fh)
+          assert int(policy['schema_epoch']) >= 1
+          assert policy['database']['rollback'] in {'image-only', 'backup-required'}
+          PY
+          schema_epoch="$(python3 -c 'import json; print(json.load(open(".fork-release.json"))["schema_epoch"])')"
+          database_rollback="$(python3 -c 'import json; print(json.load(open(".fork-release.json"))["database"]["rollback"])')"
+          max_migration="$(find backend/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort -V | tail -n1)"
+          upstream_commit="$(git rev-parse "${upstream_tag}^{commit}")"
+          source_commit="$(git rev-parse HEAD)"
+          source_short="${source_commit:0:12}"
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          owner_lower="${GITHUB_REPOSITORY_OWNER,,}"
+
+          {
+            echo "upstream_version=$upstream_version"
+            echo "release_version=$release_version"
+            echo "sequence=$sequence"
+            echo "upstream_commit=$upstream_commit"
+            echo "source_commit=$source_commit"
+            echo "source_short=$source_short"
+            echo "build_date=$build_date"
+            echo "schema_epoch=$schema_epoch"
+            echo "database_rollback=$database_rollback"
+            echo "max_migration=$max_migration"
+            echo "owner_lower=$owner_lower"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate fork migration namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          fork_files=(backend/migrations/dsapi_*.sql)
+          (( ${#fork_files[@]} > 0 ))
+          seen=()
+          for file in "${fork_files[@]}"; do
+            base="$(basename "$file")"
+            [[ "$base" =~ ^dsapi_[0-9]{3}_[a-z0-9_]+\.sql$ ]]
+            number="${base:6:3}"
+            for existing in "${seen[@]:-}"; do
+              [[ "$existing" != "$number" ]] || { echo "duplicate dsapi migration number: $number"; exit 1; }
+            done
+            seen+=("$number")
+          done
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          check-latest: false
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          go version | grep -q 'go1.27.3'
+          make test-unit
+          make test-integration
+
+      - name: Backend lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          args: --timeout=30m
+          working-directory: backend
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Frontend tests and type check
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:run
+          pnpm run typecheck
+          pnpm run build
+
+      - name: Validate release scripts
+        run: |
+          bash -n scripts/fork-release.sh
+          bash -n deploy/sub2api-release.sh
+          bash scripts/tests/fork-release-test.sh
+          bash deploy/tests/sub2api-release-test.sh
+
+  image:
+    needs: validate-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: ${{ env.DRY_RUN != 'true' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build fork image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: ${{ env.DRY_RUN != 'true' }}
+          load: ${{ env.DRY_RUN == 'true' }}
+          tags: |
+            ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:${{ needs.validate-and-test.outputs.release_version }}
+            ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:sha-${{ needs.validate-and-test.outputs.source_short }}
+          build-args: |
+            VERSION=${{ needs.validate-and-test.outputs.release_version }}
+            UPSTREAM_VERSION=${{ needs.validate-and-test.outputs.upstream_version }}
+            UPSTREAM_COMMIT=${{ needs.validate-and-test.outputs.upstream_commit }}
+            GIT_TAG=${{ env.RELEASE_TAG }}
+            COMMIT=${{ needs.validate-and-test.outputs.source_commit }}
+            DATE=${{ needs.validate-and-test.outputs.build_date }}
+            BUILD_TYPE=fork
+            SCHEMA_EPOCH=${{ needs.validate-and-test.outputs.schema_epoch }}
+            MAX_MIGRATION=${{ needs.validate-and-test.outputs.max_migration }}
+            DATABASE_ROLLBACK=${{ needs.validate-and-test.outputs.database_rollback }}
+          labels: |
+            org.opencontainers.image.title=Sub2API Fork
+            org.opencontainers.image.description=Fork release built from reviewed upstream code
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
+          provenance: ${{ env.DRY_RUN == 'true' && 'false' || 'mode=max' }}
+          sbom: ${{ env.DRY_RUN != 'true' }}
+
+      - name: Verify image metadata and version output
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:${{ needs.validate-and-test.outputs.release_version }}"
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            image="$tag"
+          else
+            image="$tag@${digest}"
+            docker pull "$image"
+          fi
+          [[ "$(docker image inspect --format '{{index .Config.Labels "io.baisuipingan.build.type"}}' "$image")" == fork ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "io.baisuipingan.upstream.version"}}' "$image")" == "${{ needs.validate-and-test.outputs.upstream_version }}" ]]
+          docker run --rm "$image" /app/sub2api --version 2>&1 | tee version.txt
+          grep -F "${{ needs.validate-and-test.outputs.release_version }}" version.txt
+          grep -F "upstream: ${{ needs.validate-and-test.outputs.upstream_version }}" version.txt
+
+      - name: Generate release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:${{ needs.validate-and-test.outputs.release_version }}"
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ -z "$digest" ]]; then
+            digest="$(docker image inspect --format '{{.Id}}' "$image")"
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          cat > release-manifest.json <<JSON
+          {
+            "schema_version": 1,
+            "git_tag": "${{ env.RELEASE_TAG }}",
+            "release_version": "${{ needs.validate-and-test.outputs.release_version }}",
+            "upstream_version": "${{ needs.validate-and-test.outputs.upstream_version }}",
+            "upstream_commit": "${{ needs.validate-and-test.outputs.upstream_commit }}",
+            "source_commit": "${{ needs.validate-and-test.outputs.source_commit }}",
+            "image": "ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api@${digest}",
+            "image_tag": "ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:${{ needs.validate-and-test.outputs.release_version }}",
+            "digest": "${digest}",
+            "database": {
+              "max_migration": "${{ needs.validate-and-test.outputs.max_migration }}",
+              "schema_epoch": ${{ needs.validate-and-test.outputs.schema_epoch }},
+              "rollback": "${{ needs.validate-and-test.outputs.database_rollback }}"
+            },
+            "tests": "backend go test ./..., frontend vitest, vue-tsc, vite build"
+          }
+          JSON
+          python3 -m json.tool release-manifest.json >/dev/null
+
+          cat > release-notes.md <<MD
+          ## Fork release ${{ needs.validate-and-test.outputs.release_version }}
+
+          - Upstream baseline: \`v${{ needs.validate-and-test.outputs.upstream_version }}\`
+          - Upstream commit: \`${{ needs.validate-and-test.outputs.upstream_commit }}\`
+          - Source commit: \`${{ needs.validate-and-test.outputs.source_commit }}\`
+          - Image digest: \`${digest}\`
+          - Database policy: \`${{ needs.validate-and-test.outputs.database_rollback }}\`
+
+          Deploy on the server:
+
+          \`\`\`bash
+          /root/sub2api-deploy/bin/sub2api-release deploy \\
+            ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api@${digest}
+          \`\`\`
+          MD
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ env.DRY_RUN == 'true' }}
+        with:
+          name: fork-release-dry-run
+          path: |
+            release-manifest.json
+            release-notes.md
+            version.txt
+          retention-days: 3
+
+      - name: Create GitHub Release
+        if: ${{ env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$RELEASE_TAG" release-manifest.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Fork ${{ needs.validate-and-test.outputs.release_version }}" \
+            --notes-file release-notes.md

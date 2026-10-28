@@ -135,14 +135,29 @@ func DailyLimitUsd(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDailyLimitUsd, v))
 }
 
+// DailyLimitCredits applies equality check predicate on the "daily_limit_credits" field. It's identical to DailyLimitCreditsEQ.
+func DailyLimitCredits(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDailyLimitCredits, v))
+}
+
 // WeeklyLimitUsd applies equality check predicate on the "weekly_limit_usd" field. It's identical to WeeklyLimitUsdEQ.
 func WeeklyLimitUsd(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldWeeklyLimitUsd, v))
 }
 
+// WeeklyLimitCredits applies equality check predicate on the "weekly_limit_credits" field. It's identical to WeeklyLimitCreditsEQ.
+func WeeklyLimitCredits(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldWeeklyLimitCredits, v))
+}
+
 // MonthlyLimitUsd applies equality check predicate on the "monthly_limit_usd" field. It's identical to MonthlyLimitUsdEQ.
 func MonthlyLimitUsd(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldMonthlyLimitUsd, v))
+}
+
+// MonthlyLimitCredits applies equality check predicate on the "monthly_limit_credits" field. It's identical to MonthlyLimitCreditsEQ.
+func MonthlyLimitCredits(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMonthlyLimitCredits, v))
 }
 
 // DefaultValidityDays applies equality check predicate on the "default_validity_days" field. It's identical to DefaultValidityDaysEQ.
@@ -1170,6 +1185,56 @@ func DailyLimitUsdNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldDailyLimitUsd))
 }
 
+// DailyLimitCreditsEQ applies the EQ predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsNEQ applies the NEQ predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsIn applies the In predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldDailyLimitCredits, vs...))
+}
+
+// DailyLimitCreditsNotIn applies the NotIn predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldDailyLimitCredits, vs...))
+}
+
+// DailyLimitCreditsGT applies the GT predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsGTE applies the GTE predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsLT applies the LT predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsLTE applies the LTE predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldDailyLimitCredits, v))
+}
+
+// DailyLimitCreditsIsNil applies the IsNil predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldDailyLimitCredits))
+}
+
+// DailyLimitCreditsNotNil applies the NotNil predicate on the "daily_limit_credits" field.
+func DailyLimitCreditsNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldDailyLimitCredits))
+}
+
 // WeeklyLimitUsdEQ applies the EQ predicate on the "weekly_limit_usd" field.
 func WeeklyLimitUsdEQ(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldWeeklyLimitUsd, v))
@@ -1220,6 +1285,56 @@ func WeeklyLimitUsdNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldWeeklyLimitUsd))
 }
 
+// WeeklyLimitCreditsEQ applies the EQ predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsNEQ applies the NEQ predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsIn applies the In predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldWeeklyLimitCredits, vs...))
+}
+
+// WeeklyLimitCreditsNotIn applies the NotIn predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldWeeklyLimitCredits, vs...))
+}
+
+// WeeklyLimitCreditsGT applies the GT predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsGTE applies the GTE predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsLT applies the LT predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsLTE applies the LTE predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldWeeklyLimitCredits, v))
+}
+
+// WeeklyLimitCreditsIsNil applies the IsNil predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldWeeklyLimitCredits))
+}
+
+// WeeklyLimitCreditsNotNil applies the NotNil predicate on the "weekly_limit_credits" field.
+func WeeklyLimitCreditsNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldWeeklyLimitCredits))
+}
+
 // MonthlyLimitUsdEQ applies the EQ predicate on the "monthly_limit_usd" field.
 func MonthlyLimitUsdEQ(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldMonthlyLimitUsd, v))
@@ -1268,6 +1383,56 @@ func MonthlyLimitUsdIsNil() predicate.Group {
 // MonthlyLimitUsdNotNil applies the NotNil predicate on the "monthly_limit_usd" field.
 func MonthlyLimitUsdNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldMonthlyLimitUsd))
+}
+
+// MonthlyLimitCreditsEQ applies the EQ predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsNEQ applies the NEQ predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsIn applies the In predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldMonthlyLimitCredits, vs...))
+}
+
+// MonthlyLimitCreditsNotIn applies the NotIn predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldMonthlyLimitCredits, vs...))
+}
+
+// MonthlyLimitCreditsGT applies the GT predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsGTE applies the GTE predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsLT applies the LT predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsLTE applies the LTE predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldMonthlyLimitCredits, v))
+}
+
+// MonthlyLimitCreditsIsNil applies the IsNil predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldMonthlyLimitCredits))
+}
+
+// MonthlyLimitCreditsNotNil applies the NotNil predicate on the "monthly_limit_credits" field.
+func MonthlyLimitCreditsNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldMonthlyLimitCredits))
 }
 
 // DefaultValidityDaysEQ applies the EQ predicate on the "default_validity_days" field.
