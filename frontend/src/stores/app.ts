@@ -13,6 +13,7 @@ import {
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
@@ -39,10 +40,14 @@ export const useAppStore = defineStore('app', () => {
   const versionLoaded = ref<boolean>(false)
   const versionLoading = ref<boolean>(false)
   const currentVersion = ref<string>('')
+  const upstreamVersion = ref<string>('')
   const latestVersion = ref<string>('')
   const hasUpdate = ref<boolean>(false)
   const buildType = ref<string>('source')
+  const updateMode = ref<'self' | 'external' | 'manual'>('self')
+  const canSelfUpdate = ref<boolean>(true)
   const releaseInfo = ref<ReleaseInfo | null>(null)
+  const versionWarning = ref<string>('')
 
   // Auto-incrementing ID for toasts
   let toastIdCounter = 0
@@ -245,10 +250,14 @@ export const useAppStore = defineStore('app', () => {
     if (versionLoaded.value && !force) {
       return {
         current_version: currentVersion.value,
+        upstream_version: upstreamVersion.value || undefined,
         latest_version: latestVersion.value,
         has_update: hasUpdate.value,
         build_type: buildType.value,
+        update_mode: updateMode.value,
+        can_self_update: canSelfUpdate.value,
         release_info: releaseInfo.value || undefined,
+        warning: versionWarning.value || undefined,
         cached: true
       }
     }
@@ -262,10 +271,20 @@ export const useAppStore = defineStore('app', () => {
     try {
       const data = await checkUpdatesAPI(force)
       currentVersion.value = data.current_version
+      upstreamVersion.value = data.upstream_version || ''
       latestVersion.value = data.latest_version
       hasUpdate.value = data.has_update
       buildType.value = data.build_type || 'source'
+      updateMode.value =
+        data.update_mode ||
+        (data.build_type === 'fork'
+          ? 'external'
+          : data.build_type === 'release'
+            ? 'self'
+            : 'manual')
+      canSelfUpdate.value = data.can_self_update !== false
       releaseInfo.value = data.release_info || null
+      versionWarning.value = data.warning || ''
       versionLoaded.value = true
       return data
     } catch (error) {
@@ -282,6 +301,7 @@ export const useAppStore = defineStore('app', () => {
   function clearVersionCache(): void {
     versionLoaded.value = false
     hasUpdate.value = false
+    versionWarning.value = ''
   }
 
   // ==================== Public Settings Management ====================
@@ -294,6 +314,7 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
+    setCurrentBillingCurrencySettings(config)
     siteName.value = config.site_name || 'Sub2API'
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
@@ -458,10 +479,14 @@ export const useAppStore = defineStore('app', () => {
     versionLoaded,
     versionLoading,
     currentVersion,
+    upstreamVersion,
     latestVersion,
     hasUpdate,
     buildType,
+    updateMode,
+    canSelfUpdate,
     releaseInfo,
+    versionWarning,
 
     // Computed
     hasActiveToasts,

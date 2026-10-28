@@ -7877,6 +7877,8 @@
         <!-- Tab: Email -->
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
+          <BillingCurrencySettingsCard />
+
           <!-- Payment System Settings -->
           <div class="card">
             <div
@@ -8746,7 +8748,7 @@
                 <div class="relative">
                   <span
                     class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    >$</span
+                    >{{ billingSymbol }}</span
                   >
                   <input
                     v-model.number="form.balance_low_notify_threshold"
@@ -8991,6 +8993,7 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import BillingCurrencySettingsCard from "@/components/admin/settings/BillingCurrencySettingsCard.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
 import {
@@ -9002,6 +9005,7 @@ import {
 } from "@/utils/rechargeBonus";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
+import { useBillingCurrency } from "@/composables/useBillingCurrency";
 import {
   useStepUp,
   isStepUpCancelled,
@@ -9029,6 +9033,11 @@ import {
 } from "./codexFingerprintSignals";
 
 const { t, locale } = useI18n();
+const {
+  usdToDisplay,
+  displayToUSD,
+  symbol: billingSymbol,
+} = useBillingCurrency();
 const appStore = useAppStore();
 // 关闭 step-up 开关是敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 码重试
 const settingsStepUp = useStepUp();
@@ -11016,6 +11025,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.balance_low_notify_threshold = usdToDisplay(
+      Number(form.balance_low_notify_threshold) || 0,
+    );
     // For this optional override, null explicitly selects per-account rates.
     if (settings.openai_oauth_scheduling_rate_multiplier === null) {
       form.openai_oauth_scheduling_rate_multiplier = null;
@@ -11734,7 +11746,7 @@ async function saveSettings() {
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:
-        Number(form.balance_low_notify_threshold) || 0,
+        displayToUSD(Number(form.balance_low_notify_threshold) || 0),
       balance_low_notify_recharge_url: (form.balance_low_notify_recharge_url =
         form.balance_low_notify_recharge_url || currentOrigin),
       subscription_expiry_notify_enabled:
@@ -13371,24 +13383,25 @@ watch(
 </style>
 
 <style>
-/* Dark-mode overrides for the settings tabs shell. Kept in an UNSCOPED block
-   because Vue's scoped-CSS compiler was dropping the `:global(.dark) ...`
-   rules in the production build, leaving inactive tabs unreadable on dark. */
+/* 设置页 Tab 外壳的深色覆盖。保持非 scoped：
+   Vue 的 scoped 编译器会在生产构建里丢掉 :global(.dark) 规则，
+   导致深色下未选中的 Tab 不可读。改色值时必须同步新拟态语义。 */
 .dark .settings-tabs-shell {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: transparent;
+  background: var(--neu-bg, #1f2329);
   box-shadow:
-    0 16px 36px rgb(0 0 0 / 0.28),
-    0 1px 0 rgb(255 255 255 / 0.06) inset;
+    inset -4px -4px 11px var(--neu-light, #2c3138),
+    inset 4px 4px 12px var(--neu-dark, #121519);
 }
 
 .dark .settings-tab::before {
-  background: linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62));
+  background: transparent;
 }
 
 .dark .settings-tab-active {
+  background: var(--neu-bg, #1f2329);
   box-shadow:
-    0 12px 26px rgb(0 0 0 / 0.22),
-    0 1px 0 rgb(255 255 255 / 0.08) inset;
+    inset -3px -3px 8px var(--neu-light, #2c3138),
+    inset 3px 3px 9px var(--neu-dark, #121519);
 }
 </style>

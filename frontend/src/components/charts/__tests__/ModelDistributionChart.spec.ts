@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import ModelDistributionChart from '../ModelDistributionChart.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 const messages: Record<string, string> = {
   'admin.dashboard.modelDistribution': 'Model Distribution',
@@ -130,6 +131,36 @@ describe('ModelDistributionChart', () => {
       dataset: { data: [1.4, 0.2] },
     })
     expect(label).toBe('model-b: $1.40 (87.5%)')
+  })
+
+  it('renders actual-cost rows and tooltip in CNY after USD conversion', () => {
+    const previousConfig = window.__APP_CONFIG__
+    window.__APP_CONFIG__ = {
+      ...(previousConfig ?? {}),
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    } as any
+    setCurrentBillingCurrencySettings(window.__APP_CONFIG__)
+
+    try {
+      const wrapper = mount(ModelDistributionChart, {
+        props: { modelStats, metric: 'actual_cost' },
+        global: { stubs: { LoadingSpinner: true } },
+      })
+
+      expect(wrapper.findAll('tbody tr')[0].text()).toContain('¥10.08')
+      expect(wrapper.text()).not.toContain('$1.40')
+      const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+      const label = options.plugins.tooltip.callbacks.label({
+        label: 'model-b',
+        raw: 1.4,
+        dataset: { data: [1.4, 0.2] },
+      })
+      expect(label).toBe('model-b: ¥10.08 (87.5%)')
+    } finally {
+      window.__APP_CONFIG__ = previousConfig
+      setCurrentBillingCurrencySettings(previousConfig)
+    }
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {

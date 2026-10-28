@@ -764,6 +764,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize, setPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useAppStore } from '@/stores/app'
+import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
 import { keysAPI } from '@/api'
 import {
   cancelBatchImageJob,
@@ -2385,8 +2386,8 @@ function friendlyItemError(error: BatchImageItem['error']) {
 }
 
 function formatMoney(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '$0.00'
-  return `$${Number(value).toFixed(2)}`
+  const amount = Number(value)
+  return formatCurrentBillingAmount(Number.isFinite(amount) ? amount : 0, 2)
 }
 
 function terminalZeroCost(job: Pick<BatchImageJob, 'status' | 'actual_cost'>) {

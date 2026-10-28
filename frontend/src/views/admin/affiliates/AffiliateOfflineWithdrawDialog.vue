@@ -68,14 +68,14 @@
             class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
           ></span>
           <span v-else class="font-semibold text-gray-900 dark:text-white" data-test="withdraw-available-quota">
-            ${{ formatPreciseAmount(availableQuota) }}
+            {{ formatPreciseAmount(availableQuota) }}
           </span>
         </div>
         <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.affiliates.withdraw.frozenHint') }}</p>
       </div>
 
       <div>
-        <label class="input-label">{{ t('admin.affiliates.withdraw.amount') }}</label>
+        <label class="input-label">{{ t('admin.affiliates.withdraw.amount', { currency: billingSymbol }) }}</label>
         <div class="flex gap-2">
           <input
             v-model="amount"
@@ -137,6 +137,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { useAppStore } from '@/stores/app'
 import { affiliatesAPI, type AffiliateWithdrawResult, type SimpleUser } from '@/api/admin/affiliates'
 import { extractApiErrorCode, extractI18nErrorMessage } from '@/utils/apiError'
@@ -160,6 +161,7 @@ const LEDGER_SCALE = 1e8
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency()
 
 const userQuery = ref('')
 const userResults = ref<SimpleUser[]>([])
@@ -186,7 +188,7 @@ const amountError = computed(() => {
   if (!Number.isFinite(value) || Math.round(value * LEDGER_SCALE) <= 0) {
     return t('admin.affiliates.withdraw.amountRequired')
   }
-  if (Math.round(value * LEDGER_SCALE) > Math.round(availableQuota.value * LEDGER_SCALE)) {
+  if (Math.round(value * LEDGER_SCALE) > Math.round(usdToDisplay(availableQuota.value) * LEDGER_SCALE)) {
     return t('admin.affiliates.withdraw.amountExceeds')
   }
   return ''
@@ -199,9 +201,13 @@ const canSubmit = computed(() => {
   return !overviewLoading.value && amountText.value !== '' && amountError.value === ''
 })
 
-function formatPreciseAmount(value: number): string {
-  const [intPart, fraction = ''] = Number(value || 0).toFixed(8).replace(/0+$/, '').split('.')
-  return `${intPart}.${fraction.padEnd(2, '0')}`
+function formatPreciseAmount(valueUSD: number): string {
+  const displayValue = usdToDisplay(valueUSD)
+  const [intPart, fraction = ''] = displayValue
+    .toFixed(8)
+    .replace(/0+$/, '')
+    .split('.')
+  return `${billingSymbol.value}${intPart}.${fraction.padEnd(2, '0')}`
 }
 
 function showError(error: unknown) {
@@ -282,7 +288,8 @@ function clearUser() {
 }
 
 function fillAll() {
-  amount.value = Math.round(availableQuota.value * LEDGER_SCALE) / LEDGER_SCALE
+  const displayQuota = usdToDisplay(availableQuota.value)
+  amount.value = Math.round(displayQuota * LEDGER_SCALE) / LEDGER_SCALE
 }
 
 function resetForm() {
@@ -309,7 +316,7 @@ async function submit() {
   const user = selectedUser.value
   if (!user || !canSubmit.value) return
   if (!pendingOperation.value) {
-    pendingOperation.value = prepareAffiliateWithdrawOperation(user.id, parsedAmount.value)
+    pendingOperation.value = prepareAffiliateWithdrawOperation(user.id, displayToUSD(parsedAmount.value))
   }
   const operation = pendingOperation.value
   submitting.value = true
@@ -323,8 +330,8 @@ async function submit() {
     pendingOperation.value = null
     appStore.showSuccess(
       t(replayed ? 'admin.affiliates.withdraw.replayed' : 'admin.affiliates.withdraw.success', {
-        amount: `$${formatPreciseAmount(result.amount)}`,
-        remaining: `$${formatPreciseAmount(result.available_quota_after)}`,
+        amount: formatPreciseAmount(result.amount),
+        remaining: formatPreciseAmount(result.available_quota_after),
       }),
     )
     emit('success', result)

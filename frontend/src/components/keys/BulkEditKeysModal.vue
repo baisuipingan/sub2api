@@ -56,7 +56,7 @@
               class="checkbox"
               :data-test="`enable-${field.key}`"
             />
-            {{ t(field.label) }}
+            {{ field.label.startsWith('keys.') ? t(field.label, { currency: billingSymbol }) : t(field.label) }}
           </label>
           <div v-if="enabled[field.key]">
             <input
@@ -66,7 +66,7 @@
               step="any"
               required
               class="input"
-              :aria-label="t(field.label)"
+              :aria-label="field.label.startsWith('keys.') ? t(field.label, { currency: billingSymbol }) : t(field.label)"
               :data-test="`${field.key}-input`"
             />
             <p class="input-hint">{{ t('keys.bulkEdit.limitHint') }}</p>
@@ -103,14 +103,14 @@
               class="checkbox"
               :data-test="`enable-${field.key}`"
             />
-            {{ t(field.label) }}
+            {{ field.label.startsWith('keys.') ? t(field.label, { currency: billingSymbol }) : t(field.label) }}
           </label>
           <div v-if="enabled[field.key]">
             <textarea
               v-model="ipLists[field.key]"
               rows="3"
               class="input font-mono text-sm"
-              :aria-label="t(field.label)"
+              :aria-label="field.label.startsWith('keys.') ? t(field.label, { currency: billingSymbol }) : t(field.label)"
               :data-test="`${field.key}-input`"
             />
             <p class="input-hint">{{ t('keys.bulkEdit.ipHint') }}</p>
@@ -155,6 +155,7 @@ import { keysAPI } from '@/api'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import type { ApiKey, Group, UpdateApiKeyRequest } from '@/types'
 
 type SelectedKey = Pick<ApiKey, 'id' | 'name'>
@@ -174,6 +175,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { displayToUSD, symbol: billingSymbol } = useBillingCurrency()
 const submitting = ref(false)
 const pendingKeys = ref<SelectedKey[]>([])
 const failures = ref<Array<{ id: number; name: string; message: string }>>([])
@@ -261,7 +263,7 @@ const submit = async () => {
   if (enabled.group_id) updates.group_id = groupId.value
   if (enabled.status) updates.status = status.value
   for (const { key } of limitFields) {
-    if (enabled[key]) updates[key] = Number(limits[key])
+    if (enabled[key]) updates[key] = displayToUSD(Number(limits[key]))
   }
   for (const { key } of ipFields) {
     if (enabled[key]) updates[key] = ipLists[key].split('\n').map((ip) => ip.trim()).filter(Boolean)

@@ -16,8 +16,10 @@
         :rows="rows"
         :class="[
           'input w-full min-h-[80px] transition-all duration-200 resize-y',
-          error ? 'input-error ring-2 ring-red-500/20' : '',
-          disabled ? 'cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900' : ''
+          /* 错误态交给 .input-error，不叠加 ring 避免双描边 */
+          error ? 'input-error' : '',
+          /* 禁用态只降透明度，不改底色（新拟态要求与背景同色） */
+          disabled ? 'cursor-not-allowed opacity-50' : ''
         ]"
         @input="onInput"
         @change="$emit('change', ($event.target as HTMLTextAreaElement).value)"

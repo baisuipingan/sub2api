@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import UsageStatsCards from '../UsageStatsCards.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 const messages: Record<string, string> = {
   'usage.totalRequests': 'Total Requests',
@@ -63,6 +64,29 @@ describe('UsageStatsCards', () => {
     expect(text).toContain('12')
     expect(text).toContain('Cache Read')
     expect(text).toContain('22')
+  })
+
+  it('renders usage totals in the configured CNY display currency', () => {
+    const previousConfig = window.__APP_CONFIG__
+    window.__APP_CONFIG__ = {
+      ...(previousConfig ?? {}),
+      billing_display_currency: 'CNY',
+      billing_usd_to_cny: 7.2,
+    } as any
+    setCurrentBillingCurrencySettings(window.__APP_CONFIG__)
+
+    try {
+      const wrapper = mount(UsageStatsCards, {
+        props: { stats },
+        global: { stubs: { Icon: true } },
+      })
+
+      expect(wrapper.text()).toContain('¥0.0072')
+      expect(wrapper.text()).not.toContain('$0.0010')
+    } finally {
+      window.__APP_CONFIG__ = previousConfig
+      setCurrentBillingCurrencySettings(previousConfig)
+    }
   })
 
   it('keeps the cache tooltip out of the layout while it is hidden', () => {

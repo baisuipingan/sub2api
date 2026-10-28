@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { useTheme } from '@/composables/useTheme'
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -241,7 +242,8 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
 
 function mountPaymentElement(stripe: Stripe, clientSecret: string) {
   if (disposed) return
-  const isDark = document.documentElement.classList.contains('dark')
+  const { isDark: themeIsDark } = useTheme()
+    const isDark = themeIsDark.value
   const elements = stripe.elements({
     clientSecret,
     appearance: { theme: isDark ? 'night' : 'stripe', variables: { borderRadius: '8px' } },

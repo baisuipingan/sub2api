@@ -103,6 +103,12 @@ export interface PaymentOrder {
   fee_rate: number
   /** 充值赠送额度（USD），已计入 amount */
   bonus_amount?: number
+  credited_credits?: number
+  bonus_credits?: number
+  credits_per_usd_snapshot?: number
+  usd_to_cny_snapshot?: number
+  recharge_rate_snapshot?: number
+  billing_version?: number
   payment_type: string
   out_trade_no: string
   status: OrderStatus

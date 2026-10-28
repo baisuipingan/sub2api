@@ -23,13 +23,13 @@
             {{ formatTokens(user.total_tokens) }}
           </td>
           <td class="py-1 text-right text-green-600 dark:text-green-400">
-            ${{ formatCost(user.actual_cost) }}
+            {{ formatCost(user.actual_cost) }}
           </td>
           <td v-if="showAccountCost" class="py-1 text-right text-orange-500 dark:text-orange-400">
-            ${{ formatCost(user.account_cost) }}
+            {{ formatCost(user.account_cost) }}
           </td>
           <td class="py-1 pr-1 text-right text-gray-400 dark:text-gray-500">
-            ${{ formatCost(user.cost) }}
+            {{ formatCost(user.cost) }}
           </td>
         </tr>
       </tbody>
@@ -41,9 +41,11 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import type { UserBreakdownItem } from '@/types'
 
 const { t } = useI18n()
+const { formatCompact } = useBillingCurrency()
 
 const props = withDefaults(defineProps<{
   items: UserBreakdownItem[]
@@ -56,6 +58,11 @@ const props = withDefaults(defineProps<{
 
 const showAccountCost = computed(() => props.showAccountCost)
 
+const toFiniteNumber = (value: unknown): number => {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : 0
+}
+
 const formatTokens = (value: number): string => {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
@@ -63,11 +70,8 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number | undefined | null): string => {
-  if (value == null) return '0.0000'
-  if (value >= 1000) return (value / 1000).toFixed(2) + 'K'
-  if (value >= 1) return value.toFixed(2)
-  if (value >= 0.01) return value.toFixed(3)
-  return value.toFixed(4)
+const formatCost = (value: number | null | undefined): string => {
+  return formatCompact(toFiniteNumber(value))
 }
+
 </script>

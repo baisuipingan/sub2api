@@ -27,8 +27,10 @@
           'input w-full transition-all duration-200',
           $slots.prefix ? 'pl-11' : '',
           $slots.suffix ? 'pr-11' : '',
-          error ? 'input-error ring-2 ring-red-500/20' : '',
-          disabled ? 'cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900' : ''
+          /* 错误态交给 .input-error 的内阴影光环，不再叠加 ring（会变双描边） */
+          error ? 'input-error' : '',
+          /* 禁用态不能改底色：新拟态要求元素与背景同色，只降透明度 */
+          disabled ? 'cursor-not-allowed opacity-50' : ''
         ]"
         @input="onInput"
         @change="$emit('change', ($event.target as HTMLInputElement).value)"

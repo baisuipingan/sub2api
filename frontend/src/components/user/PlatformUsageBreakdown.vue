@@ -2,7 +2,7 @@
   <div class="group/usage relative text-sm">
     <div class="flex items-center gap-1.5">
       <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.today') }}:</span>
-      <span class="font-medium text-gray-900 dark:text-white">${{ today.toFixed(4) }}</span>
+      <span class="font-medium text-gray-900 dark:text-white">{{ formatUSD(today, 4) }}</span>
       <Icon
         v-if="hasBreakdown"
         name="infoCircle"
@@ -12,7 +12,7 @@
     </div>
     <div class="mt-0.5 flex items-center gap-1.5">
       <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.total') }}:</span>
-      <span class="font-medium text-gray-900 dark:text-white">${{ total.toFixed(4) }}</span>
+      <span class="font-medium text-gray-900 dark:text-white">{{ formatUSD(total, 4) }}</span>
     </div>
 
     <div
@@ -33,9 +33,9 @@
           {{ item.isOther ? t('admin.users.platformOther') : platformLabel(item.platform) }}
         </span>
         <span class="font-mono">
-          ${{ item.today_actual_cost.toFixed(4) }}
+          {{ formatUSD(item.today_actual_cost, 4) }}
           <span class="opacity-50">/</span>
-          ${{ item.total_actual_cost.toFixed(4) }}
+          {{ formatUSD(item.total_actual_cost, 4) }}
         </span>
       </div>
     </div>
@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import Icon from '@/components/icons/Icon.vue'
 import type { PlatformUsage } from '@/api/admin/dashboard'
 
@@ -55,6 +56,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { formatUSD } = useBillingCurrency()
 
 // 与 UserDashboardStats 保持一致：把"总值 - 各平台之和"的差作为"其他"行展示，
 // 避免 tooltip 内各平台费用加总与列首总值对不上。

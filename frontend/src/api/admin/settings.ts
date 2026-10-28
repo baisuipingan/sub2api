@@ -1072,6 +1072,35 @@ export interface UpdateSettingsRequest {
   allow_user_view_error_requests?: boolean;
 }
 
+export type BillingEngine = 'legacy' | 'shadow' | 'credits'
+export type BillingDisplayCurrency = 'USD' | 'CNY'
+
+export interface BillingCurrencyConfig {
+  enabled: boolean
+  engine: BillingEngine
+  credits_per_usd: number
+  display_currency: BillingDisplayCurrency
+  usd_to_cny: number
+  recharge_rates: Record<string, number>
+  updated_at?: string
+  version: number
+}
+
+export async function getBillingCurrencyConfig(): Promise<BillingCurrencyConfig> {
+  const { data } = await apiClient.get<BillingCurrencyConfig>('/admin/settings/billing-currency')
+  return data
+}
+
+export async function updateBillingCurrencyConfig(
+  config: BillingCurrencyConfig,
+): Promise<BillingCurrencyConfig> {
+  const { data } = await apiClient.put<BillingCurrencyConfig>(
+    '/admin/settings/billing-currency',
+    config,
+  )
+  return data
+}
+
 /**
  * Get all system settings
  * @returns System settings
@@ -1589,6 +1618,8 @@ export async function resetWebSearchUsage(payload: {
 export const settingsAPI = {
   getSettings,
   updateSettings,
+  getBillingCurrencyConfig,
+  updateBillingCurrencyConfig,
   testSmtpConnection,
   sendTestEmail,
   getEmailTemplates,

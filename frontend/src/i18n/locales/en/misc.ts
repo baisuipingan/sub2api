@@ -29,6 +29,15 @@ export default {
     viewRelease: 'View Release',
     viewChangelog: 'View Changelog',
     refresh: 'Refresh',
+    forkCurrentVersion: 'Fork Version',
+    forkOfficialBaseline: 'Merged Official Baseline',
+    forkOfficialLatest: 'Latest Official Version',
+    forkOfficialUpdateAvailable: 'A new official release is ready to merge',
+    forkBaselineSynced: 'Official baseline is current',
+    forkVersionUnknown: 'Official version status is unknown',
+    forkUpdateDisabled: 'Update now (disabled)',
+    forkExternalManaged: 'Updates are managed by the fork release workflow',
+    forkExternalManagedHint: 'Merge the official release, build an image, and deploy it from your maintenance shell. Do not install an official binary inside this container.',
     sourceMode: 'Source Build',
     sourceModeHint: 'Source build, use git pull to update',
     updateNow: 'Update Now',
@@ -58,6 +67,7 @@ export default {
     dockerEditCompose: 'Edit the image tag in docker-compose.yml',
     dockerRecreate: 'Recreate the container'
   },
+
 
   // Recharge / Subscription Page
   purchase: {

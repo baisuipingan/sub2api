@@ -130,7 +130,7 @@
 
           <template #cell-value="{ value, row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              <template v-if="row.type === 'balance'">${{ value.toFixed(2) }}</template>
+              <template v-if="row.type === 'balance'">{{ formatCurrency(value) }}</template>
               <template v-else-if="row.type === 'subscription'">
                 {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
                 <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"
@@ -292,7 +292,7 @@
               <label class="input-label">
                 {{
                   generateForm.type === 'balance'
-                    ? t('admin.redeem.amount')
+                    ? t('admin.redeem.amount', { currency: billingSymbol })
                     : t('admin.redeem.columns.value')
                 }}
               </label>
@@ -617,8 +617,10 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { adminAPI } from '@/api/admin'
 import {
+  formatCurrency,
   formatDateTime,
   getBrowserTimeZone,
   parseDateTimeLocalInput
@@ -643,6 +645,7 @@ import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
+const { usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency()
 const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 const browserTimeZone = getBrowserTimeZone()
@@ -837,7 +840,7 @@ const redeemCodeExpiryOptions = computed<{ value: RedeemCodeExpiryOption; label:
 
 const generateForm = reactive({
   type: 'balance' as RedeemCodeType,
-  value: 10,
+  value: usdToDisplay(10),
   count: 1,
   group_id: null as number | null,
   validity_days: 30,
@@ -852,7 +855,7 @@ watch(
     if (newType === 'invitation') {
       generateForm.value = 0
     } else if (generateForm.value === 0) {
-      generateForm.value = 10
+      generateForm.value = newType === 'balance' ? usdToDisplay(10) : 10
     }
   }
 )
@@ -1043,7 +1046,7 @@ const handleGenerateCodes = async () => {
     const result = await adminAPI.redeem.generate(
       generateForm.count,
       generateForm.type,
-      generateForm.value,
+      generateForm.type === 'balance' ? displayToUSD(generateForm.value) : generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
       expiresInDays

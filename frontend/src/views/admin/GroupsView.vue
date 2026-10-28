@@ -340,7 +340,7 @@
                   t("admin.groups.usageToday")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >{{
                     formatCost(usageMap.get(row.id)?.today_cost ?? 0)
                   }}</span
                 >
@@ -350,7 +350,7 @@
                   t("admin.groups.usageYesterday")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >{{
                     formatCost(usageMap.get(row.id)?.yesterday_cost ?? 0)
                   }}</span
                 >
@@ -360,7 +360,7 @@
                   t("admin.groups.usageTotal")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
+                  >{{
                     formatCost(usageMap.get(row.id)?.total_cost ?? 0)
                   }}</span
                 >
@@ -728,7 +728,7 @@
           >
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
+                t("admin.groups.subscription.dailyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="createForm.daily_limit_usd"
@@ -741,7 +741,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
+                t("admin.groups.subscription.weeklyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="createForm.weekly_limit_usd"
@@ -754,7 +754,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
+                t("admin.groups.subscription.monthlyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="createForm.monthly_limit_usd"
@@ -2382,7 +2382,7 @@
           >
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
+                t("admin.groups.subscription.dailyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="editForm.daily_limit_usd"
@@ -2395,7 +2395,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
+                t("admin.groups.subscription.weeklyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="editForm.weekly_limit_usd"
@@ -2408,7 +2408,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
+                t("admin.groups.subscription.monthlyLimit", { currency: billingSymbol })
               }}</label>
               <input
                 v-model.number="editForm.monthly_limit_usd"
@@ -4296,6 +4296,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
+import { useBillingCurrency } from "@/composables/useBillingCurrency";
 import { useAuthStore } from "@/stores/auth";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
@@ -4482,6 +4483,7 @@ const groupPricingToAPI = (
 
 const { t } = useI18n();
 const appStore = useAppStore();
+const { formatCompact, usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency();
 const authStore = useAuthStore();
 const onboardingStore = useOnboardingStore();
 
@@ -5692,14 +5694,15 @@ const loadGroups = async () => {
   }
 };
 
-const formatCost = (cost: number): string => {
-  if (cost >= 1000) return cost.toFixed(0);
-  if (cost >= 100) return cost.toFixed(1);
-  return cost.toFixed(2);
+const formatCost = (cost: number): string => formatCompact(cost);
+const normalizeDisplayLimit = (value: number | string | null | undefined): number | null => {
+  const displayValue = normalizeOptionalLimit(value);
+  return displayValue == null ? null : displayToUSD(displayValue);
 };
 
+
 const formatUsd = (cost: number | null | undefined): string =>
-  `$${formatCost(cost ?? 0)}`;
+  formatCost(cost ?? 0);
 
 const getQuotaUsageClass = (
   used: number,
@@ -5975,13 +5978,13 @@ const handleCreateGroup = async () => {
         createForm.model_pricing,
         createForm.platform,
       ),
-      daily_limit_usd: normalizeOptionalLimit(
+      daily_limit_usd: normalizeDisplayLimit(
         createForm.daily_limit_usd as number | string | null,
       ),
-      weekly_limit_usd: normalizeOptionalLimit(
+      weekly_limit_usd: normalizeDisplayLimit(
         createForm.weekly_limit_usd as number | string | null,
       ),
-      monthly_limit_usd: normalizeOptionalLimit(
+      monthly_limit_usd: normalizeDisplayLimit(
         createForm.monthly_limit_usd as number | string | null,
       ),
       ...(Object.keys(videoModelPrices).length > 0
@@ -6110,9 +6113,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
-  editForm.daily_limit_usd = group.daily_limit_usd;
-  editForm.weekly_limit_usd = group.weekly_limit_usd;
-  editForm.monthly_limit_usd = group.monthly_limit_usd;
+  editForm.daily_limit_usd = group.daily_limit_usd == null ? null : usdToDisplay(group.daily_limit_usd);
+  editForm.weekly_limit_usd = group.weekly_limit_usd == null ? null : usdToDisplay(group.weekly_limit_usd);
+  editForm.monthly_limit_usd = group.monthly_limit_usd == null ? null : usdToDisplay(group.monthly_limit_usd);
   editForm.long_context_pricing_enabled =
     group.long_context_pricing_enabled ?? true;
   editForm.force_openai_fast = group.force_openai_fast ?? false;
@@ -6319,13 +6322,13 @@ const handleUpdateGroup = async () => {
         editForm.model_pricing,
         editForm.platform,
       ),
-      daily_limit_usd: normalizeOptionalLimit(
+      daily_limit_usd: normalizeDisplayLimit(
         editForm.daily_limit_usd as number | string | null,
       ),
-      weekly_limit_usd: normalizeOptionalLimit(
+      weekly_limit_usd: normalizeDisplayLimit(
         editForm.weekly_limit_usd as number | string | null,
       ),
-      monthly_limit_usd: normalizeOptionalLimit(
+      monthly_limit_usd: normalizeDisplayLimit(
         editForm.monthly_limit_usd as number | string | null,
       ),
       video_model_prices: serializeVideoModelPrices(

@@ -76,7 +76,7 @@
 
           <template #cell-bonus_amount="{ value }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              ${{ value.toFixed(2) }}
+              {{ formatCurrentBillingAmount(value, 2) }}
             </span>
           </template>
 
@@ -177,7 +177,7 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
+          <label class="input-label">{{ t('admin.promo.bonusAmount', { currency: billingSymbol }) }}</label>
           <input
             v-model.number="createForm.bonus_amount"
             type="number"
@@ -252,7 +252,7 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.promo.bonusAmount') }}</label>
+          <label class="input-label">{{ t('admin.promo.bonusAmount', { currency: billingSymbol }) }}</label>
           <input
             v-model.number="editForm.bonus_amount"
             type="number"
@@ -347,7 +347,7 @@
           </div>
           <div class="text-right">
             <span class="text-sm font-medium text-green-600 dark:text-green-400">
-              +${{ usage.bonus_amount.toFixed(2) }}
+              +{{ formatCurrentBillingAmount(usage.bonus_amount, 2) }}
             </span>
           </div>
         </div>
@@ -393,6 +393,8 @@ import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput } from '@/utils/format'
+import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import type { PromoCode, PromoCodeUsage } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -405,6 +407,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
+const { usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency()
 const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
@@ -450,7 +453,7 @@ const usagesTotal = ref(0)
 // Forms
 const createForm = reactive({
   code: '',
-  bonus_amount: 1,
+  bonus_amount: usdToDisplay(1),
   max_uses: 0,
   expires_at_str: '',
   notes: ''
@@ -597,7 +600,7 @@ const handleCreate = async () => {
   try {
     await adminAPI.promo.create({
       code: createForm.code || undefined,
-      bonus_amount: createForm.bonus_amount,
+      bonus_amount: displayToUSD(createForm.bonus_amount),
       max_uses: createForm.max_uses,
       expires_at: createForm.expires_at_str ? Math.floor(new Date(createForm.expires_at_str).getTime() / 1000) : undefined,
       notes: createForm.notes || undefined
@@ -615,7 +618,7 @@ const handleCreate = async () => {
 
 const resetCreateForm = () => {
   createForm.code = ''
-  createForm.bonus_amount = 1
+  createForm.bonus_amount = usdToDisplay(1)
   createForm.max_uses = 0
   createForm.expires_at_str = ''
   createForm.notes = ''
@@ -625,7 +628,7 @@ const resetCreateForm = () => {
 const handleEdit = (code: PromoCode) => {
   editingCode.value = code
   editForm.code = code.code
-  editForm.bonus_amount = code.bonus_amount
+  editForm.bonus_amount = usdToDisplay(code.bonus_amount)
   editForm.max_uses = code.max_uses
   editForm.status = code.status
   editForm.expires_at_str = code.expires_at
@@ -647,7 +650,7 @@ const handleUpdate = async () => {
   try {
     await adminAPI.promo.update(editingCode.value.id, {
       code: editForm.code,
-      bonus_amount: editForm.bonus_amount,
+      bonus_amount: displayToUSD(editForm.bonus_amount),
       max_uses: editForm.max_uses,
       status: editForm.status,
       expires_at: editForm.expires_at_str ? Math.floor(new Date(editForm.expires_at_str).getTime() / 1000) : 0,

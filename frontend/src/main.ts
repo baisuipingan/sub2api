@@ -6,6 +6,7 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
+import { initTheme } from '@/composables/useTheme'
 import './style.css'
 
 function initIOSViewportZoomFix() {
@@ -22,17 +23,10 @@ function initIOSViewportZoomFix() {
   viewport.setAttribute('content', `${content}, maximum-scale=1.0`)
 }
 
-function initThemeClass() {
-  const savedTheme = localStorage.getItem('theme')
-  const shouldUseDark =
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', shouldUseDark)
-}
-
 async function bootstrap() {
-  // Apply theme class globally before app mount to keep all routes consistent.
-  initThemeClass()
+  // 主题必须在 mount 前应用，避免首屏闪烁。
+  // 统一由 composables/useTheme 管理，不要在别处再写一份。
+  initTheme()
   initIOSViewportZoomFix()
 
   const app = createApp(App)

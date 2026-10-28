@@ -2,27 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  * {
-    @apply border-gray-200 dark:border-dark-700;
-  }
+/* ══════════════════════════════════════════════════════════════════
+   sub2api · 新拟态（Neumorphism）样式层
+   ────────────────────────────────────────────────────────────────
+   三条铁律：
+     1. 元素背景 === 页面背景（--neu-bg）。不同色，浮雕立即失效
+     2. 凸起用外阴影 / 凹陷用内阴影，方向永远「左上亮 · 右下暗」
+     3. 按下 = 外阴影归零 + 内阴影显现（4 层同写，用 0 0 0 隐藏）
 
-  html {
-    @apply scroll-smooth antialiased;
+   改动面：全站 6038 处语义类用法，只改这一个文件
+   ══════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    /* 表面色（铁律 1） */
+    --neu-bg: #edeff3;
+    --neu-light: #ffffff;
+    --neu-dark: #c2c7d2;
+    /* 未选中控件底色：必须比 --neu-bg 深，否则开关/复选框完全看不见 */
+    --neu-sunk: #dde0e7;
+    /* 细长元素（进度槽）内阴影渲染不出来，用更深底色补足 */
+    --neu-track: #d8dbe2;
+
+    /*
+     * 阴影档位：按元素尺寸分级
+     * 偏移 ≈ 元素尺寸 8~12%，模糊 ≈ 偏移 × 2.6
+     * 元素越小，相对偏移必须越大，否则新拟态完全看不出来
+     */
+    /* 凸起 */
+    --e0: -2px -2px 5px var(--neu-light), 2px 2px 6px var(--neu-dark);      /* ≤24px */
+    --e1: -4px -4px 9px var(--neu-light), 4px 4px 10px var(--neu-dark);     /* ~38px */
+    --e2: -6px -6px 14px var(--neu-light), 6px 6px 16px var(--neu-dark);    /* ~60px+ */
+    --e3: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);    /* ~200px+ */
+    --e4: -13px -13px 34px var(--neu-light), 13px 13px 36px var(--neu-dark);/* ~400px+ */
+    /* 凹陷 */
+    --i0: inset -1.5px -1.5px 4px var(--neu-light), inset 1.5px 1.5px 5px var(--neu-dark);
+    --i1: inset -3px -3px 8px var(--neu-light), inset 3px 3px 9px var(--neu-dark);
+    --i2: inset -5px -5px 12px var(--neu-light), inset 5px 5px 13px var(--neu-dark);
+    --i3: inset -7px -7px 18px var(--neu-light), inset 7px 7px 20px var(--neu-dark);
+
+    --neu-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --neu-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
     color-scheme: light;
   }
 
   .dark {
+    --neu-bg: #1f2329;
+    --neu-light: #2c3138;
+    --neu-dark: #121519;
+    --neu-sunk: #16191e;
+    --neu-track: #14171c;
+
     color-scheme: dark;
   }
 
-  body {
-    @apply bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100;
-    @apply min-h-screen;
+  /* 新拟态不用边框描边 */
+  *,
+  ::before,
+  ::after {
+    border-color: transparent;
   }
 
-  /* 自定义滚动条 - 仅针对 Firefox，避免 Chrome 取消 webkit 的全局定制 */
-  @supports (-moz-appearance:none) {
+  html {
+    @apply scroll-smooth antialiased;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: var(--neu-bg);
+    color: #25262b;
+    @apply min-h-screen;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .dark body {
+    color: #dcdee5;
+  }
+
+  /* 自定义滚动条 - 仅 Firefox，避免 Chrome 取消 webkit 全局定制 */
+  @supports (-moz-appearance: none) {
     * {
       scrollbar-width: thin;
       scrollbar-color: transparent transparent;
@@ -30,12 +91,12 @@
 
     *:hover,
     *:focus-within {
-      scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+      scrollbar-color: rgba(194, 199, 210, 0.6) transparent;
     }
 
     .dark *:hover,
     .dark *:focus-within {
-      scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+      scrollbar-color: rgba(90, 96, 108, 0.6) transparent;
     }
   }
 
@@ -53,128 +114,295 @@
   }
 
   *:hover::-webkit-scrollbar-thumb {
-    @apply bg-gray-300/50 dark:bg-dark-600/50;
+    background-color: rgba(174, 177, 186, 0.65);
   }
 
   *:hover::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-dark-500;
+    background-color: rgba(143, 146, 155, 0.85);
   }
 
-  /* 选中文本样式 */
+  .dark *:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(90, 96, 108, 0.65);
+  }
+
+  /* 选中文本 */
   ::selection {
-    @apply bg-primary-500/20 text-primary-900 dark:text-primary-100;
+    background-color: rgba(88, 101, 212, 0.18);
+    color: #25262b;
   }
 
+  .dark ::selection {
+    background-color: rgba(125, 138, 236, 0.3);
+    color: #f0f1f6;
+  }
 
+  /* 焦点环：键盘可达性的底线，不允许移除 */
+  :focus-visible {
+    outline: 2px solid #5865d4;
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
-  /* ============ 按钮样式 ============ */
+  /* ════════════════ 按钮：凸起 → 按下凹陷 ════════════════ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;
-    @apply rounded-xl px-4 py-2.5 text-sm font-medium;
-    @apply transition-all duration-200 ease-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
-    @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
-    @apply active:scale-[0.98];
+    @apply rounded-md px-4 py-2.5 text-sm font-semibold;
+    @apply cursor-pointer border-0;
+    background-color: var(--neu-bg);
+    color: #565860;
+    /* 4 层：外层亮暗 + 内层亮暗（内层先 0 0 0 归零） */
+    box-shadow:
+      -5px -5px 11px var(--neu-light),
+      5px 5px 13px var(--neu-dark),
+      inset 0 0 0 var(--neu-light),
+      inset 0 0 0 var(--neu-dark);
+    transition:
+      box-shadow 0.2s var(--neu-ease),
+      color 0.2s var(--neu-ease);
+    white-space: nowrap;
   }
 
+  .dark .btn {
+    color: #9c9ea7;
+  }
+
+  .btn:hover {
+    color: #25262b;
+  }
+
+  .dark .btn:hover {
+    color: #dcdee5;
+  }
+
+  /* 按下：外阴影归零，内阴影显现 —— 真实按压 */
+  .btn:active {
+    box-shadow:
+      0 0 0 var(--neu-light),
+      0 0 0 var(--neu-dark),
+      inset -3px -3px 9px var(--neu-light),
+      inset 3px 3px 10px var(--neu-dark);
+  }
+
+  .btn:disabled,
+  .btn[disabled] {
+    @apply cursor-not-allowed opacity-45;
+    box-shadow: none;
+  }
+
+  /* 主按钮：靛蓝彩色新拟态 */
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    color: #fff;
+    background-image: linear-gradient(145deg, #5f6cd8, #4a56c0);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.72),
+      4px 4px 11px rgba(160, 167, 182, 0.9),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.32),
+      inset -1px -1px 3px rgba(50, 62, 150, 0.32);
+    text-shadow: 0 1px 2px rgba(30, 38, 95, 0.3);
+  }
+
+  .btn-primary:hover {
+    color: #fff;
+    background-image: linear-gradient(145deg, #6b78e0, #4a56c0);
+  }
+
+  .btn-primary:active {
+    background-image: linear-gradient(145deg, #4a56c0, #4149b0);
+    box-shadow:
+      inset -2px -2px 7px rgba(255, 255, 255, 0.25),
+      inset 3px 3px 9px rgba(42, 52, 130, 0.5);
+    text-shadow: none;
+  }
+
+  /*
+   * 深色模式：主按钮的亮阴影必须大幅减弱。
+   * 浅色下 rgba(255,255,255,.72) 是模拟受光面，
+   * 但深色背景上这圈白光会变成刺眼的"外发光"，
+   * 只剩暗侧投影才是深色新拟态的正确做法。
+   */
+  .dark .btn-primary {
+    box-shadow:
+      -3px -3px 8px rgba(255, 255, 255, 0.07),
+      4px 4px 11px rgba(0, 0, 0, 0.5),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.14),
+      inset -1px -1px 3px rgba(20, 26, 60, 0.5);
+  }
+
+  .dark .btn-primary:hover {
+    box-shadow:
+      -3px -3px 9px rgba(255, 255, 255, 0.09),
+      5px 5px 14px rgba(0, 0, 0, 0.55),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.16),
+      inset -1px -1px 3px rgba(20, 26, 60, 0.5);
+  }
+
+  .dark .btn-primary:active {
+    box-shadow:
+      inset -2px -2px 7px rgba(255, 255, 255, 0.08),
+      inset 3px 3px 9px rgba(10, 14, 40, 0.65);
+  }
+
+  /* 深色下其他彩色按钮同理 */
+  .dark .btn-danger {
+    box-shadow:
+      -3px -3px 8px rgba(255, 255, 255, 0.06),
+      4px 4px 11px rgba(0, 0, 0, 0.5),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
+  }
+
+  .dark .btn-success {
+    box-shadow:
+      -3px -3px 8px rgba(255, 255, 255, 0.06),
+      4px 4px 11px rgba(0, 0, 0, 0.5),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
+  }
+
+  .dark .btn-warning {
+    box-shadow:
+      -3px -3px 8px rgba(255, 255, 255, 0.06),
+      4px 4px 11px rgba(0, 0, 0, 0.5),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-dark-800;
-    @apply text-gray-700 dark:text-gray-200;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply shadow-sm hover:bg-gray-50 dark:hover:bg-dark-700;
-    @apply hover:border-gray-300 dark:hover:border-dark-500;
+    background-color: var(--neu-bg);
+    color: #565860;
+    box-shadow: -4px -4px 10px var(--neu-light), 4px 4px 11px var(--neu-dark);
+  }
+
+  .dark .btn-secondary {
+    color: #9c9ea7;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-gray-600 dark:text-gray-300;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
+    background-color: transparent;
+    color: #676970;
+    box-shadow: none;
+  }
+
+  .btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+    box-shadow: none;
+  }
+
+  .dark .btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.05);
   }
 
   .btn-danger {
-    @apply bg-gradient-to-r from-red-500 to-red-600;
-    @apply text-white shadow-md shadow-red-500/25;
-    @apply hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:shadow-red-500/30;
+    color: #fff;
+    background-image: linear-gradient(145deg, #d78a8a, #bf5c5c);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.65),
+      4px 4px 11px rgba(180, 150, 150, 0.85),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
   }
 
   .btn-success {
-    @apply bg-gradient-to-r from-emerald-500 to-emerald-600;
-    @apply text-white shadow-md shadow-emerald-500/25;
-    @apply hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30;
-    @apply dark:shadow-emerald-500/20;
+    color: #fff;
+    background-image: linear-gradient(145deg, #6dbb95, #3f8f6a);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.65),
+      4px 4px 11px rgba(150, 180, 165, 0.85),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
   }
 
   .btn-warning {
-    @apply bg-gradient-to-r from-amber-500 to-amber-600;
-    @apply text-white shadow-md shadow-amber-500/25;
-    @apply hover:from-amber-600 hover:to-amber-700 hover:shadow-lg hover:shadow-amber-500/30;
-    @apply dark:shadow-amber-500/20;
+    color: #fff;
+    background-image: linear-gradient(145deg, #d9a95e, #b8802f);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.65),
+      4px 4px 11px rgba(190, 175, 150, 0.85),
+      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
   }
 
+  /* 支付渠道品牌按钮：保留品牌色，但压在软胶里 */
   .btn-stripe {
-    @apply bg-[#635bff] text-white shadow-md shadow-[#635bff]/25;
-    @apply hover:bg-[#5851ea] hover:shadow-lg hover:shadow-[#635bff]/30;
-    @apply dark:bg-[#7a73ff] dark:shadow-[#7a73ff]/20;
-    @apply dark:hover:bg-[#635bff];
+    color: #fff;
+    background-image: linear-gradient(145deg, #7a73ff, #635bff);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.6),
+      4px 4px 11px rgba(165, 160, 210, 0.85);
   }
 
   .btn-airwallex {
-    @apply bg-[#14171A] text-white shadow-md shadow-emerald-500/20;
-    @apply hover:bg-[#20252a] hover:shadow-lg hover:shadow-emerald-500/25;
-    @apply dark:bg-[#7AF0C4] dark:text-gray-950 dark:shadow-emerald-500/20;
-    @apply dark:hover:bg-[#62d9ad];
+    color: #fff;
+    background-image: linear-gradient(145deg, #3a4048, #14171a);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.6),
+      4px 4px 11px rgba(150, 155, 165, 0.85);
   }
 
   .btn-alipay {
-    @apply bg-[#00AEEF] text-white shadow-md shadow-[#00AEEF]/25;
-    @apply hover:bg-[#009dd6] hover:shadow-lg hover:shadow-[#00AEEF]/30;
-    @apply active:bg-[#008cbe];
-    @apply dark:shadow-[#00AEEF]/20;
+    color: #fff;
+    background-image: linear-gradient(145deg, #33bff2, #00aeef);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.6),
+      4px 4px 11px rgba(150, 190, 210, 0.85);
   }
 
   .btn-wxpay {
-    @apply bg-[#2BB741] text-white shadow-md shadow-[#2BB741]/25;
-    @apply hover:bg-[#24a038] hover:shadow-lg hover:shadow-[#2BB741]/30;
-    @apply active:bg-[#1d8a2f];
-    @apply dark:shadow-[#2BB741]/20;
+    color: #fff;
+    background-image: linear-gradient(145deg, #4cc65f, #2bb741);
+    box-shadow:
+      -4px -4px 10px rgba(255, 255, 255, 0.6),
+      4px 4px 11px rgba(150, 195, 165, 0.85);
   }
 
   .btn-sm {
-    @apply rounded-lg px-3 py-1.5 text-xs;
+    @apply rounded-sm px-3 py-1.5 text-xs;
   }
 
   .btn-md {
-    @apply rounded-xl px-4 py-2 text-sm;
+    @apply rounded-md px-4 py-2 text-sm;
   }
 
   .btn-lg {
-    @apply rounded-2xl px-6 py-3 text-base;
+    @apply rounded-lg px-6 py-3 text-base;
   }
 
   .btn-icon {
-    @apply rounded-xl p-2.5;
+    @apply rounded-md p-2.5;
   }
 
-  /* ============ 输入框样式 ============ */
+  /* ════════════════ 输入框：凹陷（默认即按下态）════════════════ */
   .input {
-    @apply w-full rounded-xl px-4 py-2.5 text-sm;
-    @apply bg-white dark:bg-dark-800;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply text-gray-900 dark:text-gray-100;
-    @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
-    @apply transition-all duration-200;
-    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-    @apply disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-dark-900;
+    @apply w-full rounded-md px-4 py-2.5 text-sm font-medium;
+    border: 0;
+    outline: none;
+    background-color: var(--neu-bg);
+    color: #25262b;
+    box-shadow:
+      inset -5px -5px 12px var(--neu-light),
+      inset 5px 5px 13px var(--neu-dark);
+    transition: box-shadow 0.24s var(--neu-ease);
   }
 
+  .dark .input {
+    color: #dcdee5;
+  }
+
+  .input::placeholder {
+    color: #7f828a;
+    font-weight: 400;
+  }
+
+  .input:focus {
+    box-shadow:
+      var(--i2),
+      0 0 0 3px rgba(88, 101, 212, 0.16),
+      0 0 0 1px rgba(88, 101, 212, 0.3);
+  }
+
+  .dark .input:focus {
+    box-shadow:
+      var(--i2),
+      0 0 0 3px rgba(125, 138, 236, 0.22),
+      0 0 0 1px rgba(125, 138, 236, 0.4);
+  }
+
+  /* 日期/时间选择器在深色下需要原生控件配合 */
   .dark .input[type='date'],
   .dark .input[type='time'],
   .dark .input[type='datetime-local'],
@@ -184,22 +412,35 @@
   }
 
   .input-error {
-    @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+    box-shadow:
+      var(--i2),
+      0 0 0 3px rgba(191, 92, 92, 0.16);
   }
 
   .input-label {
-    @apply mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300;
+    @apply mb-1.5 block text-xs font-semibold;
+    color: #565860;
+  }
+
+  .dark .input-label {
+    color: #9c9ea7;
   }
 
   .input-hint {
-    @apply mt-1 text-xs text-gray-500 dark:text-dark-400;
+    @apply mt-1 text-xs;
+    color: #7f828a;
   }
 
   .input-error-text {
-    @apply mt-1 text-xs text-red-500;
+    @apply mt-1 text-xs font-medium;
+    color: #9c4646;
   }
 
-  /* Hide number input spinner buttons for cleaner UI */
+  .dark .input-error-text {
+    color: #eda4a4;
+  }
+
+  /* 隐藏 number 输入框的上下箭头 */
   input[type='number']::-webkit-inner-spin-button,
   input[type='number']::-webkit-outer-spin-button {
     -webkit-appearance: none;
@@ -210,106 +451,136 @@
     -moz-appearance: textfield;
   }
 
-  /* ============ 玻璃效果 ============ */
-  .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
-  }
-
-  .glass-card {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply rounded-2xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
-    @apply transition-all duration-300;
-  }
-
-  /* ============ 卡片样式 ============ */
+  /* ════════════════ 卡片：凸起 ════════════════ */
   .card {
-    @apply bg-white dark:bg-dark-800/50;
-    @apply rounded-2xl;
-    @apply border border-gray-100 dark:border-dark-700/50;
-    @apply shadow-card;
-    @apply transition-all duration-300;
+    /* 不自带 padding：调用方普遍写 card p-4 / card p-6，
+       这里若设默认值在新拟态的阴影计算里会造成视觉错位 */
+    @apply rounded-xl;
+    background-color: var(--neu-bg);
+    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
+    transition:
+      box-shadow 0.28s var(--neu-ease),
+      transform 0.28s var(--neu-ease);
   }
 
   .card-hover {
-    @apply hover:-translate-y-0.5 hover:shadow-card-hover;
-    @apply hover:border-gray-200 dark:hover:border-dark-600;
+    @apply hover:-translate-y-0.5;
+  }
+
+  .card-hover:hover {
+    box-shadow: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);
   }
 
   .card-glass {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
+    @apply rounded-xl;
+    background-color: var(--neu-bg);
+    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
+    backdrop-filter: none;
   }
 
+  /* 卡片内部分隔：用极淡凹槽，不用实线 */
   .card-header {
-    @apply border-b border-gray-100 dark:border-dark-700;
-    @apply px-6 py-4;
+    padding-bottom: 14px;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
+  }
+
+  .dark .card-header {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
   }
 
   .card-body {
-    @apply p-6;
+    /* 不带 padding，由调用方控制 */
   }
 
   .card-footer {
-    @apply border-t border-gray-100 dark:border-dark-700;
-    @apply px-6 py-4;
+    padding-top: 14px;
+    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
   }
 
-  /* ============ 统计卡片 ============ */
+  .dark .card-footer {
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  /* ════════════════ 统计卡片 ════════════════ */
   .stat-card {
-    @apply card p-5;
-    @apply flex items-start gap-4;
+    @apply card flex items-start gap-4;
+    padding: 20px;
   }
 
   .stat-icon {
-    @apply h-12 w-12 rounded-xl;
-    @apply flex items-center justify-center;
-    @apply text-xl;
+    @apply flex h-12 w-12 items-center justify-center rounded-md text-xl;
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i1);
   }
 
   .stat-icon-primary {
-    @apply bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400;
+    color: #5865d4;
   }
 
   .stat-icon-success {
-    @apply bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400;
+    color: #3f8f6a;
   }
 
   .stat-icon-warning {
-    @apply bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400;
+    color: #b8802f;
   }
 
   .stat-icon-danger {
-    @apply bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400;
+    color: #bf5c5c;
   }
 
   .stat-value {
-    @apply text-2xl font-bold text-gray-900 dark:text-white truncate;
+    @apply truncate text-2xl font-bold;
+    letter-spacing: -0.035em;
+    color: #25262b;
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9),
+      0 -1px 1px rgba(194, 199, 210, 0.6);
+  }
+
+  .dark .stat-value {
+    color: #dcdee5;
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.6),
+      0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
   .stat-label {
-    @apply text-sm text-gray-500 dark:text-dark-400;
+    @apply text-xs font-bold uppercase tracking-wider;
+    color: #676970;
+  }
+
+  .dark .stat-label {
+    color: #7d8089;
   }
 
   .stat-trend {
-    @apply mt-1 flex items-center gap-1 text-xs font-medium;
+    @apply mt-1 flex items-center gap-1 text-xs font-semibold;
   }
 
   .stat-trend-up {
-    @apply text-emerald-600 dark:text-emerald-400;
+    color: #2f7153;
+  }
+
+  .dark .stat-trend-up {
+    color: #5fb891;
   }
 
   .stat-trend-down {
-    @apply text-red-600 dark:text-red-400;
+    color: #9c4646;
   }
 
-  /* ============ 表格样式 ============ */
+  .dark .stat-trend-down {
+    color: #d78a8a;
+  }
+
+  /* ════════════════ 表格：整体凹陷容器 ════════════════ */
   .table-container {
-    @apply overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700;
+    @apply overflow-x-auto rounded-xl p-3;
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i2);
   }
 
   .table {
@@ -317,127 +588,211 @@
   }
 
   .table th {
-    @apply px-4 py-3 text-left font-medium;
-    @apply text-gray-600 dark:text-dark-300;
-    @apply bg-gray-50 dark:bg-dark-800/50;
-    @apply border-b border-gray-200 dark:border-dark-700;
+    @apply px-4 py-3 text-left text-xs font-bold uppercase tracking-wider;
+    color: #7f828a;
+    border: 0;
+    white-space: nowrap;
   }
 
   .table td {
     @apply px-4 py-3;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply border-b border-gray-100 dark:border-dark-800;
+    color: #3b3d44;
+    border: 0;
+    box-shadow: inset 0 -1px 0 rgba(194, 199, 210, 0.4);
+    transition: background-color 0.16s var(--neu-ease);
+  }
+
+  .dark .table td {
+    color: #bec0c9;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
   }
 
   .table tr:last-child td {
-    @apply border-b-0;
+    box-shadow: none;
   }
 
-  .table tbody tr {
-    @apply transition-colors duration-150;
-    @apply hover:bg-gray-50 dark:hover:bg-dark-800/30;
+  .table tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.52);
   }
 
-  /* ============ 徽章样式 ============ */
+  .dark .table tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .table tbody tr:hover td:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+
+  .table tbody tr:hover td:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+
+  /* ════════════════ 徽章：小凹陷软胶块 ════════════════ */
   .badge {
-    @apply inline-flex items-center gap-1;
-    @apply rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-bold tracking-wide;
+    background-color: var(--neu-bg);
+    color: #565860;
+    border: 0;
+    box-shadow:
+      var(--i1);
+    white-space: nowrap;
+  }
+
+  .dark .badge {
+    color: #9c9ea7;
   }
 
   .badge-primary {
-    @apply bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400;
+    color: #515bc3;
+  }
+
+  .dark .badge-primary {
+    color: #acb9fb;
   }
 
   .badge-success {
-    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400;
+    color: #2f7153;
+  }
+
+  .dark .badge-success {
+    color: #84ceac;
   }
 
   .badge-warning {
-    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400;
+    color: #91631f;
+  }
+
+  .dark .badge-warning {
+    color: #eabf74;
   }
 
   .badge-danger {
-    @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400;
+    color: #9c4646;
   }
 
-  .badge-gray {
-    @apply bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-300;
+  .dark .badge-danger {
+    color: #eda4a4;
   }
 
+  .badge-gray,
   .badge-purple {
-    @apply bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400;
+    color: #565860;
   }
 
-  /* ============ 下拉菜单 ============ */
+  .dark .badge-gray,
+  .dark .badge-purple {
+    color: #9c9ea7;
+  }
+
+  /* ════════════════ 下拉菜单（浮层）════════════════ */
   .dropdown {
-    @apply absolute z-50;
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-xl;
-    @apply border border-gray-200 dark:border-dark-700;
-    @apply shadow-lg;
-    @apply py-1;
-    @apply origin-top-right animate-scale-in;
+    @apply absolute z-50 rounded-xl py-1.5;
+    background-color: var(--neu-bg);
+    border: 0;
+    box-shadow:
+      -8px -8px 20px rgba(255, 255, 255, 0.9),
+      8px 8px 22px rgba(170, 177, 190, 0.9);
+    animation: neuScaleIn 0.18s var(--neu-ease-out);
+  }
+
+  .dark .dropdown {
+    box-shadow:
+      -8px -8px 20px rgba(255, 255, 255, 0.04),
+      8px 8px 22px rgba(0, 0, 0, 0.7);
   }
 
   .dropdown-item {
-    @apply px-4 py-2 text-sm;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-700;
-    @apply cursor-pointer transition-colors;
-    @apply flex items-center gap-2;
+    @apply flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium;
+    color: #565860;
+    transition:
+      background-color 0.16s var(--neu-ease),
+      color 0.16s var(--neu-ease);
   }
 
-  /* ============ 模态框 ============ */
+  .dark .dropdown-item {
+    color: #9c9ea7;
+  }
+
+  .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.6);
+    color: #25262b;
+  }
+
+  .dark .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #dcdee5;
+  }
+
+  /* ════════════════ 模态框 ════════════════ */
   .modal-overlay {
-    @apply fixed inset-0 z-50;
-    @apply bg-black/50 backdrop-blur-sm;
-    @apply flex items-center justify-center p-2 sm:p-4;
+    @apply fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4;
+    background-color: rgba(37, 38, 43, 0.32);
+    backdrop-filter: blur(6px);
   }
 
   .modal-content {
-    @apply w-full;
+    @apply flex w-full flex-col rounded-2xl p-5;
     @apply max-h-[95vh] sm:max-h-[90vh];
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-2xl shadow-2xl;
-    @apply border border-gray-200 dark:border-dark-700;
-    @apply flex flex-col;
+    background-color: var(--neu-bg);
+    border: 0;
+    box-shadow:
+      -9px -9px 24px rgba(255, 255, 255, 0.7),
+      11px 11px 30px rgba(178, 184, 196, 0.85);
+  }
+
+  .dark .modal-content {
+    box-shadow:
+      -9px -9px 24px rgba(255, 255, 255, 0.04),
+      11px 11px 30px rgba(0, 0, 0, 0.7);
   }
 
   .modal-header {
-    @apply border-b border-gray-200 px-4 py-3 dark:border-dark-700;
-    @apply sm:px-6 sm:py-4;
-    @apply flex items-center justify-between;
-    @apply flex-shrink-0;
+    @apply flex flex-shrink-0 items-center justify-between px-1 pb-4;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
+    margin-bottom: 1rem;
+  }
+
+  .dark .modal-header {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
   }
 
   .modal-title {
-    @apply text-lg font-semibold text-gray-900 dark:text-white;
+    @apply text-lg font-bold;
+    letter-spacing: -0.02em;
+    color: #25262b;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .dark .modal-title {
+    color: #dcdee5;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
   }
 
   .modal-body {
-    @apply px-4 py-3;
-    @apply sm:px-6 sm:py-4;
-    @apply flex-1 overflow-y-auto;
+    @apply flex-1 overflow-y-auto px-1 py-1;
   }
 
   .modal-footer {
-    @apply border-t border-gray-200 px-4 py-3 dark:border-dark-700;
-    @apply sm:px-6 sm:py-4;
-    @apply flex items-center justify-end gap-3;
-    @apply flex-shrink-0;
+    @apply flex flex-shrink-0 items-center justify-end gap-3 px-1 pt-4;
+    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
+    margin-top: 1rem;
   }
 
-  /* 防止body滚动的工具类 */
+  .dark .modal-footer {
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
   body.modal-open {
     overflow: hidden;
   }
 
+  /* 弹窗过渡 */
   .modal-enter-active {
-    transition: opacity 250ms ease-out;
+    transition: opacity 250ms var(--neu-ease-out);
   }
 
   .modal-leave-active {
-    transition: opacity 200ms ease-in;
+    transition: opacity 200ms var(--neu-ease);
   }
 
   .modal-enter-from,
@@ -446,16 +801,20 @@
   }
 
   .modal-enter-active .modal-content {
-    transition: transform 250ms ease-out, opacity 250ms ease-out;
+    transition:
+      transform 250ms var(--neu-ease-out),
+      opacity 250ms var(--neu-ease-out);
   }
 
   .modal-leave-active .modal-content {
-    transition: transform 200ms ease-in, opacity 200ms ease-in;
+    transition:
+      transform 200ms var(--neu-ease),
+      opacity 200ms var(--neu-ease);
   }
 
   .modal-enter-from .modal-content,
   .modal-leave-to .modal-content {
-    transform: scale(0.95);
+    transform: scale(0.96);
     opacity: 0;
   }
 
@@ -465,94 +824,82 @@
     opacity: 1;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .modal-enter-active,
-    .modal-leave-active,
-    .modal-enter-active .modal-content,
-    .modal-leave-active .modal-content {
-      transition-duration: 1ms;
-      transition-delay: 0ms;
-    }
-
-    .modal-enter-from .modal-content,
-    .modal-leave-to .modal-content {
-      transform: none;
-    }
-  }
-
-  /* ============ Dialog ============ */
+  /* ════════════════ Dialog（与 Modal 同款）════════════════ */
   .dialog-overlay {
-    @apply fixed inset-0 z-50;
-    @apply bg-black/40 dark:bg-black/60;
-    @apply flex items-center justify-center p-4;
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background-color: rgba(37, 38, 43, 0.32);
+    backdrop-filter: blur(6px);
   }
 
   .dialog-container {
-    @apply flex w-full flex-col;
+    @apply flex w-full flex-col rounded-2xl p-5;
     @apply max-h-[90vh];
-    @apply rounded-2xl bg-white dark:bg-dark-800;
-    @apply shadow-xl;
+    background-color: var(--neu-bg);
+    box-shadow:
+      -9px -9px 24px rgba(255, 255, 255, 0.7),
+      11px 11px 30px rgba(178, 184, 196, 0.85);
   }
 
   .dialog-header {
-    @apply border-b border-gray-100 px-6 py-4 dark:border-dark-700;
-    @apply flex items-center justify-between;
+    @apply flex items-center justify-between px-1 pb-4;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
   }
 
   .dialog-body {
-    @apply overflow-y-auto px-6 py-4;
+    @apply overflow-y-auto px-1 py-2;
   }
 
   .dialog-footer {
-    @apply border-t border-gray-100 px-6 py-4 dark:border-dark-700;
-    @apply bg-gray-50/60 dark:bg-dark-900/40;
-    @apply flex items-center justify-end gap-3;
+    @apply flex items-center justify-end gap-3 px-1 pt-4;
+    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
   }
 
-  /* ============ Toast 通知 ============ */
+  /* ════════════════ Toast 通知 ════════════════ */
   .toast {
-    @apply fixed right-4 top-4 z-[100];
-    @apply min-w-[320px] max-w-md;
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-xl shadow-lg;
-    @apply border-l-4;
-    @apply p-4;
-    @apply animate-slide-in-right;
+    @apply fixed right-4 top-4 z-[100] min-w-[320px] max-w-md rounded-xl p-4;
+    background-color: var(--neu-bg);
+    border: 0;
+    box-shadow:
+      -8px -8px 20px rgba(255, 255, 255, 0.9),
+      8px 8px 22px rgba(170, 177, 190, 0.9);
+    animation: neuSlideInRight 0.25s var(--neu-ease-out);
+  }
+
+  .dark .toast {
+    box-shadow:
+      -8px -8px 20px rgba(255, 255, 255, 0.04),
+      8px 8px 22px rgba(0, 0, 0, 0.7);
   }
 
   .toast-success {
-    @apply border-l-emerald-500;
+    border-left: 3px solid #3f8f6a;
   }
 
   .toast-error {
-    @apply border-l-red-500;
+    border-left: 3px solid #bf5c5c;
   }
 
   .toast-warning {
-    @apply border-l-amber-500;
+    border-left: 3px solid #b8802f;
   }
 
   .toast-info {
-    @apply border-l-primary-500;
+    border-left: 3px solid #5865d4;
   }
 
-  /* ============ 侧边栏 ============ */
+  /* ════════════════ 侧边栏：整块浅凹 ════════════════ */
   .sidebar {
-    @apply fixed inset-y-0 left-0 z-40;
-    @apply w-64 bg-white dark:bg-dark-900;
-    @apply border-r border-gray-200 dark:border-dark-800;
-    @apply flex flex-col;
-    @apply transition-transform duration-300;
+    @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col;
+    background-color: var(--neu-bg);
+    border: 0;
+    box-shadow:
+      var(--i2);
     transition-property: width, transform;
   }
 
   .sidebar-header {
-    @apply h-16 px-6;
-    @apply flex items-center gap-3;
-    @apply border-b border-gray-100 dark:border-dark-800;
-    transition:
-      padding 0.2s ease,
-      gap 0.2s ease;
+    @apply flex h-16 items-center gap-3 px-6;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
   }
 
   .sidebar-nav {
@@ -560,21 +907,38 @@
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-xl py-2.5;
-    @apply overflow-hidden;
+    @apply flex items-center gap-3 overflow-hidden rounded-md py-2.5 pl-4 pr-3.5;
     @apply text-sm font-medium;
-    @apply text-gray-600 dark:text-dark-300;
-    @apply transition-all duration-200;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
-    @apply hover:text-gray-900 dark:hover:text-white;
-    padding-left: 1.0625rem;
-    padding-right: 0.875rem;
+    color: #565860;
+    border: 0;
+    transition:
+      box-shadow 0.2s var(--neu-ease),
+      color 0.2s var(--neu-ease);
   }
 
+  .dark .sidebar-link {
+    color: #9c9ea7;
+  }
+
+  .sidebar-link:hover {
+    color: #25262b;
+  }
+
+  .dark .sidebar-link:hover {
+    color: #dcdee5;
+  }
+
+  /* 选中：凹陷 + 靛蓝 */
   .sidebar-link-active {
-    @apply bg-primary-50 dark:bg-primary-900/20;
-    @apply text-primary-600 dark:text-primary-400;
-    @apply hover:bg-primary-100 dark:hover:bg-primary-900/30;
+    color: #515bc3;
+    font-weight: 600;
+    box-shadow:
+      inset -3px -3px 8px var(--neu-light),
+      inset 3px 3px 9px var(--neu-dark);
+  }
+
+  .dark .sidebar-link-active {
+    color: #acb9fb;
   }
 
   .sidebar-section {
@@ -582,125 +946,233 @@
   }
 
   .sidebar-section-title {
-    @apply mb-2 px-3;
-    @apply text-xs font-semibold uppercase tracking-wider;
-    @apply text-gray-400 dark:text-dark-500;
+    @apply mb-2 px-3 text-xs font-bold uppercase tracking-widest;
+    color: #7f828a;
   }
 
-  /* ============ 页面头部 ============ */
+  /* ════════════════ 页面头部（文字浮雕）════════════════ */
   .page-header {
     @apply mb-6;
   }
 
   .page-title {
-    @apply text-2xl font-bold text-gray-900 dark:text-white;
+    @apply text-2xl font-bold;
+    letter-spacing: -0.028em;
+    color: #25262b;
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95),
+      0 -1px 1px rgba(194, 199, 210, 0.65);
+  }
+
+  .dark .page-title {
+    color: #dcdee5;
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.6),
+      0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
   .page-description {
-    @apply mt-1 text-sm text-gray-500 dark:text-dark-400;
+    @apply mt-1 text-sm font-medium;
+    color: #7f828a;
   }
 
-  /* ============ 空状态 ============ */
+  /* ════════════════ 空状态 ════════════════ */
   .empty-state {
-    @apply flex flex-col items-center justify-center px-4 py-12;
-    @apply text-center;
+    @apply flex flex-col items-center justify-center px-4 py-12 text-center;
   }
 
   .empty-state-icon {
     @apply mb-4 h-16 w-16;
-    @apply text-gray-300 dark:text-dark-600;
+    color: #aeb1ba;
   }
 
   .empty-state-title {
-    @apply mb-1 text-lg font-medium text-gray-900 dark:text-white;
+    @apply mb-1 text-lg font-semibold;
+    color: #3b3d44;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .empty-state-title {
+    color: #bec0c9;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   }
 
   .empty-state-description {
-    @apply max-w-sm text-sm text-gray-500 dark:text-dark-400;
+    @apply max-w-sm text-sm;
+    color: #7f828a;
   }
 
-  /* ============ 加载状态 ============ */
+  /* ════════════════ 加载状态 ════════════════ */
   .spinner {
-    @apply h-5 w-5 rounded-full border-2 border-current border-t-transparent;
-    @apply animate-spin;
+    @apply h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent;
   }
 
   .skeleton {
-    @apply animate-pulse rounded bg-gray-200 dark:bg-dark-700;
+    @apply animate-pulse rounded-sm;
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i1);
   }
 
-  /* ============ 分隔线 ============ */
+  /* ════════════════ 分隔线：极淡凹槽 ════════════════ */
   .divider {
-    @apply my-4 h-px bg-gray-200 dark:bg-dark-700;
+    @apply my-4 h-px;
+    background-color: transparent;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.55);
   }
 
-  /* ============ 标签页 ============ */
+  .dark .divider {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  }
+
+  /* ════════════════ 标签页：容器凹陷、选中凸起 ════════════════ */
   .tabs {
-    @apply flex gap-1 p-1;
-    @apply rounded-xl bg-gray-100 dark:bg-dark-800;
+    @apply flex gap-1 rounded-xl p-1;
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i1);
   }
 
   .tab {
-    @apply rounded-lg px-4 py-2 text-sm font-medium;
-    @apply text-gray-600 dark:text-dark-400;
-    @apply transition-all duration-200;
-    @apply hover:text-gray-900 dark:hover:text-white;
+    @apply rounded-sm px-4 py-2 text-sm font-medium;
+    color: #676970;
+    background-color: var(--neu-bg);
+    border: 0;
+    box-shadow:
+      inset 0 0 0 var(--neu-light),
+      inset 0 0 0 var(--neu-dark),
+      -2px -2px 5px var(--neu-light),
+      2px 2px 6px var(--neu-dark);
+    transition:
+      box-shadow 0.2s var(--neu-ease),
+      color 0.2s var(--neu-ease);
+  }
+
+  .tab:hover {
+    color: #3b3d44;
   }
 
   .tab-active {
-    @apply bg-white dark:bg-dark-700;
-    @apply text-gray-900 dark:text-white;
-    @apply shadow-sm;
+    color: #515bc3;
+    font-weight: 600;
+    box-shadow:
+      var(--i1);
   }
 
-  /* ============ 进度条 ============ */
+  .dark .tab-active {
+    color: #acb9fb;
+  }
+
+  /* ════════════════ 进度条：凹陷槽 + 凸起填充 ════════════════ */
   .progress {
-    @apply h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700;
+    height: 8px;
+    overflow: hidden;
+    border-radius: 9999px;
+    padding: 2px;
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i1);
   }
 
+  /* 注意：用原生 CSS 而非 @apply，避免与 Tailwind 的 h-full 在
+     padding 容器内计算冲突导致规则被裁掉 */
   .progress-bar {
-    @apply h-full bg-gradient-to-r from-primary-500 to-primary-400;
-    @apply transition-all duration-300;
+    display: block;
+    height: 100%;
+    border-radius: 9999px;
+    background-image: linear-gradient(90deg, #acb9fb, #5865d4);
+    box-shadow:
+      0 1px 2px rgba(88, 101, 212, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* ============ 开关 ============ */
+  /* 语义变体 */
+  .progress-bar.progress-ok {
+    background-image: linear-gradient(90deg, #6dbb95, #3f8f6a);
+    box-shadow:
+      0 1px 2px rgba(63, 143, 106, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+
+  .progress-bar.progress-warn {
+    background-image: linear-gradient(90deg, #d9a95e, #b8802f);
+    box-shadow:
+      0 1px 2px rgba(184, 128, 47, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+
+  .progress-bar.progress-bad {
+    background-image: linear-gradient(90deg, #d78a8a, #bf5c5c);
+    box-shadow:
+      0 1px 2px rgba(191, 92, 92, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  }
+
+  /* ════════════════ 开关（OFF 态必须比 bg 深，否则不可见）════════════════ */
   .switch {
-    @apply relative h-6 w-11 cursor-pointer rounded-full;
-    @apply bg-gray-300 dark:bg-dark-600;
-    @apply transition-colors duration-200;
+    @apply relative h-6 w-11 cursor-pointer rounded-full border-0;
+    background-color: var(--neu-sunk);
+    box-shadow:
+      var(--i1);
+    transition:
+      box-shadow 0.22s var(--neu-ease),
+      background-color 0.22s var(--neu-ease);
   }
 
   .switch-active {
-    @apply bg-primary-500;
+    background-color: transparent;
+    background-image: linear-gradient(145deg, #5f6cd8, #4a56c0);
+    box-shadow:
+      inset 1px 1px 2px rgba(255, 255, 255, 0.3),
+      inset -1px -1px 3px rgba(50, 62, 150, 0.3);
   }
 
   .switch-thumb {
     @apply absolute left-0.5 top-0.5 h-5 w-5 rounded-full;
-    @apply bg-white shadow-sm;
-    @apply transition-transform duration-200;
+    background-color: var(--neu-bg);
+    box-shadow:
+      -1.5px -1.5px 4px var(--neu-light),
+      1.5px 1.5px 5px var(--neu-dark);
+    transition: transform 0.26s var(--neu-ease-out);
   }
 
   .switch-active .switch-thumb {
     @apply translate-x-5;
   }
 
-  /* ============ 代码块 ============ */
+  /* ════════════════ 代码块 ════════════════ */
   .code {
-    @apply font-mono text-sm;
-    @apply bg-gray-100 dark:bg-dark-800;
-    @apply rounded px-1.5 py-0.5;
-    @apply text-primary-600 dark:text-primary-400;
+    @apply rounded-sm px-1.5 py-0.5 font-mono text-sm font-medium;
+    background-color: rgba(194, 199, 210, 0.32);
+    color: #515bc3;
+  }
+
+  .dark .code {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #acb9fb;
   }
 
   .code-block {
-    @apply font-mono text-sm;
-    @apply bg-gray-900 text-gray-100;
-    @apply overflow-x-auto rounded-xl p-4;
+    @apply overflow-x-auto rounded-xl p-4 font-mono text-sm;
+    background-color: var(--neu-bg);
+    color: #25262b;
+    box-shadow:
+      var(--i2);
   }
 
-  /* ============ Tour Description ============ */
+  .dark .code-block {
+    color: #dcdee5;
+  }
+
+  /* ════════════════ Tour 引导 ════════════════ */
   .tour-step-description {
-    @apply space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200;
+    @apply space-y-3 text-sm leading-relaxed;
+    color: #3b3d44;
+  }
+
+  .dark .tour-step-description {
+    color: #bec0c9;
   }
 
   .tour-step-description ul {
@@ -715,64 +1187,323 @@
     @apply mt-1;
   }
 
+  /* 引导提示框：凹陷 + 左侧色条 */
   .tour-info-box {
-    @apply rounded-md border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-xs text-blue-900;
-    @apply dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200;
+    @apply rounded-sm px-3 py-2 text-xs;
+    color: #515bc3;
+    box-shadow:
+      var(--i1),
+      inset 3px 0 0 #5865d4;
+  }
+
+  .dark .tour-info-box {
+    color: #acb9fb;
   }
 
   .tour-success-box {
-    @apply rounded-md border-l-4 border-emerald-500 bg-emerald-50 px-3 py-2 text-xs text-emerald-900;
-    @apply dark:border-emerald-400 dark:bg-emerald-950/40 dark:text-emerald-200;
+    @apply rounded-sm px-3 py-2 text-xs;
+    color: #2f7153;
+    box-shadow:
+      var(--i1),
+      inset 3px 0 0 #3f8f6a;
+  }
+
+  .dark .tour-success-box {
+    color: #84ceac;
   }
 
   .tour-warning-box {
-    @apply rounded-md border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900;
-    @apply dark:border-amber-400 dark:bg-amber-950/40 dark:text-amber-200;
+    @apply rounded-sm px-3 py-2 text-xs;
+    color: #91631f;
+    box-shadow:
+      var(--i1),
+      inset 3px 0 0 #b8802f;
+  }
+
+  .dark .tour-warning-box {
+    color: #eabf74;
   }
 
   .tour-error-box {
-    @apply rounded-md border-l-4 border-red-500 bg-red-50 px-3 py-2 text-xs text-red-900;
-    @apply dark:border-red-400 dark:bg-red-950/40 dark:text-red-200;
+    @apply rounded-sm px-3 py-2 text-xs;
+    color: #9c4646;
+    box-shadow:
+      var(--i1),
+      inset 3px 0 0 #bf5c5c;
   }
 
-  /* ============ 表格页面布局优化 ============ */
-  /* 表格容器 - 默认仅支持水平滚动 */
+  .dark .tour-error-box {
+    color: #eda4a4;
+  }
+
+  /* ════════════════ 表格页面布局 ════════════════ */
   .table-wrapper {
     overflow-x: auto;
   }
 
-  /* 表头固定时添加底部阴影，增强视觉层次 */
   .table-wrapper thead.sticky {
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.6);
+  }
+
+  /* ════════════════ 新拟态工具类 ════════════════ */
+  /* 凸起 */
+  .neu-raised {
+    background-color: var(--neu-bg);
+    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
+  }
+
+  .neu-raised-sm {
+    background-color: var(--neu-bg);
+    box-shadow: -3px -3px 8px var(--neu-light), 3px 3px 9px var(--neu-dark);
+  }
+
+  .neu-raised-lg {
+    background-color: var(--neu-bg);
+    box-shadow: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);
+  }
+
+  /* 凹陷 */
+  .neu-sunken {
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i2);
+  }
+
+  .neu-sunken-sm {
+    background-color: var(--neu-bg);
+    box-shadow:
+      var(--i1);
+  }
+
+  /* 文字浮雕 */
+  .neu-text {
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95),
+      0 -1px 1px rgba(194, 199, 210, 0.7);
+  }
+
+  .dark .neu-text {
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.65),
+      0 -1px 1px rgba(255, 255, 255, 0.06);
+  }
+
+  /* 可交互：凸起 → 按下凹陷 */
+  .neu-pressable {
+    background-color: var(--neu-bg);
+    box-shadow:
+      -5px -5px 11px var(--neu-light),
+      5px 5px 13px var(--neu-dark),
+      inset 0 0 0 var(--neu-light),
+      inset 0 0 0 var(--neu-dark);
+    transition: box-shadow 0.2s var(--neu-ease);
+  }
+
+  .neu-pressable:active {
+    box-shadow:
+      0 0 0 var(--neu-light),
+      0 0 0 var(--neu-dark),
+      inset -3px -3px 9px var(--neu-light),
+      inset 3px 3px 10px var(--neu-dark);
+  }
+
+  /* 防止长内容撑破容器（响应式一体化必需） */
+  .neu-truncate {
+    @apply min-w-0 truncate;
+  }
+
+  /* 表格行 hover：新拟态下用提亮，不用灰底（灰底会像"脏了"） */
+  .neu-row {
+    transition: background-color 0.16s var(--neu-ease);
+  }
+
+  .neu-row:hover {
+    background-color: rgba(255, 255, 255, 0.52);
+  }
+
+  .dark .neu-row:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  /* 横向滚动容器：移动端表格专用 */
+  .neu-scroll-x {
+    @apply overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 }
 
 @layer utilities {
-  /* 文字渐变 */
+  /* 文字渐变：新拟态下改为主色到次要色，不用青紫 */
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #5865d4, #515bc3);
   }
 
-  /* 玻璃效果 */
+  /* 玻璃效果：新拟态里没有毛玻璃，改为凸起软垫 */
   .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
+    background-color: var(--neu-bg);
+    backdrop-filter: none;
   }
 
-  /* 隐藏滚动条 */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
 
-  /* 安全区域 */
   .safe-top {
     padding-top: env(safe-area-inset-top);
   }
 
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   关键帧
+   ══════════════════════════════════════════════════════════════════ */
+@keyframes neuScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes neuSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   减少动效偏好：系统开启后全部关掉，避免前庭不适
+   ══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .tab,
+  .sidebar-link,
+  .switch,
+  .switch-thumb,
+  .card,
+  .card-hover,
+  .stat-card,
+  .neu-pressable,
+  .progress-bar,
+  .table td,
+  .dropdown,
+  .toast,
+  .modal-enter-active,
+  .modal-leave-active,
+  .modal-enter-active .modal-content,
+  .modal-leave-active .modal-content,
+  .modal-enter-from .modal-content,
+  .modal-leave-to .modal-content {
+    transition-duration: 1ms !important;
+    animation: none !important;
+  }
+
+  .skeleton,
+  .spinner {
+    animation: none !important;
+  }
+
+  .modal-enter-from .modal-content,
+  .modal-leave-to .modal-content {
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   响应式兜底
+   ──────────────────────────────────────────────────────────────────
+   1. grid/flex 子项默认 min-width:auto，长内容会撑破容器 → 整页横向溢出
+   2. 表格在窄屏必须横向滚动，否则列会被压缩换行（渠道名断成三行）
+   ══════════════════════════════════════════════════════════════════ */
+.table-container,
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  /* 让滚动条自身不撑高容器 */
+  max-width: 100%;
+}
+
+/* 表格单元格不换行，保持单行可读 */
+.table th,
+.table td {
+  white-space: nowrap;
+}
+
+/* 唯一允许换行的：自定义的说明性单元格 */
+.table td.cell-wrap {
+  white-space: normal;
+}
+
+@media (max-width: 767px) {
+  /* 移动端表格：保底宽度，让内容不被压扁，超出则横向滚动 */
+  .table-container > .table,
+  .table-wrapper > .table {
+    min-width: 640px;
+  }
+
+  /* 卡片内的表单网格在窄屏单列 */
+  .card .grid {
+    min-width: 0;
+  }
+
+  /*
+   * 滚动提示：移动端让横向滚动条常驻可见（默认在 iOS 上会被隐藏），
+   * 否则用户不知道表格还有更多列。
+   * 比渐隐遮罩更简单可靠，也不侵入组件结构。
+   */
+  .table-container::-webkit-scrollbar,
+  .table-wrapper::-webkit-scrollbar {
+    height: 6px;
+    display: block;
+  }
+
+  .table-container::-webkit-scrollbar-thumb,
+  .table-wrapper::-webkit-scrollbar-thumb {
+    background-color: rgba(143, 146, 155, 0.6);
+    border-radius: 3px;
+  }
+
+  .table-container::-webkit-scrollbar-track,
+  .table-wrapper::-webkit-scrollbar-track {
+    background-color: rgba(194, 199, 210, 0.3);
+    border-radius: 3px;
+  }
+}
+
+/* 打印：去掉阴影，避免糊成一团 */
+@media print {
+  .card,
+  .stat-card,
+  .btn,
+  .input,
+  .table-container,
+  .modal-content,
+  .sidebar,
+  .toast {
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .sidebar {
+    display: none;
   }
 }
