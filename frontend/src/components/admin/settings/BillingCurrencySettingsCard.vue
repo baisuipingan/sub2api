@@ -115,7 +115,10 @@ function applyConfig(config: BillingCurrencyConfig) {
   form.usd_to_cny = config.usd_to_cny || 7.2
   form.recharge_rates = {
     USD: config.recharge_rates?.USD || 1,
-    CNY: config.recharge_rates?.CNY || config.usd_to_cny || 7.2,
+    // 界面上只有一个汇率输入框，没有独立的"充值倍率"入口。
+    // 因此充值倍率必须跟随展示汇率，否则用户改了汇率后，
+    // 充值仍按数据库里的旧倍率收钱（曾导致 6.75 买 1 USD 实际按 7.2 收费）。
+    CNY: form.usd_to_cny,
   }
   form.version = config.version || 1
 }
@@ -138,7 +141,8 @@ async function save() {
       ...form,
       recharge_rates: {
         USD: 1,
-        CNY: Number(form.recharge_rates.CNY || form.usd_to_cny),
+        // 与展示汇率保持一致（界面无独立倍率输入框）
+        CNY: Number(form.usd_to_cny || 1),
       },
     })
     applyConfig(updated)
