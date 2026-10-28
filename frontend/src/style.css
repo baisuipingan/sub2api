@@ -3,43 +3,80 @@
 @tailwind utilities;
 
 /* ══════════════════════════════════════════════════════════════════
-   sub2api · 新拟态（Neumorphism）样式层
+   sub2api · 分层扁平（Layered Flat）样式层
    ────────────────────────────────────────────────────────────────
-   三条铁律：
-     1. 元素背景 === 页面背景（--neu-bg）。不同色，浮雕立即失效
-     2. 凸起用外阴影 / 凹陷用内阴影，方向永远「左上亮 · 右下暗」
-     3. 按下 = 外阴影归零 + 内阴影显现（4 层同写，用 0 0 0 隐藏）
+   为什么放弃新拟态：
+     新拟态要求「元素与背景同色，仅靠阴影区分」。这在数据密集型后台
+     是致命的 —— 阴影一旦偏弱，卡片、表格、输入框全部与画布融为一体，
+     用户无法快速定位行与行的边界，长时间阅读极易疲劳。
+     它适合少量大元件的界面（播放器、控制面板），不适合表格与表单。
 
-   改动面：全站 6038 处语义类用法，只改这一个文件
+   本方案的三条规则：
+     1. 画布（--canvas）永远比表面（--surface）深一档，卡片纯白浮起
+     2. 一切可点击/可输入的元素都有 1px 可见边框，不靠阴影猜边界
+     3. 阴影只用于表达「浮起高度」，单向柔和投影，不再双侧发光
+
+   改动面：全站 6000+ 处语义类用法，仍只改这一个文件
    ══════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    /* 表面色（铁律 1） */
-    --neu-bg: #edeff3;
-    --neu-light: #ffffff;
-    --neu-dark: #c2c7d2;
-    /* 未选中控件底色：必须比 --neu-bg 深，否则开关/复选框完全看不见 */
-    --neu-sunk: #dde0e7;
-    /* 细长元素（进度槽）内阴影渲染不出来，用更深底色补足 */
-    --neu-track: #d8dbe2;
+    /* ── 表面层次：画布 → 表面 → 次级 ── */
+    --canvas: #f4f5f7;          /* 页面底色，比卡片深，形成层次 */
+    --neu-bg: #ffffff;          /* 保持变量名兼容：卡片/输入/按钮表面 */
+    --neu-sunk: #f2f4f7;        /* 凹陷、未选中控件、禁用态 */
+    --neu-track: #e4e7ec;       /* 进度槽等细长元素 */
+    --neu-light: #ffffff;       /* 兼容旧引用 */
+    --neu-dark: #e4e7ec;        /* 兼容旧引用 */
 
-    /*
-     * 阴影档位：按元素尺寸分级
-     * 偏移 ≈ 元素尺寸 8~12%，模糊 ≈ 偏移 × 2.6
-     * 元素越小，相对偏移必须越大，否则新拟态完全看不出来
-     */
-    /* 凸起 */
-    --e0: -2px -2px 5px var(--neu-light), 2px 2px 6px var(--neu-dark);      /* ≤24px */
-    --e1: -4px -4px 9px var(--neu-light), 4px 4px 10px var(--neu-dark);     /* ~38px */
-    --e2: -6px -6px 14px var(--neu-light), 6px 6px 16px var(--neu-dark);    /* ~60px+ */
-    --e3: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);    /* ~200px+ */
-    --e4: -13px -13px 34px var(--neu-light), 13px 13px 36px var(--neu-dark);/* ~400px+ */
-    /* 凹陷 */
-    --i0: inset -1.5px -1.5px 4px var(--neu-light), inset 1.5px 1.5px 5px var(--neu-dark);
-    --i1: inset -3px -3px 8px var(--neu-light), inset 3px 3px 9px var(--neu-dark);
-    --i2: inset -5px -5px 12px var(--neu-light), inset 5px 5px 13px var(--neu-dark);
-    --i3: inset -7px -7px 18px var(--neu-light), inset 7px 7px 20px var(--neu-dark);
+    /* ── 边框：所有边界显式可见 ── */
+    --border: #e4e7ec;          /* 默认边框 */
+    --border-strong: #d0d5dd;   /* 强调边框（输入框、可交互） */
+    --border-subtle: #f0f2f5;   /* 极弱分隔（表格行） */
+
+    /* ── 文字阶梯 ── */
+    --text-1: #101828;          /* 主文字，近黑非纯黑 */
+    --text-2: #475467;          /* 次要文字 */
+    --text-3: #667085;          /* 辅助说明 */
+    --text-4: #98a2b3;          /* 占位符、禁用 */
+
+    /* ── 主色（靛蓝，收敛饱和度以提升可信度）── */
+    --brand: #5865d4;           /* 文字/图标/边框用 */
+    --brand-hover: #4a56c0;
+    --brand-active: #3f4aa8;
+    --brand-soft: #eef2ff;      /* 选中背景 */
+    --brand-border: #c7cffa;
+    /* 按钮实底专用：必须保证白字 ≥4.5:1。
+       深色模式下 --brand 会调亮（用于文字），不能直接当按钮底。 */
+    --brand-solid: #5865d4;
+    --brand-solid-hover: #4a56c0;
+    --brand-solid-active: #3f4aa8;
+
+    /* ── 语义色 ── */
+    --success: #3f8f6a;
+    --success-soft: #ecfdf3;
+    --warning: #b8802f;
+    --warning-soft: #fffaeb;
+    --danger: #bf5c5c;
+    --danger-soft: #fef3f2;
+
+    /* ── 阴影：单向柔和投影，表达浮起高度 ── */
+    --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.03);
+    --shadow-lg: 0 12px 28px rgba(16, 24, 40, 0.10), 0 4px 8px rgba(16, 24, 40, 0.04);
+    --shadow-focus: 0 0 0 3px rgba(88, 101, 212, 0.16);
+
+    /* 兼容旧的阴影档位引用，全部映射为柔和版 */
+    --e0: var(--shadow-xs);
+    --e1: var(--shadow-xs);
+    --e2: var(--shadow-sm);
+    --e3: var(--shadow-md);
+    --e4: var(--shadow-lg);
+    --i0: none;
+    --i1: none;
+    --i2: none;
+    --i3: none;
 
     --neu-ease: cubic-bezier(0.4, 0, 0.2, 1);
     --neu-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -48,20 +85,67 @@
   }
 
   .dark {
-    --neu-bg: #1f2329;
-    --neu-light: #2c3138;
-    --neu-dark: #121519;
-    --neu-sunk: #16191e;
-    --neu-track: #14171c;
+    --canvas: #0f1115;
+    --neu-bg: #171a21;
+    --neu-sunk: #0c0e12;
+    --neu-track: #262b33;
+    --neu-light: #171a21;
+    --neu-dark: #000000;
+
+    --border: #262b33;
+    --border-strong: #333a45;
+    --border-subtle: #1e222a;
+
+    --text-1: #e8eaed;
+    --text-2: #a2a8b4;
+    --text-3: #7d8390;
+    --text-4: #5c626d;
+
+    --brand: #7d8aec;
+    --brand-hover: #8f9bf0;
+    --brand-active: #6b78e0;
+    --brand-soft: rgba(125, 138, 236, 0.14);
+    --brand-border: rgba(125, 138, 236, 0.32);
+    /* 深色下 #7d8aec 上白字仅 3.13:1，按钮实底必须压深到 6.2:1 */
+    --brand-solid: #4a56c0;
+    --brand-solid-hover: #5865d4;
+    --brand-solid-active: #4149b0;
+
+    --success: #6dbb95;
+    --success-soft: rgba(109, 187, 149, 0.14);
+    --warning: #d9a95e;
+    --warning-soft: rgba(217, 169, 94, 0.14);
+    --danger: #d78a8a;
+    --danger-soft: rgba(215, 138, 138, 0.14);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 8px rgba(0, 0, 0, 0.35);
+    --shadow-focus: 0 0 0 3px rgba(125, 138, 236, 0.22);
+
+    --e0: var(--shadow-xs);
+    --e1: var(--shadow-xs);
+    --e2: var(--shadow-sm);
+    --e3: var(--shadow-md);
+    --e4: var(--shadow-lg);
+    --i0: none;
+    --i1: none;
+    --i2: none;
+    --i3: none;
 
     color-scheme: dark;
   }
 
-  /* 新拟态不用边框描边 */
+  /*
+   * 关键改动：以前这里是 border-color: transparent（新拟态不要边框）。
+   * 现在默认边框统一给可见的浅灰，让所有"看起来该有边界"的地方有边界。
+   * Tailwind 的 border-* 工具类仍会正常覆盖它。
+   */
   *,
   ::before,
   ::after {
-    border-color: transparent;
+    border-color: var(--border);
   }
 
   html {
@@ -71,15 +155,15 @@
   }
 
   body {
-    background-color: var(--neu-bg);
-    color: #25262b;
+    background-color: var(--canvas);
+    color: var(--text-1);
     @apply min-h-screen;
     max-width: 100%;
     overflow-x: hidden;
   }
 
   .dark body {
-    color: #dcdee5;
+    color: var(--text-1);
   }
 
   /* 自定义滚动条 - 仅 Firefox，避免 Chrome 取消 webkit 全局定制 */
@@ -128,7 +212,7 @@
   /* 选中文本 */
   ::selection {
     background-color: rgba(88, 101, 212, 0.18);
-    color: #25262b;
+    color: var(--text-1);
   }
 
   .dark ::selection {
@@ -145,213 +229,148 @@
 
 @layer components {
   /* ════════════════ 按钮：凸起 → 按下凹陷 ════════════════ */
+  /* ════════════════ 按钮：白底+边框，主按钮实色 ════════════════ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;
-    @apply rounded-md px-4 py-2.5 text-sm font-semibold;
-    @apply cursor-pointer border-0;
+    @apply rounded-lg px-4 py-2.5 text-sm font-semibold;
+    @apply cursor-pointer;
     background-color: var(--neu-bg);
-    color: #565860;
-    /* 4 层：外层亮暗 + 内层亮暗（内层先 0 0 0 归零） */
-    box-shadow:
-      -5px -5px 11px var(--neu-light),
-      5px 5px 13px var(--neu-dark),
-      inset 0 0 0 var(--neu-light),
-      inset 0 0 0 var(--neu-dark);
+    color: var(--text-2);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-xs);
     transition:
-      box-shadow 0.2s var(--neu-ease),
-      color 0.2s var(--neu-ease);
+      background-color 0.15s var(--neu-ease),
+      border-color 0.15s var(--neu-ease),
+      box-shadow 0.15s var(--neu-ease),
+      color 0.15s var(--neu-ease);
     white-space: nowrap;
   }
 
-  .dark .btn {
-    color: #9c9ea7;
-  }
-
   .btn:hover {
-    color: #25262b;
+    background-color: var(--neu-sunk);
+    color: var(--text-1);
   }
 
-  .dark .btn:hover {
-    color: #dcdee5;
-  }
-
-  /* 按下：外阴影归零，内阴影显现 —— 真实按压 */
   .btn:active {
-    box-shadow:
-      0 0 0 var(--neu-light),
-      0 0 0 var(--neu-dark),
-      inset -3px -3px 9px var(--neu-light),
-      inset 3px 3px 10px var(--neu-dark);
+    background-color: var(--neu-track);
+    box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.08);
+  }
+
+  .btn:focus-visible {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: var(--shadow-focus);
   }
 
   .btn:disabled,
   .btn[disabled] {
-    @apply cursor-not-allowed opacity-45;
+    @apply cursor-not-allowed opacity-50;
     box-shadow: none;
   }
 
-  /* 主按钮：靛蓝彩色新拟态 */
+  /* 主按钮：实色靛蓝，不用渐变（渐变在深色下会产生脏边） */
   .btn-primary {
+    background-color: var(--brand-solid);
+    border-color: var(--brand-solid);
     color: #fff;
-    background-image: linear-gradient(145deg, #5f6cd8, #4a56c0);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.72),
-      4px 4px 11px rgba(160, 167, 182, 0.9),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.32),
-      inset -1px -1px 3px rgba(50, 62, 150, 0.32);
-    text-shadow: 0 1px 2px rgba(30, 38, 95, 0.3);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
 
   .btn-primary:hover {
+    background-color: var(--brand-solid-hover);
+    border-color: var(--brand-solid-hover);
     color: #fff;
-    background-image: linear-gradient(145deg, #6b78e0, #4a56c0);
   }
 
   .btn-primary:active {
-    background-image: linear-gradient(145deg, #4a56c0, #4149b0);
-    box-shadow:
-      inset -2px -2px 7px rgba(255, 255, 255, 0.25),
-      inset 3px 3px 9px rgba(42, 52, 130, 0.5);
-    text-shadow: none;
-  }
-
-  /*
-   * 深色模式：主按钮的亮阴影必须大幅减弱。
-   * 浅色下 rgba(255,255,255,.72) 是模拟受光面，
-   * 但深色背景上这圈白光会变成刺眼的"外发光"，
-   * 只剩暗侧投影才是深色新拟态的正确做法。
-   */
-  .dark .btn-primary {
-    box-shadow:
-      -3px -3px 8px rgba(255, 255, 255, 0.07),
-      4px 4px 11px rgba(0, 0, 0, 0.5),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.14),
-      inset -1px -1px 3px rgba(20, 26, 60, 0.5);
-  }
-
-  .dark .btn-primary:hover {
-    box-shadow:
-      -3px -3px 9px rgba(255, 255, 255, 0.09),
-      5px 5px 14px rgba(0, 0, 0, 0.55),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.16),
-      inset -1px -1px 3px rgba(20, 26, 60, 0.5);
-  }
-
-  .dark .btn-primary:active {
-    box-shadow:
-      inset -2px -2px 7px rgba(255, 255, 255, 0.08),
-      inset 3px 3px 9px rgba(10, 14, 40, 0.65);
-  }
-
-  /* 深色下其他彩色按钮同理 */
-  .dark .btn-danger {
-    box-shadow:
-      -3px -3px 8px rgba(255, 255, 255, 0.06),
-      4px 4px 11px rgba(0, 0, 0, 0.5),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
-  }
-
-  .dark .btn-success {
-    box-shadow:
-      -3px -3px 8px rgba(255, 255, 255, 0.06),
-      4px 4px 11px rgba(0, 0, 0, 0.5),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
-  }
-
-  .dark .btn-warning {
-    box-shadow:
-      -3px -3px 8px rgba(255, 255, 255, 0.06),
-      4px 4px 11px rgba(0, 0, 0, 0.5),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.12);
+    background-color: var(--brand-solid-active);
+    border-color: var(--brand-solid-active);
+    box-shadow: inset 0 1px 3px rgba(20, 26, 60, 0.25);
   }
 
   .btn-secondary {
     background-color: var(--neu-bg);
-    color: #565860;
-    box-shadow: -4px -4px 10px var(--neu-light), 4px 4px 11px var(--neu-dark);
-  }
-
-  .dark .btn-secondary {
-    color: #9c9ea7;
+    color: var(--text-2);
   }
 
   .btn-ghost {
     background-color: transparent;
-    color: #676970;
+    border-color: transparent;
+    color: var(--text-3);
     box-shadow: none;
   }
 
   .btn-ghost:hover {
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: var(--neu-sunk);
+    border-color: transparent;
+    color: var(--text-1);
     box-shadow: none;
   }
 
-  .dark .btn-ghost:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+  /* 语义色按钮：统一为实色，保证白字对比度 */
+  .btn-danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
   }
 
-  .btn-danger {
+  .btn-danger:hover {
+    background-color: #a94b4b;
+    border-color: #a94b4b;
     color: #fff;
-    background-image: linear-gradient(145deg, #d78a8a, #bf5c5c);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.65),
-      4px 4px 11px rgba(180, 150, 150, 0.85),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
   }
 
   .btn-success {
+    background-color: var(--success);
+    border-color: var(--success);
     color: #fff;
-    background-image: linear-gradient(145deg, #6dbb95, #3f8f6a);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.65),
-      4px 4px 11px rgba(150, 180, 165, 0.85),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
+  }
+
+  .btn-success:hover {
+    background-color: #357a5a;
+    border-color: #357a5a;
+    color: #fff;
   }
 
   .btn-warning {
+    background-color: var(--warning);
+    border-color: var(--warning);
     color: #fff;
-    background-image: linear-gradient(145deg, #d9a95e, #b8802f);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.65),
-      4px 4px 11px rgba(190, 175, 150, 0.85),
-      inset 1px 1px 2px rgba(255, 255, 255, 0.28);
   }
 
-  /* 支付渠道品牌按钮：保留品牌色，但压在软胶里 */
-  .btn-stripe {
+  .btn-warning:hover {
+    background-color: #9d6b25;
+    border-color: #9d6b25;
     color: #fff;
-    background-image: linear-gradient(145deg, #7a73ff, #635bff);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.6),
-      4px 4px 11px rgba(165, 160, 210, 0.85);
+  }
+
+  /* 支付渠道品牌按钮：保留品牌色，去掉软胶质感 */
+  .btn-stripe {
+    background-color: #635bff;
+    border-color: #635bff;
+    color: #fff;
   }
 
   .btn-airwallex {
+    background-color: #14171a;
+    border-color: #14171a;
     color: #fff;
-    background-image: linear-gradient(145deg, #3a4048, #14171a);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.6),
-      4px 4px 11px rgba(150, 155, 165, 0.85);
   }
 
   .btn-alipay {
+    background-color: #00aeef;
+    border-color: #00aeef;
     color: #fff;
-    background-image: linear-gradient(145deg, #33bff2, #00aeef);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.6),
-      4px 4px 11px rgba(150, 190, 210, 0.85);
   }
 
   .btn-wxpay {
+    background-color: #2bb741;
+    border-color: #2bb741;
     color: #fff;
-    background-image: linear-gradient(145deg, #4cc65f, #2bb741);
-    box-shadow:
-      -4px -4px 10px rgba(255, 255, 255, 0.6),
-      4px 4px 11px rgba(150, 195, 165, 0.85);
   }
 
   .btn-sm {
-    @apply rounded-sm px-3 py-1.5 text-xs;
+    @apply rounded-md px-3 py-1.5 text-xs;
   }
 
   .btn-md {
@@ -367,39 +386,26 @@
   }
 
   /* ════════════════ 输入框：凹陷（默认即按下态）════════════════ */
+  /* ════════════════ 输入框：白底 + 可见边框 + 聚焦光晕 ════════════════ */
   .input {
-    @apply w-full rounded-md px-4 py-2.5 text-sm font-medium;
-    border: 0;
+    @apply w-full rounded-lg px-4 py-2.5 text-sm font-normal;
     outline: none;
     background-color: var(--neu-bg);
-    color: #25262b;
-    box-shadow:
-      inset -5px -5px 12px var(--neu-light),
-      inset 5px 5px 13px var(--neu-dark);
-    transition: box-shadow 0.24s var(--neu-ease);
+    color: var(--text-1);
+    border: 1px solid var(--border-strong);
+    transition:
+      border-color 0.15s var(--neu-ease),
+      box-shadow 0.15s var(--neu-ease),
+      background-color 0.15s var(--neu-ease);
   }
 
-  .dark .input {
-    color: #dcdee5;
-  }
-
-  .input::placeholder {
-    color: #7f828a;
-    font-weight: 400;
+  .input:hover {
+    border-color: #b8bfcc;
   }
 
   .input:focus {
-    box-shadow:
-      var(--i2),
-      0 0 0 3px rgba(88, 101, 212, 0.16),
-      0 0 0 1px rgba(88, 101, 212, 0.3);
-  }
-
-  .dark .input:focus {
-    box-shadow:
-      var(--i2),
-      0 0 0 3px rgba(125, 138, 236, 0.22),
-      0 0 0 1px rgba(125, 138, 236, 0.4);
+    border-color: var(--brand);
+    box-shadow: var(--shadow-focus);
   }
 
   /* 日期/时间选择器在深色下需要原生控件配合 */
@@ -411,24 +417,36 @@
     color-scheme: dark;
   }
 
+  .input::placeholder {
+    color: var(--text-4);
+    font-weight: 400;
+  }
+
+  .input:disabled,
+  .input[disabled] {
+    background-color: var(--neu-sunk);
+    color: var(--text-4);
+    cursor: not-allowed;
+    border-color: var(--border);
+  }
+
   .input-error {
-    box-shadow:
-      var(--i2),
-      0 0 0 3px rgba(191, 92, 92, 0.16);
+    border-color: var(--danger);
+  }
+
+  .input-error:focus {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(191, 92, 92, 0.16);
   }
 
   .input-label {
     @apply mb-1.5 block text-xs font-semibold;
-    color: #565860;
-  }
-
-  .dark .input-label {
-    color: #9c9ea7;
+    color: var(--text-2);
   }
 
   .input-hint {
     @apply mt-1 text-xs;
-    color: #7f828a;
+    color: var(--text-3);
   }
 
   .input-error-text {
@@ -452,15 +470,16 @@
   }
 
   /* ════════════════ 卡片：凸起 ════════════════ */
+  /* ════════════════ 卡片：纯白 + 1px 边框 + 极轻投影 ════════════════ */
   .card {
-    /* 不自带 padding：调用方普遍写 card p-4 / card p-6，
-       这里若设默认值在新拟态的阴影计算里会造成视觉错位 */
+    /* 不自带 padding：调用方普遍写 card p-4 / card p-6 */
     @apply rounded-xl;
     background-color: var(--neu-bg);
-    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
     transition:
-      box-shadow 0.28s var(--neu-ease),
-      transform 0.28s var(--neu-ease);
+      box-shadow 0.2s var(--neu-ease),
+      border-color 0.2s var(--neu-ease);
   }
 
   .card-hover {
@@ -468,24 +487,21 @@
   }
 
   .card-hover:hover {
-    box-shadow: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
   }
 
   .card-glass {
     @apply rounded-xl;
     background-color: var(--neu-bg);
-    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
-    backdrop-filter: none;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
   }
 
-  /* 卡片内部分隔：用极淡凹槽，不用实线 */
+  /* 卡片内部分隔：改用实线，边界清晰 */
   .card-header {
     padding-bottom: 14px;
-    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
-  }
-
-  .dark .card-header {
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .card-body {
@@ -494,11 +510,7 @@
 
   .card-footer {
     padding-top: 14px;
-    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
-  }
-
-  .dark .card-footer {
-    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+    border-top: 1px solid var(--border-subtle);
   }
 
   /* ════════════════ 统计卡片 ════════════════ */
@@ -508,10 +520,10 @@
   }
 
   .stat-icon {
-    @apply flex h-12 w-12 items-center justify-center rounded-md text-xl;
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i1);
+    @apply flex h-12 w-12 items-center justify-center rounded-lg text-xl;
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border);
+    box-shadow: none;
   }
 
   .stat-icon-primary {
@@ -533,7 +545,7 @@
   .stat-value {
     @apply truncate text-2xl font-bold;
     letter-spacing: -0.035em;
-    color: #25262b;
+    color: var(--text-1);
     text-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9),
       0 -1px 1px rgba(194, 199, 210, 0.6);
@@ -576,491 +588,133 @@
   }
 
   /* ════════════════ 表格：整体凹陷容器 ════════════════ */
+  /* ════════════════ 表格：实线分隔，行边界清晰 ════════════════ */
   .table-container {
-    @apply overflow-x-auto rounded-xl p-3;
+    @apply overflow-x-auto rounded-xl;
     background-color: var(--neu-bg);
-    box-shadow:
-      var(--i2);
+    border: 1px solid var(--border);
   }
 
   .table {
     @apply w-full text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
   }
 
+  /* 表头：浅灰底 + 明确下边框，与数据区分离 */
   .table th {
-    @apply px-4 py-3 text-left text-xs font-bold uppercase tracking-wider;
-    color: #7f828a;
-    border: 0;
+    @apply px-4 py-3 text-left text-xs font-semibold;
+    color: var(--text-3);
+    background-color: var(--neu-sunk);
+    border-bottom: 1px solid var(--border);
     white-space: nowrap;
+    letter-spacing: 0.01em;
   }
 
+  .dark .table th {
+    color: var(--text-3);
+  }
+
+  /* 单元格：逐行实线分隔（替代原来几乎不可见的内阴影） */
   .table td {
     @apply px-4 py-3;
-    color: #3b3d44;
-    border: 0;
-    box-shadow: inset 0 -1px 0 rgba(194, 199, 210, 0.4);
-    transition: background-color 0.16s var(--neu-ease);
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background-color 0.12s var(--neu-ease);
   }
 
   .dark .table td {
-    color: #bec0c9;
-    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    color: var(--text-2);
   }
 
   .table tr:last-child td {
-    box-shadow: none;
+    border-bottom: 0;
   }
 
+  /* 悬停：整行浅灰，一眼看出当前行 */
   .table tbody tr:hover td {
-    background-color: rgba(255, 255, 255, 0.52);
-  }
-
-  .dark .table tbody tr:hover td {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-
-  .table tbody tr:hover td:first-child {
-    border-radius: 6px 0 0 6px;
-  }
-
-  .table tbody tr:hover td:last-child {
-    border-radius: 0 6px 6px 0;
+    background-color: var(--neu-sunk);
   }
 
   /* ════════════════ 徽章：小凹陷软胶块 ════════════════ */
+  /* ════════════════ 徽章：浅色底 + 语义色文字 ════════════════ */
   .badge {
-    @apply inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-bold tracking-wide;
-    background-color: var(--neu-bg);
-    color: #565860;
-    border: 0;
-    box-shadow:
-      var(--i1);
+    @apply inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold;
+    background-color: var(--neu-sunk);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    box-shadow: none;
     white-space: nowrap;
   }
 
-  .dark .badge {
-    color: #9c9ea7;
-  }
-
   .badge-primary {
-    color: #515bc3;
-  }
-
-  .dark .badge-primary {
-    color: #acb9fb;
+    background-color: var(--brand-soft);
+    color: var(--brand);
+    border-color: var(--brand-border);
   }
 
   .badge-success {
-    color: #2f7153;
-  }
-
-  .dark .badge-success {
-    color: #84ceac;
+    background-color: var(--success-soft);
+    color: var(--success);
+    border-color: rgba(63, 143, 106, 0.2);
   }
 
   .badge-warning {
-    color: #91631f;
-  }
-
-  .dark .badge-warning {
-    color: #eabf74;
+    background-color: var(--warning-soft);
+    color: var(--warning);
+    border-color: rgba(184, 128, 47, 0.2);
   }
 
   .badge-danger {
-    color: #9c4646;
-  }
-
-  .dark .badge-danger {
-    color: #eda4a4;
+    background-color: var(--danger-soft);
+    color: var(--danger);
+    border-color: rgba(191, 92, 92, 0.2);
   }
 
   .badge-gray,
   .badge-purple {
-    color: #565860;
-  }
-
-  .dark .badge-gray,
-  .dark .badge-purple {
-    color: #9c9ea7;
+    background-color: var(--neu-sunk);
+    color: var(--text-2);
+    border-color: var(--border);
   }
 
   /* ════════════════ 下拉菜单（浮层）════════════════ */
   .dropdown {
     @apply absolute z-50 rounded-xl py-1.5;
     background-color: var(--neu-bg);
-    border: 0;
-    box-shadow:
-      -8px -8px 20px rgba(255, 255, 255, 0.9),
-      8px 8px 22px rgba(170, 177, 190, 0.9);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
     animation: neuScaleIn 0.18s var(--neu-ease-out);
   }
 
-  .dark .dropdown {
-    box-shadow:
-      -8px -8px 20px rgba(255, 255, 255, 0.04),
-      8px 8px 22px rgba(0, 0, 0, 0.7);
-  }
-
-  .dropdown-item {
-    @apply flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium;
-    color: #565860;
-    transition:
-      background-color 0.16s var(--neu-ease),
-      color 0.16s var(--neu-ease);
-  }
-
-  .dark .dropdown-item {
-    color: #9c9ea7;
-  }
-
-  .dropdown-item:hover {
-    background-color: rgba(255, 255, 255, 0.6);
-    color: #25262b;
-  }
-
-  .dark .dropdown-item:hover {
-    background-color: rgba(255, 255, 255, 0.06);
-    color: #dcdee5;
-  }
-
-  /* ════════════════ 模态框 ════════════════ */
-  .modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4;
-    background-color: rgba(37, 38, 43, 0.32);
-    backdrop-filter: blur(6px);
-  }
-
-  .modal-content {
-    @apply flex w-full flex-col rounded-2xl p-5;
-    @apply max-h-[95vh] sm:max-h-[90vh];
-    background-color: var(--neu-bg);
-    border: 0;
-    box-shadow:
-      -9px -9px 24px rgba(255, 255, 255, 0.7),
-      11px 11px 30px rgba(178, 184, 196, 0.85);
-  }
-
-  .dark .modal-content {
-    box-shadow:
-      -9px -9px 24px rgba(255, 255, 255, 0.04),
-      11px 11px 30px rgba(0, 0, 0, 0.7);
-  }
-
-  .modal-header {
-    @apply flex flex-shrink-0 items-center justify-between px-1 pb-4;
-    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
-    margin-bottom: 1rem;
-  }
-
-  .dark .modal-header {
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-  }
-
-  .modal-title {
-    @apply text-lg font-bold;
-    letter-spacing: -0.02em;
-    color: #25262b;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
-  }
-
-  .dark .modal-title {
-    color: #dcdee5;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
-  }
-
-  .modal-body {
-    @apply flex-1 overflow-y-auto px-1 py-1;
-  }
-
-  .modal-footer {
-    @apply flex flex-shrink-0 items-center justify-end gap-3 px-1 pt-4;
-    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
-    margin-top: 1rem;
-  }
-
-  .dark .modal-footer {
-    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
-  }
-
-  body.modal-open {
-    overflow: hidden;
-  }
-
-  /* 弹窗过渡 */
-  .modal-enter-active {
-    transition: opacity 250ms var(--neu-ease-out);
-  }
-
-  .modal-leave-active {
-    transition: opacity 200ms var(--neu-ease);
-  }
-
-  .modal-enter-from,
-  .modal-leave-to {
-    opacity: 0;
-  }
-
-  .modal-enter-active .modal-content {
-    transition:
-      transform 250ms var(--neu-ease-out),
-      opacity 250ms var(--neu-ease-out);
-  }
-
-  .modal-leave-active .modal-content {
-    transition:
-      transform 200ms var(--neu-ease),
-      opacity 200ms var(--neu-ease);
-  }
-
-  .modal-enter-from .modal-content,
-  .modal-leave-to .modal-content {
-    transform: scale(0.96);
-    opacity: 0;
-  }
-
-  .modal-enter-to .modal-content,
-  .modal-leave-from .modal-content {
-    transform: scale(1);
-    opacity: 1;
-  }
-
-  /* ════════════════ Dialog（与 Modal 同款）════════════════ */
-  .dialog-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
-    background-color: rgba(37, 38, 43, 0.32);
-    backdrop-filter: blur(6px);
-  }
-
-  .dialog-container {
-    @apply flex w-full flex-col rounded-2xl p-5;
-    @apply max-h-[90vh];
-    background-color: var(--neu-bg);
-    box-shadow:
-      -9px -9px 24px rgba(255, 255, 255, 0.7),
-      11px 11px 30px rgba(178, 184, 196, 0.85);
-  }
-
-  .dialog-header {
-    @apply flex items-center justify-between px-1 pb-4;
-    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
-  }
-
-  .dialog-body {
-    @apply overflow-y-auto px-1 py-2;
-  }
-
-  .dialog-footer {
-    @apply flex items-center justify-end gap-3 px-1 pt-4;
-    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
-  }
-
-  /* ════════════════ Toast 通知 ════════════════ */
-  .toast {
-    @apply fixed right-4 top-4 z-[100] min-w-[320px] max-w-md rounded-xl p-4;
-    background-color: var(--neu-bg);
-    border: 0;
-    box-shadow:
-      -8px -8px 20px rgba(255, 255, 255, 0.9),
-      8px 8px 22px rgba(170, 177, 190, 0.9);
-    animation: neuSlideInRight 0.25s var(--neu-ease-out);
-  }
-
-  .dark .toast {
-    box-shadow:
-      -8px -8px 20px rgba(255, 255, 255, 0.04),
-      8px 8px 22px rgba(0, 0, 0, 0.7);
-  }
-
-  .toast-success {
-    border-left: 3px solid #3f8f6a;
-  }
-
-  .toast-error {
-    border-left: 3px solid #bf5c5c;
-  }
-
-  .toast-warning {
-    border-left: 3px solid #b8802f;
-  }
-
-  .toast-info {
-    border-left: 3px solid #5865d4;
-  }
-
-  /* ════════════════ 侧边栏：整块浅凹 ════════════════ */
-  .sidebar {
-    @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col;
-    background-color: var(--neu-bg);
-    border: 0;
-    box-shadow:
-      var(--i2);
-    transition-property: width, transform;
-  }
-
-  .sidebar-header {
-    @apply flex h-16 items-center gap-3 px-6;
-    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
-  }
-
-  .sidebar-nav {
-    @apply flex-1 overflow-y-auto px-3 py-4;
-  }
-
-  .sidebar-link {
-    @apply flex items-center gap-3 overflow-hidden rounded-md py-2.5 pl-4 pr-3.5;
-    @apply text-sm font-medium;
-    color: #565860;
-    border: 0;
-    transition:
-      box-shadow 0.2s var(--neu-ease),
-      color 0.2s var(--neu-ease);
-  }
-
-  .dark .sidebar-link {
-    color: #9c9ea7;
-  }
-
-  .sidebar-link:hover {
-    color: #25262b;
-  }
-
-  .dark .sidebar-link:hover {
-    color: #dcdee5;
-  }
-
-  /* 选中：凹陷 + 靛蓝 */
-  .sidebar-link-active {
-    color: #515bc3;
-    font-weight: 600;
-    box-shadow:
-      inset -3px -3px 8px var(--neu-light),
-      inset 3px 3px 9px var(--neu-dark);
-  }
-
-  .dark .sidebar-link-active {
-    color: #acb9fb;
-  }
-
-  .sidebar-section {
-    @apply mb-6;
-  }
-
-  .sidebar-section-title {
-    @apply mb-2 px-3 text-xs font-bold uppercase tracking-widest;
-    color: #7f828a;
-  }
-
-  /* ════════════════ 页面头部（文字浮雕）════════════════ */
-  .page-header {
-    @apply mb-6;
-  }
-
-  .page-title {
-    @apply text-2xl font-bold;
-    letter-spacing: -0.028em;
-    color: #25262b;
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.95),
-      0 -1px 1px rgba(194, 199, 210, 0.65);
-  }
-
-  .dark .page-title {
-    color: #dcdee5;
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.6),
-      0 -1px 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .page-description {
-    @apply mt-1 text-sm font-medium;
-    color: #7f828a;
-  }
-
-  /* ════════════════ 空状态 ════════════════ */
-  .empty-state {
-    @apply flex flex-col items-center justify-center px-4 py-12 text-center;
-  }
-
-  .empty-state-icon {
-    @apply mb-4 h-16 w-16;
-    color: #aeb1ba;
-  }
-
-  .empty-state-title {
-    @apply mb-1 text-lg font-semibold;
-    color: #3b3d44;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
-  }
-
-  .dark .empty-state-title {
-    color: #bec0c9;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
-  }
-
-  .empty-state-description {
-    @apply max-w-sm text-sm;
-    color: #7f828a;
-  }
-
-  /* ════════════════ 加载状态 ════════════════ */
-  .spinner {
-    @apply h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent;
-  }
-
-  .skeleton {
-    @apply animate-pulse rounded-sm;
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i1);
-  }
-
-  /* ════════════════ 分隔线：极淡凹槽 ════════════════ */
-  .divider {
-    @apply my-4 h-px;
-    background-color: transparent;
-    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.55);
-  }
-
-  .dark .divider {
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
-  }
-
-  /* ════════════════ 标签页：容器凹陷、选中凸起 ════════════════ */
+  /* ════════════════ 标签页：浅灰轨道 + 白底选中 ════════════════ */
   .tabs {
     @apply flex gap-1 rounded-xl p-1;
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i1);
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border);
   }
 
   .tab {
-    @apply rounded-sm px-4 py-2 text-sm font-medium;
-    color: #676970;
-    background-color: var(--neu-bg);
-    border: 0;
-    box-shadow:
-      inset 0 0 0 var(--neu-light),
-      inset 0 0 0 var(--neu-dark),
-      -2px -2px 5px var(--neu-light),
-      2px 2px 6px var(--neu-dark);
+    @apply rounded-lg px-4 py-2 text-sm font-medium;
+    color: var(--text-3);
+    background-color: transparent;
+    border: 1px solid transparent;
     transition:
-      box-shadow 0.2s var(--neu-ease),
-      color 0.2s var(--neu-ease);
+      background-color 0.15s var(--neu-ease),
+      color 0.15s var(--neu-ease),
+      border-color 0.15s var(--neu-ease);
   }
 
   .tab:hover {
-    color: #3b3d44;
+    color: var(--text-1);
   }
 
   .tab-active {
-    color: #515bc3;
+    color: var(--brand);
     font-weight: 600;
-    box-shadow:
-      var(--i1);
-  }
-
-  .dark .tab-active {
-    color: #acb9fb;
+    background-color: var(--neu-bg);
+    border-color: var(--border);
+    box-shadow: var(--shadow-xs);
   }
 
   /* ════════════════ 进度条：凹陷槽 + 凸起填充 ════════════════ */
@@ -1068,10 +722,8 @@
     height: 8px;
     overflow: hidden;
     border-radius: 9999px;
-    padding: 2px;
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i1);
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border);
   }
 
   /* 注意：用原生 CSS 而非 @apply，避免与 Tailwind 的 h-full 在
@@ -1111,13 +763,13 @@
 
   /* ════════════════ 开关（OFF 态必须比 bg 深，否则不可见）════════════════ */
   .switch {
-    @apply relative h-6 w-11 cursor-pointer rounded-full border-0;
-    background-color: var(--neu-sunk);
-    box-shadow:
-      var(--i1);
+    @apply relative h-6 w-11 cursor-pointer rounded-full;
+    background-color: var(--neu-track);
+    border: 1px solid var(--border);
+    box-shadow: none;
     transition:
-      box-shadow 0.22s var(--neu-ease),
-      background-color 0.22s var(--neu-ease);
+      background-color 0.22s var(--neu-ease),
+      border-color 0.22s var(--neu-ease);
   }
 
   .switch-active {
@@ -1156,7 +808,7 @@
   .code-block {
     @apply overflow-x-auto rounded-xl p-4 font-mono text-sm;
     background-color: var(--neu-bg);
-    color: #25262b;
+    color: var(--text-1);
     box-shadow:
       var(--i2);
   }
@@ -1168,7 +820,7 @@
   /* ════════════════ Tour 引导 ════════════════ */
   .tour-step-description {
     @apply space-y-3 text-sm leading-relaxed;
-    color: #3b3d44;
+    color: var(--text-2);
   }
 
   .dark .tour-step-description {
@@ -1189,11 +841,10 @@
 
   /* 引导提示框：凹陷 + 左侧色条 */
   .tour-info-box {
-    @apply rounded-sm px-3 py-2 text-xs;
+    @apply rounded-md px-3 py-2 text-xs;
     color: #515bc3;
-    box-shadow:
-      var(--i1),
-      inset 3px 0 0 #5865d4;
+    background-color: var(--brand-soft);
+    border-left: 3px solid #515bc3;
   }
 
   .dark .tour-info-box {
@@ -1201,11 +852,10 @@
   }
 
   .tour-success-box {
-    @apply rounded-sm px-3 py-2 text-xs;
+    @apply rounded-md px-3 py-2 text-xs;
     color: #2f7153;
-    box-shadow:
-      var(--i1),
-      inset 3px 0 0 #3f8f6a;
+    background-color: var(--success-soft);
+    border-left: 3px solid #2f7153;
   }
 
   .dark .tour-success-box {
@@ -1213,11 +863,10 @@
   }
 
   .tour-warning-box {
-    @apply rounded-sm px-3 py-2 text-xs;
+    @apply rounded-md px-3 py-2 text-xs;
     color: #91631f;
-    box-shadow:
-      var(--i1),
-      inset 3px 0 0 #b8802f;
+    background-color: var(--warning-soft);
+    border-left: 3px solid #91631f;
   }
 
   .dark .tour-warning-box {
@@ -1225,11 +874,10 @@
   }
 
   .tour-error-box {
-    @apply rounded-sm px-3 py-2 text-xs;
+    @apply rounded-md px-3 py-2 text-xs;
     color: #9c4646;
-    box-shadow:
-      var(--i1),
-      inset 3px 0 0 #bf5c5c;
+    background-color: var(--danger-soft);
+    border-left: 3px solid #9c4646;
   }
 
   .dark .tour-error-box {
@@ -1245,37 +893,241 @@
     box-shadow: 0 1px 0 rgba(194, 199, 210, 0.6);
   }
 
-  /* ════════════════ 新拟态工具类 ════════════════ */
-  /* 凸起 */
-  .neu-raised {
+  /* ════════════════ 层次工具类（保留旧类名，语义改为分层） ════════════════ */
+  .neu-raised,
+  .neu-raised-sm,
+  .neu-raised-lg {
     background-color: var(--neu-bg);
-    box-shadow: -5px -5px 13px var(--neu-light), 5px 5px 14px var(--neu-dark);
-  }
-
-  .neu-raised-sm {
-    background-color: var(--neu-bg);
-    box-shadow: -3px -3px 8px var(--neu-light), 3px 3px 9px var(--neu-dark);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
   }
 
   .neu-raised-lg {
-    background-color: var(--neu-bg);
-    box-shadow: -9px -9px 24px var(--neu-light), 9px 9px 26px var(--neu-dark);
+    box-shadow: var(--shadow-sm);
   }
 
-  /* 凹陷 */
-  .neu-sunken {
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i2);
-  }
-
+  .neu-sunken,
   .neu-sunken-sm {
-    background-color: var(--neu-bg);
-    box-shadow:
-      var(--i1);
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border);
+    box-shadow: none;
   }
 
-  /* 文字浮雕 */
+  /* 弹窗打开时锁定页面滚动 */
+  body.modal-open {
+    overflow: hidden;
+  }
+
+  /* Vue transition：进入/离开终态 */
+  .modal-enter-to .modal-content,
+  .modal-leave-from .modal-content {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  /* ════════════════ 弹窗 / 空状态 / 页面骨架 / 侧边栏 / 通知 ════════════════ */
+  .dropdown-item {
+    @apply flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium;
+    color: var(--text-2);
+    transition:
+      background-color 0.16s var(--neu-ease),
+      color 0.16s var(--neu-ease);
+  }
+
+  .dark .dropdown-item {
+    color: var(--text-2);
+  }
+
+  .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.6);
+    color: var(--text-1);
+  }
+
+  .dark .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-1);
+  }
+
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4;
+    background-color: rgba(37, 38, 43, 0.32);
+    backdrop-filter: blur(6px);
+  }
+
+  .modal-header {
+    @apply flex flex-shrink-0 items-center justify-between px-1 pb-4;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
+    margin-bottom: 1rem;
+  }
+
+  .dark .modal-header {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-title {
+    @apply text-lg font-bold;
+    letter-spacing: -0.02em;
+    color: var(--text-1);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .dark .modal-title {
+    color: var(--text-1);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-body {
+    @apply flex-1 overflow-y-auto px-1 py-1;
+  }
+
+  .modal-footer {
+    @apply flex flex-shrink-0 items-center justify-end gap-3 px-1 pt-4;
+    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
+    margin-top: 1rem;
+  }
+
+  .dark .modal-footer {
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-leave-from .modal-content {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  .dialog-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background-color: rgba(37, 38, 43, 0.32);
+    backdrop-filter: blur(6px);
+  }
+
+  .dialog-container {
+    @apply flex w-full flex-col rounded-2xl p-5;
+    @apply max-h-[90vh];
+    background-color: var(--neu-bg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .dialog-header {
+    @apply flex items-center justify-between px-1 pb-4;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
+  }
+
+  .dialog-body {
+    @apply overflow-y-auto px-1 py-2;
+  }
+
+  .dialog-footer {
+    @apply flex items-center justify-end gap-3 px-1 pt-4;
+    box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
+  }
+
+  .toast-success {
+    border-left: 3px solid #3f8f6a;
+  }
+
+  .toast-error {
+    border-left: 3px solid #bf5c5c;
+  }
+
+  .toast-warning {
+    border-left: 3px solid #b8802f;
+  }
+
+  .toast-info {
+    border-left: 3px solid #5865d4;
+  }
+
+  .sidebar-header {
+    @apply flex h-16 items-center gap-3 px-6;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
+  }
+
+  .sidebar-nav {
+    @apply flex-1 overflow-y-auto px-3 py-4;
+  }
+
+  .sidebar-link-active {
+    color: #515bc3;
+    font-weight: 600;
+    box-shadow:
+      inset -3px -3px 8px var(--neu-light),
+      inset 3px 3px 9px var(--neu-dark);
+  }
+
+  .dark .sidebar-link-active {
+    color: #acb9fb;
+  }
+
+  .sidebar-section {
+    @apply mb-6;
+  }
+
+  .sidebar-section-title {
+    @apply mb-2 px-3 text-xs font-bold uppercase tracking-widest;
+    color: var(--text-3);
+  }
+
+  .page-header {
+    @apply mb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold;
+    letter-spacing: -0.028em;
+    color: var(--text-1);
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95),
+      0 -1px 1px rgba(194, 199, 210, 0.65);
+  }
+
+  .dark .page-title {
+    color: var(--text-1);
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.6),
+      0 -1px 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .page-description {
+    @apply mt-1 text-sm font-medium;
+    color: var(--text-3);
+  }
+
+  .empty-state {
+    @apply flex flex-col items-center justify-center px-4 py-12 text-center;
+  }
+
+  .empty-state-icon {
+    @apply mb-4 h-16 w-16;
+    color: #aeb1ba;
+  }
+
+  .empty-state-title {
+    @apply mb-1 text-lg font-semibold;
+    color: var(--text-2);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .empty-state-title {
+    color: #bec0c9;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .empty-state-description {
+    @apply max-w-sm text-sm;
+    color: var(--text-3);
+  }
+
+  .divider {
+    @apply my-4 h-px;
+    background-color: transparent;
+    box-shadow: 0 1px 0 rgba(194, 199, 210, 0.55);
+  }
+
+  .dark .divider {
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  }
+
   .neu-text {
     text-shadow:
       0 1px 0 rgba(255, 255, 255, 0.95),
@@ -1288,26 +1140,6 @@
       0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
-  /* 可交互：凸起 → 按下凹陷 */
-  .neu-pressable {
-    background-color: var(--neu-bg);
-    box-shadow:
-      -5px -5px 11px var(--neu-light),
-      5px 5px 13px var(--neu-dark),
-      inset 0 0 0 var(--neu-light),
-      inset 0 0 0 var(--neu-dark);
-    transition: box-shadow 0.2s var(--neu-ease);
-  }
-
-  .neu-pressable:active {
-    box-shadow:
-      0 0 0 var(--neu-light),
-      0 0 0 var(--neu-dark),
-      inset -3px -3px 9px var(--neu-light),
-      inset 3px 3px 10px var(--neu-dark);
-  }
-
-  /* 防止长内容撑破容器（响应式一体化必需） */
   .neu-truncate {
     @apply min-w-0 truncate;
   }
@@ -1318,11 +1150,7 @@
   }
 
   .neu-row:hover {
-    background-color: rgba(255, 255, 255, 0.52);
-  }
-
-  .dark .neu-row:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--neu-sunk);
   }
 
   /* 横向滚动容器：移动端表格专用 */

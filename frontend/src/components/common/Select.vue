@@ -518,41 +518,41 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 新拟态：触发器与 .input 保持完全一致的凹陷外观 */
+/* 触发器：与 .input 完全一致的扁平外观 */
 .select-trigger {
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-md px-4 py-2.5 text-sm font-medium;
-  border: 0;
+  @apply rounded-lg px-4 py-2.5 text-sm font-normal;
   background-color: var(--neu-bg);
-  color: #25262b;
-  box-shadow:
-    inset -4px -4px 11px var(--neu-light),
-    inset 4px 4px 12px var(--neu-dark);
-  transition: box-shadow 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-1);
+  border: 1px solid var(--border-strong);
+  transition:
+    border-color 0.15s var(--neu-ease),
+    box-shadow 0.15s var(--neu-ease);
   @apply cursor-pointer;
 }
 
-:global(.dark) .select-trigger {
-  color: #dcdee5;
+.select-trigger:hover {
+  border-color: #b8bfcc;
 }
 
 .select-trigger-open {
-  box-shadow:
-    inset -4px -4px 11px var(--neu-light),
-    inset 4px 4px 12px var(--neu-dark),
-    0 0 0 3px rgba(88, 101, 212, 0.16),
-    0 0 0 1px rgba(88, 101, 212, 0.3);
+  border-color: var(--brand);
+  box-shadow: var(--shadow-focus);
 }
 
 .select-trigger-error {
-  box-shadow:
-    inset -4px -4px 11px var(--neu-light),
-    inset 4px 4px 12px var(--neu-dark),
-    0 0 0 3px rgba(191, 92, 92, 0.16);
+  border-color: var(--danger);
+}
+
+.select-trigger-error.select-trigger-open {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(191, 92, 92, 0.16);
 }
 
 .select-trigger-disabled {
   @apply cursor-not-allowed opacity-50;
+  background-color: var(--neu-sunk);
+  border-color: var(--border);
 }
 
 .select-value {
@@ -561,58 +561,41 @@ onUnmounted(() => {
 
 .select-icon {
   @apply flex-shrink-0;
-  color: #7f828a;
+  color: var(--text-4);
 }
 
 .select-clear {
-  @apply flex flex-shrink-0 cursor-pointer items-center justify-center rounded-sm transition-colors;
-  color: #7f828a;
+  @apply flex flex-shrink-0 cursor-pointer items-center justify-center rounded transition-colors;
+  color: var(--text-4);
 }
 
 .select-clear:hover {
-  color: #25262b;
+  color: var(--text-1);
 }
 </style>
 
 <style>
 .select-dropdown-portal {
   @apply w-max min-w-[200px] overflow-hidden rounded-xl;
-  /* 新拟态浮层：凸起软垫，不用白底和边框 */
   background-color: var(--neu-bg);
-  border: 0;
-  box-shadow:
-    -8px -8px 20px rgba(255, 255, 255, 0.9),
-    8px 8px 22px rgba(170, 177, 190, 0.9);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
   pointer-events: auto !important;
-}
-
-.dark .select-dropdown-portal {
-  box-shadow:
-    -8px -8px 20px rgba(255, 255, 255, 0.04),
-    8px 8px 22px rgba(0, 0, 0, 0.7);
 }
 
 .select-dropdown-portal .select-search {
   @apply flex items-center gap-2 px-3 py-2;
-  box-shadow: 0 1px 0 rgba(194, 199, 210, 0.5);
-}
-
-.dark .select-dropdown-portal .select-search {
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .select-dropdown-portal .select-search-input {
   @apply flex-1 bg-transparent text-sm;
-  color: #25262b;
+  color: var(--text-1);
   @apply focus:outline-none;
 }
 
-.dark .select-dropdown-portal .select-search-input {
-  color: #dcdee5;
-}
-
 .select-dropdown-portal .select-search-input::placeholder {
-  color: #7f828a;
+  color: var(--text-4);
 }
 
 .select-dropdown-portal .select-options {
@@ -620,47 +603,29 @@ onUnmounted(() => {
 }
 
 .select-dropdown-portal .select-option {
-  @apply flex cursor-pointer items-center justify-between gap-2 rounded-sm;
-  @apply mx-1.5 px-3 py-2 text-sm font-medium;
-  color: #565860;
-  transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s;
+  @apply flex cursor-pointer items-center justify-between gap-2 rounded-md;
+  @apply mx-1.5 px-3 py-2 text-sm font-normal;
+  color: var(--text-2);
+  transition:
+    background-color 0.12s var(--neu-ease),
+    color 0.12s var(--neu-ease);
   pointer-events: auto !important;
 }
 
-.dark .select-dropdown-portal .select-option {
-  color: #9c9ea7;
-}
-
 .select-dropdown-portal .select-option:hover {
-  background-color: rgba(255, 255, 255, 0.6);
-  color: #25262b;
+  background-color: var(--neu-sunk);
+  color: var(--text-1);
 }
 
-.dark .select-dropdown-portal .select-option:hover {
-  background-color: rgba(255, 255, 255, 0.06);
-  color: #dcdee5;
-}
-
-/* 选中项：凹陷 + 靛蓝 —— 与 .sidebar-link-active 同一语言 */
+/* 选中项：品牌浅底 + 品牌色 */
 .select-dropdown-portal .select-option-selected {
-  color: #515bc3;
+  background-color: var(--brand-soft);
+  color: var(--brand);
   font-weight: 600;
-  background-color: var(--neu-bg);
-  box-shadow:
-    inset -3px -3px 8px var(--neu-light),
-    inset 3px 3px 9px var(--neu-dark);
-}
-
-.dark .select-dropdown-portal .select-option-selected {
-  color: #acb9fb;
 }
 
 .select-dropdown-portal .select-option-focused {
-  background-color: rgba(255, 255, 255, 0.5);
-}
-
-.dark .select-dropdown-portal .select-option-focused {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--neu-sunk);
 }
 
 .select-dropdown-portal .select-option-disabled {
@@ -670,30 +635,10 @@ onUnmounted(() => {
 .select-dropdown-portal .select-option-group {
   @apply cursor-default select-none px-3 pb-1 pt-2;
   @apply text-[10px] font-bold uppercase tracking-wider;
-  color: #7f828a;
-}
-
-.select-dropdown-portal .select-option-group:hover {
-  background-color: transparent;
+  color: var(--text-4);
 }
 
 .select-dropdown-portal .select-option-label {
   @apply min-w-0 flex-1 truncate text-left;
-}
-
-.select-dropdown-portal .select-empty {
-  @apply px-4 py-8 text-center text-sm;
-  @apply text-gray-500 dark:text-dark-400;
-}
-
-.select-dropdown-enter-active,
-.select-dropdown-leave-active {
-  transition: all 0.2s ease;
-}
-
-.select-dropdown-enter-from,
-.select-dropdown-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 </style>

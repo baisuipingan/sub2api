@@ -968,13 +968,13 @@ defineExpose({
   top: 0;
   z-index: 200;
   /* sticky 表头必须不透明，否则滚动时表体内容会透上来 */
-  background-color: var(--neu-bg, #edeff3);
+  background-color: var(--neu-sunk, #f2f4f7);
   /* 用极淡凹槽代替实线，与新拟态语言一致 */
   box-shadow: 0 1px 0 rgba(194, 199, 210, 0.6);
 }
 
 .dark .table-wrapper .table-header {
-  background-color: var(--neu-bg, #1f2329);
+  background-color: var(--neu-sunk, #0c0e12);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
@@ -989,11 +989,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 210; /* 必须高于所有表体内容 */
-  background-color: var(--neu-bg, #edeff3);
+  background-color: var(--neu-sunk, #f2f4f7);
 }
 
 .dark .sticky-header-cell {
-  background-color: var(--neu-bg, #1f2329);
+  background-color: var(--neu-sunk, #0c0e12);
 }
 
 /* Sticky 列基础样式 */
@@ -1029,20 +1029,20 @@ defineExpose({
 
 /* 表体 sticky 列背景：必须不透明，否则横向滚动时列会重叠透字 */
 tbody .sticky-col {
-  background-color: var(--neu-bg, #edeff3);
+  background-color: var(--neu-sunk, #f2f4f7);
 }
 
 .dark tbody .sticky-col {
-  background-color: var(--neu-bg, #1f2329);
+  background-color: var(--neu-sunk, #0c0e12);
 }
 
 /* hover 状态保持：与新拟态行 hover（提亮）一致 */
 tbody tr:hover .sticky-col {
-  background-color: #f5f7fa;
+  background-color: var(--neu-sunk, #f2f4f7);
 }
 
 .dark tbody tr:hover .sticky-col {
-  background-color: #24282f;
+  background-color: var(--neu-sunk, #0c0e12);
 }
 
 /* 阴影只在可滚动时显示 */
