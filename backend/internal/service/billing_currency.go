@@ -322,6 +322,15 @@ func (s *SettingService) UpdateBillingCurrencyConfig(ctx context.Context, cfg Bi
 		config:    normalized,
 		expiresAt: time.Now().Add(defaultBillingCurrencyCacheTTL),
 	})
+	// 必须失效首屏 HTML 缓存：index.html 会把 billing_* 一起注入到
+	// window.__APP_CONFIG__，若缓存不失效，改完币种后：
+	//   · /api/v1/settings/public 返回新值（动态读）
+	//   · 但 index.html 注入的仍是旧值（缓存），且带 ETag
+	// 浏览器 revalidate 命中 304 后会继续用旧 HTML，
+	// 表现为"配置已改但界面仍显示旧币种符号"。
+	if s.onUpdate != nil {
+		s.onUpdate()
+	}
 	return normalized, nil
 }
 
