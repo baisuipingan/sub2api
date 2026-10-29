@@ -27,7 +27,6 @@ export default {
       active: 'active',
       ok: 'ok',
       err: 'err',
-      rateLimited: 'Rate limited',
       activeUsers: 'active users',
       create: 'Create',
       timeRange: 'Time Range',
