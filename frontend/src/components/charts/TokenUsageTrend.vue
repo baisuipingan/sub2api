@@ -1,17 +1,21 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+  <!-- bare=true 时去掉自带卡片与标题，供父级卡片内嵌使用 -->
+  <div :class="bare ? '' : 'card p-4'">
+    <h3 v-if="!bare" class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
       {{ t('admin.dashboard.tokenUsageTrend') }}
     </h3>
-    <div v-if="loading" class="flex h-48 items-center justify-center">
+    <div v-if="loading" :class="['flex items-center justify-center', bare ? 'h-[250px]' : 'h-48']">
       <LoadingSpinner />
     </div>
-    <div v-else-if="trendData.length > 0 && chartData" class="h-48">
+    <div v-else-if="trendData.length > 0 && chartData" :class="bare ? 'h-[250px]' : 'h-48'">
       <Line :data="chartData" :options="lineOptions" />
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      :class="[
+        'flex items-center justify-center text-sm text-gray-500 dark:text-gray-400',
+        bare ? 'h-[250px]' : 'h-48',
+      ]"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
@@ -54,6 +58,8 @@ const { formatCompact } = useBillingCurrency()
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
+  /** 去掉外层卡片与标题，供父级卡片内嵌 */
+  bare?: boolean
 }>()
 
 const isDarkMode = computed(() => {
@@ -135,13 +141,16 @@ const lineOptions = computed(() => ({
   plugins: {
     legend: {
       position: 'top' as const,
+      align: 'end' as const,
       labels: {
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
-        padding: 15,
+        boxWidth: 6,
+        boxHeight: 6,
+        padding: 10,
         font: {
-          size: 11
+          size: 10
         }
       }
     },
