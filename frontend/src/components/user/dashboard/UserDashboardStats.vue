@@ -228,6 +228,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useAppStore } from '@/stores'
 import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import Icon from '@/components/icons/Icon.vue'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'
@@ -252,9 +253,39 @@ const props = defineProps<{
 const { t } = useI18n()
 const { formatUSD } = useBillingCurrency()
 const router = useRouter()
+const appStore = useAppStore()
 
 /** 余额卡「充值」：跳转到购买页 */
-const goToPurchase = () => router.push('/purchase')
+/**
+ * 「充值」按钮跳转。
+ *
+ * 三种情况：
+ * 1. 配置了自定义链接且以 http(s) 开头 → 新标签打开（卡网等外部站点）
+ * 2. 配置了自定义链接且以 / 开头 → 站内路由
+ * 3. 未配置 → 站内 /purchase
+ *
+ * 用新标签打开外部链接，避免把用户从工作台带走。
+ */
+const goToPurchase = () => {
+  const mode = appStore.rechargeLinkMode
+  const custom = (appStore.rechargeCustomUrl || '').trim()
+
+  if (mode === 'custom' && custom) {
+    if (/^https?:\/\//i.test(custom)) {
+      window.open(custom, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (custom.startsWith('/')) {
+      router.push(custom)
+      return
+    }
+    // 既不是 URL 也不是站内路径 —— 当作相对路径兜底
+    router.push('/' + custom)
+    return
+  }
+
+  router.push('/purchase')
+}
 /** 余额卡「兑换码」：跳转到兑换页 */
 const goToRedeem = () => router.push('/redeem')
 

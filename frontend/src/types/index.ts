@@ -238,6 +238,10 @@ export interface PublicSettings {
   site_logo: string
   site_subtitle: string
   api_base_url: string
+  /** 充值按钮跳转模式：internal=站内 /purchase，custom=自定义链接 */
+  recharge_link_mode?: 'internal' | 'custom'
+  /** 自定义充值链接（卡网等） */
+  recharge_custom_url?: string
   contact_info: string
   doc_url: string
   home_content: string

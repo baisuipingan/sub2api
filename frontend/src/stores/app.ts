@@ -54,6 +54,10 @@ export const useAppStore = defineStore('app', () => {
   const publicSettingsLoading = ref<boolean>(false)
   const siteName = ref<string>('Sub2API')
   const siteLogo = ref<string>('')
+  /** 充值按钮跳转模式：internal 走站内 /purchase，custom 走自定义链接（如卡网） */
+  const rechargeLinkMode = ref<'internal' | 'custom'>('internal')
+  /** 自定义充值链接 */
+  const rechargeCustomUrl = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
@@ -348,6 +352,8 @@ export const useAppStore = defineStore('app', () => {
     contactInfo.value = config.contact_info || ''
     apiBaseUrl.value = config.api_base_url || ''
     docUrl.value = config.doc_url || ''
+    rechargeLinkMode.value = config.recharge_link_mode === 'custom' ? 'custom' : 'internal'
+    rechargeCustomUrl.value = config.recharge_custom_url || ''
     publicSettingsLoaded.value = true
   }
 
@@ -388,6 +394,8 @@ export const useAppStore = defineStore('app', () => {
         aliyun_captcha_prefix: '',
         aliyun_captcha_region: 'cn',
         site_name: siteName.value,
+        recharge_link_mode: rechargeLinkMode.value,
+        recharge_custom_url: rechargeCustomUrl.value,
         site_logo: siteLogo.value,
         site_subtitle: '',
         api_base_url: apiBaseUrl.value,
@@ -495,6 +503,8 @@ export const useAppStore = defineStore('app', () => {
     // Public settings state
     publicSettingsLoaded,
     siteName,
+    rechargeLinkMode,
+    rechargeCustomUrl,
     siteLogo,
     siteVersion,
     contactInfo,

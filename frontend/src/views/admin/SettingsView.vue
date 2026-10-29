@@ -6429,6 +6429,81 @@
                 </p>
               </div>
 
+              <!-- 充值跳转配置 -->
+              <div
+                data-testid="recharge-link-section"
+                class="border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ t("admin.settings.site.rechargeLinkTitle") }}
+                </h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.rechargeLinkDescription") }}
+                </p>
+
+                <div class="mt-4 space-y-4">
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.site.rechargeLinkMode") }}
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        class="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+                        :class="
+                          (form.recharge_link_mode || 'internal') === 'internal'
+                            ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
+                        "
+                        @click="form.recharge_link_mode = 'internal'"
+                      >
+                        {{ t("admin.settings.site.rechargeLinkInternal") }}
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors"
+                        :class="
+                          form.recharge_link_mode === 'custom'
+                            ? 'border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
+                        "
+                        @click="form.recharge_link_mode = 'custom'"
+                      >
+                        {{ t("admin.settings.site.rechargeLinkCustom") }}
+                      </button>
+                    </div>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.rechargeLinkModeHint") }}
+                    </p>
+                  </div>
+
+                  <div v-if="form.recharge_link_mode === 'custom'">
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.site.rechargeCustomUrl") }}
+                    </label>
+                    <input
+                      v-model="form.recharge_custom_url"
+                      type="text"
+                      class="input font-mono text-sm"
+                      :placeholder="t('admin.settings.site.rechargeCustomUrlPlaceholder')"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.rechargeCustomUrlHint") }}
+                    </p>
+                    <p
+                      v-if="form.recharge_custom_url && !/^(https?:\/\/|\/)/i.test(form.recharge_custom_url.trim())"
+                      class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
+                    >
+                      {{ t("admin.settings.site.rechargeCustomUrlInvalid") }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">

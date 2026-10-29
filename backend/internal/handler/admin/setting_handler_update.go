@@ -164,6 +164,8 @@ type UpdateSettingsRequest struct {
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
+	RechargeLinkMode            *string               `json:"recharge_link_mode"`
+	RechargeCustomURL           *string               `json:"recharge_custom_url"`
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
@@ -1238,6 +1240,19 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		purchaseURL = strings.TrimSpace(*req.PurchaseSubscriptionURL)
 	}
 
+	// 充值按钮跳转：internal 走站内 /purchase，custom 走自定义链接
+	rechargeMode := previousSettings.RechargeLinkMode
+	if req.RechargeLinkMode != nil {
+		rechargeMode = strings.TrimSpace(*req.RechargeLinkMode)
+	}
+	if rechargeMode != "custom" {
+		rechargeMode = "internal"
+	}
+	rechargeCustomURL := previousSettings.RechargeCustomURL
+	if req.RechargeCustomURL != nil {
+		rechargeCustomURL = strings.TrimSpace(*req.RechargeCustomURL)
+	}
+
 	// - 启用时要求 URL 合法且非空
 	// - 禁用时允许为空；若提供了 URL 也做基本校验，避免误配置
 	if purchaseEnabled {
@@ -1651,6 +1666,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
+		RechargeLinkMode:                       rechargeMode,
+		RechargeCustomURL:                      rechargeCustomURL,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,

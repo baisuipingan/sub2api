@@ -402,6 +402,9 @@ export function deriveWeChatConnectStoredMode(
 /**
  * System settings interface
  */
+/** 充值按钮跳转模式 */
+export type RechargeLinkMode = 'internal' | 'custom';
+
 export interface SystemSettings {
   // Registration settings
   registration_enabled: boolean;
@@ -487,6 +490,13 @@ export interface SystemSettings {
   api_base_url: string;
   contact_info: string;
   doc_url: string;
+  /** 充值/订阅外部链接（如卡网），留空则走站内 /purchase */
+  purchase_subscription_url?: string;
+  purchase_subscription_enabled?: boolean;
+  /** 仪表盘「充值」按钮的跳转目标：internal=站内 /purchase，custom=自定义链接 */
+  recharge_link_mode?: RechargeLinkMode;
+  /** recharge_link_mode=custom 时使用的链接，支持站外 URL 或站内路径 */
+  recharge_custom_url?: string;
   home_content: string;
   compact_home_enabled: boolean;
   hide_ccs_import_button: boolean;
