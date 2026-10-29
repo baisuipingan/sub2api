@@ -13385,13 +13385,12 @@ watch(
 <style>
 /* 设置页 Tab 外壳的深色覆盖。保持非 scoped：
    Vue 的 scoped 编译器会在生产构建里丢掉 :global(.dark) 规则，
-   导致深色下未选中的 Tab 不可读。改色值时必须同步新拟态语义。 */
+   导致深色下未选中的 Tab 不可读。
+   已回滚到官方扁平样式（tab 外壳用 dark-900，选中态用 dark-800）。 */
 .dark .settings-tabs-shell {
-  border-color: transparent;
-  background: var(--neu-bg, #1f2329);
-  box-shadow:
-    inset -4px -4px 11px var(--neu-light, #2c3138),
-    inset 4px 4px 12px var(--neu-dark, #121519);
+  border-color: rgb(55 65 81 / 0.6);
+  background: #111827;
+  box-shadow: none;
 }
 
 .dark .settings-tab::before {
@@ -13399,9 +13398,7 @@ watch(
 }
 
 .dark .settings-tab-active {
-  background: var(--neu-bg, #1f2329);
-  box-shadow:
-    inset -3px -3px 8px var(--neu-light, #2c3138),
-    inset 3px 3px 9px var(--neu-dark, #121519);
+  background: #1f2937;
+  box-shadow: none;
 }
 </style>
