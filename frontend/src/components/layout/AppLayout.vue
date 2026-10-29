@@ -7,9 +7,11 @@
     <AppSidebar />
 
     <!-- Main Content Area -->
+    <!-- 左偏移必须与 AppSidebar 实际宽度一致（展开 220px / 收起 58px），
+         用 ml-64(256px) 会多出 36px 空白缝隙 -->
     <div
       class="relative min-h-screen transition-all duration-300"
-      :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
+      :class="[sidebarCollapsed ? 'lg:ml-[58px]' : 'lg:ml-[220px]']"
     >
       <!-- Header -->
       <AppHeader />

@@ -883,11 +883,16 @@
     color: #fff;
   }
 
-  /* 固定高度内滚容器：242px = 11 行 × 22px */
+  /*
+   * 内滚容器：固定 242px = 11 行 × 22px。
+   * 不能用 flex-1 —— 那会让它被父容器撑高（实测被拉到 548px），
+   * 导致右侧面板比左侧趋势卡还高、且失去内部滚动。
+   */
   .dist-scroll {
-    @apply flex-1 overflow-y-auto overflow-x-hidden px-4 pb-3 pt-2;
+    @apply overflow-y-auto overflow-x-hidden px-4 pb-3 pt-2;
     height: 242px;
-    min-height: 242px;
+    flex: 0 0 242px;
+    max-height: 242px;
   }
 
   .dist-scroll::-webkit-scrollbar {

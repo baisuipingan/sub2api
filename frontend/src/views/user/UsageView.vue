@@ -24,7 +24,7 @@
         </div>
 
         <!-- C 方案布局：趋势占主位，三个分布合并为 Tab 横条 -->
-        <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.45fr_1fr]">
+        <div class="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[1.45fr_1fr]">
           <div class="card flex flex-col overflow-hidden">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200/70 px-4 py-2.5 dark:border-dark-700/60">
               <h3 class="text-[13px] font-semibold text-gray-900 dark:text-white">
