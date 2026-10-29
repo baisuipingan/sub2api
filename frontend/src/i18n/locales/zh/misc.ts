@@ -20,6 +20,17 @@ export default {
   // Version Badge
   version: {
     currentVersion: '当前版本',
+    // ── Fork 版本展示（ForkVersionPanel）──
+    forkCurrentVersion: '分支版本',
+    forkOfficialBaseline: '已合并的官方基线',
+    forkOfficialLatest: '官方最新版本',
+    forkOfficialUpdateAvailable: '有新的官方版本待合并',
+    forkBaselineSynced: '官方基线已是最新',
+    forkVersionUnknown: '官方版本状态未知',
+    forkUpdateDisabled: '立即更新（已禁用）',
+    forkExternalManaged: '更新由分支发布流程管理',
+    forkExternalManagedHint:
+      '合并官方版本、构建镜像，然后在维护终端部署。请勿在容器内安装官方二进制。',
     latestVersion: '最新版本',
     upToDate: '已是最新版本',
     updateAvailable: '有新版本可用！',
@@ -29,15 +40,6 @@ export default {
     viewRelease: '查看发布',
     viewChangelog: '查看更新日志',
     refresh: '刷新',
-    forkCurrentVersion: "二开版本",
-    forkOfficialBaseline: '已合入官方基线',
-    forkOfficialLatest: '官方最新版本',
-    forkOfficialUpdateAvailable: '官方有新版本，等待合并发布',
-    forkBaselineSynced: '官方基线已同步',
-    forkVersionUnknown: '无法确认官方版本状态',
-    forkUpdateDisabled: '立即更新（已禁用）',
-    forkExternalManaged: '更新由二开发布流程接管',
-    forkExternalManagedHint: '请在维护终端合并官方代码、构建镜像并部署。不要在本容器内安装官方二进制。',
     sourceMode: '源码构建',
     sourceModeHint: '源码构建请使用 git pull 更新',
     updateNow: '立即更新',
@@ -66,7 +68,6 @@ export default {
     dockerEditCompose: '修改 docker-compose.yml 中的镜像版本',
     dockerRecreate: '重新创建容器'
   },
-
 
   // Recharge / Subscription Page
   purchase: {

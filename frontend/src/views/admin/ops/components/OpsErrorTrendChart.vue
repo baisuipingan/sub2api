@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useTheme } from '@/composables/useTheme'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -35,8 +34,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const { isDark } = useTheme()
-const isDarkMode = computed(() => isDark.value)
+const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
 const colors = computed(() => ({
   red: '#ef4444',
   redAlpha: '#ef444420',
