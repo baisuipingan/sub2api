@@ -709,7 +709,17 @@ const exportToCSV = async () => {
 }
 
 const ALWAYS_VISIBLE = ['created_at']
-const DEFAULT_HIDDEN_COLUMNS = ['user_agent']
+// 默认只显示最常用的 7 列，其余通过「列设置」按需打开。
+// 原先只隐藏 user_agent，11 列挤在一起，表头和内容都读不清。
+const DEFAULT_HIDDEN_COLUMNS = [
+  'user_agent',
+  'reasoning_effort',
+  'endpoint',
+  'group',
+  'stream',
+  'billing_mode',
+  'ip_address',
+]
 const HIDDEN_COLUMNS_KEY = 'user-usage-hidden-columns'
 
 const allColumns = computed<Column[]>(() => [
@@ -739,10 +749,26 @@ const toggleColumn = (key: string) => {
   else hiddenColumns.add(key)
   localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
 }
+/**
+ * 列配置版本号。
+ * 当默认隐藏列发生变化时递增，旧版本的本地配置会被丢弃并回退到新默认值
+ * ——否则老用户永远看不到新的精简默认列。
+ */
+const COLUMNS_VERSION_KEY = 'user-usage-columns-version'
+const COLUMNS_VERSION = '2'
+
 const loadSavedColumns = () => {
   try {
+    const savedVersion = localStorage.getItem(COLUMNS_VERSION_KEY)
+    // 版本不匹配：丢弃旧配置，用新默认值
+    if (savedVersion !== COLUMNS_VERSION) {
+      localStorage.removeItem(HIDDEN_COLUMNS_KEY)
+      localStorage.setItem(COLUMNS_VERSION_KEY, COLUMNS_VERSION)
+      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+      return
+    }
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    const values = saved ? JSON.parse(saved) as string[] : DEFAULT_HIDDEN_COLUMNS
+    const values = saved ? (JSON.parse(saved) as string[]) : DEFAULT_HIDDEN_COLUMNS
     values.forEach((key) => hiddenColumns.add(key))
   } catch {
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
@@ -751,7 +777,7 @@ const loadSavedColumns = () => {
 
 // 错误请求 tab 独立列设置(机制同用量列设置,存储互不影响)
 const ERR_ALWAYS_VISIBLE = ['status', 'created_at']
-const ERR_DEFAULT_HIDDEN_COLUMNS = ['user_agent']
+const ERR_DEFAULT_HIDDEN_COLUMNS = ['user_agent', 'reasoning_effort', 'group', 'stream']
 const ERR_HIDDEN_COLUMNS_KEY = 'user-usage-error-hidden-columns'
 
 // key 须与 UserErrorRequestsTable 的 allColumns 一致

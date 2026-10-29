@@ -252,6 +252,12 @@ describe('usage reasoning effort page display', () => {
     })
     await flushPromises()
 
+    // 「推理强度」默认隐藏在列设置里（精简默认列），先开启再验证渲染内容
+    expect(wrapper.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="usage-column-settings"]').trigger('click')
+    await wrapper.get('[data-testid="usage-column-toggle-reasoning_effort"]').trigger('click')
+    await flushPromises()
+
     const cell = reasoningCellText(wrapper)
     expect(cell).toContain('Max')
     expect(cell).not.toContain('XHigh')
