@@ -12,7 +12,7 @@
           <!-- Total API Keys -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="key" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -32,7 +32,7 @@
           <!-- Service Accounts -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="server" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -57,7 +57,7 @@
           <!-- Today Requests -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="chart" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -77,7 +77,7 @@
           <!-- New Users Today -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="userPlus" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -100,7 +100,7 @@
           <!-- Today Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="cube" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -136,7 +136,7 @@
           <!-- Total Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="database" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
@@ -172,7 +172,7 @@
           <!-- Performance (RPM/TPM) -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="bolt" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div class="flex-1">
@@ -198,7 +198,7 @@
           <!-- Avg Response Time -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
+              <div class="rounded-lg bg-primary-50 p-2 dark:bg-primary-900/20">
                 <Icon name="clock" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
