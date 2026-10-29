@@ -688,8 +688,8 @@
   .balance-hero-value {
     @apply mt-2 leading-none;
     font-size: 28px;
-    font-weight: 600;
-    letter-spacing: -0.035em;
+    font-weight: 700;
+    letter-spacing: -0.025em;
     font-variant-numeric: tabular-nums;
   }
 
@@ -719,90 +719,6 @@
 
   .balance-hero-btn-solid:hover {
     background-color: theme('colors.primary.50');
-  }
-
-  /* 普通统计格：白底 + 1px 边框，无彩色 */
-  .stat-tile {
-    @apply flex flex-col justify-between rounded-[11px] p-4;
-    @apply border border-gray-200/70 bg-white;
-    @apply transition-colors duration-150;
-    @apply dark:border-dark-700/60 dark:bg-dark-800/60;
-    min-height: 112px;
-  }
-
-  .stat-tile:hover {
-    @apply border-gray-300 dark:border-dark-600;
-  }
-
-  .stat-tile-head {
-    @apply mb-2 flex items-center gap-1.5;
-  }
-
-  .stat-tile-icon {
-    @apply h-3.5 w-3.5 flex-shrink-0;
-    color: theme('colors.gray.400');
-  }
-
-  .dark .stat-tile-icon {
-    color: theme('colors.dark.500');
-  }
-
-  .stat-tile-label {
-    @apply text-[11.5px] font-medium;
-    color: theme('colors.gray.500');
-  }
-
-  .dark .stat-tile-label {
-    color: theme('colors.dark.400');
-  }
-
-  .stat-tile-value {
-    @apply leading-none;
-    font-size: 24px;
-    font-weight: 600;
-    letter-spacing: -0.033em;
-    font-variant-numeric: tabular-nums;
-    color: theme('colors.gray.900');
-  }
-
-  .dark .stat-tile-value {
-    color: #fff;
-  }
-
-  .stat-tile-unit {
-    @apply ml-1;
-    font-size: 12px;
-    font-weight: 500;
-    color: theme('colors.gray.400');
-  }
-
-  .stat-tile-meta {
-    @apply mt-1.5 flex items-center gap-1 text-[11px];
-    color: theme('colors.gray.400');
-    font-variant-numeric: tabular-nums;
-    flex-wrap: wrap;
-  }
-
-  .stat-tile-meta b {
-    font-weight: 500;
-    color: theme('colors.gray.600');
-  }
-
-  .dark .stat-tile-meta b {
-    color: theme('colors.dark.300');
-  }
-
-  .stat-tile-dot {
-    color: theme('colors.gray.300');
-  }
-
-  .stat-tile-ok {
-    color: theme('colors.green.600');
-    font-weight: 500;
-  }
-
-  .dark .stat-tile-ok {
-    color: theme('colors.green.400');
   }
 
   /* ════════ 快捷操作格 ════════ */
@@ -1055,58 +971,6 @@
     @apply text-right text-[10px] tabular-nums leading-none;
     color: theme('colors.gray.400');
     min-width: 46px;
-  }
-
-  /* ════════ 指标卡（使用记录等页面的顶部统计）════════ */
-
-  /*
-   * 与仪表盘的 .stat-tile 同源：白底 + 1px 边框 + 中性灰图标。
-   * 图标不承担语义，颜色只留给状态（成功/警告/错误）。
-   */
-  .metric-tile {
-    @apply flex items-center gap-3 rounded-[11px] p-3.5;
-    @apply border border-gray-200/70 bg-white;
-    @apply transition-colors duration-150;
-    @apply dark:border-dark-700/60 dark:bg-dark-800/60;
-    min-height: 84px;
-  }
-
-  .metric-tile:hover {
-    @apply border-gray-300 dark:border-dark-600;
-  }
-
-  .metric-tile-icon {
-    @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg;
-    @apply bg-gray-100 text-gray-500;
-    @apply dark:bg-dark-700 dark:text-dark-300;
-  }
-
-  .metric-tile-label {
-    @apply text-[11.5px] font-medium;
-    color: theme('colors.gray.500');
-  }
-
-  .dark .metric-tile-label {
-    color: theme('colors.dark.400');
-  }
-
-  .metric-tile-value {
-    @apply mt-0.5 leading-tight;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    font-variant-numeric: tabular-nums;
-    color: theme('colors.gray.900');
-  }
-
-  .dark .metric-tile-value {
-    color: #fff;
-  }
-
-  .metric-tile-meta {
-    @apply mt-1 flex items-center gap-1 text-[10.5px];
-    color: theme('colors.gray.400');
-    font-variant-numeric: tabular-nums;
   }
 
   /* ============ 页面头部 ============ */
