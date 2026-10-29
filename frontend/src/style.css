@@ -918,6 +918,17 @@
     overflow: hidden;
   }
 
+  .modal-enter-from,
+  .modal-leave-to {
+    opacity: 0;
+  }
+
+  .modal-enter-from .modal-content,
+  .modal-leave-to .modal-content {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+
   /* Vue transition：进入/离开终态 */
   .modal-enter-to .modal-content,
   .modal-leave-from .modal-content {
@@ -1038,6 +1049,15 @@
     border-left: 3px solid #5865d4;
   }
 
+  /* 侧边栏骨架：fixed 定位 + 固定宽度，不能删 —— 缺了它整页布局会塌 */
+  .sidebar {
+    @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col;
+    background-color: var(--neu-bg);
+    border-right: 1px solid var(--border);
+    box-shadow: none;
+    transition-property: width, transform;
+  }
+
   .sidebar-header {
     @apply flex h-16 items-center gap-3 px-6;
     box-shadow: 0 1px 0 rgba(194, 199, 210, 0.45);
@@ -1045,6 +1065,21 @@
 
   .sidebar-nav {
     @apply flex-1 overflow-y-auto px-3 py-4;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 overflow-hidden rounded-md py-2.5 pl-4 pr-3.5;
+    @apply text-sm font-medium;
+    color: var(--text-2);
+    border: 0;
+    transition:
+      background-color 0.15s var(--neu-ease),
+      color 0.15s var(--neu-ease);
+  }
+
+  .sidebar-link:hover {
+    background-color: var(--neu-sunk);
+    color: var(--text-1);
   }
 
   .sidebar-link-active {
