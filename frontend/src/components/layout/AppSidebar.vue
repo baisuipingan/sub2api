@@ -2,7 +2,7 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
+      sidebarCollapsed ? 'w-[58px]' : 'w-64',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
@@ -148,11 +148,11 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
+    <div class="mt-auto border-t border-gray-100 p-2.5 dark:border-dark-800">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
+        class="sidebar-link mb-1.5 w-full"
         :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
         :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
       >
@@ -163,16 +163,23 @@
         }}</span>
       </button>
 
-      <!-- Collapse Button -->
+      <!-- Collapse Button：点击收起/展开侧栏，状态会持久化 -->
       <button
         @click="toggleSidebar"
-        class="sidebar-link w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
+        class="sidebar-collapse-btn w-full"
+        :class="{ 'sidebar-collapse-btn-collapsed': sidebarCollapsed }"
         :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
+        :aria-label="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
+        :aria-expanded="!sidebarCollapsed"
       >
-        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />
-        <ChevronDoubleRightIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.collapse') }}</span>
+        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-[18px] w-[18px] flex-shrink-0" />
+        <ChevronDoubleRightIcon v-else class="h-[18px] w-[18px] flex-shrink-0" />
+        <span
+          class="sidebar-label"
+          :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
+          :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+          >{{ sidebarCollapsed ? t('nav.expand') : t('nav.collapse') }}</span
+        >
       </button>
     </div>
   </aside>

@@ -15,10 +15,35 @@ import {
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
 import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
+/**
+ * 侧栏折叠状态的持久化键。
+ * 存在 store 外部，避免 defineStore 内的初始化顺序问题。
+ */
+const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed'
+
+/** 读取持久化的折叠状态；无记录或读取失败时默认展开 */
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** 写入折叠状态；隐私模式等 localStorage 不可用时静默失败 */
+function persistSidebarCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0')
+  } catch {
+    // 忽略：存储不可用不应影响交互
+  }
+}
+
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
 
-  const sidebarCollapsed = ref<boolean>(false)
+  // 侧栏折叠状态：默认展开，用户选择会持久化到 localStorage
+  const sidebarCollapsed = ref<boolean>(readSidebarCollapsed())
   const mobileOpen = ref<boolean>(false)
   const sidebarScrollTop = ref<number>(0)
   const loading = ref<boolean>(false)
@@ -66,6 +91,7 @@ export const useAppStore = defineStore('app', () => {
    */
   function toggleSidebar(): void {
     sidebarCollapsed.value = !sidebarCollapsed.value
+    persistSidebarCollapsed(sidebarCollapsed.value)
   }
 
   /**
@@ -74,6 +100,7 @@ export const useAppStore = defineStore('app', () => {
    */
   function setSidebarCollapsed(collapsed: boolean): void {
     sidebarCollapsed.value = collapsed
+    persistSidebarCollapsed(collapsed)
   }
 
   /**

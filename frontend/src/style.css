@@ -70,20 +70,19 @@
 
 @layer components {
   /* ============ 按钮样式 ============ */
+  /* 按钮：圆角 7px，去掉缩放动效（密集界面里会显得毛躁） */
   .btn {
-    @apply inline-flex items-center justify-center gap-2;
-    @apply rounded-xl px-4 py-2.5 text-sm font-medium;
-    @apply transition-all duration-200 ease-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
-    @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
-    @apply active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-1.5;
+    @apply rounded-[7px] px-3.5 py-2 text-sm font-medium;
+    @apply transition-colors duration-150;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-1;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* 主按钮：实色不用渐变。渐变按钮是 AI 审美的典型特征之一。 */
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    @apply bg-primary-600 text-white;
+    @apply hover:bg-primary-700;
   }
 
   .btn-secondary {
@@ -225,12 +224,13 @@
   }
 
   /* ============ 卡片样式 ============ */
+  /* 卡片：A+ 方案 —— 圆角 11px，1px 中性边框，几乎不可见的阴影 */
   .card {
-    @apply bg-white dark:bg-dark-800/50;
-    @apply rounded-2xl;
-    @apply border border-gray-100 dark:border-dark-700/50;
+    @apply bg-white dark:bg-dark-800/60;
+    @apply rounded-[11px];
+    @apply border border-gray-200/70 dark:border-dark-700/60;
     @apply shadow-card;
-    @apply transition-all duration-300;
+    @apply transition-colors duration-150;
   }
 
   .card-hover {
@@ -586,6 +586,74 @@
     @apply text-xs font-semibold uppercase tracking-wider;
     @apply text-gray-400 dark:text-dark-500;
   }
+
+  /* ════════ 侧栏折叠态 ════════ */
+  /*
+   * 折叠后宽度 58px，只剩图标。
+   * 这些类在模板里一直被引用，但此前从未定义 —— 这就是
+   * sidebarCollapsed 逻辑跑通却看不到效果的原因。
+   */
+
+  .sidebar-header-collapsed {
+    @apply justify-center px-0;
+  }
+
+  .sidebar-brand-collapsed {
+    @apply hidden;
+  }
+
+  /* 侧栏链接折叠：居中图标，去掉左右内边距 */
+  .sidebar-link-collapsed {
+    @apply justify-center gap-0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* 折叠时隐藏文字标签 */
+  .sidebar-label-collapsed {
+    @apply hidden;
+  }
+
+  /* 分组标题折叠：只留一条分隔线 */
+  .sidebar-section-title-collapsed {
+    @apply mb-2 px-0;
+    height: 1px;
+    font-size: 0;
+    background-color: theme('colors.gray.200');
+  }
+
+  .dark .sidebar-section-title-collapsed {
+    background-color: theme('colors.dark.700');
+  }
+
+  .sidebar-section-title-text-collapsed {
+    @apply hidden;
+  }
+
+  /* 分组内的子菜单在折叠时整体隐藏（无法展示层级） */
+  .sidebar-nav .sidebar-link-collapsed + div {
+    @apply hidden;
+  }
+
+  /* 折叠/展开按钮：独立样式，比普通链接更轻，且在折叠态居中 */
+  .sidebar-collapse-btn {
+    @apply flex items-center gap-3 rounded-xl py-2;
+    @apply overflow-hidden;
+    @apply text-sm font-medium;
+    @apply text-gray-500 dark:text-dark-400;
+    @apply transition-colors duration-150;
+    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
+    @apply hover:text-gray-900 dark:hover:text-white;
+    padding-left: 1.0625rem;
+    padding-right: 0.875rem;
+  }
+
+  .sidebar-collapse-btn-collapsed {
+    @apply justify-center gap-0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
 
   /* ============ 页面头部 ============ */
   .page-header {
