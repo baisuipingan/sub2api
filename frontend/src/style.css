@@ -21,51 +21,58 @@
 
 @layer base {
   :root {
+    /* ═══ 方案 C · 柔和蓝调（Radix / shadcn 系）═══
+       冷蓝灰阶，主色用可辨识的蓝，操作意图一眼可见。 */
+
     /* ── 表面层次：画布 → 表面 → 次级 ── */
-    --canvas: #f4f5f7;          /* 页面底色，比卡片深，形成层次 */
+    --canvas: #f8fafc;          /* 页面底色，比卡片深一档 */
     --neu-bg: #ffffff;          /* 保持变量名兼容：卡片/输入/按钮表面 */
-    --neu-sunk: #f2f4f7;        /* 凹陷、未选中控件、禁用态 */
-    --neu-track: #e4e7ec;       /* 进度槽等细长元素 */
+    --neu-sunk: #f1f5f9;        /* 凹陷、未选中控件、禁用态 */
+    --neu-track: #e2e8f0;       /* 进度槽等细长元素 */
     --neu-light: #ffffff;       /* 兼容旧引用 */
-    --neu-dark: #e4e7ec;        /* 兼容旧引用 */
+    --neu-dark: #e2e8f0;        /* 兼容旧引用 */
 
     /* ── 边框：所有边界显式可见 ── */
-    --border: #e4e7ec;          /* 默认边框 */
-    --border-strong: #d0d5dd;   /* 强调边框（输入框、可交互） */
-    --border-subtle: #f0f2f5;   /* 极弱分隔（表格行） */
+    --border: #e2e8f0;          /* 默认边框 */
+    --border-strong: #cbd5e1;   /* 强调边框（输入框、可交互） */
+    --border-subtle: #e4eaf2;   /* 表格行分隔：1.28:1，可辨但不抢眼 */
 
     /* ── 文字阶梯 ── */
-    --text-1: #101828;          /* 主文字，近黑非纯黑 */
-    --text-2: #475467;          /* 次要文字 */
-    --text-3: #667085;          /* 辅助说明 */
-    --text-4: #98a2b3;          /* 占位符、禁用 */
+    --text-1: #0f172a;          /* 主文字 */
+    --text-2: #475569;          /* 次要文字 */
+    --text-3: #64748b;          /* 辅助说明 */
+    --text-4: #7c8da6;          /* 占位符、禁用（比 #94a3b8 更可辨） */
 
-    /* ── 主色（靛蓝，收敛饱和度以提升可信度）── */
-    --brand: #5865d4;           /* 文字/图标/边框用 */
-    --brand-hover: #4a56c0;
-    --brand-active: #3f4aa8;
-    --brand-soft: #eef2ff;      /* 选中背景 */
-    --brand-border: #c7cffa;
-    /* 按钮实底专用：必须保证白字 ≥4.5:1。
-       深色模式下 --brand 会调亮（用于文字），不能直接当按钮底。 */
-    --brand-solid: #5865d4;
-    --brand-solid-hover: #4a56c0;
-    --brand-solid-active: #3f4aa8;
+    /* ── 主色：明确的蓝，作为唯一操作色 ── */
+    --brand: #2563eb;           /* 文字/图标/边框用 */
+    --brand-hover: #1d4ed8;
+    --brand-active: #1e40af;
+    --brand-soft: #eff6ff;      /* 选中背景 */
+    --brand-border: #bfdbfe;
+    /* 按钮实底专用：白字对比度 5.17:1，达标 */
+    --brand-solid: #2563eb;
+    --brand-solid-hover: #1d4ed8;
+    --brand-solid-active: #1e40af;
 
     /* ── 语义色 ── */
-    --success: #3f8f6a;
-    --success-soft: #ecfdf3;
-    --warning: #b8802f;
-    --warning-soft: #fffaeb;
-    --danger: #bf5c5c;
-    --danger-soft: #fef3f2;
+    --success: #15803d;
+    --success-soft: #f0fdf4;
+    --warning: #b45309;
+    --warning-soft: #fffbeb;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
 
     /* ── 阴影：单向柔和投影，表达浮起高度 ── */
-    --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
-    --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.07), 0 1px 2px rgba(16, 24, 40, 0.04);
-    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.03);
-    --shadow-lg: 0 12px 28px rgba(16, 24, 40, 0.10), 0 4px 8px rgba(16, 24, 40, 0.04);
-    --shadow-focus: 0 0 0 3px rgba(88, 101, 212, 0.16);
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.07), 0 2px 4px rgba(15, 23, 42, 0.03);
+    --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.10), 0 4px 8px rgba(15, 23, 42, 0.04);
+    --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.14);
+
+    /* 圆角：比之前略大，配合冷色调更柔和 */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
 
     /* 兼容旧的阴影档位引用，全部映射为柔和版 */
     --e0: var(--shadow-xs);
@@ -85,44 +92,45 @@
   }
 
   .dark {
-    --canvas: #0f1115;
-    --neu-bg: #171a21;
-    --neu-sunk: #0c0e12;
-    --neu-track: #262b33;
-    --neu-light: #171a21;
+    /* 深色：slate 冷灰阶，保持与浅色同一色相家族 */
+    --canvas: #0b1220;
+    --neu-bg: #131c2e;
+    --neu-sunk: #0d1524;
+    --neu-track: #263247;
+    --neu-light: #131c2e;
     --neu-dark: #000000;
 
-    --border: #262b33;
-    --border-strong: #333a45;
-    --border-subtle: #1e222a;
+    --border: #24304a;
+    --border-strong: #35416280;
+    --border-subtle: #2a3852;
 
-    --text-1: #e8eaed;
-    --text-2: #a2a8b4;
-    --text-3: #7d8390;
-    --text-4: #5c626d;
+    --text-1: #e8edf5;
+    --text-2: #a3b0c4;
+    --text-3: #7f8da3;
+    --text-4: #6b7a92;
 
-    --brand: #7d8aec;
-    --brand-hover: #8f9bf0;
-    --brand-active: #6b78e0;
-    --brand-soft: rgba(125, 138, 236, 0.14);
-    --brand-border: rgba(125, 138, 236, 0.32);
-    /* 深色下 #7d8aec 上白字仅 3.13:1，按钮实底必须压深到 6.2:1 */
-    --brand-solid: #4a56c0;
-    --brand-solid-hover: #5865d4;
-    --brand-solid-active: #4149b0;
+    --brand: #60a5fa;
+    --brand-hover: #93c5fd;
+    --brand-active: #3b82f6;
+    --brand-soft: rgba(96, 165, 250, 0.14);
+    --brand-border: rgba(96, 165, 250, 0.30);
+    /* 深色下 #60a5fa 上白字仅 2.5:1，按钮实底压深到 5.17:1 */
+    --brand-solid: #2563eb;
+    --brand-solid-hover: #1d4ed8;
+    --brand-solid-active: #1e40af;
 
-    --success: #6dbb95;
-    --success-soft: rgba(109, 187, 149, 0.14);
-    --warning: #d9a95e;
-    --warning-soft: rgba(217, 169, 94, 0.14);
-    --danger: #d78a8a;
-    --danger-soft: rgba(215, 138, 138, 0.14);
+    --success: #4ade80;
+    --success-soft: rgba(74, 222, 128, 0.13);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.13);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.13);
 
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 8px rgba(0, 0, 0, 0.35);
-    --shadow-focus: 0 0 0 3px rgba(125, 138, 236, 0.22);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.65), 0 4px 8px rgba(0, 0, 0, 0.45);
+    --shadow-focus: 0 0 0 3px rgba(96, 165, 250, 0.20);
 
     --e0: var(--shadow-xs);
     --e1: var(--shadow-xs);
@@ -546,16 +554,10 @@
     @apply truncate text-2xl font-bold;
     letter-spacing: -0.035em;
     color: var(--text-1);
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9),
-      0 -1px 1px rgba(194, 199, 210, 0.6);
   }
 
   .dark .stat-value {
     color: #dcdee5;
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.6),
-      0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
   .stat-label {
@@ -923,6 +925,16 @@
     opacity: 0;
   }
 
+  /* 模态框主体：白底 + 边框 + 大阴影，必须有不透明背景，
+     否则弹层会直接透出下层表格内容 */
+  .modal-content {
+    @apply flex w-full flex-col rounded-2xl p-5;
+    @apply max-h-[95vh] sm:max-h-[90vh];
+    background-color: var(--neu-bg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+  }
+
   .modal-enter-from .modal-content,
   .modal-leave-to .modal-content {
     transform: scale(0.96);
@@ -979,12 +991,10 @@
     @apply text-lg font-bold;
     letter-spacing: -0.02em;
     color: var(--text-1);
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
   }
 
   .dark .modal-title {
     color: var(--text-1);
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
   }
 
   .modal-body {
@@ -1031,6 +1041,25 @@
   .dialog-footer {
     @apply flex items-center justify-end gap-3 px-1 pt-4;
     box-shadow: 0 -1px 0 rgba(194, 199, 210, 0.45);
+  }
+
+  /* ── Toast / Spinner / Skeleton ── */
+  .toast {
+    @apply fixed right-4 top-4 z-[100] min-w-[320px] max-w-md rounded-xl p-4;
+    background-color: var(--neu-bg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    animation: neuSlideInRight 0.25s var(--neu-ease-out);
+  }
+
+  .spinner {
+    @apply h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md;
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border-subtle);
   }
 
   .toast-success {
@@ -1111,16 +1140,10 @@
     @apply text-2xl font-bold;
     letter-spacing: -0.028em;
     color: var(--text-1);
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.95),
-      0 -1px 1px rgba(194, 199, 210, 0.65);
   }
 
   .dark .page-title {
     color: var(--text-1);
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.6),
-      0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
   .page-description {
@@ -1140,12 +1163,10 @@
   .empty-state-title {
     @apply mb-1 text-lg font-semibold;
     color: var(--text-2);
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
   }
 
   .dark .empty-state-title {
     color: #bec0c9;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   }
 
   .empty-state-description {
@@ -1164,15 +1185,9 @@
   }
 
   .neu-text {
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.95),
-      0 -1px 1px rgba(194, 199, 210, 0.7);
   }
 
   .dark .neu-text {
-    text-shadow:
-      0 1px 0 rgba(0, 0, 0, 0.65),
-      0 -1px 1px rgba(255, 255, 255, 0.06);
   }
 
   .neu-truncate {
@@ -1280,6 +1295,12 @@
   }
 
   .skeleton,
+  .skeleton {
+    @apply animate-pulse rounded-md;
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border-subtle);
+  }
+
   .spinner {
     animation: none !important;
   }

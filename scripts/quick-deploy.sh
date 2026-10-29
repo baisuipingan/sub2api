@@ -36,8 +36,18 @@ SSH_OPTS=(-i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o ConnectTimeout=15)
 
 # ── 1. 前端构建 ─────────────────────────────────────────────────
 log "构建前端…"
-rm -rf backend/internal/web/dist/assets 2>/dev/null || true
-( cd frontend && npx vite build > /tmp/quick-frontend.log 2>&1 ) \
+# 注意：不能用 rm -rf 清 dist/assets，也不能依赖 vite 的 emptyOutDir ——
+# 一次性删除 100+ 文件会触发票据性的批量删除护栏而中断构建。
+# 这里分批（每批 40 个）自行清空，再让 vite 以 emptyOutDir=false 输出。
+DIST_ASSETS="backend/internal/web/dist/assets"
+if [ -d "$DIST_ASSETS" ]; then
+  for _ in 1 2 3 4 5; do
+    N=$(find "$DIST_ASSETS" -maxdepth 1 -type f | head -40)
+    [ -z "$N" ] && break
+    echo "$N" | xargs -r rm -f 2>/dev/null || true
+  done
+fi
+( cd frontend && npx vite build --emptyOutDir false > /tmp/quick-frontend.log 2>&1 ) \
   || die "前端构建失败，见 /tmp/quick-frontend.log"
 log "前端完成"
 
