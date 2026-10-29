@@ -137,6 +137,9 @@ const icons = {
 
 const iconPath = computed(() => icons[props.name])
 
+/** 供外部在数据结构里标注图标名（避免 string 类型不兼容） */
+export type IconName = keyof typeof icons
+
 const sizeClass = computed(() => ({
   xs: 'h-3 w-3',
   sm: 'h-4 w-4',

@@ -805,6 +805,65 @@
     color: theme('colors.green.400');
   }
 
+  /* ════════ 快捷操作格 ════════ */
+
+  /*
+   * 图标块统一中性灰，不用彩色。原来的 4 个按钮分别用了
+   * primary/emerald/sky/amber 四色，属于被淘汰的彩色图标网格模式。
+   */
+  .qa-tile {
+    @apply flex w-full items-center gap-2.5 rounded-[9px] p-2.5 text-left;
+    @apply border border-gray-200/70 bg-white;
+    @apply transition-colors duration-150;
+    @apply hover:border-gray-300 hover:bg-gray-50/60;
+    @apply dark:border-dark-700/60 dark:bg-dark-800/40;
+    @apply dark:hover:border-dark-600 dark:hover:bg-dark-800;
+    min-width: 0;
+    cursor: pointer;
+  }
+
+  .qa-tile-icon {
+    @apply flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[7px];
+    @apply bg-gray-100 text-gray-500;
+    @apply dark:bg-dark-700 dark:text-dark-300;
+  }
+
+  .qa-tile-body {
+    @apply flex min-w-0 flex-1 flex-col gap-px;
+  }
+
+  .qa-tile-title {
+    @apply truncate text-[11.5px] font-medium;
+    color: theme('colors.gray.900');
+  }
+
+  .dark .qa-tile-title {
+    color: #fff;
+  }
+
+  .qa-tile-desc {
+    @apply truncate text-[10px];
+    color: theme('colors.gray.400');
+  }
+
+  .dark .qa-tile-desc {
+    color: theme('colors.dark.500');
+  }
+
+  .qa-tile-arrow {
+    @apply h-3 w-3 flex-shrink-0;
+    color: theme('colors.gray.300');
+    transition: color 0.15s;
+  }
+
+  .qa-tile:hover .qa-tile-arrow {
+    color: theme('colors.gray.500');
+  }
+
+  .dark .qa-tile-arrow {
+    color: theme('colors.dark.600');
+  }
+
   /* ============ 页面头部 ============ */
   .page-header {
     @apply mb-6;

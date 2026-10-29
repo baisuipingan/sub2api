@@ -2,7 +2,7 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[58px]' : 'w-64',
+      sidebarCollapsed ? 'w-[58px]' : 'w-[220px]',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
