@@ -655,6 +655,156 @@
   }
 
 
+  /* ════════ 用户仪表盘：余额主卡 + 统计格 ════════ */
+
+  /*
+   * 余额卡是整页唯一的饱和色块。用户打开页面第一眼看到的是钱，
+   * 其余统计一律中性，避免 8 个彩色卡互相抢注意力。
+   */
+  .balance-hero {
+    @apply relative flex flex-col justify-between overflow-hidden;
+    @apply rounded-[11px] p-4;
+    background-color: theme('colors.primary.600');
+    color: #fff;
+    min-height: 112px;
+  }
+
+  /* 右上角的装饰圆，给平面色块一点纵深，不用渐变 */
+  .balance-hero::after {
+    content: '';
+    @apply pointer-events-none absolute rounded-full;
+    right: -32px;
+    bottom: -48px;
+    width: 132px;
+    height: 132px;
+    background-color: rgb(255 255 255 / 0.10);
+  }
+
+  .balance-hero-label {
+    @apply text-[11.5px] font-medium;
+    opacity: 0.82;
+  }
+
+  .balance-hero-value {
+    @apply mt-2 leading-none;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .balance-hero-actions {
+    @apply relative z-10 mt-3 flex items-center gap-1.5;
+  }
+
+  .balance-hero-btn {
+    @apply rounded-md px-2.5 py-1 text-[11.5px] font-medium;
+    @apply transition-colors duration-150;
+    border: 1px solid rgb(255 255 255 / 0.30);
+    background-color: rgb(255 255 255 / 0.16);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .balance-hero-btn:hover {
+    background-color: rgb(255 255 255 / 0.26);
+  }
+
+  .balance-hero-btn-solid {
+    border-color: #fff;
+    background-color: #fff;
+    color: theme('colors.primary.600');
+    font-weight: 600;
+  }
+
+  .balance-hero-btn-solid:hover {
+    background-color: theme('colors.primary.50');
+  }
+
+  /* 普通统计格：白底 + 1px 边框，无彩色 */
+  .stat-tile {
+    @apply flex flex-col justify-between rounded-[11px] p-4;
+    @apply border border-gray-200/70 bg-white;
+    @apply transition-colors duration-150;
+    @apply dark:border-dark-700/60 dark:bg-dark-800/60;
+    min-height: 112px;
+  }
+
+  .stat-tile:hover {
+    @apply border-gray-300 dark:border-dark-600;
+  }
+
+  .stat-tile-head {
+    @apply mb-2 flex items-center gap-1.5;
+  }
+
+  .stat-tile-icon {
+    @apply h-3.5 w-3.5 flex-shrink-0;
+    color: theme('colors.gray.400');
+  }
+
+  .dark .stat-tile-icon {
+    color: theme('colors.dark.500');
+  }
+
+  .stat-tile-label {
+    @apply text-[11.5px] font-medium;
+    color: theme('colors.gray.500');
+  }
+
+  .dark .stat-tile-label {
+    color: theme('colors.dark.400');
+  }
+
+  .stat-tile-value {
+    @apply leading-none;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.033em;
+    font-variant-numeric: tabular-nums;
+    color: theme('colors.gray.900');
+  }
+
+  .dark .stat-tile-value {
+    color: #fff;
+  }
+
+  .stat-tile-unit {
+    @apply ml-1;
+    font-size: 12px;
+    font-weight: 500;
+    color: theme('colors.gray.400');
+  }
+
+  .stat-tile-meta {
+    @apply mt-1.5 flex items-center gap-1 text-[11px];
+    color: theme('colors.gray.400');
+    font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+  }
+
+  .stat-tile-meta b {
+    font-weight: 500;
+    color: theme('colors.gray.600');
+  }
+
+  .dark .stat-tile-meta b {
+    color: theme('colors.dark.300');
+  }
+
+  .stat-tile-dot {
+    color: theme('colors.gray.300');
+  }
+
+  .stat-tile-ok {
+    color: theme('colors.green.600');
+    font-weight: 500;
+  }
+
+  .dark .stat-tile-ok {
+    color: theme('colors.green.400');
+  }
+
   /* ============ 页面头部 ============ */
   .page-header {
     @apply mb-6;
