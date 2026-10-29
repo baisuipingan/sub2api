@@ -117,7 +117,7 @@ const ACCENT: Record<Platform, string> = {
   cline: '#8b5cf6', // violet-500（Cline 品牌紫 #9F58FA）
   composite: '#06b6d4', // cyan-500
 }
-const ACCENT_DEFAULT = '#14b8a6' // primary-500 (teal)
+const ACCENT_DEFAULT = '#2563eb' // primary-600 (electric blue)
 
 // ── Accent bar (gradient) ───────────────────────────────────────────
 const ACCENT_BAR: Record<Platform, string> = {
