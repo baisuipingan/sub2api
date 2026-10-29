@@ -336,6 +336,18 @@ export default {
 
   // Usage
   usage: {
+    distribution: {
+      modelTab: '模型',
+      groupTab: '分组',
+      endpointTab: '端点',
+      byTokens: 'Token',
+      byCost: '消费',
+      srcRequested: '请求',
+      srcUpstream: '上游',
+      srcMapping: '映射',
+      srcInbound: '入站',
+      srcPath: '路径',
+    },
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',

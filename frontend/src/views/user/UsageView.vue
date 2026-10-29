@@ -23,46 +23,32 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ModelDistributionChart
-            v-model:metric="modelDistributionMetric"
-            :model-stats="requestedModelStats"
-            :loading="modelStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <GroupDistributionChart
-            v-model:metric="groupDistributionMetric"
-            :group-stats="groupStats"
-            :loading="chartsLoading"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-        </div>
+        <!-- C 方案布局：趋势占主位，三个分布合并为 Tab 横条 -->
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.45fr_1fr]">
+          <div class="card flex flex-col overflow-hidden">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200/70 px-4 py-2.5 dark:border-dark-700/60">
+              <h3 class="text-[13px] font-semibold text-gray-900 dark:text-white">
+                {{ t('admin.dashboard.tokenUsageTrend') }}
+              </h3>
+              <span class="text-[10.5px] text-gray-400">
+                {{ t('admin.dashboard.totalTokens') }} {{ formatTokens(totalTokens) }}
+              </span>
+            </div>
+            <div class="flex-1 p-4">
+              <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" bare />
+            </div>
+          </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <EndpointDistributionChart
-            v-model:source="endpointDistributionSource"
-            v-model:metric="endpointDistributionMetric"
-            :endpoint-stats="inboundEndpointStats"
-            :upstream-endpoint-stats="upstreamEndpointStats"
-            :endpoint-path-stats="endpointPathStats"
-            :loading="endpointStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :title="t('usage.endpointDistribution')"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          <div class="card overflow-hidden">
+            <DistributionBars
+              v-model:metric="distributionMetric"
+              :model-stats="requestedModelStats"
+              :group-stats="groupStats"
+              :endpoint-stats="inboundEndpointStats"
+              :loading="chartsLoading || modelStatsLoading || endpointStatsLoading"
+              default-tab="model"
+            />
+          </div>
         </div>
       </div>
 
@@ -230,10 +216,8 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'
-import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
-import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
-import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
+import DistributionBars from '@/components/charts/DistributionBars.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -260,7 +244,6 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { usdToDisplay, symbol: billingSymbol } = useBillingCurrency()
 
-type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 
 const usageStats = ref<UsageStatsResponse | null>(null)
@@ -353,9 +336,22 @@ const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
 const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, endDate.value))
 
-const modelDistributionMetric = ref<DistributionMetric>('tokens')
-const groupDistributionMetric = ref<DistributionMetric>('tokens')
-const endpointDistributionMetric = ref<DistributionMetric>('tokens')
+const distributionMetric = ref<'tokens' | 'actual_cost'>('tokens')
+
+/** 趋势图头部显示的总 Token */
+const totalTokens = computed(() =>
+  (trendData.value || []).reduce(
+    (sum, p: any) => sum + (p.input_tokens || 0) + (p.output_tokens || 0),
+    0,
+  ),
+)
+
+const formatTokens = (value: number): string => {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
+  return value.toLocaleString()
+}
 const endpointDistributionSource = ref<EndpointSource>('inbound')
 const activeTab = ref<'usage' | 'errors'>('usage')
 const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false)

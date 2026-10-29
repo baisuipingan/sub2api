@@ -864,6 +864,199 @@
     color: theme('colors.dark.600');
   }
 
+  /* ════════ 分布横条面板 ════════ */
+
+  /*
+   * 使用记录页的三个分布（模型/分组/端点）合并成一个面板，Tab 切换。
+   * 原因：三者纵向堆叠需要 900px+，装不进一屏。
+   * 容器高度固定 242px（= 11 行 × 22px），三个 Tab 共用，
+   * 切换时高度不变、布局不跳。
+   */
+  .dist-panel {
+    @apply flex h-full flex-col;
+  }
+
+  .dist-panel-head {
+    @apply flex flex-wrap items-center justify-between gap-2;
+    @apply border-b border-gray-200/70 px-4 py-2.5;
+    @apply dark:border-dark-700/60;
+  }
+
+  .dist-panel-meta {
+    @apply flex items-center gap-2;
+  }
+
+  .dist-count {
+    @apply text-[10.5px] tabular-nums;
+    color: theme('colors.gray.400');
+  }
+
+  .dist-tabs {
+    @apply flex items-center gap-px rounded-md p-0.5;
+    background-color: theme('colors.gray.100');
+  }
+
+  .dark .dist-tabs {
+    background-color: theme('colors.dark.800');
+  }
+
+  .dist-tab {
+    @apply rounded px-2.5 py-1 text-[11px] font-medium;
+    @apply transition-colors duration-100;
+    color: theme('colors.gray.500');
+    background-color: transparent;
+    border: 0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .dist-tab:hover {
+    color: theme('colors.gray.900');
+  }
+
+  .dist-tab-on {
+    @apply bg-white font-semibold;
+    color: theme('colors.gray.900');
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.07);
+  }
+
+  .dark .dist-tab {
+    color: theme('colors.dark.400');
+  }
+
+  .dark .dist-tab-on {
+    background-color: theme('colors.dark.700');
+    color: #fff;
+  }
+
+  .dist-metric-row {
+    @apply flex items-center px-4 pt-2;
+  }
+
+  .seg {
+    @apply inline-flex items-center gap-px rounded-md p-0.5;
+    background-color: theme('colors.gray.100');
+  }
+
+  .dark .seg {
+    background-color: theme('colors.dark.800');
+  }
+
+  .seg-btn {
+    @apply rounded px-2 py-0.5 text-[10.5px] font-medium;
+    @apply transition-colors duration-100;
+    color: theme('colors.gray.500');
+    background-color: transparent;
+    border: 0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .seg-btn:hover {
+    color: theme('colors.gray.900');
+  }
+
+  .seg-btn-on {
+    @apply bg-white;
+    color: theme('colors.gray.900');
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.07);
+  }
+
+  .dark .seg-btn-on {
+    background-color: theme('colors.dark.700');
+    color: #fff;
+  }
+
+  /* 固定高度内滚容器：242px = 11 行 × 22px */
+  .dist-scroll {
+    @apply flex-1 overflow-y-auto overflow-x-hidden px-4 pb-3 pt-2;
+    height: 242px;
+    min-height: 242px;
+  }
+
+  .dist-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .dist-scroll::-webkit-scrollbar-thumb {
+    background-color: theme('colors.gray.200');
+    border-radius: 3px;
+  }
+
+  .dist-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.gray.300');
+  }
+
+  .dark .dist-scroll::-webkit-scrollbar-thumb {
+    background-color: theme('colors.dark.700');
+  }
+
+  .dist-empty {
+    @apply flex h-full items-center justify-center text-[11.5px];
+    color: theme('colors.gray.400');
+  }
+
+  /* 单行横条：22px 高 */
+  .cbar {
+    @apply grid items-center;
+    grid-template-columns: minmax(64px, 1fr) minmax(0, 1.5fr) auto;
+    gap: 8px;
+    height: 22px;
+  }
+
+  .cbar-name {
+    @apply truncate text-[11px] leading-none;
+    color: theme('colors.gray.700');
+  }
+
+  .dark .cbar-name {
+    color: theme('colors.dark.200');
+  }
+
+  .cbar-track {
+    @apply overflow-hidden rounded-[3px];
+    height: 5px;
+    background-color: theme('colors.gray.100');
+  }
+
+  .dark .cbar-track {
+    background-color: theme('colors.dark.800');
+  }
+
+  .cbar-fill {
+    @apply h-full rounded-[3px];
+    background-color: theme('colors.primary.300');
+    transition: width 0.2s ease-out;
+  }
+
+  .dark .cbar-fill {
+    background-color: theme('colors.primary.700');
+  }
+
+  /* 第一名用实色，其余用浅色，视觉重心落在头部 */
+  .cbar-top .cbar-fill {
+    background-color: theme('colors.primary.600');
+  }
+
+  .dark .cbar-top .cbar-fill {
+    background-color: theme('colors.primary.500');
+  }
+
+  .cbar-top .cbar-name {
+    @apply font-medium;
+    color: theme('colors.gray.900');
+  }
+
+  .dark .cbar-top .cbar-name {
+    color: #fff;
+  }
+
+  .cbar-val {
+    @apply text-right text-[10px] tabular-nums leading-none;
+    color: theme('colors.gray.400');
+    min-width: 46px;
+  }
+
   /* ============ 页面头部 ============ */
   .page-header {
     @apply mb-6;

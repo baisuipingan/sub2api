@@ -331,6 +331,18 @@ export default {
 
   // Usage
   usage: {
+    distribution: {
+      modelTab: 'Model',
+      groupTab: 'Group',
+      endpointTab: 'Endpoint',
+      byTokens: 'Tokens',
+      byCost: 'Cost',
+      srcRequested: 'Requested',
+      srcUpstream: 'Upstream',
+      srcMapping: 'Mapping',
+      srcInbound: 'Inbound',
+      srcPath: 'Path',
+    },
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',

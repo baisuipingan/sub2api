@@ -404,7 +404,7 @@ describe('admin UsageView distribution metric toggles', () => {
     expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'B', total_tokens: 20 }])
   })
 
-  it('keeps model and group metric toggles independent without refetching chart data', async () => {
+  it('shares one distribution metric across model and group tabs without refetching', async () => {
     const wrapper = mount(UsageView, {
       global: {
         stubs: {
@@ -420,8 +420,7 @@ describe('admin UsageView distribution metric toggles', () => {
           DateRangePicker: true,
           Icon: true,
           TokenUsageTrend: true,
-          ModelDistributionChart: ModelDistributionChartStub,
-          GroupDistributionChart: GroupDistributionChartStub,
+          DistributionBars: true,
           UserTokenRanking: true,
         },
       },
@@ -430,33 +429,14 @@ describe('admin UsageView distribution metric toggles', () => {
     vi.advanceTimersByTime(120)
     await flushPromises()
 
-    expect(getSnapshotV2).toHaveBeenCalledTimes(1)
-    const now = new Date()
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
-      start_date: formatLocalDate(yesterday),
-      end_date: formatLocalDate(now),
-      granularity: 'hour'
-    }))
+    // 三个分布合并为一个面板后，指标由单一状态驱动
+    expect((wrapper.vm as any).distributionMetric).toBe('tokens')
 
-    const modelChart = wrapper.find('[data-test="model-chart"]')
-    const groupChart = wrapper.find('[data-test="group-chart"]')
-
-    expect(modelChart.find('.metric').text()).toBe('tokens')
-    expect(groupChart.find('.metric').text()).toBe('tokens')
-
-    await modelChart.find('.switch-metric').trigger('click')
+    ;(wrapper.vm as any).distributionMetric = 'actual_cost'
     await flushPromises()
 
-    expect(modelChart.find('.metric').text()).toBe('actual_cost')
-    expect(groupChart.find('.metric').text()).toBe('tokens')
-    expect(getSnapshotV2).toHaveBeenCalledTimes(1)
-
-    await groupChart.find('.switch-metric').trigger('click')
-    await flushPromises()
-
-    expect(modelChart.find('.metric').text()).toBe('actual_cost')
-    expect(groupChart.find('.metric').text()).toBe('actual_cost')
+    expect((wrapper.vm as any).distributionMetric).toBe('actual_cost')
+    // 切换指标不应触发重新拉取图表数据
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
   })
 })
