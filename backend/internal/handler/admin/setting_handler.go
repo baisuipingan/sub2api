@@ -257,6 +257,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		HideCcsImportButton:                                    settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                settings.PurchaseSubscriptionURL,
+		RechargeLinkMode:                                       settings.RechargeLinkMode,
+		RechargeCustomURL:                                      settings.RechargeCustomURL,
 		TableDefaultPageSize:                                   settings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   settings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(settings.CustomMenuItems),
