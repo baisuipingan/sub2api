@@ -1,6 +1,7 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+  <!-- bare=true 时去掉自带卡片与标题，供仪表盘 panel 内嵌使用 -->
+  <div :class="bare ? '' : 'card p-4'">
+    <h3 v-if="!bare" class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
       {{ t('admin.dashboard.tokenUsageTrend') }}
     </h3>
     <div v-if="loading" class="flex h-48 items-center justify-center">
@@ -54,6 +55,8 @@ const { formatCompact } = useBillingCurrency()
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
+  /** 去掉外层卡片与标题，供仪表盘 panel 内嵌 */
+  bare?: boolean
 }>()
 
 const isDarkMode = computed(() => {

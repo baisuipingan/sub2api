@@ -31,6 +31,7 @@ export default {
       active: '活跃',
       ok: '正常',
       err: '错误',
+      rateLimited: '限流中',
       create: '创建',
       timeRange: '时间范围',
       granularity: '粒度',

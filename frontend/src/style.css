@@ -1190,6 +1190,171 @@
   .dark .neu-text {
   }
 
+  /* ════════════════ 仪表盘：统计卡 / 渐变底 / 图表卡 ════════════════ */
+
+  /*
+   * 统计卡：大数字为主角，标签在上、辅助信息在下。
+   * 渐变底只做极淡的色相暗示（6%~10% 不透明度），
+   * 不用饱和色块 —— 四个并排时饱和色会互相打架。
+   */
+  .kpi {
+    @apply relative flex items-center gap-4 rounded-xl p-4;
+    background-color: var(--neu-bg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
+    transition:
+      border-color 0.15s var(--neu-ease),
+      box-shadow 0.15s var(--neu-ease);
+  }
+
+  .kpi:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* 彩色渐变底：按 data-tone 取色相 */
+  .kpi[data-tone] {
+    background-image: linear-gradient(135deg, var(--kpi-tint) 0%, var(--kpi-tint) 18%, transparent 78%);
+  }
+
+  .kpi[data-tone='violet'] { --kpi-tint: rgba(139, 92, 246, 0.16); --kpi-icon: #7c3aed; --kpi-icon-bg: rgba(139, 92, 246, 0.13); }
+  .kpi[data-tone='blue']   { --kpi-tint: rgba(37, 99, 235, 0.15);  --kpi-icon: #2563eb; --kpi-icon-bg: rgba(37, 99, 235, 0.12); }
+  .kpi[data-tone='amber']  { --kpi-tint: rgba(245, 158, 11, 0.17); --kpi-icon: #d97706; --kpi-icon-bg: rgba(245, 158, 11, 0.14); }
+  .kpi[data-tone='green']  { --kpi-tint: rgba(16, 185, 129, 0.16); --kpi-icon: #059669; --kpi-icon-bg: rgba(16, 185, 129, 0.13); }
+  .kpi[data-tone='cyan']   { --kpi-tint: rgba(6, 182, 212, 0.16);  --kpi-icon: #0891b2; --kpi-icon-bg: rgba(6, 182, 212, 0.13); }
+  .kpi[data-tone='rose']   { --kpi-tint: rgba(244, 63, 94, 0.15);  --kpi-icon: #e11d48; --kpi-icon-bg: rgba(244, 63, 94, 0.12); }
+  .kpi[data-tone='indigo'] { --kpi-tint: rgba(99, 102, 241, 0.16); --kpi-icon: #4f46e5; --kpi-icon-bg: rgba(99, 102, 241, 0.13); }
+
+  .dark .kpi[data-tone='violet'] { --kpi-tint: rgba(139, 92, 246, 0.22); --kpi-icon: #a78bfa; }
+  .dark .kpi[data-tone='blue']   { --kpi-tint: rgba(37, 99, 235, 0.24);  --kpi-icon: #60a5fa; }
+  .dark .kpi[data-tone='amber']  { --kpi-tint: rgba(245, 158, 11, 0.20); --kpi-icon: #fbbf24; }
+  .dark .kpi[data-tone='green']  { --kpi-tint: rgba(16, 185, 129, 0.22); --kpi-icon: #34d399; }
+  .dark .kpi[data-tone='cyan']   { --kpi-tint: rgba(6, 182, 212, 0.22);  --kpi-icon: #22d3ee; }
+  .dark .kpi[data-tone='rose']   { --kpi-tint: rgba(244, 63, 94, 0.20);  --kpi-icon: #fb7185; }
+  .dark .kpi[data-tone='indigo'] { --kpi-tint: rgba(99, 102, 241, 0.23); --kpi-icon: #818cf8; }
+
+  /* 迷你图标：小方块，不与数字争视线 */
+  .kpi-icon {
+    @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg;
+    background-color: var(--kpi-icon-bg, var(--neu-sunk));
+    color: var(--kpi-icon, var(--text-2));
+    border: 1px solid var(--kpi-icon-bg, var(--border));
+  }
+
+  /* 大数字：仪表盘的主视觉，字重与紧排要够狠 */
+  .kpi-value {
+    @apply text-[26px] leading-none;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    color: var(--text-1);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-label {
+    @apply text-[11px] font-medium uppercase;
+    color: var(--text-3);
+    letter-spacing: 0.045em;
+  }
+
+  .kpi-sub {
+    @apply mt-1 text-[11px];
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 图表卡：标题行 + 内容区，标题行右侧放筛选控件 */
+  .panel {
+    @apply overflow-hidden rounded-xl;
+    background-color: var(--neu-bg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .panel-head {
+    @apply flex flex-wrap items-center justify-between gap-2 px-4 py-3;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    @apply text-[13px] font-semibold;
+    color: var(--text-1);
+  }
+
+  .panel-body {
+    @apply p-4;
+  }
+
+  /* 分段控件：图表粒度切换（按小时 / 按天） */
+  .segmented {
+    @apply inline-flex items-center gap-0.5 rounded-lg p-0.5;
+    background-color: var(--neu-sunk);
+    border: 1px solid var(--border);
+  }
+
+  .segmented-item {
+    @apply rounded-md px-2.5 py-1 text-[11px] font-medium;
+    color: var(--text-3);
+    transition:
+      background-color 0.13s var(--neu-ease),
+      color 0.13s var(--neu-ease);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .segmented-item:hover {
+    color: var(--text-1);
+  }
+
+  .segmented-item-active {
+    background-color: var(--neu-bg);
+    color: var(--text-1);
+    box-shadow: var(--shadow-xs);
+  }
+
+  /* 模型明细表：紧凑行，货币列右对齐 */
+  .mini-table {
+    @apply w-full text-[12px];
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .mini-table th {
+    @apply px-3 py-2 text-left text-[11px] font-semibold;
+    color: var(--text-3);
+    background-color: var(--neu-sunk);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .mini-table td {
+    @apply px-3 py-2;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mini-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .mini-table tbody tr:hover td {
+    background-color: var(--neu-sunk);
+  }
+
+  .mini-table .num {
+    @apply text-right;
+  }
+
+  .mini-table .money {
+    @apply text-right font-medium;
+    color: var(--success);
+  }
+
+  .mini-table .money-zero {
+    @apply text-right font-medium;
+    color: var(--danger);
+  }
+
   .neu-truncate {
     @apply min-w-0 truncate;
   }
