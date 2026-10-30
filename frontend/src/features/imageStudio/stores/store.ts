@@ -522,8 +522,14 @@ function createImageStudioStore(): AppState {
   )
 }
 
-/** 先用空壳占位，再填充，解决 set/get 与 state 的循环引用 */
-const storeState = {} as AppState
+/**
+ * 全局状态对象。
+ *
+ * 必须用 reactive 包装：组件直接引用它（`import { storeState as state }`），
+ * 若保持普通对象，模板读取不会建立依赖，状态变了 UI 也不更新
+ * —— 表现为「接口返回正确但页面始终是初始值」。
+ */
+const storeState = reactive({}) as AppState
 
 export const useStore = Object.assign(() => storeState, {
   getState: () => storeState,
@@ -534,7 +540,7 @@ export const useStore = Object.assign(() => storeState, {
 })
 
 /** Pinia store：组件通过它拿到响应式状态 */
-export const useImageStudioStore = defineStore('imageStudio', () => reactive(storeState))
+export const useImageStudioStore = defineStore('imageStudio', () => storeState)
 
 export { storeState }
 
