@@ -159,8 +159,18 @@
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
-                :title="t('keys.clickToChangeGroup')"
+                :disabled="isSystemManaged(row)"
+                :class="[
+                  '-mx-2 -my-1 flex items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200',
+                  isSystemManaged(row)
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700',
+                ]"
+                :title="
+                  isSystemManaged(row)
+                    ? t('keys.systemKeyManaged')
+                    : t('keys.clickToChangeGroup')
+                "
               >
                 <GroupBadge
                   v-if="row.group"
@@ -412,11 +422,15 @@
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
+                :disabled="isSystemManaged(row)"
+                :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
-                  row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
+                  isSystemManaged(row)
+                    ? 'cursor-not-allowed text-gray-300 dark:text-dark-600'
+                    : row.status === 'active'
+                      ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
+                      : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400',
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
@@ -426,7 +440,14 @@
               <!-- Edit Button -->
               <button
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                :disabled="isSystemManaged(row)"
+                :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
+                :class="[
+                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
+                  isSystemManaged(row)
+                    ? 'cursor-not-allowed text-gray-300 dark:text-dark-600'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400',
+                ]"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit') }}</span>
@@ -434,7 +455,14 @@
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                :disabled="isSystemManaged(row)"
+                :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
+                :class="[
+                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
+                  isSystemManaged(row)
+                    ? 'cursor-not-allowed text-gray-300 dark:text-dark-600'
+                    : 'text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400',
+                ]"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
@@ -1695,7 +1723,25 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadApiKeys()
 }
 
+/** 系统托管密钥（生图工作台专用）：后端会拒绝一切修改，前端直接禁用入口 */
+const isSystemManaged = (key: ApiKey | null | undefined) => key?.is_system === true
+
+/** 后端对系统密钥的拒绝信息是英文原文，这里统一翻成面向用户的一句话 */
+const isSystemKeyError = (error: unknown) => {
+  const text = [
+    (error as { message?: string })?.message,
+    (error as { response?: { data?: { message?: string } } })?.response?.data?.message,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return text.includes('managed by the system')
+}
+
 const editKey = (key: ApiKey) => {
+  if (isSystemManaged(key)) {
+    appStore.showWarning(t('keys.systemKeyManaged'))
+    return
+  }
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
@@ -1722,6 +1768,10 @@ const editKey = (key: ApiKey) => {
 }
 
 const toggleKeyStatus = async (key: ApiKey) => {
+  if (isSystemManaged(key)) {
+    appStore.showWarning(t('keys.systemKeyManaged'))
+    return
+  }
   const newStatus = key.status === 'active' ? 'inactive' : 'active'
   try {
     await keysAPI.toggleStatus(key.id, newStatus)
@@ -1735,6 +1785,10 @@ const toggleKeyStatus = async (key: ApiKey) => {
 }
 
 const openGroupSelector = (key: ApiKey) => {
+  if (isSystemManaged(key)) {
+    appStore.showWarning(t('keys.systemKeyManaged'))
+    return
+  }
   if (groupSelectorKeyId.value === key.id) {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
@@ -1778,6 +1832,10 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
+    if (isSystemKeyError(error)) {
+      appStore.showError(t('keys.systemKeyManaged'))
+      return
+    }
     appStore.showError(t('keys.failedToChangeGroup'))
   }
 }
@@ -1795,6 +1853,10 @@ const closeGroupSelector = (event: MouseEvent) => {
 }
 
 const confirmDelete = (key: ApiKey) => {
+  if (isSystemManaged(key)) {
+    appStore.showWarning(t('keys.systemKeyManaged'))
+    return
+  }
   selectedKey.value = key
   showDeleteDialog.value = true
 }
@@ -1893,6 +1955,10 @@ const handleSubmit = async () => {
     closeModals()
     loadApiKeys()
   } catch (error: any) {
+    if (isSystemKeyError(error)) {
+      appStore.showError(t('keys.systemKeyManaged'))
+      return
+    }
     const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
     appStore.showError(errorMsg)
     // Don't advance tour on error
@@ -1916,6 +1982,10 @@ const handleDelete = async () => {
     loadApiKeys()
   } catch (error: any) {
     // 优先使用后端返回的错误消息，提供更具体的错误信息给用户
+    if (isSystemKeyError(error)) {
+      appStore.showError(t('keys.systemKeyManaged'))
+      return
+    }
     const errorMsg = error?.message || t('keys.failedToDelete')
     appStore.showError(errorMsg)
   }

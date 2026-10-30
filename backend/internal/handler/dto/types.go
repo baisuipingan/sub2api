@@ -90,6 +90,10 @@ type APIKey struct {
 
 	User  *User  `json:"user,omitempty"`
 	Group *Group `json:"group,omitempty"`
+
+	// IsSystem 标记系统托管密钥（如生图工作台专用）。
+	// 前端据此禁用编辑/删除/换分组等入口，避免点完才收到 403。
+	IsSystem bool `json:"is_system"`
 }
 
 type Group struct {

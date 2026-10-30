@@ -146,6 +146,7 @@ export default {
     failedToUpdateStatus: 'Failed to update API key status',
     clickToChangeGroup: 'Click to change group',
     groupChangedSuccess: 'Group changed successfully',
+    systemKeyManaged: 'This key is managed by the system (for the image studio) and cannot be edited, deleted or reassigned here',
     failedToChangeGroup: 'Failed to change group',
     groupRequired: 'Please select a group',
     usage: 'Usage',

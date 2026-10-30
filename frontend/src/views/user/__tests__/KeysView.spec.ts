@@ -15,6 +15,7 @@ const {
   getUserGroupRates,
   showError,
   showSuccess,
+  showWarning,
   copyToClipboard,
   isCurrentStep,
   nextStep,
@@ -27,6 +28,7 @@ const {
   getUserGroupRates: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
+  showWarning: vi.fn(),
   copyToClipboard: vi.fn(),
   isCurrentStep: vi.fn(),
   nextStep: vi.fn(),
@@ -82,6 +84,7 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError,
     showSuccess,
+    showWarning,
   }),
 }))
 
@@ -173,6 +176,7 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <slot name="cell-group" :row="row" />
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
@@ -653,5 +657,45 @@ describe('user KeysView column settings', () => {
       expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
       expect(optionIds(wrapper)).toHaveLength(12)
     })
+  })
+
+  it('system-managed key disables edit / delete / status / group-switch controls', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), is_system: true }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+
+    // 分组切换、禁用、编辑、删除四个入口都应被禁用
+    const disabledButtons = wrapper.findAll('button[disabled]')
+    expect(disabledButtons.length).toBeGreaterThanOrEqual(4)
+
+    // 并且给出可解释的提示，而不是让用户点完才收到 403
+    expect(disabledButtons.some((btn) => btn.attributes('title')?.includes('system'))).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('normal key keeps those controls clickable', async () => {
+    listKeys.mockResolvedValue({
+      items: [createApiKey()],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+
+    const actions = wrapper.find('[data-test="cell-actions"], .group\\/dropdown')
+    expect(actions.exists()).toBe(true)
+    // 普通密钥不应出现 disabled 的操作按钮
+    expect(wrapper.findAll('button[disabled]').length).toBe(0)
+
+    wrapper.unmount()
   })
 })

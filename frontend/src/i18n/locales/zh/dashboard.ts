@@ -146,6 +146,7 @@ export default {
     failedToUpdateStatus: '更新 API 密钥状态失败',
     clickToChangeGroup: '点击更换分组',
     groupChangedSuccess: '分组更换成功',
+    systemKeyManaged: '该密钥由系统托管（生图工作台专用），无法在此编辑、删除或更换分组',
     failedToChangeGroup: '更换分组失败',
     groupRequired: '请选择分组',
     usage: '用量',
