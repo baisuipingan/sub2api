@@ -1,15 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import zhMessages from '@/i18n/locales/zh/imageStudio'
-import enMessages from '@/i18n/locales/en/imageStudio'
+import { beforeAll, describe, expect, it } from 'vitest'
+import i18n, { loadLocaleMessages } from '@/i18n'
 
 /**
- * 防止「i18n key 写错」这类静默问题。
+ * 防止「i18n key 写错 / 文案没被加载」这类静默问题。
  *
- * vue-i18n 找不到 key 时会把 key 原样显示给用户（界面上出现
- * 「imageStudio.store.catalogFailed」这种字符串），编译期不会报错。
- * 这里扫描代码里实际引用的 key，断言中英文都齐全。
+ * 关键教训：文案文件里写对了 ≠ 运行时能用。
+ * 本项目 messages 是懒加载的（`messages: {}` + 动态 import），
+ * 所以必须断言**运行时解析结果**，只比对源文件会漏掉接线错误。
+ *
+ * vue-i18n 找不到 key 时会把 key 原样显示（界面上出现
+ * 「imageStudio.store.catalogFailed」），编译期不报任何错。
  */
 
 const FEATURE_ROOT = path.resolve(__dirname, '../..')
@@ -40,27 +42,39 @@ function collectUsedKeys(): Set<string> {
   return keys
 }
 
-function hasKey(messages: Record<string, unknown>, key: string): boolean {
-  return key.split('.').reduce<unknown>(
-    (node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined),
-    messages,
-  ) !== undefined
+const i18nGlobal = i18n.global as unknown as {
+  te: (key: string, locale?: string) => boolean
+  t: (key: string) => string
 }
 
 describe('imageStudio i18n 完整性', () => {
   const used = collectUsedKeys()
 
+  beforeAll(async () => {
+    // messages 是懒加载的，测试环境需要显式加载才有得比对
+    await loadLocaleMessages('zh')
+    await loadLocaleMessages('en')
+  })
+
   it('确实扫描到了 key（避免正则失效后测试形同虚设）', () => {
     expect(used.size).toBeGreaterThan(50)
   })
 
-  it('中文文案覆盖所有引用的 key', () => {
-    const missing = [...used].filter((key) => !hasKey(zhMessages as never, key))
+  it('运行时可解析（中文）', () => {
+    const missing = [...used].filter((key) => !i18nGlobal.te(key, 'zh'))
     expect(missing).toEqual([])
   })
 
-  it('英文文案覆盖所有引用的 key', () => {
-    const missing = [...used].filter((key) => !hasKey(enMessages as never, key))
+  it('运行时可解析（英文）', () => {
+    const missing = [...used].filter((key) => !i18nGlobal.te(key, 'en'))
     expect(missing).toEqual([])
+  })
+
+  it('te() 的判定是有意义的（不存在的 key 必须为 false）', () => {
+    // 说明：测试环境把 vue-i18n 换成了 runtime-only 构建（不含消息编译器），
+    // 所以 t() 一律返回 key，不能用它判断译文是否生效。
+    // 但 te() 是纯存在性检查，不受此影响，足以守住「key 写错/漏配」。
+    expect(i18nGlobal.te('imageStudio.lib.maskSizeMismatch', 'zh')).toBe(true)
+    expect(i18nGlobal.te('imageStudio.lib.__not_exist__', 'zh')).toBe(false)
   })
 })
