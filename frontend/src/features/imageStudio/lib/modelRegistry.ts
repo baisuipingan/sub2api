@@ -345,12 +345,35 @@ function getBaseModelId(modelId: string) {
  * 猜错能力的代价是请求被上游拒绝，比少给几个选项严重得多；
  * 等确认该模型的实际能力后，再把它加进 IMAGE_MODEL_REGISTRY 即可获得完整选项。
  */
+/** 已知缩写保持大写，其余首字母大写，如 grok-imagine-image-2.0 → Grok Imagine Image 2.0 */
+const ACRONYMS: Record<string, string> = {
+  gpt: 'GPT',
+  ai: 'AI',
+  hd: 'HD',
+  sdxl: 'SDXL',
+  api: 'API',
+}
+
+function humanizeModelId(modelId: string) {
+  return modelId
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLowerCase()
+      if (ACRONYMS[lower]) return ACRONYMS[lower]
+      // 纯版本号（2.5 / 2）原样保留
+      if (/^[0-9.]+$/.test(part)) return part
+      return part.charAt(0).toUpperCase() + part.slice(1)
+    })
+    .join(' ')
+}
+
 function createFallbackImageModel(modelId: string): ImageModelDefinition {
   const isGemini = /^(?:gemini|imagen)/i.test(modelId)
 
   return {
     id: modelId,
-    name: modelId,
+    name: humanizeModelId(modelId),
     api: isGemini ? 'gemini' : 'openai',
     requestModels: Object.fromEntries(
       RESOLUTIONS.map((tier) => [tier, modelId]),
