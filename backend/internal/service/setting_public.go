@@ -194,6 +194,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyPurchaseSubscriptionURL,
 		SettingKeyRechargeLinkMode,
 		SettingKeyRechargeCustomURL,
+		SettingKeyImageStudioEnabled,
+		SettingKeyImageStudioGroupID,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
