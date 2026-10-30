@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html"
 	"math"
@@ -656,6 +657,13 @@ func (s *APIKeyService) GetOrCreateImageStudioKey(ctx context.Context, userID in
 		KeyType: APIKeyTypeSystem,
 	}
 	if err := s.apiKeyRepo.CreateSystemKey(ctx, created); err != nil {
+		// 并发下另一个请求刚插入同一用途的密钥（唯一索引拦下），
+		// 回读那条即可，不算错误 —— 幂等性是这里的关键语义。
+		if errors.Is(err, ErrAPIKeyExists) {
+			if existing, getErr := s.apiKeyRepo.GetSystemKey(ctx, userID, ImageStudioKeyName); getErr == nil && existing != nil {
+				return existing, nil
+			}
+		}
 		return nil, fmt.Errorf("create image studio key: %w", err)
 	}
 

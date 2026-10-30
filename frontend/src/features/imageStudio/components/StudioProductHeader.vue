@@ -14,22 +14,22 @@
       <!-- 标题已由外层 AppHeader 提供，这里只保留连接状态与设置入口，
            避免出现两行重复的「生图工作台」 -->
       <div class="ml-auto flex items-center gap-3">
-        <button
-          type="button"
-          class="flex items-center gap-2 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs transition hover:bg-gray-50 dark:hover:bg-white/[0.06]"
+        <!-- 纯状态展示：密钥由系统下发，用户无需也无法手动配置，
+             因此这里不再是按钮（原来点了会打开一个已不存在的连接弹窗） -->
+        <span
+          class="flex items-center gap-2 whitespace-nowrap px-2 py-1.5 text-xs"
           :class="
             connected
               ? 'text-emerald-600 dark:text-emerald-400'
               : 'text-gray-600 dark:text-dark-300'
           "
-          @click="state.openConnectionDialog('manage')"
         >
           <span
             class="h-2 w-2 rounded-full"
             :class="connected ? 'bg-emerald-500' : 'bg-gray-400'"
           />
           {{ statusLabel }}
-        </button>
+        </span>
 
         <button
           type="button"

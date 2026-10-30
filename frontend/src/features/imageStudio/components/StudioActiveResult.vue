@@ -57,6 +57,27 @@
         }}
       </div>
 
+      <!-- 失败原因：主面板必须能看到，不能只藏在详情弹窗里 -->
+      <div
+        v-if="task.status === 'error'"
+        role="status"
+        class="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-xs leading-5 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
+      >
+        <p class="break-words">{{ errorMessage }}</p>
+        <p v-if="!available" class="mt-1 text-gray-500 dark:text-dark-400">
+          {{ t('imageStudio.result.modelUnavailableHint') }}
+        </p>
+      </div>
+
+      <!-- 部分图片失败 -->
+      <p
+        v-else-if="partialFailure"
+        role="status"
+        class="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+      >
+        {{ partialFailure }}
+      </p>
+
       <!-- 多图切换 -->
       <div v-if="task.outputImages.length > 1" class="mt-3">
         <div class="flex items-center justify-between gap-3">
@@ -198,8 +219,8 @@
         </button>
       </div>
 
-      <!-- 再次生成 -->
-      <div v-if="task.status === 'done'" class="mt-3">
+      <!-- 再次生成 / 失败重试 -->
+      <div v-if="task.status === 'done' || task.status === 'error'" class="mt-3">
         <button
           v-if="available"
           type="button"
@@ -207,7 +228,11 @@
           :disabled="hasRunningTask || retrying"
           @click="onRetry"
         >
-          <StudioIcon name="RefreshIcon" class="h-4 w-4" />{{ t('imageStudio.result.regenerate') }}
+          <StudioIcon name="RefreshIcon" class="h-4 w-4" />{{
+            task.status === 'error'
+              ? t('imageStudio.task.retry')
+              : t('imageStudio.result.regenerate')
+          }}
         </button>
         <button
           v-else
@@ -223,9 +248,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TaskRecord } from '../types'
+import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import {
   storeState as state,
   editOutputMask,
@@ -234,7 +260,7 @@ import {
   retryTask,
 } from '../stores/store'
 import { getEstimatedCredits } from '../lib/generationEstimate'
-import { normalizeBillingTier } from '../lib/studioPricing'
+import { resolveUnitPrice } from '../lib/studioPricing'
 import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 import { formatImageRatio, parseRatio } from '../lib/size'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
@@ -371,11 +397,12 @@ const consumedQuota = computed(() => {
   const count = props.task.status === 'done' ? props.task.outputImages.length : 0
 
   // 用后端实价还原本次花费；取不到时退回内置估算
-  const billingModel =
-    taskModel.value?.requestModels[resolution] ?? taskModel.value?.requestModels.auto
-  const price = billingModel
-    ? state.imagePricing?.[billingModel]?.[normalizeBillingTier(resolution)]
-    : undefined
+  const price = resolveUnitPrice(
+    state.imagePricing,
+    taskModel.value,
+    props.task.params.size,
+    props.task.params.resolution,
+  )
 
   return getEstimatedCredits(
     resolution,
@@ -396,11 +423,57 @@ const createdFull = computed(() =>
   }),
 )
 
+/** 运行中每秒刷新，让用户看到真实等待时长（原版行为） */
+const now = ref(Date.now())
+let ticker: number | null = null
+
+function stopTicker() {
+  if (ticker != null) {
+    window.clearInterval(ticker)
+    ticker = null
+  }
+}
+
+watch(
+  () => [props.task.status, props.task.id] as const,
+  ([status]) => {
+    stopTicker()
+    if (status !== 'running') return
+    now.value = Date.now()
+    ticker = window.setInterval(() => {
+      now.value = Date.now()
+    }, 1000)
+  },
+  { immediate: true },
+)
+
+onUnmounted(stopTicker)
+
+const elapsedMs = computed(() => {
+  if (props.task.status === 'running') {
+    return Math.max(0, now.value - props.task.createdAt)
+  }
+  return props.task.elapsed ?? null
+})
+
 const elapsedLabel = computed(() =>
-  props.task.elapsed != null
-    ? t('imageStudio.task.elapsedSeconds', { seconds: Math.floor(props.task.elapsed / 1000) })
+  elapsedMs.value != null
+    ? t('imageStudio.task.elapsedSeconds', { seconds: Math.floor(elapsedMs.value / 1000) })
     : t('imageStudio.result.elapsedCalculating'),
 )
+
+/** 失败任务的可见原因（模型不可用等底层信息不外暴） */
+const errorMessage = computed(() => getUserFacingApiErrorMessage(props.task.error, t))
+
+/** 部分图片失败时给出明确提示，而不是静默少图 */
+const partialFailure = computed(() => {
+  if (props.task.status !== 'done' || !props.task.outputErrors?.length) return ''
+  return t('imageStudio.result.partialFailed', {
+    done: props.task.outputImages.length,
+    total: props.task.params.n,
+    error: getUserFacingApiErrorMessage(props.task.outputErrors[0]?.error, t),
+  })
+})
 
 const favoriteLabel = computed(() =>
   props.task.isFavorite ? t('imageStudio.task.editFavorite') : t('imageStudio.task.addFavorite'),

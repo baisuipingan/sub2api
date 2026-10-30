@@ -75,7 +75,7 @@
             v-if="showEditBadge(model)"
             class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-white/[0.07] dark:text-dark-400"
           >
-            {{ getImageEditProfileLabel(model) }}
+            {{ t(`imageStudio.edit.profileLabel.${getImageEditProfile(model)}`) }}
           </span>
           <span
             v-if="model.id === selectedModelId"
@@ -105,7 +105,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ImageModelDefinition } from '../lib/modelRegistry'
-import { getImageEditProfileLabel } from '../lib/modelRegistry'
+import { getImageEditProfile } from '../lib/modelRegistry'
 
 const props = defineProps<{
   models: ImageModelDefinition[]

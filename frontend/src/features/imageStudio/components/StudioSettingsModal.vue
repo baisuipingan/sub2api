@@ -51,12 +51,15 @@
                 {{ connectionText }}
               </p>
             </div>
+            <!-- 密钥由系统下发，用户不能手填；这里提供「重新获取」，
+                 用于密钥失效/切换分组后自救（原来指向已删除的连接弹窗） -->
             <button
               type="button"
-              class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
-              @click="state.openConnectionDialog('manage')"
+              class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
+              :disabled="refreshingKey"
+              @click="handleRefreshKey"
             >
-              {{ t('imageStudio.settings.manageConnection') }}
+              {{ refreshingKey ? t('imageStudio.settings.refreshingKey') : t('imageStudio.settings.refreshKey') }}
             </button>
           </div>
         </section>
@@ -138,11 +141,30 @@ import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import StudioCheckbox from './StudioCheckbox.vue'
 import { storeState as state, clearData, exportData, importData } from '../stores/store'
+import { ensureStudioApiKey, resetStudioApiKeyCache } from '../lib/studioAuth'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
 import { usePreventBackgroundScroll } from '../composables/usePreventBackgroundScroll'
 import { formatMiloRouterBalance } from '../lib/miloRouterDisplay'
 
 const { t } = useI18n()
+
+const refreshingKey = ref(false)
+
+/** 重新向后端取一次密钥（换过分组、密钥被停用时用） */
+async function handleRefreshKey() {
+  if (refreshingKey.value) return
+  refreshingKey.value = true
+  try {
+    resetStudioApiKeyCache()
+    const key = await ensureStudioApiKey()
+    state.showToast(
+      key ? t('imageStudio.settings.refreshKeySuccess') : t('imageStudio.settings.refreshKeyFailed'),
+      key ? 'success' : 'error',
+    )
+  } finally {
+    refreshingKey.value = false
+  }
+}
 
 const importing = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)

@@ -336,7 +336,7 @@ const displayPrompt = computed(() =>
 )
 
 const errorMessage = computed(() =>
-  task.value ? getUserFacingApiErrorMessage(task.value.error) : '',
+  task.value ? getUserFacingApiErrorMessage(task.value.error, t) : '',
 )
 
 const ratio = computed(() => {

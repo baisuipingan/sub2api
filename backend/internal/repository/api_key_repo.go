@@ -1117,15 +1117,25 @@ func (r *apiKeyRepository) GetSystemKey(ctx context.Context, userID int64, name 
 
 // CreateSystemKey 插入一条系统托管密钥。
 func (r *apiKeyRepository) CreateSystemKey(ctx context.Context, key *service.APIKey) error {
+	// ON CONFLICT 对应迁移 250 的部分唯一索引 uq_api_keys_system_key_per_user：
+	// 并发请求同时插入时，后到的那次直接跳过，由调用方回读已存在的那条，
+	// 避免同一用户出现多把系统密钥。
 	query := `
 		INSERT INTO api_keys (user_id, key, name, group_id, status, quota, key_type, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		ON CONFLICT (user_id, name) WHERE key_type = 'system' AND deleted_at IS NULL
+		DO NOTHING
 		RETURNING id, created_at
 	`
 
-	return scanSingleRow(ctx, r.sql, query,
+	err := scanSingleRow(ctx, r.sql, query,
 		[]any{key.UserID, key.Key, key.Name, key.GroupID, key.Status, key.Quota, service.APIKeyTypeSystem},
 		&key.ID, &key.CreatedAt)
+	if err == sql.ErrNoRows {
+		// 冲突：说明并发下已有同用途密钥，交给上层回读
+		return service.ErrAPIKeyExists
+	}
+	return err
 }
 
 // UpdateSystemKeyGroup 同步系统密钥的分组（管理员改配置后需要生效）。

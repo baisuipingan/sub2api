@@ -1,5 +1,5 @@
 export default {
-  imageStudio: {
+imageStudio: {
   title: 'Image Studio',
   common: {
     cancel: 'Cancel',
@@ -102,6 +102,8 @@ export default {
     alreadyReferenced: 'This image is already a reference',
     addAsReference: 'Add this image as reference',
     referenceUnavailable: 'Pick a model that supports references with remaining slots',
+    modelUnavailableHint: 'The original model is unavailable. Reuse the parameters and pick an available model.',
+    partialFailed: 'Generated {done} / {total} images; some failed: {error}',
   },
   resultPanel: {
     aria: 'Generation workspace',
@@ -147,7 +149,7 @@ export default {
     optional: 'Optional',
     referenceCount: '{count}/{max} images',
     autoReference: 'Will be used as reference automatically',
-    useAtHint: "Type {'@'} to reference precisely",
+    useAtHint: 'Type {\'@\'} to reference precisely',
     clearAll: 'Clear',
     viewReferenceN: 'View reference image {index}',
     insertMentionN: 'Mention reference image {index} in prompt',
@@ -159,7 +161,7 @@ export default {
     add: 'Add',
     dropHint: 'Drag images here, or ',
     clickUpload: 'click to upload',
-    uploadFormats: "JPG, PNG, WebP supported · type {'@'} after upload to reference",
+    uploadFormats: 'JPG, PNG, WebP supported · type {\'@\'} after upload to reference',
     estimatePerImage: 'Estimated cost (per image)',
     estimateDuration: 'Estimated time',
     stopGenerating: 'Stop generating',
@@ -171,6 +173,8 @@ export default {
     limitReached: 'Reference limit reached ({max} images)',
     modelNoReference: 'Current model does not support references',
     readFailed: 'Failed to read image',
+    durationNormal: '30–50 s',
+    duration4K: '60–120 s',
   },
   modelSelect: {
     ariaLabel: 'Model, {name}',
@@ -238,6 +242,10 @@ export default {
     importing: 'Importing…',
     clearHistory: 'Clear history',
     footerHint: 'Image Studio stores history and images in your browser. The API key is provisioned by the system.',
+    refreshKey: 'Refetch key',
+    refreshingKey: 'Fetching…',
+    refreshKeySuccess: 'Key refreshed',
+    refreshKeyFailed: 'Failed to fetch key, please retry later',
   },
   detail: {
     title: 'Task details',
@@ -346,6 +354,11 @@ export default {
     profileFast: 'Good for daily edits and quick iteration',
     profilePrecise: 'Good for subject preservation, text and complex local edits',
     profileCompat: 'Compatible with existing workflows',
+    profileLabel: {
+      fast: 'Fast edit',
+      precision: 'Precise edit',
+      standard: 'Standard edit',
+    },
   },
   mask: {
     brush: 'Paint edit region',
@@ -375,5 +388,14 @@ export default {
     draftLoadFailed: 'Failed to load mask draft, reset to empty mask: {error}',
     resizedHint: 'Mask is drawn on a lightweight preview; submission still matches the original {width}×{height}',
   },
+  errors: {
+    stopped: 'Generation stopped',
+    auth: 'Invalid or unauthorized API key, please check and retry',
+    timeout: 'Connection timed out, please retry later',
+    rateLimit: 'Too many requests, please retry later',
+    noImage: 'The model returned no image, try adjusting the prompt',
+    unavailable: 'MiloRouter service is temporarily unavailable, please retry later',
+    generic: 'Generation failed, please retry later',
   },
+},
 }

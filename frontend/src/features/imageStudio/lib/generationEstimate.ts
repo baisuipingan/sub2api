@@ -2,7 +2,8 @@ import type { ImageResolutionTier } from './modelRegistry'
 
 export interface GenerationEstimate {
   creditsPerImage: number
-  duration: string
+  /** 耗时的 i18n key 后缀，实际文案由组件翻译（lib 里不写死中文） */
+  durationKey: 'durationNormal' | 'duration4K'
 }
 
 /**
@@ -26,7 +27,7 @@ export function getGenerationEstimate(
   return {
     creditsPerImage:
       typeof unitPrice === 'number' && Number.isFinite(unitPrice) ? unitPrice : fallback,
-    duration: is4K ? '60–120 秒' : '30–50 秒',
+    durationKey: is4K ? 'duration4K' : 'durationNormal',
   }
 }
 

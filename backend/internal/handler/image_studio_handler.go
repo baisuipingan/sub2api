@@ -48,31 +48,12 @@ func (h *ImageStudioHandler) GetKey(c *gin.Context) {
 		return
 	}
 
-	settings, err := h.settingService.GetPublicSettings(c.Request.Context())
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "failed to load settings")
+	// 开关与分组校验统一在此，/pricing 走同一实现
+	group, ok := h.resolveStudioGroup(c)
+	if !ok {
 		return
 	}
-
-	if !settings.ImageStudioEnabled {
-		response.Error(c, http.StatusForbidden, "image studio is disabled")
-		return
-	}
-
-	if settings.ImageStudioGroupID <= 0 {
-		// 管理员还没配置分组：明确报错，避免创建一把没有分组、请求必然失败的密钥
-		response.Error(c, http.StatusServiceUnavailable, "image studio group is not configured")
-		return
-	}
-
-	groupID := settings.ImageStudioGroupID
-
-	// 分组必须存在且对用户可见，否则请求会在网关阶段失败
-	group, err := h.groupService.GetByID(c.Request.Context(), groupID)
-	if err != nil || group == nil {
-		response.Error(c, http.StatusServiceUnavailable, "configured image studio group is not available")
-		return
-	}
+	groupID := group.ID
 
 	key, err := h.apiKeyService.GetOrCreateImageStudioKey(
 		c.Request.Context(),
@@ -151,19 +132,27 @@ func (h *ImageStudioHandler) EstimatePricing(c *gin.Context) {
 	response.Success(c, gin.H{"pricing": table})
 }
 
-// resolveStudioGroup 读取并校验「生图工作台使用分组」。
-// 校验失败时已写好响应，返回 false 即可直接结束。
+// resolveStudioGroup 读取设置、校验功能开关并取出可用分组。
+//
+// 两个接口共用这一处：只用读一次设置，也避免「开关判断」和「分组判断」
+// 在两处各写一遍后慢慢漂移。校验失败时已写好响应，返回 false 即可结束。
 func (h *ImageStudioHandler) resolveStudioGroup(c *gin.Context) (*service.Group, bool) {
 	settings, err := h.settingService.GetPublicSettings(c.Request.Context())
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "failed to load settings")
 		return nil, false
 	}
+	if !settings.ImageStudioEnabled {
+		response.Error(c, http.StatusForbidden, "image studio is disabled")
+		return nil, false
+	}
 	if settings.ImageStudioGroupID <= 0 {
+		// 管理员还没配置分组：明确报错，避免创建一把没有分组、请求必然失败的密钥
 		response.Error(c, http.StatusServiceUnavailable, "image studio group is not configured")
 		return nil, false
 	}
 
+	// 分组必须存在，否则请求会在网关阶段失败
 	group, err := h.groupService.GetByID(c.Request.Context(), settings.ImageStudioGroupID)
 	if err != nil || group == nil {
 		response.Error(c, http.StatusServiceUnavailable, "configured image studio group is not available")

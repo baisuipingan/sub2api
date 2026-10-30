@@ -62,11 +62,21 @@ func (s *ImageStudioPricingService) EstimateUnitPrices(
 			continue
 		}
 
+		// 定价解析只依赖模型，与尺寸档位无关 —— 每个模型解析一次即可，
+		// 否则同一个模型要重复查三次渠道/分组定价。
+		resolved := s.resolvePricing(ctx, model, group)
+
 		tiers := make(map[string]float64, 3)
 		for _, tier := range []string{ImageBillingSize1K, ImageBillingSize2K, ImageBillingSize4K} {
-			tiers[tier] = s.unitCost(ctx, model, tier, group, cfg, multiplier)
+			// 算不出就让该档位缺省，前端会回退到内置估算；
+			// 写 0 会让界面显示「约 0.0000」，比不显示更误导。
+			if cost, ok := s.unitCost(ctx, model, tier, group, cfg, multiplier, resolved); ok {
+				tiers[tier] = cost
+			}
 		}
-		table[model] = tiers
+		if len(tiers) > 0 {
+			table[model] = tiers
+		}
 	}
 	return table
 }
@@ -104,6 +114,23 @@ func (s *ImageStudioPricingService) resolveImageRateMultiplier(
 	return base
 }
 
+// resolvePricing 解析模型在分组下的定价来源（分组模型级 / 渠道 / 无）。
+func (s *ImageStudioPricingService) resolvePricing(
+	ctx context.Context,
+	model string,
+	group *Group,
+) *ResolvedPricing {
+	if s.resolver == nil || group == nil {
+		return nil
+	}
+	groupID := group.ID
+	return s.resolver.Resolve(ctx, PricingInput{
+		Model:   model,
+		GroupID: &groupID,
+		Group:   group,
+	})
+}
+
 // unitCost 计算单张实际成本，取值优先级与网关扣费完全一致：
 //
 //	① 分组模型级固定价（group.model_pricing，Source=Group，按次/按图片模式）
@@ -114,6 +141,8 @@ func (s *ImageStudioPricingService) resolveImageRateMultiplier(
 // gpt-image-2.5 单独配 0.198/张）只在那里生效。
 // 早先这里直接调 CalculateImageCost，会跳过它，导致页面显示默认兜底价
 // （0.0268）而实际按 0.0396 扣费。
+//
+// 返回 ok=false 表示该档位取不到可信价格，调用方应省略而不是填 0。
 func (s *ImageStudioPricingService) unitCost(
 	ctx context.Context,
 	model string,
@@ -121,44 +150,38 @@ func (s *ImageStudioPricingService) unitCost(
 	group *Group,
 	cfg *ImagePriceConfig,
 	multiplier float64,
-) float64 {
+	resolved *ResolvedPricing,
+) (float64, bool) {
 	if s.billing == nil {
-		return 0
+		return 0, false
 	}
 
-	if s.resolver != nil {
+	imageMode := resolved != nil &&
+		(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) &&
+		(resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel)
+
+	if imageMode {
 		groupID := group.ID
-		resolved := s.resolver.Resolve(ctx, PricingInput{
-			Model:   model,
-			GroupID: &groupID,
-			Group:   group,
+		breakdown, err := s.billing.CalculateCostUnified(CostInput{
+			Ctx:            ctx,
+			Model:          model,
+			GroupID:        &groupID,
+			Group:          group,
+			RequestCount:   1,
+			SizeTier:       tier,
+			RateMultiplier: multiplier,
+			Resolver:       s.resolver,
+			Resolved:       resolved,
 		})
-
-		imageMode := resolved != nil &&
-			(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) &&
-			(resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel)
-
-		if imageMode {
-			breakdown, err := s.billing.CalculateCostUnified(CostInput{
-				Ctx:            ctx,
-				Model:          model,
-				GroupID:        &groupID,
-				Group:          group,
-				RequestCount:   1,
-				SizeTier:       tier,
-				RateMultiplier: multiplier,
-				Resolver:       s.resolver,
-				Resolved:       resolved,
-			})
-			if err == nil && breakdown != nil {
-				return breakdown.ActualCost
-			}
+		if err == nil && breakdown != nil {
+			return breakdown.ActualCost, true
 		}
+		return 0, false
 	}
 
 	breakdown := s.billing.CalculateImageCost(model, tier, 1, cfg, multiplier)
 	if breakdown == nil {
-		return 0
+		return 0, false
 	}
-	return breakdown.ActualCost
+	return breakdown.ActualCost, true
 }

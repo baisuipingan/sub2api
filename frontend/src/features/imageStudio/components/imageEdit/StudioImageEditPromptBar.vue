@@ -45,7 +45,7 @@
               @change="emit('modelChange', ($event.target as HTMLSelectElement).value)"
             >
               <option v-for="item in models" :key="item.id" :value="item.id">
-                {{ item.name }} · {{ getImageEditProfileLabel(item) }}
+                {{ item.name }} · {{ profileLabel(item) }}
               </option>
             </select>
           </label>
@@ -95,7 +95,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ImageEditMode, TaskParams } from '../../types'
-import { getImageEditProfileLabel, type ImageModelDefinition } from '../../lib/modelRegistry'
+import { getImageEditProfile, type ImageModelDefinition } from '../../lib/modelRegistry'
 
 const props = defineProps<{
   mode: ImageEditMode
@@ -153,7 +153,7 @@ const promptPlaceholder = computed(() => {
 const statusText = computed(() => {
   if (unavailable.value) return t('imageStudio.edit.unsupportedMode')
   if (!model.value) return t('imageStudio.edit.pickModel')
-  return `${getImageEditProfileLabel(model.value)}: ${profileDescription(model.value)}`
+  return `${profileLabel(model.value)}: ${profileDescription(model.value)}`
 })
 
 function isModeDisabled(mode: ImageEditMode) {
@@ -162,10 +162,15 @@ function isModeDisabled(mode: ImageEditMode) {
   return false
 }
 
+/** 模型档位标签统一走 i18n；不要把本地化文案当作判断条件 */
+function profileLabel(item: ImageModelDefinition) {
+  return t(`imageStudio.edit.profileLabel.${getImageEditProfile(item)}`)
+}
+
 function profileDescription(item: ImageModelDefinition) {
-  const label = getImageEditProfileLabel(item)
-  if (label === '快速编辑') return t('imageStudio.edit.profileFast')
-  if (label === '精确编辑') return t('imageStudio.edit.profilePrecise')
+  const profile = getImageEditProfile(item)
+  if (profile === 'fast') return t('imageStudio.edit.profileFast')
+  if (profile === 'precision') return t('imageStudio.edit.profilePrecise')
   return t('imageStudio.edit.profileCompat')
 }
 </script>

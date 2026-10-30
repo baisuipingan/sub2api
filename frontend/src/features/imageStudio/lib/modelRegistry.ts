@@ -72,13 +72,6 @@ export function getImageEditProfile(model: ImageModelDefinition): ImageEditProfi
   return 'standard'
 }
 
-export function getImageEditProfileLabel(model: ImageModelDefinition): string {
-  const profile = getImageEditProfile(model)
-  if (profile === 'fast') return '快速编辑'
-  if (profile === 'precision') return '精确编辑'
-  return '标准编辑'
-}
-
 const GPT_IMAGE_2_5_CAPABILITIES: ImageModelCapabilities = {
   ...GPT_CAPABILITIES,
   qualities: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'],
@@ -284,13 +277,46 @@ export function parseImageModelCatalog(payload: unknown) {
     .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)))
 }
 
-function getAvailableModelIds(payload: unknown) {
-  if (!isRecord(payload) || !Array.isArray(payload.data)) throw new Error('模型列表格式不受支持')
+/**
+ * 从 /v1/models 的返回里取出模型 id 集合。
+ *
+ * 兼容三种常见形状，避免因为上游格式差异导致整个工作台「模型列表加载失败」：
+ *   { data:   [{ id }] }        OpenAI 风格
+ *   { models: [{ name }] }      Gemini 原生风格（name 带 models/ 前缀）
+ *   [ "id", ... ]               裸数组
+ */
+function extractModelItems(payload: unknown): unknown[] | null {
+  if (Array.isArray(payload)) return payload
+  if (!isRecord(payload)) return null
+  for (const key of ['data', 'models', 'items']) {
+    if (Array.isArray(payload[key])) return payload[key] as unknown[]
+  }
+  return null
+}
 
-  return new Set(payload.data.flatMap((item) => {
-    if (!isRecord(item) || typeof item.id !== 'string' || !item.id.trim()) return []
-    return [item.id.trim()]
-  }))
+function getAvailableModelIds(payload: unknown) {
+  const items = extractModelItems(payload)
+  if (!items) throw new Error('模型列表格式不受支持')
+
+  const ids = new Set<string>()
+  for (const item of items) {
+    if (typeof item === 'string') {
+      const trimmed = item.trim().replace(/^models\//, '')
+      if (trimmed) ids.add(trimmed)
+      continue
+    }
+    if (!isRecord(item)) continue
+
+    const raw =
+      typeof item.id === 'string'
+        ? item.id
+        : typeof item.name === 'string'
+          ? item.name
+          : ''
+    const normalized = raw.trim().replace(/^models\//, '')
+    if (normalized) ids.add(normalized)
+  }
+  return ids
 }
 
 export function filterGeminiImageModelsByNativeModelList(catalog: readonly ImageModelDefinition[], payload: unknown) {
