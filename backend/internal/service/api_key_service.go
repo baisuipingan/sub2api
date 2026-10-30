@@ -103,6 +103,9 @@ type APIKeyRepository interface {
 	// 单独一组方法而不是复用 Create/Update：系统密钥不参与用户配额、
 	// 不做分组权限校验，且必须能按 (userID, name) 幂等查找。
 	GetSystemKey(ctx context.Context, userID int64, name string) (*APIKey, error)
+	// ListSystemKeyIDs 返回该用户名下所有系统托管密钥的 id。
+	// 列表查询走 ent（无 key_type 字段），用它补标，前端才能禁用相关操作。
+	ListSystemKeyIDs(ctx context.Context, userID int64) (map[int64]struct{}, error)
 	CreateSystemKey(ctx context.Context, key *APIKey) error
 	UpdateSystemKeyGroup(ctx context.Context, id int64, groupID *int64) error
 	IsSystemKey(ctx context.Context, id int64) (bool, error)
@@ -696,7 +699,25 @@ func (s *APIKeyService) List(ctx context.Context, userID int64, params paginatio
 		return nil, nil, fmt.Errorf("list api keys: %w", err)
 	}
 	s.fillCurrentConcurrency(ctx, keys)
+	s.markSystemKeys(ctx, userID, keys)
 	return keys, pagination, nil
+}
+
+// markSystemKeys 给系统托管密钥打上 key_type，供前端禁用编辑/删除/换分组。
+// 失败不影响列表本身，最多是前端多显示几个可点按钮（后端仍会拦）。
+func (s *APIKeyService) markSystemKeys(ctx context.Context, userID int64, keys []APIKey) {
+	if len(keys) == 0 {
+		return
+	}
+	ids, err := s.apiKeyRepo.ListSystemKeyIDs(ctx, userID)
+	if err != nil || len(ids) == 0 {
+		return
+	}
+	for i := range keys {
+		if _, ok := ids[keys[i].ID]; ok {
+			keys[i].KeyType = APIKeyTypeSystem
+		}
+	}
 }
 
 func (s *APIKeyService) listByCurrentConcurrency(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {

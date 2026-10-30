@@ -1151,6 +1151,28 @@ func (r *apiKeyRepository) UpdateSystemKeyGroup(ctx context.Context, id int64, g
 
 // IsSystemKey 判断某个密钥是否为系统托管类型。
 // 用于在删除/修改前拦截，避免用户误删工作台依赖的密钥。
+// ListSystemKeyIDs 返回用户所有系统托管密钥的 id 集合。
+//
+// 走原生 SQL：key_type 是后加列，ent schema 未包含，列表查询取不到。
+func (r *apiKeyRepository) ListSystemKeyIDs(ctx context.Context, userID int64) (map[int64]struct{}, error) {
+	query := `SELECT id FROM api_keys WHERE user_id = $1 AND key_type = $2 AND deleted_at IS NULL`
+	rows, err := r.sql.QueryContext(ctx, query, userID, service.APIKeyTypeSystem)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	ids := make(map[int64]struct{}, 4)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids[id] = struct{}{}
+	}
+	return ids, rows.Err()
+}
+
 func (r *apiKeyRepository) IsSystemKey(ctx context.Context, id int64) (bool, error) {
 	query := `SELECT key_type FROM api_keys WHERE id = $1 AND deleted_at IS NULL`
 
