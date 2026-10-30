@@ -5,13 +5,11 @@
     class="sticky top-0 z-40 border-b border-gray-200/80 bg-white/90 backdrop-blur dark:border-white/[0.08] dark:bg-dark-950/90"
   >
     <div
-      class="mx-auto flex min-h-14 w-full max-w-[1600px] items-center justify-between gap-3 px-5 py-2"
+      class="mx-auto flex min-h-12 w-full max-w-[1600px] items-center justify-end gap-3 px-5 py-2"
     >
-      <h1 class="min-w-0 truncate text-base font-semibold text-gray-950 dark:text-white">
-        {{ t('imageStudio.title') }}
-      </h1>
-
-      <div class="flex items-center gap-3">
+      <!-- 标题已由外层 AppHeader 提供，这里只保留连接状态与设置入口，
+           避免出现两行重复的「生图工作台」 -->
+      <div class="ml-auto flex items-center gap-3">
         <button
           type="button"
           class="flex items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm transition hover:bg-gray-50 dark:hover:bg-white/[0.06]"
