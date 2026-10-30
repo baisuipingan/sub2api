@@ -25,6 +25,12 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
+		// 生图工作台：返回（或按需创建）用户专属系统密钥
+		//
+		// 放在 JWT 认证组下而不是网关组：用户不需要知道自己有这把密钥，
+		// 前端拿到后直接用它调 /v1/images/*，计费仍走原有链路。
+		authenticated.GET("/image-studio/key", h.ImageStudio.GetKey)
+
 		// 用户接口
 		user := authenticated.Group("/user")
 		{

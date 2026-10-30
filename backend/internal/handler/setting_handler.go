@@ -81,6 +81,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
 		RechargeLinkMode:                    settings.RechargeLinkMode,
 		RechargeCustomURL:                   settings.RechargeCustomURL,
+		ImageStudioEnabled:                                     settings.ImageStudioEnabled,
+		ImageStudioGroupID:                                     settings.ImageStudioGroupID,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),

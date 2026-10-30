@@ -390,6 +390,8 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 	SettingKeyRechargeLinkMode            = "recharge_link_mode"            // 充值按钮跳转模式：internal / custom
 	SettingKeyRechargeCustomURL           = "recharge_custom_url"           // 自定义充值链接（卡网等）
+	SettingKeyImageStudioEnabled          = "image_studio_enabled"          // 是否启用生图工作台
+	SettingKeyImageStudioGroupID          = "image_studio_group_id"         // 生图工作台使用的分组 ID
 
 	// 默认配置
 	SettingKeyDefaultConcurrency   = "default_concurrency"    // 新用户默认并发量

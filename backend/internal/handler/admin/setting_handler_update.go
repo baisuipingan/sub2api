@@ -166,6 +166,8 @@ type UpdateSettingsRequest struct {
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
 	RechargeLinkMode            *string               `json:"recharge_link_mode"`
 	RechargeCustomURL           *string               `json:"recharge_custom_url"`
+	ImageStudioEnabled          *bool                 `json:"image_studio_enabled"`
+	ImageStudioGroupID          *int64                `json:"image_studio_group_id"`
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
@@ -1253,6 +1255,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		rechargeCustomURL = strings.TrimSpace(*req.RechargeCustomURL)
 	}
 
+	// 生图工作台：启用开关 + 使用分组
+	imageStudioEnabled := previousSettings.ImageStudioEnabled
+	if req.ImageStudioEnabled != nil {
+		imageStudioEnabled = *req.ImageStudioEnabled
+	}
+	imageStudioGroupID := previousSettings.ImageStudioGroupID
+	if req.ImageStudioGroupID != nil {
+		imageStudioGroupID = *req.ImageStudioGroupID
+	}
+
 	// - 启用时要求 URL 合法且非空
 	// - 禁用时允许为空；若提供了 URL 也做基本校验，避免误配置
 	if purchaseEnabled {
@@ -1668,6 +1680,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PurchaseSubscriptionURL:                purchaseURL,
 		RechargeLinkMode:                       rechargeMode,
 		RechargeCustomURL:                      rechargeCustomURL,
+		ImageStudioEnabled:                     imageStudioEnabled,
+		ImageStudioGroupID:                     imageStudioGroupID,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,

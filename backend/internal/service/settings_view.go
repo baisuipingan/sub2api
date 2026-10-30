@@ -162,6 +162,8 @@ type SystemSettings struct {
 	PurchaseSubscriptionURL     string
 	RechargeLinkMode            string
 	RechargeCustomURL           string
+	ImageStudioEnabled          bool
+	ImageStudioGroupID          int64
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
@@ -373,6 +375,8 @@ type PublicSettings struct {
 	PurchaseSubscriptionURL     string
 	RechargeLinkMode            string
 	RechargeCustomURL           string
+	ImageStudioEnabled          bool
+	ImageStudioGroupID          int64
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items

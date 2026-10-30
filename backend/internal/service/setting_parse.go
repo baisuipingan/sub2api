@@ -78,6 +78,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyPurchaseSubscriptionURL:                   "",
 		SettingKeyRechargeLinkMode:                          "internal",
 		SettingKeyRechargeCustomURL:                         "",
+		SettingKeyImageStudioEnabled:                        "true",
+		SettingKeyImageStudioGroupID:                        "",
 		SettingKeyTableDefaultPageSize:                      "20",
 		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
 		SettingKeyCustomMenuItems:                           "[]",
@@ -379,6 +381,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		RechargeLinkMode:                       strings.TrimSpace(settings[SettingKeyRechargeLinkMode]),
 		RechargeCustomURL:                      strings.TrimSpace(settings[SettingKeyRechargeCustomURL]),
+		ImageStudioEnabled:                     settings[SettingKeyImageStudioEnabled] != "false",
+		ImageStudioGroupID:                     parseInt64Setting(settings[SettingKeyImageStudioGroupID]),
 		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                        settings[SettingKeyCustomEndpoints],
 		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",
@@ -1009,6 +1013,20 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	})
 
 	return result
+}
+
+// parseInt64Setting 把设置里的字符串解析成 int64，空值或非法值返回 0。
+// 用于「可选的分组 ID」这类字段：0 表示未配置。
+func parseInt64Setting(raw string) int64 {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0
+	}
+	value, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || value < 0 {
+		return 0
+	}
+	return value
 }
 
 func normalizeOpenAITTFTMode(mode string) string {

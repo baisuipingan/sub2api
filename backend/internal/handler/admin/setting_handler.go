@@ -259,6 +259,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PurchaseSubscriptionURL:                                settings.PurchaseSubscriptionURL,
 		RechargeLinkMode:                                       settings.RechargeLinkMode,
 		RechargeCustomURL:                                      settings.RechargeCustomURL,
+		ImageStudioEnabled:                                     settings.ImageStudioEnabled,
+		ImageStudioGroupID:                                     settings.ImageStudioGroupID,
 		TableDefaultPageSize:                                   settings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   settings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(settings.CustomMenuItems),

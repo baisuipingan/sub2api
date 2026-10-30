@@ -167,6 +167,7 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
+    imageStudio: '生图工作台',
     usage: '使用记录',
     redeem: '兑换',
     affiliate: '邀请返利',

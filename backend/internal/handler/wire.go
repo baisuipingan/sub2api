@@ -158,6 +158,20 @@ func ProvideBatchImageHandler(
 	return h
 }
 
+// ProvideImageStudioHandler 装配生图工作台 handler。
+//
+// 依赖 APIKey / Setting / Group 三个服务：
+//   - APIKey：幂等创建「生图工作台专用」系统密钥
+//   - Setting：读取启用开关与使用分组
+//   - Group：校验分组存在且可用，避免配错后请求必然失败
+func ProvideImageStudioHandler(
+	apiKeyService *service.APIKeyService,
+	settingService *service.SettingService,
+	groupService *service.GroupService,
+) *ImageStudioHandler {
+	return NewImageStudioHandler(apiKeyService, settingService, groupService)
+}
+
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
@@ -202,6 +216,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	imageStudioHandler *ImageStudioHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -228,6 +243,7 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		ImageStudio:      imageStudioHandler,
 	}
 }
 
@@ -254,6 +270,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	ProvideImageStudioHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

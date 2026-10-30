@@ -497,6 +497,10 @@ export interface SystemSettings {
   recharge_link_mode?: RechargeLinkMode;
   /** recharge_link_mode=custom 时使用的链接，支持站外 URL 或站内路径 */
   recharge_custom_url?: string;
+  /** 是否启用生图工作台 */
+  image_studio_enabled?: boolean;
+  /** 生图工作台使用的分组 ID（0 表示未配置） */
+  image_studio_group_id?: number;
   home_content: string;
   compact_home_enabled: boolean;
   hide_ccs_import_button: boolean;
@@ -853,6 +857,10 @@ export interface UpdateSettingsRequest {
   recharge_link_mode?: 'internal' | 'custom';
   /** 自定义充值链接（卡网等） */
   recharge_custom_url?: string;
+  /** 是否启用生图工作台 */
+  image_studio_enabled?: boolean;
+  /** 生图工作台使用的分组 ID（0 表示未配置） */
+  image_studio_group_id?: number;
   home_content?: string;
   compact_home_enabled?: boolean;
   hide_ccs_import_button?: boolean;

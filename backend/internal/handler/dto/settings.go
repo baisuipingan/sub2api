@@ -163,6 +163,8 @@ type SystemSettings struct {
 	// 充值按钮跳转配置
 	RechargeLinkMode            string           `json:"recharge_link_mode"`
 	RechargeCustomURL           string           `json:"recharge_custom_url"`
+	ImageStudioEnabled          bool             `json:"image_studio_enabled"`
+	ImageStudioGroupID          int64            `json:"image_studio_group_id"`
 	TableDefaultPageSize        int              `json:"table_default_page_size"`
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
@@ -405,6 +407,8 @@ type PublicSettings struct {
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
 	RechargeLinkMode                    string                   `json:"recharge_link_mode"`
 	RechargeCustomURL                   string                   `json:"recharge_custom_url"`
+	ImageStudioEnabled                  bool                     `json:"image_studio_enabled"`
+	ImageStudioGroupID                  int64                    `json:"image_studio_group_id"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     []CustomMenuItem         `json:"custom_menu_items"`

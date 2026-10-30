@@ -349,6 +349,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	updates[SettingKeyRechargeLinkMode] = strings.TrimSpace(settings.RechargeLinkMode)
 	updates[SettingKeyRechargeCustomURL] = strings.TrimSpace(settings.RechargeCustomURL)
+	updates[SettingKeyImageStudioEnabled] = strconv.FormatBool(settings.ImageStudioEnabled)
+	updates[SettingKeyImageStudioGroupID] = strconv.FormatInt(settings.ImageStudioGroupID, 10)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(
 		settings.TableDefaultPageSize,
 		settings.TablePageSizeOptions,

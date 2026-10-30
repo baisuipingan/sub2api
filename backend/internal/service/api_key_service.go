@@ -96,6 +96,15 @@ type APIKeyRepository interface {
 	// Update 只写 fields 中显式声明的列，其余列保持库中当前值。
 	Update(ctx context.Context, key *APIKey, fields APIKeyUpdateFields) error
 	Delete(ctx context.Context, id int64) error
+
+	// 系统托管密钥（生图工作台专用）
+	//
+	// 单独一组方法而不是复用 Create/Update：系统密钥不参与用户配额、
+	// 不做分组权限校验，且必须能按 (userID, name) 幂等查找。
+	GetSystemKey(ctx context.Context, userID int64, name string) (*APIKey, error)
+	CreateSystemKey(ctx context.Context, key *APIKey) error
+	UpdateSystemKeyGroup(ctx context.Context, id int64, groupID *int64) error
+	IsSystemKey(ctx context.Context, id int64) (bool, error)
 	// DeleteWithAudit keeps the legacy interface name for rolling-upgrade compatibility.
 	// Implementations must tombstone the key and soft-delete it atomically without
 	// retaining the deleted credential material.
@@ -600,6 +609,75 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 }
 
 // List 获取用户的API Key列表
+/* ────────────────────────────────────────────────────────────────
+ * 生图工作台：系统托管密钥
+ * ──────────────────────────────────────────────────────────────── */
+
+// ImageStudioKeyName 是生图工作台专用密钥的固定名称。
+// 用它做幂等键：同一用户重复进入页面只会有一把。
+const ImageStudioKeyName = "生图工作台专用"
+
+// GetOrCreateImageStudioKey 返回当前用户的生图工作台密钥，不存在则创建。
+//
+// 设计要点：
+//   - 幂等：以 (user_id, name, key_type=system) 为唯一性依据
+//   - 分组跟随系统配置；管理员改动配置后，下次访问自动同步
+//   - 不计配额（Quota=0 表示无限），避免和用户自建密钥的额度互相干扰
+//   - 扣费仍走用户余额，与正常 API 调用完全一致
+func (s *APIKeyService) GetOrCreateImageStudioKey(ctx context.Context, userID int64, groupID *int64) (*APIKey, error) {
+	existing, err := s.apiKeyRepo.GetSystemKey(ctx, userID, ImageStudioKeyName)
+	if err != nil {
+		return nil, fmt.Errorf("get image studio key: %w", err)
+	}
+
+	if existing != nil {
+		// 管理员改过分组 → 同步，避免继续按旧分组调度
+		if !sameGroupID(existing.GroupID, groupID) {
+			if err := s.apiKeyRepo.UpdateSystemKeyGroup(ctx, existing.ID, groupID); err != nil {
+				return nil, fmt.Errorf("sync image studio key group: %w", err)
+			}
+			existing.GroupID = groupID
+		}
+		return existing, nil
+	}
+
+	key, err := s.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("generate image studio key: %w", err)
+	}
+
+	created := &APIKey{
+		UserID:  userID,
+		Key:     key,
+		Name:    ImageStudioKeyName,
+		GroupID: groupID,
+		Status:  StatusActive,
+		Quota:   0,
+		KeyType: APIKeyTypeSystem,
+	}
+	if err := s.apiKeyRepo.CreateSystemKey(ctx, created); err != nil {
+		return nil, fmt.Errorf("create image studio key: %w", err)
+	}
+
+	return created, nil
+}
+
+// IsSystemKey 判断密钥是否为系统托管（用户不可删除/改分组）。
+func (s *APIKeyService) IsSystemKey(ctx context.Context, id int64) (bool, error) {
+	return s.apiKeyRepo.IsSystemKey(ctx, id)
+}
+
+// sameGroupID 比较两个可空分组 ID。
+func sameGroupID(a, b *int64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 func (s *APIKeyService) List(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
 	if normalizedAPIKeySortBy(params.SortBy) == apiKeySortCurrentConcurrency {
 		return s.listByCurrentConcurrency(ctx, userID, params, filters)
@@ -803,6 +881,12 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		return nil, ErrInsufficientPerms
 	}
 
+	// 系统托管密钥只允许改「名称」这类无害字段，分组/状态由系统维护：
+	// 用户把分组改走后，工作台请求会打到错误的分组上。
+	if isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id); err == nil && isSystem && req.GroupID != nil {
+		return nil, ErrSystemKeyProtected
+	}
+
 	// 验证 IP 白名单格式
 	if req.IPWhitelist != nil && len(*req.IPWhitelist) > 0 {
 		if invalid := ip.ValidateIPPatterns(*req.IPWhitelist); len(invalid) > 0 {
@@ -952,6 +1036,12 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
 	// 验证当前用户是否为该 API Key 的所有者
 	if ownerID != userID {
 		return ErrInsufficientPerms
+	}
+
+	// 系统托管密钥（生图工作台专用）不允许用户删除：
+	// 删掉会让工作台立即不可用，而用户通常不知道自己依赖它。
+	if isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id); err == nil && isSystem {
+		return ErrSystemKeyProtected
 	}
 
 	// 事务内:写审计 + 软删除(tombstone)。

@@ -647,6 +647,13 @@ export default {
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:
           'Used for "Use Key", "Import to CC Switch", and callback URL suggestions. Leave empty to use current site URL.',
+        imageStudioTitle: 'Image Studio',
+        imageStudioDescription: 'Control availability and billed group for Image Studio',
+        imageStudioEnabled: 'Enable Image Studio',
+        imageStudioGroup: 'Billed group',
+        imageStudioGroupPlaceholder: 'Select a group',
+        imageStudioGroupHint: 'Image requests are routed and billed by this group; users do not configure API keys',
+        imageStudioGroupRequired: 'Image Studio will be unavailable until a group is selected',
         rechargeLinkTitle: 'Recharge Link',
         rechargeLinkDescription: 'Controls where the Recharge button on the dashboard balance card goes',
         rechargeLinkMode: 'Target',

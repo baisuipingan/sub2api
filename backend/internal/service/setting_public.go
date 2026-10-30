@@ -608,6 +608,8 @@ type PublicSettingsInjectionPayload struct {
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
 	RechargeLinkMode                    string                   `json:"recharge_link_mode"`
 	RechargeCustomURL                   string                   `json:"recharge_custom_url"`
+	ImageStudioEnabled                  bool                     `json:"image_studio_enabled"`
+	ImageStudioGroupID                  int64                    `json:"image_studio_group_id"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     json.RawMessage          `json:"custom_menu_items"`
@@ -710,6 +712,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
 		RechargeLinkMode:                    settings.RechargeLinkMode,
 		RechargeCustomURL:                   settings.RechargeCustomURL,
+		ImageStudioEnabled:                  settings.ImageStudioEnabled,
+		ImageStudioGroupID:                  settings.ImageStudioGroupID,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     filterUserVisibleMenuItems(settings.CustomMenuItems),

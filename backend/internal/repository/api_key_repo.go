@@ -1057,3 +1057,99 @@ func derefString(s *string) string {
 	}
 	return *s
 }
+
+/* ────────────────────────────────────────────────────────────────
+ * 系统托管密钥（生图工作台专用）
+ *
+ * 这几处刻意使用原生 SQL 而不走 ent：key_type 是新增列，为它同步
+ * ent schema 需要重新生成约 200 个文件，收益远小于风险。
+ * 访问面很小（创建 / 查询 / 类型判断），用 SQL 更直接。
+ * ──────────────────────────────────────────────────────────────── */
+
+// GetSystemKey 取指定用户在某个用途下的系统密钥。
+// 找不到时返回 (nil, nil)，由调用方决定是否创建。
+func (r *apiKeyRepository) GetSystemKey(ctx context.Context, userID int64, name string) (*service.APIKey, error) {
+	query := `
+		SELECT id, user_id, key, name, group_id, status, quota, quota_used, created_at
+		FROM api_keys
+		WHERE user_id = $1
+		  AND name = $2
+		  AND key_type = $3
+		  AND deleted_at IS NULL
+		LIMIT 1
+	`
+
+	var (
+		id        int64
+		uid       int64
+		key       string
+		keyName   string
+		groupID   *int64
+		status    string
+		quota     float64
+		quotaUsed float64
+		createdAt time.Time
+	)
+
+	err := scanSingleRow(ctx, r.sql, query,
+		[]any{userID, name, service.APIKeyTypeSystem},
+		&id, &uid, &key, &keyName, &groupID, &status, &quota, &quotaUsed, &createdAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &service.APIKey{
+		ID:        id,
+		UserID:    uid,
+		Key:       key,
+		Name:      keyName,
+		GroupID:   groupID,
+		Status:    status,
+		Quota:     quota,
+		QuotaUsed: quotaUsed,
+		KeyType:   service.APIKeyTypeSystem,
+		CreatedAt: createdAt,
+	}, nil
+}
+
+// CreateSystemKey 插入一条系统托管密钥。
+func (r *apiKeyRepository) CreateSystemKey(ctx context.Context, key *service.APIKey) error {
+	query := `
+		INSERT INTO api_keys (user_id, key, name, group_id, status, quota, key_type, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		RETURNING id, created_at
+	`
+
+	return scanSingleRow(ctx, r.sql, query,
+		[]any{key.UserID, key.Key, key.Name, key.GroupID, key.Status, key.Quota, service.APIKeyTypeSystem},
+		&key.ID, &key.CreatedAt)
+}
+
+// UpdateSystemKeyGroup 同步系统密钥的分组（管理员改配置后需要生效）。
+func (r *apiKeyRepository) UpdateSystemKeyGroup(ctx context.Context, id int64, groupID *int64) error {
+	query := `
+		UPDATE api_keys
+		SET group_id = $1, updated_at = NOW()
+		WHERE id = $2 AND key_type = $3 AND deleted_at IS NULL
+	`
+	_, err := r.sql.ExecContext(ctx, query, groupID, id, service.APIKeyTypeSystem)
+	return err
+}
+
+// IsSystemKey 判断某个密钥是否为系统托管类型。
+// 用于在删除/修改前拦截，避免用户误删工作台依赖的密钥。
+func (r *apiKeyRepository) IsSystemKey(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT key_type FROM api_keys WHERE id = $1 AND deleted_at IS NULL`
+
+	var keyType string
+	if err := scanSingleRow(ctx, r.sql, query, []any{id}, &keyType); err != nil {
+		if err == sql.ErrNoRows {
+			return false, service.ErrAPIKeyNotFound
+		}
+		return false, err
+	}
+	return keyType == service.APIKeyTypeSystem, nil
+}

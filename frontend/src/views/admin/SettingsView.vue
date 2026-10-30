@@ -6504,6 +6504,62 @@
                 </div>
               </div>
 
+              <!-- 生图工作台 -->
+              <div
+                data-testid="image-studio-section"
+                class="border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ t("admin.settings.site.imageStudioTitle") }}
+                </h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.imageStudioDescription") }}
+                </p>
+
+                <div class="mt-4 space-y-4">
+                  <label
+                    class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"
+                  >
+                    <span class="text-sm text-gray-700 dark:text-dark-200">
+                      {{ t("admin.settings.site.imageStudioEnabled") }}
+                    </span>
+                    <Toggle v-model="form.image_studio_enabled" />
+                  </label>
+
+                  <div v-if="form.image_studio_enabled !== false">
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.site.imageStudioGroup") }}
+                    </label>
+                    <select
+                      v-model.number="form.image_studio_group_id"
+                      class="input"
+                    >
+                      <option :value="0">
+                        {{ t("admin.settings.site.imageStudioGroupPlaceholder") }}
+                      </option>
+                      <option
+                        v-for="group in imageStudioGroupOptions"
+                        :key="group.id"
+                        :value="group.id"
+                      >
+                        {{ group.name }}{{ group.status !== 'active' ? ` (${group.status})` : '' }}
+                      </option>
+                    </select>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.imageStudioGroupHint") }}
+                    </p>
+                    <p
+                      v-if="!form.image_studio_group_id"
+                      class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
+                    >
+                      {{ t("admin.settings.site.imageStudioGroupRequired") }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -9859,6 +9915,8 @@ const form = reactive<SettingsForm>({
   doc_url: "",
   recharge_link_mode: "internal",
   recharge_custom_url: "",
+  image_studio_enabled: true,
+  image_studio_group_id: 0,
   home_content: "",
   compact_home_enabled: false,
   backend_mode_enabled: false,
@@ -11280,6 +11338,23 @@ async function loadSettings() {
   }
 }
 
+/**
+ * 生图工作台可选分组。
+ *
+ * 只列可用分组：绑定了停用分组的密钥会让工作台请求必然失败，
+ * 所以拉全量后在模板里标注状态，由管理员自行判断。
+ */
+const imageStudioGroupOptions = ref<AdminGroup[]>([]);
+
+async function loadImageStudioGroups() {
+  try {
+    const groups = await adminAPI.groups.getAll();
+    imageStudioGroupOptions.value = groups;
+  } catch (_error: unknown) {
+    imageStudioGroupOptions.value = [];
+  }
+}
+
 async function loadSubscriptionGroups() {
   try {
     const groups = await adminAPI.groups.getAll();
@@ -11571,6 +11646,8 @@ async function saveSettings() {
       doc_url: form.doc_url,
       recharge_link_mode: form.recharge_link_mode || 'internal',
       recharge_custom_url: form.recharge_custom_url || '',
+      image_studio_enabled: form.image_studio_enabled !== false,
+      image_studio_group_id: Number(form.image_studio_group_id) || 0,
       home_content: form.home_content,
       compact_home_enabled: form.compact_home_enabled,
       backend_mode_enabled: form.backend_mode_enabled,
@@ -12974,6 +13051,7 @@ async function handleDeleteProvider() {
 onMounted(() => {
   loadSettings();
   loadSubscriptionGroups();
+  loadImageStudioGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();
   loadOllamaCloudUsageSettings();
