@@ -131,18 +131,53 @@ func (s *ImageStudioPricingService) resolvePricing(
 	})
 }
 
-// unitCost 计算单张实际成本，取值优先级与网关扣费完全一致：
+// imagePriceSource 表示单张价格的取值来源，顺序即优先级。
+type imagePriceSource int
+
+const (
+	imagePriceFromModelDefault imagePriceSource = iota // ④ 模型默认价
+	imagePriceFromGroupTier                            // ② 分组图片档位价
+	imagePriceFromChannel                              // ③ 渠道定价
+	imagePriceFromGroupModel                           // ① 分组模型级固定价
+)
+
+// chooseImagePriceSource 是「取哪一档价格」的唯一决策点。
 //
-//	① 分组模型级固定价（group.model_pricing，Source=Group，按次/按图片模式）
-//	② 渠道定价覆盖（Source=Channel，按次/按图片模式）
-//	③ 分组图片档位价 → 模型默认价，再乘倍率
+// 顺序必须与网关 calculateOpenAIImageCost 一致，抽成纯函数是为了能用测试锁住：
+// 一旦有人调换顺序，测试立刻失败，而不是等用户发现页面价和账单不一致。
 //
-// 前两级必须走 CalculateCostUnified：分组模型级定价（例如给
-// gpt-image-2.5 单独配 0.198/张）只在那里生效。
-// 早先这里直接调 CalculateImageCost，会跳过它，导致页面显示默认兜底价
-// （0.0268）而实际按 0.0396 扣费。
+// 关键点：分组档位价（②）优先于渠道价（③）—— 分组同时配了两者时，
+// 网关会用分组档位价扣费。
+func chooseImagePriceSource(resolved *ResolvedPricing, hasGroupTierPrice bool) imagePriceSource {
+	imageMode := resolved != nil &&
+		(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest)
+
+	if imageMode && resolved.Source == PricingSourceGroup {
+		return imagePriceFromGroupModel
+	}
+	if hasGroupTierPrice {
+		return imagePriceFromGroupTier
+	}
+	if imageMode && resolved.Source == PricingSourceChannel {
+		return imagePriceFromChannel
+	}
+	return imagePriceFromModelDefault
+}
+
+// unitCost 计算单张实际成本。
 //
-// 返回 ok=false 表示该档位取不到可信价格，调用方应省略而不是填 0。
+// 这里的取值顺序**必须与网关 calculateOpenAIImageCost 逐条对齐**，
+// 否则「页面预估」和「实际扣费」会分叉：
+//
+//	① 分组模型级固定价（Source=Group，按次/按图片）
+//	② 分组图片档位价（image_price_1k/2k/4k）
+//	③ 渠道定价（Source=Channel，按次/按图片）
+//	④ 模型默认价
+//
+// 特别注意 ② 必须在 ③ 之前：分组同时配了档位价和渠道价时，
+// 网关优先用分组档位价，顺序反了就会“显示渠道价、扣分组价”。
+//
+// 返回 ok=false 表示取不到可信价格，调用方应省略该档位而不是填 0。
 func (s *ImageStudioPricingService) unitCost(
 	ctx context.Context,
 	model string,
@@ -152,35 +187,48 @@ func (s *ImageStudioPricingService) unitCost(
 	multiplier float64,
 	resolved *ResolvedPricing,
 ) (float64, bool) {
-	if s.billing == nil {
+	if s.billing == nil || group == nil {
 		return 0, false
 	}
 
-	imageMode := resolved != nil &&
-		(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) &&
-		(resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel)
-
-	if imageMode {
-		groupID := group.ID
-		breakdown, err := s.billing.CalculateCostUnified(CostInput{
-			Ctx:            ctx,
-			Model:          model,
-			GroupID:        &groupID,
-			Group:          group,
-			RequestCount:   1,
-			SizeTier:       tier,
-			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
-			Resolved:       resolved,
-		})
-		if err == nil && breakdown != nil {
-			return breakdown.ActualCost, true
+	switch chooseImagePriceSource(resolved, group.GetImagePrice(tier) != nil) {
+	// ① 分组模型级固定价
+	case imagePriceFromGroupModel, imagePriceFromChannel:
+		if cost, ok := s.unifiedUnitCost(ctx, model, tier, group, multiplier, resolved); ok {
+			return cost, true
 		}
-		return 0, false
+		// 统一入口失败时，仍退回默认价（与网关 err 后兜底的行为一致）
 	}
 
-	breakdown := s.billing.CalculateImageCost(model, tier, 1, cfg, multiplier)
-	if breakdown == nil {
+	// ② 分组档位价与 ④ 默认价都走 CalculateImageCost
+	if breakdown := s.billing.CalculateImageCost(model, tier, 1, cfg, multiplier); breakdown != nil {
+		return breakdown.ActualCost, true
+	}
+	return 0, false
+}
+
+// unifiedUnitCost 走与网关完全相同的统一计费入口（按图片/按次模式）。
+func (s *ImageStudioPricingService) unifiedUnitCost(
+	ctx context.Context,
+	model string,
+	tier string,
+	group *Group,
+	multiplier float64,
+	resolved *ResolvedPricing,
+) (float64, bool) {
+	groupID := group.ID
+	breakdown, err := s.billing.CalculateCostUnified(CostInput{
+		Ctx:            ctx,
+		Model:          model,
+		GroupID:        &groupID,
+		Group:          group,
+		RequestCount:   1,
+		SizeTier:       tier,
+		RateMultiplier: multiplier,
+		Resolver:       s.resolver,
+		Resolved:       resolved,
+	})
+	if err != nil || breakdown == nil {
 		return 0, false
 	}
 	return breakdown.ActualCost, true
