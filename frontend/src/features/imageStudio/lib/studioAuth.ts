@@ -20,9 +20,16 @@ let pending: Promise<string | null> | null = null
 
 /** 向后端取（或按需创建）当前用户的生图工作台密钥 */
 async function fetchStudioKey(): Promise<StudioKeyResponse | null> {
+  // 面板接口走 JWT，不是 cookie：必须带上 localStorage 里的 access token，
+  // 否则会被鉴权中间件拒绝（401）。
+  const token = localStorage.getItem('auth_token')
+  if (!token) return null
+
   const response = await fetch('/api/v1/image-studio/key', {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
   })
 
   if (!response.ok) return null
