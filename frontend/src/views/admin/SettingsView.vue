@@ -6523,7 +6523,7 @@
                     <span class="text-sm text-gray-700 dark:text-dark-200">
                       {{ t("admin.settings.site.imageStudioEnabled") }}
                     </span>
-                    <Toggle v-model="form.image_studio_enabled" />
+                    <Toggle v-model="imageStudioEnabledModel" />
                   </label>
 
                   <div v-if="form.image_studio_enabled !== false">
@@ -11345,6 +11345,14 @@ async function loadSettings() {
  * 所以拉全量后在模板里标注状态，由管理员自行判断。
  */
 const imageStudioGroupOptions = ref<AdminGroup[]>([]);
+
+/** Toggle 要求 boolean，而设置项允许 undefined（历史数据无此字段），这里兜底为 true */
+const imageStudioEnabledModel = computed({
+  get: () => form.image_studio_enabled !== false,
+  set: (value: boolean) => {
+    form.image_studio_enabled = value;
+  },
+});
 
 async function loadImageStudioGroups() {
   try {

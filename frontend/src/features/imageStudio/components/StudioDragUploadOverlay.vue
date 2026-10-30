@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import StudioIcon from '../StudioIcon.vue'
+import StudioIcon from './StudioIcon.vue'
 
 defineProps<{
   visible: boolean
