@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import { canvasToBlob } from './canvasImage'
 import { blobToDataUrl } from './dataUrl'
 
@@ -8,7 +9,7 @@ export interface MaskCanvasSize {
 
 export function fillWhiteMask(canvas: HTMLCanvasElement) {
   const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) throw new Error('当前浏览器不支持 Canvas')
+  if (!context) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   context.globalCompositeOperation = 'source-over'
   context.clearRect(0, 0, canvas.width, canvas.height)
   context.fillStyle = '#fff'
@@ -18,10 +19,10 @@ export function fillWhiteMask(canvas: HTMLCanvasElement) {
 export function drawMaskImageToCanvas(maskImage: HTMLImageElement, maskCanvas: HTMLCanvasElement) {
   const maskAspect = maskImage.naturalWidth / maskImage.naturalHeight
   const canvasAspect = maskCanvas.width / maskCanvas.height
-  if (Math.abs(maskAspect - canvasAspect) > 0.001) throw new Error('遮罩尺寸与当前图片不一致')
+  if (Math.abs(maskAspect - canvasAspect) > 0.001) throw new Error(libT('imageStudio.lib.maskSizeMismatch'))
 
   const context = maskCanvas.getContext('2d', { willReadFrequently: true })
-  if (!context) throw new Error('当前浏览器不支持 Canvas')
+  if (!context) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   context.clearRect(0, 0, maskCanvas.width, maskCanvas.height)
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
@@ -46,7 +47,7 @@ export async function createOriginalSizeMaskDataUrl(canvas: HTMLCanvasElement, o
   output.width = originalSize.width
   output.height = originalSize.height
   const context = output.getContext('2d')
-  if (!context) throw new Error('当前浏览器不支持 Canvas')
+  if (!context) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
   context.drawImage(canvas, 0, 0, output.width, output.height)

@@ -1,3 +1,5 @@
+import { libT } from './i18nMessage'
+
 export async function copyTextToClipboard(text: string) {
   let asyncClipboardError: unknown = null
 
@@ -81,7 +83,7 @@ async function writeImageBlobToClipboard(blob: Blob) {
   }
 
   if (Object.keys(clipboardItems).length === 0) {
-    throw new Error('当前浏览器不支持图像剪贴板写入')
+    throw new Error(libT('imageStudio.lib.clipboardUnsupported'))
   }
 
   await navigator.clipboard.write([

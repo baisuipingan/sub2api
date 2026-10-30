@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { ImageResponseItem, TaskParams } from '../types'
 import { imageDataUrlToPngBlob, maskDataUrlToPngBlob, dataUrlToBlob } from './canvasImage'
 import { ApiTimeoutError, createApiError, redactSensitiveText } from './apiErrors'
@@ -82,7 +83,7 @@ function getStreamError(event: ImageStreamEvent) {
 }
 
 async function parseStreamingResponse(response: Response, params: TaskParams, onPartialImage?: CallApiOptions['onPartialImage']): Promise<ImageGenerateResult> {
-  if (!response.body) throw new Error('接口未返回图片流')
+  if (!response.body) throw new Error(libT('imageStudio.lib.noImageStream'))
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -101,7 +102,7 @@ async function parseStreamingResponse(response: Response, params: TaskParams, on
     try {
       event = JSON.parse(data) as ImageStreamEvent
     } catch {
-      throw new Error('接口返回了无法识别的图片流事件')
+      throw new Error(libT('imageStudio.lib.unknownStreamEvent'))
     }
     const streamError = getStreamError(event)
     if (streamError) throw new Error(streamError)
@@ -141,7 +142,7 @@ async function parseStreamingResponse(response: Response, params: TaskParams, on
   drainBlocks(true)
 
   const completed = finalEvent as ImageStreamEvent | null
-  if (!completed?.b64_json) throw new Error('图片流结束前未返回最终图片')
+  if (!completed?.b64_json) throw new Error(libT('imageStudio.lib.streamEndedWithoutImage'))
   const image = normalizeBase64Image(completed.b64_json, MIME_MAP[params.output_format] ?? 'image/png')
   return {
     images: [image],
@@ -175,7 +176,7 @@ async function parseImageItems(items: ImageResponseItem[], outputFormat: TaskPar
 async function parseResponse(response: Response, params: TaskParams, signal?: AbortSignal): Promise<ImageGenerateResult> {
   const payload = normalizeImageApiPayload(await response.json() as unknown)
   const parsed = await parseImageItems(payload.data, params.output_format, signal)
-  if (!parsed.images.length) throw new Error('模型未返回图片，请调整提示词后重试')
+  if (!parsed.images.length) throw new Error(libT('imageStudio.lib.modelReturnedNoImage'))
 
   return {
     images: parsed.images,

@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { MiloRouterBillingInfo } from '../types'
 import { ApiTimeoutError, createApiError } from './apiErrors'
 import { MILO_ROUTER_BASE_URL } from './miloRouterConfig'
@@ -35,7 +36,7 @@ export async function validateMiloRouterApiKey(apiKey: string, timeoutMs = 15_00
 
     const payload = await response.json() as unknown
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      throw new Error('MiloRouter 返回了无法识别的连接信息')
+      throw new Error(libT('imageStudio.lib.connectionPayloadUnknown'))
     }
 
     const record = payload as Record<string, unknown>
@@ -94,12 +95,12 @@ export async function fetchMiloRouterImageModels(apiKey: string, timeoutMs = 15_
           models = nonGeminiModels
         }
       }
-      if (!models.length) throw new Error('当前 API Key 没有可用的生图模型')
+      if (!models.length) throw new Error(libT('imageStudio.lib.noImageModels'))
       return models
     }
     if (!response.ok) throw createApiError(response.status, await getApiErrorMessage(response), key)
     const models = parseImageModelCatalog(await response.json() as unknown)
-    if (!models.length) throw new Error('当前 API Key 没有可用的生图模型')
+    if (!models.length) throw new Error(libT('imageStudio.lib.noImageModels'))
     return models
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {

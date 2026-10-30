@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import { assertUsableMaskCoverage, classifyMaskAlpha, type MaskCoverage } from './mask'
 import { blobToDataUrl } from './dataUrl'
 
@@ -22,7 +23,7 @@ export async function imageDataUrlToPngBlob(dataUrl: string): Promise<Blob> {
   canvas.width = image.naturalWidth
   canvas.height = image.naturalHeight
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('当前浏览器不支持 Canvas')
+  if (!ctx) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   ctx.drawImage(image, 0, 0)
   return canvasToBlob(canvas, 'image/png')
 }
@@ -47,14 +48,14 @@ export async function canvasToBlob(canvas: HTMLCanvasElement, type = 'image/png'
 export async function validateMaskMatchesImage(maskDataUrl: string, imageDataUrl: string): Promise<MaskCoverage> {
   const [maskImage, sourceImage] = await Promise.all([loadImage(maskDataUrl), loadImage(imageDataUrl)])
   if (maskImage.naturalWidth !== sourceImage.naturalWidth || maskImage.naturalHeight !== sourceImage.naturalHeight) {
-    throw new Error('遮罩尺寸与遮罩主图不一致，请重新绘制遮罩')
+    throw new Error(libT('imageStudio.lib.maskSizeMismatchRedraw'))
   }
 
   const canvas = document.createElement('canvas')
   canvas.width = maskImage.naturalWidth
   canvas.height = maskImage.naturalHeight
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) throw new Error('当前浏览器不支持 Canvas')
+  if (!ctx) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   ctx.drawImage(maskImage, 0, 0)
   const coverage = classifyMaskAlpha(ctx.getImageData(0, 0, canvas.width, canvas.height))
   assertUsableMaskCoverage(coverage)
@@ -64,14 +65,14 @@ export async function validateMaskMatchesImage(maskDataUrl: string, imageDataUrl
 export async function createMaskPreviewDataUrl(imageDataUrl: string, maskDataUrl: string): Promise<string> {
   const [image, mask] = await Promise.all([loadImage(imageDataUrl), loadImage(maskDataUrl)])
   if (image.naturalWidth !== mask.naturalWidth || image.naturalHeight !== mask.naturalHeight) {
-    throw new Error('遮罩尺寸与遮罩主图不一致，请重新绘制遮罩')
+    throw new Error(libT('imageStudio.lib.maskSizeMismatchRedraw'))
   }
 
   const canvas = document.createElement('canvas')
   canvas.width = image.naturalWidth
   canvas.height = image.naturalHeight
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) throw new Error('当前浏览器不支持 Canvas')
+  if (!ctx) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
 
   ctx.drawImage(image, 0, 0)
 
@@ -79,7 +80,7 @@ export async function createMaskPreviewDataUrl(imageDataUrl: string, maskDataUrl
   maskCanvas.width = mask.naturalWidth
   maskCanvas.height = mask.naturalHeight
   const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
-  if (!maskCtx) throw new Error('当前浏览器不支持 Canvas')
+  if (!maskCtx) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   maskCtx.drawImage(mask, 0, 0)
   const maskPixels = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height)
 
@@ -96,14 +97,14 @@ export async function createMaskPreviewDataUrl(imageDataUrl: string, maskDataUrl
   overlayCanvas.width = canvas.width
   overlayCanvas.height = canvas.height
   const overlayCtx = overlayCanvas.getContext('2d')
-  if (!overlayCtx) throw new Error('当前浏览器不支持 Canvas')
+  if (!overlayCtx) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   overlayCtx.putImageData(overlay, 0, 0)
   ctx.drawImage(overlayCanvas, 0, 0)
   return canvas.toDataURL('image/png')
 }
 
 export function applyMaskToInputPixels(source: Uint8ClampedArray, mask: Uint8ClampedArray) {
-  if (source.length !== mask.length) throw new Error('遮罩尺寸与遮罩主图不一致，请重新绘制遮罩')
+  if (source.length !== mask.length) throw new Error(libT('imageStudio.lib.maskSizeMismatchRedraw'))
 
   const output = new Uint8ClampedArray(source)
   for (let i = 0; i < output.length; i += 4) {
@@ -122,7 +123,7 @@ export function compositeMaskEditPixels(
   mask: Uint8ClampedArray,
 ) {
   if (source.length !== generated.length || source.length !== mask.length) {
-    throw new Error('局部编辑结果尺寸不一致')
+    throw new Error(libT('imageStudio.lib.editResultSizeMismatch'))
   }
 
   const output = new Uint8ClampedArray(source.length)
@@ -138,21 +139,21 @@ export function compositeMaskEditPixels(
 async function loadSameSizePixels(imageDataUrl: string, maskDataUrl: string) {
   const [image, mask] = await Promise.all([loadImage(imageDataUrl), loadImage(maskDataUrl)])
   if (image.naturalWidth !== mask.naturalWidth || image.naturalHeight !== mask.naturalHeight) {
-    throw new Error('遮罩尺寸与遮罩主图不一致，请重新绘制遮罩')
+    throw new Error(libT('imageStudio.lib.maskSizeMismatchRedraw'))
   }
 
   const imageCanvas = document.createElement('canvas')
   imageCanvas.width = image.naturalWidth
   imageCanvas.height = image.naturalHeight
   const imageContext = imageCanvas.getContext('2d', { willReadFrequently: true })
-  if (!imageContext) throw new Error('当前浏览器不支持 Canvas')
+  if (!imageContext) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   imageContext.drawImage(image, 0, 0)
 
   const maskCanvas = document.createElement('canvas')
   maskCanvas.width = mask.naturalWidth
   maskCanvas.height = mask.naturalHeight
   const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true })
-  if (!maskContext) throw new Error('当前浏览器不支持 Canvas')
+  if (!maskContext) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   maskContext.drawImage(mask, 0, 0)
 
   return {
@@ -171,7 +172,7 @@ export async function createMaskedInputImage(imageDataUrl: string, maskDataUrl: 
   canvas.width = loaded.width
   canvas.height = loaded.height
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('当前浏览器不支持 Canvas')
+  if (!context) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   context.putImageData(loaded.imagePixels, 0, 0)
   return blobToDataUrl(await canvasToBlob(canvas, 'image/png'))
 }
@@ -192,7 +193,7 @@ export async function compositeMaskEditResult(
   generatedCanvas.width = loaded.width
   generatedCanvas.height = loaded.height
   const generatedContext = generatedCanvas.getContext('2d', { willReadFrequently: true })
-  if (!generatedContext) throw new Error('当前浏览器不支持 Canvas')
+  if (!generatedContext) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   generatedContext.imageSmoothingEnabled = true
   generatedContext.imageSmoothingQuality = 'high'
   generatedContext.drawImage(generated, 0, 0, generatedCanvas.width, generatedCanvas.height)
@@ -203,7 +204,7 @@ export async function compositeMaskEditResult(
   output.width = loaded.width
   output.height = loaded.height
   const outputContext = output.getContext('2d')
-  if (!outputContext) throw new Error('当前浏览器不支持 Canvas')
+  if (!outputContext) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   outputContext.putImageData(loaded.imagePixels, 0, 0)
   const mime = outputFormat === 'jpeg' ? 'image/jpeg' : outputFormat === 'webp' ? 'image/webp' : 'image/png'
   return blobToDataUrl(await canvasToBlob(output, mime, outputCompression == null ? undefined : outputCompression / 100))

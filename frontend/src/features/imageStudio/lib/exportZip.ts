@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import { strFromU8, strToU8, unzip, zip } from 'fflate'
 import type { AppSettings, ExportData, FavoriteCollection, StoredImage, StoredImageThumbnail, TaskRecord } from '../types'
 import { bytesToDataUrl, dataUrlToBytes } from './dataUrl'
@@ -130,7 +131,7 @@ export function getExportZipPlan(
       sizes.push(0)
       index += 1
     }
-    if (sizes[index] + bytes >= maxBytes) throw new Error('单个备份分片超过大小限制')
+    if (sizes[index] + bytes >= maxBytes) throw new Error(libT('imageStudio.lib.backupShardTooLarge'))
     append(parts[index])
     sizes[index] += bytes
   }
@@ -141,7 +142,7 @@ export function getExportZipPlan(
 }
 
 export function createExportBlob(bytes: Uint8Array) {
-  if (bytes.byteLength >= MAX_EXPORT_ZIP_BYTES) throw new Error('生成的备份文件超过大小限制')
+  if (bytes.byteLength >= MAX_EXPORT_ZIP_BYTES) throw new Error(libT('imageStudio.lib.backupTooLarge'))
   const buffer = new ArrayBuffer(bytes.byteLength)
   new Uint8Array(buffer).set(bytes)
   return new Blob([buffer], { type: 'application/zip' })
@@ -189,9 +190,9 @@ function readZipFiles(bytes: Uint8Array, only?: string) {
 }
 
 function parseManifest(value: Uint8Array | undefined): ExportData {
-  if (!value) throw new Error('备份中缺少 manifest.json')
+  if (!value) throw new Error(libT('imageStudio.lib.backupMissingManifest'))
   const parsed = JSON.parse(strFromU8(value)) as ExportData
-  if (!parsed || typeof parsed !== 'object' || typeof parsed.version !== 'number') throw new Error('备份格式无法识别')
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.version !== 'number') throw new Error(libT('imageStudio.lib.backupFormatUnknown'))
   return parsed
 }
 

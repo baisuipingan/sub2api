@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import { ApiInvalidResponseError, getUserFacingApiErrorMessage } from './apiErrors'
 import { callGeminiImageApi } from './geminiImageApi'
 import { getImageModel } from './modelRegistry'
@@ -47,7 +48,7 @@ export async function callImageApi(opts: CallApiOptions): Promise<ImageGenerateR
   }
 
   await Promise.all(Array.from({ length: Math.min(IMAGE_REQUEST_CONCURRENCY, requestCount) }, runWorker))
-  if (!results.length) throw failures.sort((a, b) => a.requestIndex - b.requestIndex)[0]?.cause ?? new Error('模型未返回图片，请调整提示词后重试')
+  if (!results.length) throw failures.sort((a, b) => a.requestIndex - b.requestIndex)[0]?.cause ?? new Error(libT('imageStudio.lib.modelReturnedNoImage'))
 
   results.sort((a, b) => a.requestIndex - b.requestIndex)
   const images = results.map(({ result }) => result.images[0]).filter((image): image is string => Boolean(image))

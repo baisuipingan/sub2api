@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { StoredImage, StoredImageThumbnail, TaskRecord } from '../types'
 
 const DB_NAME = 'milorouter-ai-image'
@@ -211,7 +212,7 @@ async function createImageThumbnail(dataUrl: string) {
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
   const context = canvas.getContext('2d')
-  if (!context) throw new Error('当前浏览器不支持 Canvas')
+  if (!context) throw new Error(libT('imageStudio.lib.canvasUnsupported'))
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   return {
     thumbnailDataUrl: canvas.toDataURL('image/webp', THUMBNAIL_QUALITY),

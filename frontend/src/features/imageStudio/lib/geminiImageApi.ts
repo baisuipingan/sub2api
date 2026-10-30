@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { AppSettings, TaskParams } from '../types'
 import { ApiInvalidResponseError, ApiTimeoutError, createApiError, redactSensitiveText } from './apiErrors'
 import { getApiErrorMessage, normalizeBase64Image, type CallApiOptions, type ImageGenerateResult } from './imageApiShared'
@@ -45,7 +46,7 @@ export function mapGeminiImageConfig(size: string, resolution?: TaskParams['reso
 
 export function parseGeminiImageDataUrl(dataUrl: string) {
   const match = dataUrl.trim().match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i)
-  if (!match) throw new Error('参考图必须是 Base64 图片')
+  if (!match) throw new Error(libT('imageStudio.lib.referenceMustBeBase64'))
   return {
     inlineData: {
       mimeType: match[1].toLowerCase(),
@@ -103,7 +104,7 @@ function getUrl(modelId: string) {
 }
 
 export async function callGeminiImageApi(opts: CallApiOptions): Promise<ImageGenerateResult> {
-  if (opts.maskDataUrl) throw new Error('当前模型不支持遮罩编辑')
+  if (opts.maskDataUrl) throw new Error(libT('imageStudio.lib.modelNoMaskEditing'))
   const key = opts.settings.miloRouter.apiKey.trim()
   const modelId = opts.modelId ?? opts.settings.selectedModelId
   if (!key) throw createApiError(401)

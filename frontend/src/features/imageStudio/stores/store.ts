@@ -11,8 +11,9 @@ import type {
   TaskStatus,
 } from '../types'
 import { DEFAULT_PARAMS } from '../types'
+import i18n from '@/i18n'
 import { callImageApi } from '../lib/api'
-import { fetchMiloRouterImageModels, validateMiloRouterApiKey } from '../lib/miloRouterApi'
+import { fetchMiloRouterImageModels } from '../lib/miloRouterApi'
 import { createMiloRouterConfig, readStoredMiloRouterConfig, saveMiloRouterApiKey, stripApiKeysFromSettings } from '../lib/miloRouterConfig'
 import { getImageModel, getModelResolution, getRequestModelId, GPT_IMAGE_2_5_FLARE_MODEL_ID, GPT_IMAGE_2_5_SUNBURST_MODEL_ID, GPT_IMAGE_2_MODEL_ID, migrateLegacyImageModelId, type ImageModelDefinition } from '../lib/modelRegistry'
 import { getImageModelCapabilities } from '../lib/imageModelCapabilities'
@@ -113,8 +114,6 @@ interface AppState {
   settings: AppSettings
   setSettings: (patch: Partial<AppSettings>) => void
   setMiloRouterConfig: (patch: Partial<MiloRouterConfig>) => void
-  connectMiloRouter: (options?: { silent?: boolean }) => Promise<boolean>
-  refreshMiloRouterBilling: () => Promise<void>
   refreshImageModelCatalog: () => Promise<boolean>
   modelCatalog: ImageModelDefinition[]
   /** 后端算出的单张实价：map[计费模型][尺寸档位]，已含倍率 */
@@ -122,11 +121,6 @@ interface AppState {
   setImagePricing: (pricing: Record<string, Record<string, number>>) => void
   catalogStatus: 'idle' | 'loading' | 'ready' | 'error'
   catalogError?: string
-  connectionDialogOpen: boolean
-  connectionDialogReason: 'first-run' | 'generate' | 'manage'
-  resumeGenerationAfterConnect: boolean
-  openConnectionDialog: (reason?: AppState['connectionDialogReason']) => void
-  closeConnectionDialog: () => void
   selectModel: (modelId: string) => void
 
   prompt: string
@@ -207,9 +201,7 @@ const buildStore: StoreBuilder = (set, get) => ({
         imagePricing: {},
         catalogStatus: 'idle',
         catalogError: undefined,
-        connectionDialogOpen: false,
         connectionDialogReason: 'manage',
-        resumeGenerationAfterConnect: false,
         setSettings: (patch) => set((state) => ({
           settings: normalizeSettings({ ...state.settings, ...patch }),
         })),
@@ -233,16 +225,6 @@ const buildStore: StoreBuilder = (set, get) => ({
             ...(keyChanged ? { modelCatalog: [], catalogStatus: 'idle' as const, catalogError: undefined } : {}),
           }
         }),
-        openConnectionDialog: (connectionDialogReason = 'manage') => set({
-          connectionDialogOpen: true,
-          connectionDialogReason,
-          resumeGenerationAfterConnect: connectionDialogReason === 'generate',
-        }),
-        closeConnectionDialog: () => set((state) => ({
-          connectionDialogOpen: false,
-          resumeGenerationAfterConnect: false,
-          settings: { ...state.settings, connectionOnboardingSeen: true },
-        })),
         selectModel: (modelId) => set((state) => {
           const model = state.modelCatalog.find((item) => item.id === modelId)
           if (!model) return state
@@ -278,81 +260,11 @@ const buildStore: StoreBuilder = (set, get) => ({
             return true
           } catch {
             if (get().settings.miloRouter.apiKey.trim() !== apiKey) return false
-            set({ modelCatalog: [], catalogStatus: 'error', catalogError: '模型列表加载失败，请稍后重试' })
+            set({ modelCatalog: [], catalogStatus: 'error', catalogError: st('imageStudio.store.catalogFailed') })
             return false
           }
         },
         setImagePricing: (imagePricing) => set({ imagePricing }),
-        connectMiloRouter: async (options) => {
-          const current = get().settings.miloRouter
-          if (!current.apiKey.trim()) {
-            get().showToast('请输入 MiloRouter API Key', 'error')
-            return false
-          }
-          set((state) => ({
-            settings: {
-              ...state.settings,
-              miloRouter: { ...state.settings.miloRouter, connectionStatus: 'checking', error: undefined },
-            },
-          }))
-          try {
-            const billing = await validateMiloRouterApiKey(current.apiKey)
-            if (get().settings.miloRouter.apiKey.trim() !== current.apiKey.trim()) return false
-            set((state) => ({
-              settings: {
-                ...state.settings,
-                miloRouter: { ...state.settings.miloRouter, connectionStatus: 'connected', billing, error: undefined },
-              },
-            }))
-            if (!await get().refreshImageModelCatalog()) {
-              get().showToast('模型列表加载失败，请重试', 'error')
-              return false
-            }
-            const resumeGeneration = get().resumeGenerationAfterConnect
-            set((state) => ({
-              connectionDialogOpen: false,
-              resumeGenerationAfterConnect: false,
-              settings: { ...state.settings, connectionOnboardingSeen: true },
-            }))
-            if (!options?.silent) get().showToast('MiloRouter 已连接', 'success')
-            if (resumeGeneration) window.setTimeout(() => void submitTask(), 0)
-            return true
-          } catch (error) {
-            const message = getUserFacingApiErrorMessage(error)
-            set((state) => ({
-              settings: {
-                ...state.settings,
-                miloRouter: { ...state.settings.miloRouter, connectionStatus: 'error', error: message },
-              },
-              modelCatalog: [],
-              catalogStatus: 'idle',
-              catalogError: undefined,
-            }))
-            if (!options?.silent) get().showToast(message, 'error')
-            return false
-          }
-        },
-        refreshMiloRouterBilling: async () => {
-          const current = get().settings.miloRouter
-          const apiKey = current.apiKey.trim()
-          if (!apiKey || current.connectionStatus !== 'connected') return
-          try {
-            const billing = await validateMiloRouterApiKey(apiKey)
-            set((state) => {
-              const latest = state.settings.miloRouter
-              if (latest.apiKey.trim() !== apiKey) return state
-              return {
-                settings: {
-                  ...state.settings,
-                  miloRouter: { ...latest, connectionStatus: 'connected', billing, error: undefined },
-                },
-              }
-            })
-          } catch {
-            // 启动刷新失败时保留现有连接状态，避免网络波动阻断创作。
-          }
-        },
-
         prompt: '',
         setPrompt: (prompt) => set({ prompt }),
         inputImages: [],
@@ -534,6 +446,16 @@ function createImageStudioStore(): AppState {
  * 若保持普通对象，模板读取不会建立依赖，状态变了 UI 也不更新
  * —— 表现为「接口返回正确但页面始终是初始值」。
  */
+/**
+ * store 里没有组件上下文，用全局 i18n 实例翻译。
+ *
+ * 这些提示会直接弹给用户（toast / 错误原因），必须跟随界面语言，
+ * 不能把中文写死在逻辑里。
+ */
+function st(key: string, params?: Record<string, unknown>): string {
+  return i18n.global.t(key, params as never)
+}
+
 const storeState = reactive({}) as AppState
 
 export const useStore = Object.assign(() => storeState, {
@@ -584,7 +506,7 @@ export function initStore(): Promise<void> {
       // 上次退出时仍在生成的任务 → 标记为中断
       const interrupted = favoriteState.tasks.map((task) =>
         task.status === 'running'
-          ? { ...task, ...createTaskErrorPatch(task, '上次生成已中断', Date.now()) }
+          ? { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()) }
           : task,
       )
       await Promise.all(
@@ -616,7 +538,7 @@ export function initStore(): Promise<void> {
       })
     } catch (error) {
       console.warn('初始化本地数据失败', error)
-      useStore.getState().showToast('本地数据读取失败', 'error')
+      useStore.getState().showToast(st('imageStudio.store.localLoadFailed'), 'error')
     }
   })()
 
@@ -627,35 +549,36 @@ export async function submitTask() {
   const state = useStore.getState()
   const prompt = state.prompt.trim()
   if (!prompt) {
-    state.showToast('请输入提示词', 'error')
+    state.showToast(st('imageStudio.store.promptRequired'), 'error')
     return
   }
   const apiKey = state.settings.miloRouter.apiKey.trim()
   if (!apiKey || state.settings.miloRouter.connectionStatus !== 'connected') {
-    state.openConnectionDialog('generate')
-    state.showToast('请先连接 MiloRouter', 'error')
+    // 密钥由系统下发，用户无法也不该手填；这里只提示去哪恢复。
+    state.showToast(st('imageStudio.store.keyNotReady'), 'error')
+    state.setShowSettings(true)
     return
   }
   if (state.catalogStatus !== 'ready') {
-    state.showToast(state.catalogError ?? '模型列表正在加载，请稍后重试', 'error')
+    state.showToast(state.catalogError ?? st('imageStudio.store.catalogLoading'), 'error')
     return
   }
   if (state.tasks.some((task) => task.status === 'running')) {
-    state.showToast('请等待当前任务完成', 'info')
+    state.showToast(st('imageStudio.store.waitTask'), 'info')
     return
   }
 
   const modelId = state.settings.selectedModelId
   const model = getImageModel(modelId, state.modelCatalog)
   if (!model) {
-    state.showToast('请选择有效的生图模型', 'error')
+    state.showToast(st('imageStudio.store.modelInvalid'), 'error')
     return
   }
   const params = normalizeParamsForSettings(state.params, state.settings, state.modelCatalog)
   const capabilities = getImageModelCapabilities(modelId, state.modelCatalog)
   const requestModelId = getRequestModelId(model, params.size, params.resolution)
   if (!requestModelId) {
-    state.showToast('当前清晰度没有可用模型', 'error')
+    state.showToast(st('imageStudio.store.resolutionUnavailable'), 'error')
     return
   }
   const inputImages = state.inputImages
@@ -666,7 +589,7 @@ export async function submitTask() {
   const maskDraft = capabilities.mask ? state.maskDraft : null
   if (maskDraft && !inputImages.some((image) => image.id === maskDraft.targetImageId)) {
     state.clearMaskDraft()
-    state.showToast('遮罩主图已不存在，请重新选择', 'error')
+    state.showToast(st('imageStudio.store.maskTargetMissing'), 'error')
     return
   }
 
@@ -675,7 +598,7 @@ export async function submitTask() {
     : inputImages
   const inputImageDataUrls = await Promise.all(orderedInputImages.map(async (image) => image.dataUrl || await ensureImageCached(image.id) || ''))
   if (inputImageDataUrls.some((url) => !url)) {
-    state.showToast('参考图读取失败，请重新上传', 'error')
+    state.showToast(st('imageStudio.store.referenceReadFailed'), 'error')
     return
   }
   let requestInputImageDataUrls = inputImageDataUrls
@@ -695,7 +618,7 @@ export async function submitTask() {
       maskImageId = await storeImage(maskDraft.maskDataUrl, 'mask')
       cacheImage(maskImageId, maskDraft.maskDataUrl)
     } catch (error) {
-      state.showToast(error instanceof Error ? error.message : '遮罩无效', 'error')
+      state.showToast(error instanceof Error ? error.message : st('imageStudio.store.maskInvalid'), 'error')
       return
     }
   }
@@ -791,7 +714,7 @@ export async function submitTask() {
         if (paramsWithActualSize) actualParamsByImage[output.id] = paramsWithActualSize
       }
     }
-    if (!outputImages.length) throw new Error('模型未返回图片，请调整提示词后重试')
+    if (!outputImages.length) throw new Error(st('imageStudio.store.noImageReturned'))
 
     const finished = {
       ...task,
@@ -810,9 +733,8 @@ export async function submitTask() {
       return { tasks: taskList, streamPreviews }
     })
     await dbPutTask(finished)
-    void useStore.getState().refreshMiloRouterBilling()
-    state.showToast('任务已完成', 'success')
-    if (state.settings.taskCompletionNotification) showBrowserNotification('图片生成完成', { body: prompt })
+    state.showToast(st('imageStudio.store.taskDone'), 'success')
+    if (state.settings.taskCompletionNotification) showBrowserNotification(st('imageStudio.store.notificationTitle'), { body: prompt })
     if (state.settings.clearInputAfterSubmit) {
       useStore.setState({ prompt: '', inputImages: [], maskDraft: null })
     }
@@ -844,7 +766,7 @@ export function stopTaskGeneration(taskId: string) {
   controller.abort()
   const task = useStore.getState().tasks.find((item) => item.id === taskId)
   if (!task) return
-  const stopped = { ...task, ...createTaskErrorPatch(task, '已停止生成', Date.now()) }
+  const stopped = { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.stopped'), Date.now()) }
   useStore.setState((state) => {
     const { [taskId]: _, ...streamPreviews } = state.streamPreviews
     return { tasks: state.tasks.map((item) => item.id === taskId ? stopped : item), streamPreviews }
@@ -873,7 +795,7 @@ export async function reuseConfig(task: TaskRecord) {
     inputImages,
     maskDraft: null,
   })
-  state.showToast(modelAvailable ? '已复用任务参数' : '原模型当前不可用，已使用当前模型', modelAvailable ? 'success' : 'info')
+  state.showToast(modelAvailable ? st('imageStudio.store.paramsReused') : st('imageStudio.store.modelFallback'), modelAvailable ? 'success' : 'info')
 }
 
 export async function editOutputs(task: TaskRecord, imageIds = task.outputImages) {
@@ -881,7 +803,7 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
   const model = getImageModel(state.settings.selectedModelId, state.modelCatalog)
   const limit = Math.min(MAX_INPUT_IMAGES, model?.capabilities.referenceImages ?? 0)
   if (state.catalogStatus !== 'ready' || !limit) {
-    state.showToast('请先选择支持参考图的可用模型', 'info')
+    state.showToast(st('imageStudio.store.needReferenceModel'), 'info')
     return
   }
   if (state.inputImages.length >= limit) {
@@ -899,7 +821,7 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
   const next = [...state.inputImages, ...outputImages.filter((image) => image.dataUrl && !existingIds.has(image.id))]
   const inputImages = next.slice(0, limit)
   if (inputImages.length === state.inputImages.length) {
-    state.showToast('没有可添加的图片，图片可能已添加或暂不可用', 'info')
+    state.showToast(st('imageStudio.store.noImagesToAdd'), 'info')
     return
   }
   useStore.setState({
@@ -912,7 +834,7 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
     inputImages,
     maskDraft: null,
   })
-  state.showToast(next.length > limit ? `已加入参考图，最多支持 ${limit} 张` : '输出图片已加入参考图', 'success')
+  state.showToast(next.length > limit ? st('imageStudio.store.referenceLimit', { limit }) : st('imageStudio.store.outputsAdded'), 'success')
 }
 
 export async function editOutputMask(task: TaskRecord, imageId: string) {
@@ -920,7 +842,7 @@ export async function editOutputMask(task: TaskRecord, imageId: string) {
   const model = getImageModel(state.settings.selectedModelId, state.modelCatalog)
   const limit = Math.min(MAX_INPUT_IMAGES, model?.capabilities.referenceImages ?? 0)
   if (!task.outputImages.includes(imageId) || state.catalogStatus !== 'ready' || !model || (!model.capabilities.mask && !model.capabilities.transparentOutput) || !limit) {
-    state.showToast('请选择支持图片编辑的可用模型', 'info')
+    state.showToast(st('imageStudio.store.needEditModel'), 'info')
     return
   }
   if (!state.inputImages.some((image) => image.id === imageId) && state.inputImages.length >= limit) {
@@ -931,7 +853,7 @@ export async function editOutputMask(task: TaskRecord, imageId: string) {
   const latest = useStore.getState()
   if (latest.settings !== state.settings || latest.modelCatalog !== state.modelCatalog || latest.catalogStatus !== 'ready' || latest.inputImages !== state.inputImages || latest.prompt !== state.prompt || latest.params !== state.params || latest.maskDraft !== state.maskDraft || latest.imageEditSession !== state.imageEditSession) return
   if (!dataUrl) {
-    state.showToast('图片暂不可用，请重新加载后再试', 'info')
+    state.showToast(st('imageStudio.store.imageUnavailable'), 'info')
     return
   }
   // 编辑器使用独立会话；取消时不改动当前提示词、参数和参考图。
@@ -953,16 +875,16 @@ export async function editOutputMask(task: TaskRecord, imageId: string) {
 export async function retryTask(task: TaskRecord) {
   const state = useStore.getState()
   if (state.tasks.some((item) => item.status === 'running')) {
-    state.showToast('请等待当前任务完成或停止生成', 'info')
+    state.showToast(st('imageStudio.store.waitOrStop'), 'info')
     return
   }
   if (state.settings.miloRouter.connectionStatus !== 'connected' || state.catalogStatus !== 'ready') {
-    state.showToast('请先连接并加载可用模型', 'info')
+    state.showToast(st('imageStudio.store.needConnectedModel'), 'info')
     return
   }
   const modelId = task.modelId ?? getImageModel(task.apiModel ?? '')?.id
   if (!modelId || !state.modelCatalog.some((model) => model.id === modelId)) {
-    state.showToast('原模型当前不可用，请复用配置后选择新模型', 'error')
+    state.showToast(st('imageStudio.store.modelUnavailableReuse'), 'error')
     return
   }
   await reuseConfig(task)
@@ -1000,7 +922,7 @@ export async function clearFailedTasks(taskIds: string[]) {
 }
 
 export async function addImageFromFile(file: File) {
-  if (!file.type.startsWith('image/')) throw new Error('请选择图片文件')
+  if (!file.type.startsWith('image/')) throw new Error(st('imageStudio.store.pickImageFile'))
   const dataUrl = await fileToDataUrl(file)
   const image = await storeImageWithSize(dataUrl, 'upload')
   useStore.getState().addInputImage({ id: image.id, dataUrl })
@@ -1015,7 +937,7 @@ export async function createInputImageFromFile(file: File) {
 
 export async function addImageFromUrl(url: string) {
   const response = await fetch(url)
-  if (!response.ok) throw new Error('图片读取失败')
+  if (!response.ok) throw new Error(st('imageStudio.store.imageReadFailed'))
   const dataUrl = await blobToDataUrl(await response.blob(), 'image/png')
   const image = await storeImageWithSize(dataUrl, 'upload')
   useStore.getState().addInputImage({ id: image.id, dataUrl })
@@ -1031,7 +953,7 @@ export async function deleteImageIfUnreferenced(id: string) {
 export async function clearData(options: { clearConfig?: boolean; clearTasks?: boolean }) {
   const state = useStore.getState()
   if (hasActiveDataOperations(state.tasks)) {
-    state.showToast('请等待生成任务完成', 'info')
+    state.showToast(st('imageStudio.store.waitGeneration'), 'info')
     return
   }
   if (options.clearTasks) {
@@ -1064,13 +986,13 @@ export async function clearData(options: { clearConfig?: boolean; clearTasks?: b
       imageEditSession: null,
     })
   }
-  state.showToast('本地数据已清理', 'success')
+  state.showToast(st('imageStudio.store.dataCleared'), 'success')
 }
 
 export async function exportData(options: { exportConfig?: boolean; exportTasks?: boolean }) {
   const state = useStore.getState()
   if (hasActiveDataOperations(state.tasks)) {
-    state.showToast('请等待生成任务完成后再备份', 'info')
+    state.showToast(st('imageStudio.store.waitBeforeBackup'), 'info')
     return
   }
   const images = options.exportTasks ? await getAllImages() : []
@@ -1107,13 +1029,13 @@ export async function exportData(options: { exportConfig?: boolean; exportTasks?
     link.click()
     URL.revokeObjectURL(url)
   }
-  state.showToast('备份已导出', 'success')
+  state.showToast(st('imageStudio.store.backupExported'), 'success')
 }
 
 export async function importData(file: File, options: { importConfig?: boolean; importTasks?: boolean }) {
   const state = useStore.getState()
   if (hasActiveDataOperations(state.tasks)) {
-    state.showToast('请等待生成任务完成后再恢复备份', 'info')
+    state.showToast(st('imageStudio.store.waitBeforeRestore'), 'info')
     return
   }
   try {
@@ -1147,10 +1069,10 @@ export async function importData(file: File, options: { importConfig?: boolean; 
         defaultFavoriteCollectionId: manifest.defaultFavoriteCollectionId ?? state.defaultFavoriteCollectionId,
       })
     }
-    state.showToast('备份已恢复', 'success')
+    state.showToast(st('imageStudio.store.backupRestored'), 'success')
   } catch (error) {
     console.error(error)
-    state.showToast('备份读取失败，请选择有效的完整备份', 'error')
+    state.showToast(st('imageStudio.store.backupInvalid'), 'error')
   }
 }
 
@@ -1228,16 +1150,16 @@ export function taskMatchesFilterStatus(task: TaskRecord, filterStatus: AppState
 
 export function taskMatchesSearchQuery(task: TaskRecord, query: string) {
   if (!query) return true
-  const modelName = task.modelName || getImageModel(task.apiModel ?? '')?.name || '历史模型'
+  const modelName = task.modelName || getImageModel(task.apiModel ?? '')?.name || st('imageStudio.store.legacyModel')
   const normalized = query.trim().toLowerCase()
   return stripImageMentionMarkers(task.prompt).toLowerCase().includes(normalized) || modelName.toLowerCase().includes(normalized)
 }
 
 export function getErrorToastMessage(message: string) {
   const text = message.trim()
-  if (!text) return '操作失败'
+  if (!text) return st('imageStudio.store.operationFailed')
   const firstLine = text.split(/\r?\n/)[0]?.trim() ?? ''
-  return firstLine.length > ERROR_TOAST_MAX_LENGTH ? '操作失败，请查看详情' : firstLine
+  return firstLine.length > ERROR_TOAST_MAX_LENGTH ? st('imageStudio.store.operationFailedDetail') : firstLine
 }
 
 function getToastMessage(message: string, type: ToastType) {

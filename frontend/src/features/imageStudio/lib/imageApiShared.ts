@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { AppSettings, ImageApiKind, ImageApiResponse, TaskParams } from '../types'
 import { blobToDataUrl } from './dataUrl'
 
@@ -66,11 +67,11 @@ export async function fetchImageUrlAsDataUrl(url: string, fallbackMime: string, 
 
   try {
     const response = await fetch(url, { cache: 'no-store', signal })
-    if (!response.ok) throw new Error(`图片读取失败：HTTP ${response.status}`)
+    if (!response.ok) throw new Error(libT('imageStudio.lib.imageReadHttpFailed', { status: response.status }))
     return blobToDataUrl(await response.blob(), fallbackMime)
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('图片读取失败')) throw error
-    throw new Error('图片链接无法读取，请稍后重试')
+    throw new Error(libT('imageStudio.lib.imageUrlUnreadable'))
   }
 }
 
@@ -86,11 +87,11 @@ export function getDataUrlDecodedByteSize(dataUrl: string) {
 }
 
 export function assertImageInputPayloadSize(bytes: number) {
-  if (bytes > MAX_IMAGE_INPUT_PAYLOAD_BYTES) throw new Error('参考图片总大小超过限制')
+  if (bytes > MAX_IMAGE_INPUT_PAYLOAD_BYTES) throw new Error(libT('imageStudio.lib.referencePayloadTooLarge'))
 }
 
 export function assertMaskEditFileSize(label: string, bytes: number) {
-  if (bytes > MAX_MASK_EDIT_FILE_BYTES) throw new Error(`${label}超过限制`)
+  if (bytes > MAX_MASK_EDIT_FILE_BYTES) throw new Error(libT('imageStudio.lib.fileTooLarge', { label }))
 }
 
 export async function getApiErrorMessage(response: Response) {
@@ -131,8 +132,8 @@ export function mergeActualParams(...sources: Array<Partial<TaskParams> | undefi
 }
 
 export function normalizeImageApiPayload(value: unknown): ImageApiResponse {
-  if (!value || typeof value !== 'object') throw new Error('接口返回了无法识别的数据')
+  if (!value || typeof value !== 'object') throw new Error(libT('imageStudio.lib.unexpectedPayload'))
   const data = (value as Record<string, unknown>).data
-  if (!Array.isArray(data)) throw new Error('接口未返回图片数据')
+  if (!Array.isArray(data)) throw new Error(libT('imageStudio.lib.noImageData'))
   return { ...(value as ImageApiResponse), data }
 }

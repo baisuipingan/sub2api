@@ -1,3 +1,4 @@
+import { libT } from './i18nMessage'
 import type { ImageApiKind, ImageResolutionTier, TaskParams } from '../types'
 import { getImageSizeTier } from './size'
 
@@ -264,7 +265,7 @@ function parseCatalogItem(value: unknown): ImageModelDefinition | null {
 }
 
 export function parseImageModelCatalog(payload: unknown) {
-  if (!isRecord(payload) || payload.version !== 1 || !Array.isArray(payload.data)) throw new Error('模型列表格式不受支持')
+  if (!isRecord(payload) || payload.version !== 1 || !Array.isArray(payload.data)) throw new Error(libT('imageStudio.lib.modelListFormatUnsupported'))
   const seen = new Set<string>()
   return payload.data
     .map(parseCatalogItem)
@@ -296,7 +297,7 @@ function extractModelItems(payload: unknown): unknown[] | null {
 
 function getAvailableModelIds(payload: unknown) {
   const items = extractModelItems(payload)
-  if (!items) throw new Error('模型列表格式不受支持')
+  if (!items) throw new Error(libT('imageStudio.lib.modelListFormatUnsupported'))
 
   const ids = new Set<string>()
   for (const item of items) {
@@ -320,7 +321,7 @@ function getAvailableModelIds(payload: unknown) {
 }
 
 export function filterGeminiImageModelsByNativeModelList(catalog: readonly ImageModelDefinition[], payload: unknown) {
-  if (!isRecord(payload) || !Array.isArray(payload.models)) throw new Error('Gemini 模型列表格式不受支持')
+  if (!isRecord(payload) || !Array.isArray(payload.models)) throw new Error(libT('imageStudio.lib.geminiModelListFormatUnsupported'))
 
   const availableIds = new Set(payload.models.flatMap((item) => {
     if (!isRecord(item)) return []
