@@ -1,10 +1,10 @@
 <template>
   <!-- 与其他用户页面一致：视图自身包一层 AppLayout，才能带上侧栏与顶栏 -->
   <AppLayout>
-    <!-- 桌面端固定为「视口高度 - 顶部栏」，整体不滚动：
+    <!-- 桌面端固定为「视口高度 - 顶部栏」，整体不滚动（顶部栏 64px 内容 + 1px 下边框）：
          左右两栏各自内部滚动，避免整页上下拖。移动端保持普通文档流。 -->
     <div
-      class="image-studio-root -m-4 flex flex-col md:-m-6 lg:-m-8 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden"
+      class="image-studio-root -m-4 flex flex-col md:-m-6 lg:-m-8 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden"
     >
       <StudioProductHeader />
 
