@@ -46,6 +46,7 @@ import StudioImageContextMenu from '@/features/imageStudio/components/StudioImag
 import StudioFavoriteCollectionPickerModal from '@/features/imageStudio/components/favorites/StudioFavoriteCollectionPickerModal.vue'
 import StudioToast from '@/features/imageStudio/components/StudioToast.vue'
 import { storeState as state, initStore } from '@/features/imageStudio/stores/store'
+import { loadImagePricing, collectBillingModels } from '@/features/imageStudio/lib/studioPricing'
 import { ensureStudioApiKey } from '@/features/imageStudio/lib/studioAuth'
 
 /**
@@ -58,6 +59,22 @@ onMounted(async () => {
   await ensureStudioApiKey()
   initStore()
 })
+
+/**
+ * 模型目录就绪后拉取单价表。
+ *
+ * 放在这里而不是 ensureStudioApiKey 里：用户点「重新获取模型」时目录会再变，
+ * 需要按新的模型集合重新取价。价格只影响显示，失败也不影响出图。
+ */
+watch(
+  () => [state.catalogStatus, state.modelCatalog.length] as const,
+  async ([status, count]) => {
+    if (status !== 'ready' || count === 0) return
+    const pricing = await loadImagePricing(collectBillingModels(state.modelCatalog))
+    if (Object.keys(pricing).length) state.setImagePricing(pricing)
+  },
+  { immediate: true },
+)
 
 /** 主题跟随：sub2api 用 class 控制暗色，这里同步到工作台根节点 */
 watch(

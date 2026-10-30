@@ -30,6 +30,8 @@ func RegisterUserRoutes(
 		// 放在 JWT 认证组下而不是网关组：用户不需要知道自己有这把密钥，
 		// 前端拿到后直接用它调 /v1/images/*，计费仍走原有链路。
 		authenticated.GET("/image-studio/key", h.ImageStudio.GetKey)
+		// 预估各模型单张实际成本（含倍率），供工作台展示
+		authenticated.POST("/image-studio/pricing", h.ImageStudio.EstimatePricing)
 
 		// 用户接口
 		user := authenticated.Group("/user")

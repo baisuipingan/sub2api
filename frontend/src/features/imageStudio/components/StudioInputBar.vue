@@ -314,6 +314,7 @@ import {
 } from '../lib/contentEditableMentions'
 import { getImageModelCapabilities } from '../lib/imageModelCapabilities'
 import { getGenerationEstimate } from '../lib/generationEstimate'
+import { normalizeBillingTier } from '../lib/studioPricing'
 import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
@@ -349,10 +350,27 @@ const checking = computed(() => state.settings.miloRouter.connectionStatus === '
 
 const visiblePrompt = computed(() => stripImageMentionMarkers(prompt.value))
 
+/**
+ * 当前配置下的单张实价。
+ *
+ * 优先用后端算出的价格（已含分组单价与倍率），拿不到时回退内置值。
+ * 依赖 state.imagePricing，所以价格一到就会自动刷新。
+ */
+const unitPrice = computed(() => {
+  const current = model.value
+  if (!current) return undefined
+
+  const tier = getModelResolution(current, params.value.size, params.value.resolution)
+  const billingModel = current.requestModels[tier] ?? current.requestModels.auto ?? current.id
+  const price = state.imagePricing?.[billingModel]?.[normalizeBillingTier(tier)]
+  return typeof price === 'number' && Number.isFinite(price) ? price : undefined
+})
+
 const estimate = computed(() =>
   state.catalogStatus === 'ready' && model.value
     ? getGenerationEstimate(
         getModelResolution(model.value, params.value.size, params.value.resolution),
+        unitPrice.value,
       )
     : null,
 )

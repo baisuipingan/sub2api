@@ -117,6 +117,9 @@ interface AppState {
   refreshMiloRouterBilling: () => Promise<void>
   refreshImageModelCatalog: () => Promise<boolean>
   modelCatalog: ImageModelDefinition[]
+  /** 后端算出的单张实价：map[计费模型][尺寸档位]，已含倍率 */
+  imagePricing: Record<string, Record<string, number>>
+  setImagePricing: (pricing: Record<string, Record<string, number>>) => void
   catalogStatus: 'idle' | 'loading' | 'ready' | 'error'
   catalogError?: string
   connectionDialogOpen: boolean
@@ -201,6 +204,7 @@ type StoreBuilder = (
 const buildStore: StoreBuilder = (set, get) => ({
         settings: defaultSettings(),
         modelCatalog: [],
+        imagePricing: {},
         catalogStatus: 'idle',
         catalogError: undefined,
         connectionDialogOpen: false,
@@ -278,6 +282,7 @@ const buildStore: StoreBuilder = (set, get) => ({
             return false
           }
         },
+        setImagePricing: (imagePricing) => set({ imagePricing }),
         connectMiloRouter: async (options) => {
           const current = get().settings.miloRouter
           if (!current.apiKey.trim()) {

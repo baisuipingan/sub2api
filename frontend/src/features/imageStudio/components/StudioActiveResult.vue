@@ -234,6 +234,7 @@ import {
   retryTask,
 } from '../stores/store'
 import { getEstimatedCredits } from '../lib/generationEstimate'
+import { normalizeBillingTier } from '../lib/studioPricing'
 import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 import { formatImageRatio, parseRatio } from '../lib/size'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
@@ -361,13 +362,26 @@ const ratioLabel = computed(() =>
 
 const consumedQuota = computed(() => {
   if (props.task.status === 'running') return t('imageStudio.result.calculating')
+
   const resolution = getModelResolution(
     taskModel.value ?? null,
     props.task.params.size,
     props.task.params.resolution,
   )
   const count = props.task.status === 'done' ? props.task.outputImages.length : 0
-  return getEstimatedCredits(resolution, count).toFixed(4)
+
+  // 用后端实价还原本次花费；取不到时退回内置估算
+  const billingModel =
+    taskModel.value?.requestModels[resolution] ?? taskModel.value?.requestModels.auto
+  const price = billingModel
+    ? state.imagePricing?.[billingModel]?.[normalizeBillingTier(resolution)]
+    : undefined
+
+  return getEstimatedCredits(
+    resolution,
+    count,
+    typeof price === 'number' && Number.isFinite(price) ? price : undefined,
+  ).toFixed(4)
 })
 
 const createdIso = computed(() => new Date(props.task.createdAt).toISOString())
