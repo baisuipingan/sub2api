@@ -1,31 +1,35 @@
 <template>
-  <div class="image-studio-root">
-    <StudioProductHeader />
+  <!-- 与其他用户页面一致：视图自身包一层 AppLayout，才能带上侧栏与顶栏 -->
+  <AppLayout>
+    <div class="image-studio-root -m-4 md:-m-6 lg:-m-8">
+      <StudioProductHeader />
 
-    <main
-      class="mx-auto grid w-full max-w-[1600px] gap-0 lg:grid-cols-[380px_minmax(0,1fr)]"
-    >
-      <StudioCreationPanel />
-      <StudioResultPanel />
-    </main>
+      <main
+        class="mx-auto grid w-full max-w-[1600px] gap-0 lg:grid-cols-[380px_minmax(0,1fr)]"
+      >
+        <StudioCreationPanel />
+        <StudioResultPanel />
+      </main>
 
     <!-- 全局浮层 -->
-    <StudioDetailModal />
-    <StudioLightbox />
-    <StudioMaskEditorModal />
-    <StudioSettingsModal />
-    <StudioConfirmDialog />
-    <StudioImageContextMenu />
-    <StudioFavoriteCollectionPickerModal
-      v-if="state.favoritePickerTaskIds"
-      @close="state.closeFavoritePicker()"
-    />
-    <StudioToast />
-  </div>
+      <StudioDetailModal />
+      <StudioLightbox />
+      <StudioMaskEditorModal />
+      <StudioSettingsModal />
+      <StudioConfirmDialog />
+      <StudioImageContextMenu />
+      <StudioFavoriteCollectionPickerModal
+        v-if="state.favoritePickerTaskIds"
+        @close="state.closeFavoritePicker()"
+      />
+      <StudioToast />
+    </div>
+  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
+import AppLayout from '@/components/layout/AppLayout.vue'
 import StudioProductHeader from '@/features/imageStudio/components/StudioProductHeader.vue'
 import StudioCreationPanel from '@/features/imageStudio/components/StudioCreationPanel.vue'
 import StudioResultPanel from '@/features/imageStudio/components/StudioResultPanel.vue'

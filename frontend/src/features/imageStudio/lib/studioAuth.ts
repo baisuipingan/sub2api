@@ -53,6 +53,12 @@ export async function ensureStudioApiKey(): Promise<string | null> {
         apiKey: data.key,
         connectionStatus: 'connected',
       })
+
+      // 拿到密钥后立即拉取可用模型列表。
+      // 原实现由 connectMiloRouter 一并完成，这里拆开是因为密钥来源变了，
+      // 但「已连接」状态必须伴随模型目录就绪，否则生成按钮不可用。
+      void state.refreshImageModelCatalog()
+
       return data.key
     } catch {
       return null
