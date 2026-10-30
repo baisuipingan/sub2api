@@ -2482,6 +2482,21 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 
+		// TTFT 模式：上方已按「请求值 → 旧值」算出，但原先没回给前端，
+		// 保存后下拉框会跳回默认。
+		OpenAITTFTMode: updatedSettings.OpenAITTFTMode,
+
+		// 生图工作台：与本文件顶部的赋值保持一致，否则保存后响应缺字段，
+		// 前端会把表单回写成零值（关闭 + 分组归零）。
+		ImageStudioEnabled: updatedSettings.ImageStudioEnabled,
+		ImageStudioGroupID: updatedSettings.ImageStudioGroupID,
+
+		// 充值跳转：保存后要把真实值回给前端。
+		// 漏了这两行时，响应里是空串，而前端会把响应整体回写进表单，
+		// 于是刚保存完就显示回「站内订阅页」，刷新（重新 GET）才恢复正常。
+		RechargeLinkMode:  updatedSettings.RechargeLinkMode,
+		RechargeCustomURL: updatedSettings.RechargeCustomURL,
+
 		RiskControlEnabled:          updatedSettings.RiskControlEnabled,
 		CyberSessionBlockEnabled:    updatedSettings.CyberSessionBlockEnabled,
 		CyberPolicyUserAllowlist:    updatedSettings.CyberPolicyUserAllowlist,

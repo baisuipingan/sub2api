@@ -6532,21 +6532,16 @@
                     >
                       {{ t("admin.settings.site.imageStudioGroup") }}
                     </label>
-                    <select
-                      v-model.number="form.image_studio_group_id"
-                      class="input"
-                    >
-                      <option :value="0">
-                        {{ t("admin.settings.site.imageStudioGroupPlaceholder") }}
-                      </option>
-                      <option
-                        v-for="group in imageStudioGroupOptions"
-                        :key="group.id"
-                        :value="group.id"
-                      >
-                        {{ group.name }}{{ group.status !== 'active' ? ` (${group.status})` : '' }}
-                      </option>
-                    </select>
+                    <!-- 与站内其它设置一致，使用公共 Select 组件（支持搜索、键盘操作、暗色主题） -->
+                    <Select
+                      :model-value="form.image_studio_group_id ?? 0"
+                      :options="imageStudioGroupOptions"
+                      :searchable="imageStudioGroupOptions.length > 6"
+                      :placeholder="t('admin.settings.site.imageStudioGroupPlaceholder')"
+                      @update:model-value="
+                        form.image_studio_group_id = Number($event) || 0
+                      "
+                    />
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                       {{ t("admin.settings.site.imageStudioGroupHint") }}
                     </p>
@@ -11344,7 +11339,20 @@ async function loadSettings() {
  * 只列可用分组：绑定了停用分组的密钥会让工作台请求必然失败，
  * 所以拉全量后在模板里标注状态，由管理员自行判断。
  */
-const imageStudioGroupOptions = ref<AdminGroup[]>([]);
+const imageStudioGroups = ref<AdminGroup[]>([]);
+
+/** Select 组件所需的选项结构；0 表示未配置 */
+const imageStudioGroupOptions = computed(() => [
+  {
+    value: 0,
+    label: t("admin.settings.site.imageStudioGroupPlaceholder"),
+  },
+  ...imageStudioGroups.value.map((group) => ({
+    value: group.id,
+    label:
+      group.status === "active" ? group.name : `${group.name}（${group.status}）`,
+  })),
+]);
 
 /** Toggle 要求 boolean，而设置项允许 undefined（历史数据无此字段），这里兜底为 true */
 const imageStudioEnabledModel = computed({
@@ -11357,9 +11365,9 @@ const imageStudioEnabledModel = computed({
 async function loadImageStudioGroups() {
   try {
     const groups = await adminAPI.groups.getAll();
-    imageStudioGroupOptions.value = groups;
+    imageStudioGroups.value = groups;
   } catch (_error: unknown) {
-    imageStudioGroupOptions.value = [];
+    imageStudioGroups.value = [];
   }
 }
 
