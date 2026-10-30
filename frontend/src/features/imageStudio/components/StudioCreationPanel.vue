@@ -1,7 +1,7 @@
 <template>
   <section
     :aria-label="t('imageStudio.creation.aria')"
-    class="flex min-h-0 flex-col border-b border-gray-200 bg-white dark:border-white/[0.08] dark:bg-dark-950 lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden lg:border-b-0 lg:border-r lg:self-start"
+    class="flex min-h-0 flex-col border-b border-gray-200 bg-white dark:border-white/[0.08] dark:bg-dark-950 lg:h-full lg:overflow-hidden lg:border-b-0 lg:border-r"
   >
     <div class="shrink-0 border-b border-gray-100 px-5 py-4 dark:border-white/[0.06]">
       <div class="flex items-center justify-between gap-3">

@@ -1,11 +1,15 @@
 <template>
   <!-- 与其他用户页面一致：视图自身包一层 AppLayout，才能带上侧栏与顶栏 -->
   <AppLayout>
-    <div class="image-studio-root -m-4 md:-m-6 lg:-m-8">
+    <!-- 桌面端固定为「视口高度 - 顶部栏」，整体不滚动：
+         左右两栏各自内部滚动，避免整页上下拖。移动端保持普通文档流。 -->
+    <div
+      class="image-studio-root -m-4 flex flex-col md:-m-6 lg:-m-8 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden"
+    >
       <StudioProductHeader />
 
       <main
-        class="mx-auto grid w-full max-w-[1600px] gap-0 lg:grid-cols-[380px_minmax(0,1fr)]"
+        class="mx-auto grid w-full max-w-[1600px] flex-1 gap-0 lg:min-h-0 lg:grid-cols-[380px_minmax(0,1fr)]"
       >
         <StudioCreationPanel />
         <StudioResultPanel />

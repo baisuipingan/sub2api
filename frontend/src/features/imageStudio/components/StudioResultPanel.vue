@@ -1,6 +1,6 @@
 <template>
   <section
-    class="min-h-[420px] min-w-0 bg-gray-50/80 px-4 py-5 dark:bg-dark-900/40 sm:px-7 lg:min-h-0"
+    class="min-h-[420px] min-w-0 bg-gray-50/80 px-4 py-5 dark:bg-dark-900/40 sm:px-7 lg:h-full lg:min-h-0 lg:overflow-y-auto"
     :aria-label="t('imageStudio.resultPanel.aria')"
   >
     <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
