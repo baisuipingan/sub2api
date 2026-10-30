@@ -56,15 +56,15 @@ export async function ensureStudioApiKey(): Promise<string | null> {
       const data = await fetchStudioKey()
       if (!data) return null
 
-      state.setMiloRouterConfig({
-        apiKey: data.key,
-        connectionStatus: 'connected',
-      })
+      // 分两步设置：setMiloRouterConfig 在检测到 apiKey 变化时会把
+      // connectionStatus 强制重置为 idle（用于清理旧连接），
+      // 同一批 patch 里带 connected 会被覆盖掉。
+      state.setMiloRouterConfig({ apiKey: data.key })
+      state.setMiloRouterConfig({ connectionStatus: 'connected' })
 
-      // 拿到密钥后立即拉取可用模型列表。
-      // 原实现由 connectMiloRouter 一并完成，这里拆开是因为密钥来源变了，
-      // 但「已连接」状态必须伴随模型目录就绪，否则生成按钮不可用。
-      void state.refreshImageModelCatalog()
+      // 拿到密钥后拉取可用模型列表。必须 await：模型目录就绪前
+      // 生成按钮不可用，用户会以为功能坏了。
+      await state.refreshImageModelCatalog()
 
       return data.key
     } catch {
