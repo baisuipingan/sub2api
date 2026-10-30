@@ -1,8 +1,12 @@
 <template>
   <!-- 嵌入到 sub2api 后不再需要站点 Logo 与大标题（外层已有）；
-       这里只保留连接状态与设置入口，避免出现双重顶栏。 -->
+       这里只保留连接状态与设置入口，避免出现双重顶栏。
+
+       注意：不要加 sticky —— 外层 AppHeader 已经是 sticky top-0，
+       两个吸顶条会抢占同一个位置，滚动时压在正文上。（曾出现
+       「创作」标题被遮掉一半的问题） -->
   <header
-    class="sticky top-0 z-40 border-b border-gray-200/80 bg-white/90 backdrop-blur dark:border-white/[0.08] dark:bg-dark-950/90"
+    class="border-b border-gray-200/80 bg-white dark:border-white/[0.08] dark:bg-dark-950"
   >
     <div
       class="mx-auto flex min-h-12 w-full max-w-[1600px] items-center justify-end gap-3 px-5 py-2"
