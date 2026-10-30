@@ -349,6 +349,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PurchaseSubscriptionURL:             strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		RechargeLinkMode:                    strings.TrimSpace(settings[SettingKeyRechargeLinkMode]),
 		RechargeCustomURL:                   strings.TrimSpace(settings[SettingKeyRechargeCustomURL]),
+		ImageStudioEnabled:                  settings[SettingKeyImageStudioEnabled] != "false",
+		ImageStudioGroupID:                  parseInt64Setting(settings[SettingKeyImageStudioGroupID]),
 		TableDefaultPageSize:                tableDefaultPageSize,
 		TablePageSizeOptions:                tablePageSizeOptions,
 		CustomMenuItems:                     settings[SettingKeyCustomMenuItems],
