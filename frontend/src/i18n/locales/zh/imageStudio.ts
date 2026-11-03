@@ -65,6 +65,7 @@ imageStudio: {
     deleteMessage: '确定要删除这个任务吗？关联的图片资源也会在没有其他任务引用时清理。',
   },
   result: {
+    rendering: '渲染中',
     title: '结果预览',
     previewAria: '结果预览',
     generating: '正在生成图片…',
@@ -440,6 +441,13 @@ imageStudio: {
     noImageModels: '当前 API Key 没有可用的生图模型',
     imageReadHttpFailed: '图片读取失败：HTTP {status}',
     fileTooLarge: '{label}超过限制',
+  },
+  history: {
+    title: '生成历史',
+    aria: '生成历史列表',
+    expand: '展开历史栏',
+    collapse: '收起历史栏',
+    empty: '还没有生成记录',
   },
 },
 }

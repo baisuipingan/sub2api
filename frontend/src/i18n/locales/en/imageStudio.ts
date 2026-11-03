@@ -65,6 +65,7 @@ imageStudio: {
     deleteMessage: 'Delete this task? Associated images are cleaned up when no other task references them.',
   },
   result: {
+    rendering: 'Rendering',
     title: 'Result preview',
     previewAria: 'Result preview',
     generating: 'Generating image…',
@@ -440,6 +441,13 @@ imageStudio: {
     noImageModels: 'This API key has no available image models',
     imageReadHttpFailed: 'Failed to read image: HTTP {status}',
     fileTooLarge: '{label} exceeds the size limit',
+  },
+  history: {
+    title: 'History',
+    aria: 'Generation history',
+    expand: 'Expand history',
+    collapse: 'Collapse history',
+    empty: 'No generations yet',
   },
 },
 }
