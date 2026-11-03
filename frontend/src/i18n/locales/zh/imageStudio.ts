@@ -415,6 +415,7 @@ imageStudio: {
     referenceLimit: '已加入参考图，最多支持 {limit} 张',
   },
   lib: {
+    clipboardNeedHttps: '复制需要 HTTPS 环境，请用 https 地址访问（或用 localhost）',
     clipboardUnsupported: '当前浏览器不支持图像剪贴板写入',
     modelListFormatUnsupported: '模型列表格式不受支持',
     geminiModelListFormatUnsupported: 'Gemini 模型列表格式不受支持',

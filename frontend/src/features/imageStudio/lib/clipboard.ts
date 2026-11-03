@@ -32,12 +32,12 @@ export async function copyImageSourceToClipboard(src: string | Promise<string | 
     return
   }
 
-  // 降级：非安全上下文（如用 IP + http 访问测试机）没有 navigator.clipboard.write，
-  // 此时退回「选中图片 + execCommand('copy')」这条老路子。
-  // 之前这里直接抛错，菜单项被隐藏，用户根本看不到「复制图片」。
-  if (copyImageWithExecCommand(resolvedSrc)) return
-
-  throw new Error('Clipboard image API is not available')
+  // 没有现代剪贴板 API 时直接给出明确原因。
+  //
+  // 这里原本还试过 execCommand('copy') 兜底，实测在 Chrome 里对 <img> 恒返回 false，
+  // 是个无效兜底，只会让人误以为「代码在努力但失败」。
+  // 真实限制：浏览器的异步剪贴板 API 仅在安全上下文（https / localhost）可用。
+  throw new Error(NEED_SECURE_CONTEXT)
 }
 
 /**
@@ -77,51 +77,28 @@ async function dataUrlToBlob(src: string): Promise<Blob> {
  * 但 execCommand 的降级路径其实是能用的。这里只要浏览器不是彻底没有剪贴板能力就返回 true，
  * 真正失败时由调用方给提示。
  */
+/**
+ * 当前环境能否复制图片。
+ *
+ * 浏览器的异步剪贴板 API 只在「安全上下文」可用：https 或 localhost。
+ * 用 http + IP 访问时（如内网测试机）无论怎么写代码都复制不了——
+ * execCommand 对图片在 Chrome 里始终返回 false，不存在可用的降级路径。
+ */
 export function canCopyImageToClipboard() {
   if (typeof window === 'undefined') return false
-  const hasModernApi =
-    window.isSecureContext && Boolean(navigator.clipboard?.write) && typeof ClipboardItem !== 'undefined'
-  // document.execCommand 在所有主流浏览器都存在（虽然已废弃），作为降级手段
-  const hasLegacyApi = typeof document !== 'undefined' && typeof document.execCommand === 'function'
-  return hasModernApi || hasLegacyApi
+  return window.isSecureContext && Boolean(navigator.clipboard?.write) && typeof ClipboardItem !== 'undefined'
 }
 
-/**
- * 用 execCommand 复制图片。
- *
- * 原理：把图片放进一个 contenteditable 容器并全选，再执行 copy。
- * 部分浏览器会把它作为图片写入剪贴板；不支持时会失败，由调用方提示。
- */
-function copyImageWithExecCommand(src: string): boolean {
-  if (typeof document === 'undefined') return false
-  const container = document.createElement('div')
-  container.contentEditable = 'true'
-  container.style.position = 'fixed'
-  container.style.left = '-9999px'
-  container.style.top = '0'
-  container.style.opacity = '0'
-
-  const img = document.createElement('img')
-  img.src = src
-  container.appendChild(img)
-  document.body.appendChild(container)
-
-  const selection = window.getSelection()
-  try {
-    const range = document.createRange()
-    range.selectNodeContents(container)
-    selection?.removeAllRanges()
-    selection?.addRange(range)
-    return document.execCommand('copy')
-  } catch {
-    return false
-  } finally {
-    selection?.removeAllRanges()
-    container.remove()
-  }
-}
+/** 需要安全上下文才能复制时的错误标记，供调用方识别并给出针对性提示 */
+export const NEED_SECURE_CONTEXT = 'NEED_SECURE_CONTEXT' as const
 
 export function getClipboardFailureMessage(fallback: string, err: unknown) {
+  // 最常见的一种：用 http + IP 访问（内网测试机）时浏览器不提供剪贴板 API。
+  // 必须直接说清楚「换 https 访问」，否则用户会以为是功能坏了。
+  if (err instanceof Error && err.message === NEED_SECURE_CONTEXT) {
+    return libT('imageStudio.lib.clipboardNeedHttps')
+  }
+
   if (isEmbeddedPage() && isClipboardPermissionError(err)) {
     return '复制失败：内嵌页面未授予剪贴板权限'
   }

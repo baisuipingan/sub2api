@@ -415,6 +415,7 @@ imageStudio: {
     referenceLimit: 'Added as references; up to {limit} allowed',
   },
   lib: {
+    clipboardNeedHttps: 'Copying requires HTTPS. Please use an https address (or localhost).',
     clipboardUnsupported: 'This browser cannot write images to the clipboard',
     modelListFormatUnsupported: 'Unsupported model list format',
     geminiModelListFormatUnsupported: 'Unsupported Gemini model list format',
