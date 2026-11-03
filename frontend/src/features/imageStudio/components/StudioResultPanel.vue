@@ -1,76 +1,142 @@
 <template>
   <section
-    class="min-h-[420px] min-w-0 bg-gray-50/80 px-4 py-5 dark:bg-dark-900/40 sm:px-7 lg:h-full lg:min-h-0 lg:overflow-y-auto"
+    class="min-h-[420px] min-w-0 bg-white dark:bg-dark-950 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden"
     :aria-label="t('imageStudio.resultPanel.aria')"
   >
-    <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
-      <div class="min-w-0">
-        <p class="text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
-          {{ t('imageStudio.resultPanel.workspace') }}
-        </p>
-        <h2 class="mt-1 truncate text-xl font-semibold text-gray-950 dark:text-white">
-          {{ heading }}
-        </h2>
-      </div>
-    </div>
+    <!-- ── 顶部工具栏：标题 + 搜索 + 状态筛选收成一行 ──────────────
+         之前是「小标题 + 大标题 + 独立搜索框 + 分段按钮 + 重复的下拉框」，
+         同一个筛选项渲染两套控件，层级也散。现在压成一条。 -->
+    <header
+      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-4 py-2.5 dark:border-white/[0.06] sm:px-6"
+    >
+      <h2 class="shrink-0 text-sm font-semibold text-gray-900 dark:text-white">
+        {{ heading }}
+      </h2>
 
-    <!-- 历史任务视图：有任务 -->
-    <template v-if="state.tasks.length">
-      <StudioActiveResult v-if="activeTask" :key="activeTask.id" :task="activeTask" />
-
-      <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-gray-800 dark:text-dark-100">
-          {{ t('imageStudio.resultPanel.history') }}
-        </h3>
-        <span class="text-xs text-gray-400">
-          {{ t('imageStudio.resultPanel.taskCount', { count: state.tasks.length }) }}
-        </span>
-      </div>
-
-      <div
-        v-if="noticeTask"
-        role="status"
-        class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-dark-300"
+      <span
+        v-if="state.tasks.length"
+        class="shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-gray-500 dark:bg-white/[0.06] dark:text-dark-400"
       >
-        <span>{{ noticeText }}</span>
+        {{ state.tasks.length }}
+      </span>
+
+      <!-- 搜索：手机上换行占满，桌面上靠右并限制宽度 -->
+      <div class="order-last w-full min-w-0 sm:order-none sm:ml-auto sm:max-w-72 sm:flex-1">
+        <label class="relative block">
+          <StudioIcon
+            name="SearchIcon"
+            class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            :aria-label="t('imageStudio.search.ariaHistory')"
+            :value="state.searchQuery"
+            :placeholder="t('imageStudio.search.placeholder')"
+            class="w-full rounded-lg border border-transparent bg-gray-100 py-1.5 pl-8 pr-3 text-xs text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/15 dark:bg-white/[0.06] dark:text-white dark:focus:bg-dark-900"
+            @input="state.setSearchQuery(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </div>
+
+      <!-- 状态筛选：只保留分段控件，原来的下拉框是同一功能的重复入口 -->
+      <div
+        class="task-filter-segments flex shrink-0 items-center gap-0.5 rounded-lg bg-gray-100 p-0.5 dark:bg-white/[0.06]"
+        role="group"
+        :aria-label="t('imageStudio.search.filterLabel')"
+      >
         <button
+          v-for="status in statuses"
+          :key="status"
           type="button"
-          class="shrink-0 font-medium text-primary-600 hover:underline"
-          @click="revealTask(noticeTask.id)"
+          class="rounded-md px-2 py-1 text-[11px] font-medium transition"
+          :class="
+            state.filterStatus === status
+              ? 'bg-white text-gray-900 shadow-sm dark:bg-white/[0.12] dark:text-white'
+              : 'text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-dark-200'
+          "
+          :aria-pressed="state.filterStatus === status"
+          @click="state.setFilterStatus(status)"
         >
-          {{ t('imageStudio.resultPanel.viewTask') }}
+          {{ t(`imageStudio.search.status.${status}`) }}
         </button>
       </div>
 
-      <StudioSearchBar />
+      <button
+        v-if="failedCount > 0"
+        type="button"
+        class="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+        :title="t('imageStudio.search.clearFailed')"
+        @click="clearFailed"
+      >
+        <StudioIcon name="TrashIcon" class="h-3.5 w-3.5" />
+        {{ t('imageStudio.search.clearFailed') }}
+      </button>
+    </header>
 
-      <p v-if="hiddenSelection" role="status" class="mt-3 text-xs leading-5 text-gray-500">
-        {{ t('imageStudio.resultPanel.hiddenSelection') }}
-      </p>
+    <!-- 新任务完成提示 -->
+    <div
+      v-if="noticeTask"
+      role="status"
+      class="flex items-center justify-between gap-2 border-b border-primary-100 bg-primary-50/70 px-4 py-1.5 text-xs text-primary-700 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-300 sm:px-6"
+    >
+      <span class="truncate">{{ noticeText }}</span>
+      <button type="button" class="shrink-0 font-medium hover:underline" @click="revealTask(noticeTask.id)">
+        {{ t('imageStudio.resultPanel.viewTask') }}
+      </button>
+    </div>
 
+    <!-- ── 有任务：主预览 + 底部缩略图轨道 ───────────────────────── -->
+    <template v-if="state.tasks.length">
       <div
         data-history-task-scroll
         role="region"
         :aria-label="t('imageStudio.resultPanel.historyListAria')"
         tabindex="0"
-        class="mt-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 lg:max-h-[min(42dvh,30rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1 lg:[scrollbar-gutter:stable]"
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain lg:overflow-y-auto"
       >
-        <StudioTaskGrid :selected-task-id="activeTaskId" :on-select-task="setActiveTaskId" />
+        <StudioActiveResult v-if="activeTask" :key="activeTask.id" :task="activeTask" />
+
+        <!-- 没有选中任务时用网格铺满，避免整片空白 -->
+        <div v-else class="p-4 sm:p-6">
+          <StudioTaskGrid
+            variant="grid"
+            :selected-task-id="activeTaskId"
+            :on-select-task="setActiveTaskId"
+          />
+        </div>
       </div>
+
+      <p
+        v-if="hiddenSelection"
+        role="status"
+        class="shrink-0 border-t border-gray-100 px-4 py-1.5 text-[11px] text-gray-500 dark:border-white/[0.06] sm:px-6"
+      >
+        {{ t('imageStudio.resultPanel.hiddenSelection') }}
+      </p>
+
+      <!-- 缩略图轨道：历史任务横向铺开，点一下换预览 -->
+      <footer
+        class="shrink-0 border-t border-gray-100 bg-gray-50/60 px-3 py-2.5 dark:border-white/[0.06] dark:bg-white/[0.02] sm:px-4"
+      >
+        <StudioTaskGrid
+          variant="strip"
+          :selected-task-id="activeTaskId"
+          :on-select-task="setActiveTaskId"
+        />
+      </footer>
     </template>
 
-    <!-- 历史任务视图：空状态 -->
-    <div v-else class="flex min-h-[560px] items-center justify-center py-12 text-center">
-      <div class="max-w-xl">
+    <!-- ── 空状态 ───────────────────────────────────────────────── -->
+    <div v-else class="flex flex-1 items-center justify-center px-6 py-12">
+      <div class="max-w-lg text-center">
         <div
-          class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-3xl dark:bg-primary-500/10"
+          class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-500 dark:bg-primary-500/10 dark:text-primary-400"
         >
           ✦
         </div>
-        <h3 class="mt-5 text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
           {{ t('imageStudio.resultPanel.emptyTitle') }}
         </h3>
-        <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-dark-400">
+        <p class="mt-1.5 text-sm leading-6 text-gray-500 dark:text-dark-400">
           {{ t('imageStudio.resultPanel.emptyHint') }}
         </p>
         <div class="mt-5 grid gap-2 sm:grid-cols-2">
@@ -78,7 +144,7 @@
             v-for="prompt in examplePrompts"
             :key="prompt"
             type="button"
-            class="rounded-xl border border-gray-200 bg-white px-3 py-3 text-left text-sm text-gray-600 transition hover:border-primary-300 hover:text-primary-700 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-dark-300"
+            class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs leading-5 text-gray-600 transition hover:border-primary-300 hover:text-primary-700 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-dark-300 dark:hover:border-primary-500/40"
             @click="state.setPrompt(prompt)"
           >
             {{ prompt }}
@@ -90,12 +156,24 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 生图结果面板。
+ *
+ * 布局取向：**图片优先**。
+ * 顶部一条工具栏承载所有筛选，中间整块留给预览，底部缩略图轨道负责切换。
+ *
+ * 之前的问题（也是「右边很丑」的主因）：
+ *   1. 搜索框、分段按钮、下拉框三个控件表达同一件事，视觉噪音大
+ *   2. 任务卡片是「横条 + 64px 缩略图」，只有一条记录时右侧近 1000px 全是空白
+ *   3. task-grid 这个 class 没有任何样式定义，卡片直接堆成一列
+ */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StudioIcon from './StudioIcon.vue'
 import StudioActiveResult from './StudioActiveResult.vue'
-import StudioSearchBar from './StudioSearchBar.vue'
 import StudioTaskGrid from './StudioTaskGrid.vue'
 import {
+  removeMultipleTasks,
   storeState as state,
   taskMatchesFilterStatus,
   taskMatchesSearchQuery,
@@ -106,21 +184,45 @@ const { t } = useI18n()
 const activeTaskId = ref<string | null>(null)
 const noticeTaskId = ref<string | null>(null)
 
+const statuses = ['all', 'done', 'running', 'error'] as const
+
 /** 上一次渲染的任务快照，用于检测「任务刚完成」并提示 */
 const previousTasks = ref(state.tasks)
 
-const sortedTasks = computed(() =>
-  [...state.tasks].sort((a, b) => b.createdAt - a.createdAt),
-)
+const heading = computed(() => t('imageStudio.resultPanel.generatedResults'))
 
 const activeTask = computed(
   () => state.tasks.find((task) => task.id === activeTaskId.value) ?? null,
 )
 
-const heading = computed(() => t('imageStudio.resultPanel.generatedResults'))
+/** 失败任务数，决定是否显示「清除失败」 */
+const failedCount = computed(
+  () =>
+    state.tasks.filter(
+      (task) =>
+        taskMatchesFilterStatus(task, 'error') &&
+        taskMatchesSearchQuery(task, state.searchQuery.trim().toLowerCase()),
+    ).length,
+)
 
-const noticeTask = computed(() =>
-  state.tasks.find((task) => task.id === noticeTaskId.value && task.id !== activeTaskId.value),
+function clearFailed() {
+  if (!failedCount.value) return
+  const query = state.searchQuery.trim().toLowerCase()
+  const ids = state.tasks
+    .filter((task) => taskMatchesFilterStatus(task, 'error') && taskMatchesSearchQuery(task, query))
+    .map((task) => task.id)
+
+  state.setConfirmDialog({
+    title: t('imageStudio.search.clearFailedTitle'),
+    message: t('imageStudio.search.clearFailedMessage', { count: ids.length }),
+    confirmText: t('imageStudio.search.clearFailed'),
+    tone: 'danger',
+    action: () => removeMultipleTasks(ids),
+  })
+}
+
+const noticeTask = computed(
+  () => state.tasks.find((task) => task.id === noticeTaskId.value && task.id !== activeTaskId.value),
 )
 
 const noticeText = computed(() => {
@@ -151,39 +253,33 @@ const examplePrompts = computed(() => [
   t('imageStudio.resultPanel.example4'),
 ])
 
-/**
- * 维护「当前选中任务」：
- * - 选中任务被删除 → 自动跳到相邻任务
- * - 有任务刚跑完 → 弹提示
- */
+/** 选中任务被删除时跳到相邻任务；有新任务完成时提示 */
 watch(
   () => state.tasks,
   (tasks) => {
-    const previous = [...previousTasks.value].sort((a, b) => b.createdAt - a.createdAt)
+    const prev = previousTasks.value
+    previousTasks.value = tasks
 
-    if (!activeTaskId.value || !tasks.some((task) => task.id === activeTaskId.value)) {
-      const index = previous.findIndex((task) => task.id === activeTaskId.value)
-      const neighbors =
-        index < 0
-          ? []
-          : [...previous.slice(index + 1), ...previous.slice(0, index).reverse()]
-      activeTaskId.value =
-        neighbors.find((task) => tasks.some((item) => item.id === task.id))?.id ??
-        sortedTasks.value[0]?.id ??
-        null
+    if (activeTaskId.value && !tasks.some((task) => task.id === activeTaskId.value)) {
+      activeTaskId.value = tasks[0]?.id ?? null
     }
 
-    const completed = tasks.find(
-      (task) =>
-        task.status !== 'running' &&
-        task.id !== activeTaskId.value &&
-        previous.some((item) => item.id === task.id && item.status === 'running'),
-    )
-    if (completed) noticeTaskId.value = completed.id
-
-    previousTasks.value = tasks
+    const finished = tasks.find((task) => {
+      const before = prev.find((item) => item.id === task.id)
+      return before && before.status === 'running' && task.status !== 'running'
+    })
+    if (finished) noticeTaskId.value = finished.id
   },
   { deep: false },
+)
+
+/** 首次进来默认选中最新任务，避免主区域空白 */
+watch(
+  () => state.tasks.length,
+  (length) => {
+    if (length > 0 && !activeTaskId.value) activeTaskId.value = state.tasks[0].id
+  },
+  { immediate: true },
 )
 
 /** 新提交任务时跳到该任务 */

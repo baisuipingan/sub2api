@@ -20,7 +20,31 @@
     </template>
   </div>
 
-  <div v-else data-task-grid-root class="task-grid grid items-start gap-2 pb-2">
+  <!-- 缩略图条：横向排列、可滚动，用于结果面板底部快速切换 -->
+  <div
+    v-else-if="variant === 'strip'"
+    data-task-grid-root
+    class="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
+  >
+    <StudioTaskCard
+      v-for="task in filteredTasks"
+      :key="task.id"
+      :task="task"
+      compact
+      :is-selected="task.id === selectedTaskId"
+      @select="onSelect(task)"
+      @reuse="reuseConfig(task)"
+      @edit-outputs="editOutputs(task)"
+      @delete="confirmDelete(task)"
+    />
+  </div>
+
+  <!-- 网格：真正的大图卡片网格，之前 task-grid 没有任何样式，卡片堆成了一列 -->
+  <div
+    v-else
+    data-task-grid-root
+    class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 pb-2"
+  >
     <StudioTaskCard
       v-for="task in filteredTasks"
       :key="task.id"
@@ -52,6 +76,11 @@ import {
 const props = defineProps<{
   selectedTaskId?: string | null
   onSelectTask?: (taskId: string) => void
+  /**
+   * grid  大图网格（无选中任务时铺满区域）
+   * strip 底部缩略图轨道（有选中任务时用于切换）
+   */
+  variant?: 'grid' | 'strip'
 }>()
 
 const { t } = useI18n()

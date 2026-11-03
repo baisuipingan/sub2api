@@ -4,17 +4,52 @@
     :aria-label="t('imageStudio.task.viewAria', { prompt: displayPrompt })"
     :aria-current="isSelected ? 'true' : undefined"
     tabindex="0"
-    class="min-w-0 cursor-pointer rounded-lg border p-3 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+    class="min-w-0 cursor-pointer transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
     :class="
-      isSelected
-        ? 'border-primary-500 bg-primary-50/60 ring-1 ring-inset ring-primary-500 dark:bg-primary-500/10'
-        : 'border-gray-200 bg-white hover:border-primary-300 dark:border-white/[0.1] dark:bg-dark-950'
+      compact
+        ? [
+            'w-[72px] shrink-0 overflow-hidden rounded-lg border',
+            isSelected
+              ? 'border-primary-500 ring-2 ring-primary-500/40'
+              : 'border-gray-200 hover:border-primary-300 dark:border-white/[0.1]',
+          ]
+        : [
+            'rounded-lg border p-3',
+            isSelected
+              ? 'border-primary-500 bg-primary-50/60 ring-1 ring-inset ring-primary-500 dark:bg-primary-500/10'
+              : 'border-gray-200 bg-white hover:border-primary-300 dark:border-white/[0.1] dark:bg-dark-950',
+          ]
     "
     @blur="onBlur"
     @keydown="onKeydown"
     @click="emit('select', $event)"
   >
-    <div class="flex gap-3">
+    <!-- 紧凑模式：缩略图条只需要「图 + 状态」，细节留给主预览区 -->
+    <div v-if="compact" class="relative aspect-square w-full bg-gray-100 dark:bg-white/[0.06]">
+      <img
+        v-if="task.status === 'running' && streamPreview"
+        :src="streamPreview"
+        :alt="t('imageStudio.task.streamPreview')"
+        class="h-full w-full object-cover"
+      />
+      <StudioImageThumbnail
+        v-else-if="outputImageId"
+        :key="outputImageId"
+        :image-id="outputImageId"
+        :alt="t('imageStudio.task.preview')"
+        @size="updateImageSize"
+      />
+      <span v-else class="flex h-full items-center justify-center text-[10px] text-gray-400">
+        {{ task.status === 'running' ? t('imageStudio.status.running') : '—' }}
+      </span>
+      <span
+        class="absolute left-1 top-1 h-1.5 w-1.5 rounded-full ring-2 ring-white/70 dark:ring-black/40"
+        :class="dotClass"
+        aria-hidden="true"
+      />
+    </div>
+
+    <div v-else class="flex gap-3">
       <div
         class="mt-1 h-16 w-16 shrink-0 overflow-hidden rounded-md bg-gray-100 dark:bg-white/[0.06]"
       >
@@ -54,7 +89,7 @@
       </div>
     </div>
 
-    <div class="mt-2 flex items-center justify-between gap-2" @click.stop>
+    <div v-if="!compact" class="mt-2 flex items-center justify-between gap-2" @click.stop>
       <span class="text-[11px] text-gray-400">{{ timeLabel }}</span>
       <div class="flex items-center gap-1">
         <button
@@ -73,7 +108,7 @@
     </div>
 
     <div
-      v-if="moreOpen"
+      v-if="moreOpen && !compact"
       :id="`task-actions-${task.id}`"
       class="mt-1 flex flex-wrap gap-1 border-t border-gray-200 pt-2 text-xs dark:border-white/[0.1]"
       @click.stop
@@ -129,8 +164,10 @@ const props = withDefaults(
   defineProps<{
     task: TaskRecord
     isSelected?: boolean
+    /** 紧凑模式：只显示缩略图与状态点，用于底部缩略图轨道 */
+    compact?: boolean
   }>(),
-  { isSelected: false },
+  { isSelected: false, compact: false },
 )
 
 const emit = defineEmits<{
@@ -143,6 +180,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const moreOpen = ref(false)
+
+/** compact 模式下左上角的状态点颜色 */
+const dotClass = computed(() => {
+  switch (props.task.status) {
+    case 'done':
+      return 'bg-emerald-500'
+    case 'running':
+      return 'bg-primary-500 animate-pulse'
+    case 'error':
+      return 'bg-red-500'
+    default:
+      return 'bg-gray-400'
+  }
+})
 const retrying = ref(false)
 const imageSize = ref<{ imageId: string; width: number; height: number } | null>(null)
 const moreButtonRef = ref<HTMLButtonElement | null>(null)
