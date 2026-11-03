@@ -766,6 +766,19 @@ export async function reuseConfig(task: TaskRecord) {
   state.showToast(modelAvailable ? st('imageStudio.store.paramsReused') : st('imageStudio.store.modelFallback'), modelAvailable ? 'success' : 'info')
 }
 
+/**
+ * 判断一个 dataUrl 是否能真正当图片用。
+ *
+ * 空串、非 data:image/ 开头、长度过短（损坏记录）都不算可用。
+ * 这类脏数据如果进了 inputImages，界面会渲染成「图片损坏」的占位符。
+ */
+function isUsableImageDataUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  if (!value.startsWith('data:image/')) return false
+  // 一个最小的有效 PNG base64 也有几百字符，过短基本可以判定为损坏
+  return value.length > 128
+}
+
 export async function editOutputs(task: TaskRecord, imageIds = task.outputImages) {
   const state = useStore.getState()
   const model = getImageModel(state.settings.selectedModelId, state.modelCatalog)
@@ -779,17 +792,35 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
     return
   }
   const existingIds = new Set(state.inputImages.map((image) => image.id))
-  const outputImages = await Promise.all([...new Set(imageIds)].filter((id) => task.outputImages.includes(id)).map(async (id) => ({
-    id,
-    dataUrl: await ensureImageCached(id).catch(() => undefined) ?? '',
-  })))
+  // 读取输出图作为参考图。
+  //
+  // 注意：必须校验 dataUrl 是合法的图片数据。
+  // 之前只是 `?? ''`，一旦 IndexedDB 里读不到（配额清理、跨标签页删除、
+  // 记录损坏），空字符串会原样塞进参考图列表，界面上就显示成一张「损坏的图」。
+  // 现在读不到就直接丢弃，并在最后统一提示，而不是塞一个坏图进去。
+  const outputImages = await Promise.all(
+    [...new Set(imageIds)]
+      .filter((id) => task.outputImages.includes(id))
+      .map(async (id) => {
+        const dataUrl = await ensureImageCached(id).catch(() => undefined)
+        if (!isUsableImageDataUrl(dataUrl)) return null
+        return { id, dataUrl }
+      }),
+  ).then((list) => list.filter((item): item is { id: string; dataUrl: string } => item !== null))
   // 图片读取期间切换模型或修改草稿时，不覆盖用户的新输入。
   const latest = useStore.getState()
   if (latest.settings !== state.settings || latest.modelCatalog !== state.modelCatalog || latest.catalogStatus !== 'ready' || latest.inputImages !== state.inputImages || latest.prompt !== state.prompt || latest.params !== state.params || latest.maskDraft !== state.maskDraft || latest.maskEditorImageId !== state.maskEditorImageId) return
   const next = [...state.inputImages, ...outputImages.filter((image) => image.dataUrl && !existingIds.has(image.id))]
   const inputImages = next.slice(0, limit)
   if (inputImages.length === state.inputImages.length) {
-    state.showToast(st('imageStudio.store.noImagesToAdd'), 'info')
+    // 区分两种情况：图都读不出来（损坏/已清理） vs 本来就在列表里。
+    // 前者必须明确告诉用户「图片读取失败」，否则用户只会看到一张坏图或没反应。
+    state.showToast(
+      outputImages.length === 0
+        ? st('imageStudio.store.imageUnreadable')
+        : st('imageStudio.store.noImagesToAdd'),
+      'info',
+    )
     return
   }
   useStore.setState({

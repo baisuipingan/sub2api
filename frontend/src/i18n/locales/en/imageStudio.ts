@@ -65,6 +65,9 @@ imageStudio: {
     deleteMessage: 'Delete this task? Associated images are cleaned up when no other task references them.',
   },
   result: {
+    copyImage: 'Copy image',
+    copySuccess: 'Copied to clipboard',
+    copyFailed: 'Copy failed',
     rendering: 'Rendering',
     title: 'Result preview',
     previewAria: 'Result preview',
@@ -370,6 +373,7 @@ imageStudio: {
     generic: 'Generation failed, please retry later',
   },
   store: {
+    imageUnreadable: 'Failed to read image. It may have been cleared by the browser — please regenerate.',
     catalogFailed: 'Failed to load models, please retry',
     interrupted: 'Previous generation was interrupted',
     localLoadFailed: 'Failed to read local data',

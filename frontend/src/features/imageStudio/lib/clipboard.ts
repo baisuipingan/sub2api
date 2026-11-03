@@ -18,19 +18,73 @@ export async function copyTextToClipboard(text: string) {
 }
 
 export async function copyImageSourceToClipboard(src: string | Promise<string | undefined>) {
-  if (!canCopyImageToClipboard()) {
-    throw new Error('Clipboard image API is not available')
-  }
-
   const resolvedSrc = await Promise.resolve(src)
   if (!resolvedSrc) throw new Error('Image source is not available')
-  const res = await fetch(resolvedSrc)
-  const blob = await res.blob()
-  await writeImageBlobToClipboard(blob)
+
+  if (canCopyImageToClipboard()) {
+    const res = await fetch(resolvedSrc)
+    const blob = await res.blob()
+    await writeImageBlobToClipboard(blob)
+    return
+  }
+
+  // 降级：非安全上下文（如用 IP + http 访问测试机）没有 navigator.clipboard.write，
+  // 此时退回「选中图片 + execCommand('copy')」这条老路子。
+  // 之前这里直接抛错，菜单项被隐藏，用户根本看不到「复制图片」。
+  if (copyImageWithExecCommand(resolvedSrc)) return
+
+  throw new Error('Clipboard image API is not available')
 }
 
+/**
+ * 图片是否「有可能」复制。
+ *
+ * 注意：不要用 isSecureContext 做唯一判据 —— 用 http + IP 访问时它是 false，
+ * 但 execCommand 的降级路径其实是能用的。这里只要浏览器不是彻底没有剪贴板能力就返回 true，
+ * 真正失败时由调用方给提示。
+ */
 export function canCopyImageToClipboard() {
-  return window.isSecureContext && Boolean(navigator.clipboard?.write) && typeof ClipboardItem !== 'undefined'
+  if (typeof window === 'undefined') return false
+  const hasModernApi =
+    window.isSecureContext && Boolean(navigator.clipboard?.write) && typeof ClipboardItem !== 'undefined'
+  // document.execCommand 在所有主流浏览器都存在（虽然已废弃），作为降级手段
+  const hasLegacyApi = typeof document !== 'undefined' && typeof document.execCommand === 'function'
+  return hasModernApi || hasLegacyApi
+}
+
+/**
+ * 用 execCommand 复制图片。
+ *
+ * 原理：把图片放进一个 contenteditable 容器并全选，再执行 copy。
+ * 部分浏览器会把它作为图片写入剪贴板；不支持时会失败，由调用方提示。
+ */
+function copyImageWithExecCommand(src: string): boolean {
+  if (typeof document === 'undefined') return false
+  const container = document.createElement('div')
+  container.contentEditable = 'true'
+  container.style.position = 'fixed'
+  container.style.left = '-9999px'
+  container.style.top = '0'
+  container.style.opacity = '0'
+
+  const img = document.createElement('img')
+  img.src = src
+  container.appendChild(img)
+  document.body.appendChild(container)
+
+  const selection = window.getSelection()
+  try {
+    const range = document.createRange()
+    range.selectNodeContents(container)
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    selection?.removeAllRanges()
+    container.remove()
+  }
 }
 
 export function getClipboardFailureMessage(fallback: string, err: unknown) {

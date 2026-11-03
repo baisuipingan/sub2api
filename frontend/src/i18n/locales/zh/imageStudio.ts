@@ -65,6 +65,9 @@ imageStudio: {
     deleteMessage: '确定要删除这个任务吗？关联的图片资源也会在没有其他任务引用时清理。',
   },
   result: {
+    copyImage: '复制图片',
+    copySuccess: '已复制到剪贴板',
+    copyFailed: '复制失败',
     rendering: '渲染中',
     title: '结果预览',
     previewAria: '结果预览',
@@ -370,6 +373,7 @@ imageStudio: {
     generic: '生成失败，请稍后重试',
   },
   store: {
+    imageUnreadable: '图片读取失败，可能已被浏览器清理，请重新生成',
     catalogFailed: '模型列表加载失败，请稍后重试',
     interrupted: '上次生成已中断',
     localLoadFailed: '本地数据读取失败',

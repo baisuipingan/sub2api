@@ -62,17 +62,16 @@
       <!-- 主体：上=相框容器（声明尺寸查询上下文），下=操作区 -->
       <div class="flex min-h-0 flex-1 flex-col items-stretch gap-2 overflow-hidden px-3 py-3 sm:px-5">
         <template v-if="activeTask">
-          <!-- 相框容器：container-type:size 让相框能用 cqw/cqh 自适应 -->
-          <div class="studio-frame-host flex min-h-0 w-full flex-1 items-center justify-center">
+          <!-- 舞台：相框与操作区共用一个宽度变量，保证两者左右对齐 -->
+          <div class="studio-stage flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2">
             <StudioSquarePreview
-            :task="activeTask"
+              :task="activeTask"
               :image-id="currentImageId ?? undefined"
               @select-image="onSelectImage"
             />
-          </div>
 
-          <!-- 相框下方：提示词 + 操作键 + 元信息 -->
-          <div class="flex w-full max-w-xl shrink-0 flex-col items-center gap-2">
+            <!-- 操作区：宽度 = 相框宽度，因此天然与图片居中对齐 -->
+            <div class="studio-ops flex flex-col items-center gap-2">
             <p
               v-if="activeTask.status === 'error'"
               class="w-full break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
@@ -100,6 +99,17 @@
               >
                 <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
                 {{ t('imageStudio.task.reuseParams') }}
+              </button>
+
+              <button
+                v-if="currentImageId"
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                :disabled="copying"
+                @click="copyImage"
+              >
+                <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
+                {{ t('imageStudio.result.copyImage') }}
               </button>
 
               <button
@@ -136,6 +146,7 @@
               <span class="max-w-[14rem] truncate">{{ modelName }}</span>
               <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
             </p>
+            </div>
           </div>
         </template>
 
@@ -212,6 +223,8 @@ import { getEstimatedCredits } from '../lib/generationEstimate'
 import { resolveUnitPrice } from '../lib/studioPricing'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
+import { copyImageSourceToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
+import { ensureImageCached } from '../lib/imageCache'
 
 const { t } = useI18n()
 
@@ -363,6 +376,23 @@ function onSelectImage(index: number) {
   if (id) activeImageId.value = id
 }
 
+const copying = ref(false)
+
+/** 复制当前图片到剪贴板。走 clipboard 库，内部会处理 http 环境下的降级。 */
+async function copyImage() {
+  const imageId = currentImageId.value
+  if (!imageId || copying.value) return
+  copying.value = true
+  try {
+    await copyImageSourceToClipboard(ensureImageCached(imageId))
+    state.showToast(t('imageStudio.result.copySuccess'), 'success')
+  } catch (err) {
+    state.showToast(getClipboardFailureMessage(t('imageStudio.result.copyFailed'), err), 'error')
+  } finally {
+    copying.value = false
+  }
+}
+
 async function addAsReference() {
   const task = activeTask.value
   const imageId = currentImageId.value
@@ -411,6 +441,26 @@ watch(
 </script>
 
 <style scoped>
+/**
+ * 舞台：相框与操作区共用同一个宽度。
+ *
+ * 关键点：--studio-frame-w 在这里算一次，相框和操作区都读它。
+ * 之前操作区写死 max-w-xl(576px)，而相框是 371px，
+ * 两者宽度不一致，操作区就偏左了 —— 看着像「跑到左边」。
+ *
+ * 88px 是操作区实际占位（提示词行 + 按钮行 + 元信息行 + 间距）。
+ */
+.studio-stage {
+  container-type: size;
+  min-height: 0;
+  --studio-frame-w: min(100cqw, calc(100cqh - 88px), 720px);
+}
+
+.studio-ops {
+  width: var(--studio-frame-w);
+  max-width: 100%;
+}
+
 /**
  * 相框的尺寸查询上下文。
  *

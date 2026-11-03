@@ -177,7 +177,7 @@ function openLightbox() {
  * 预留 62px：提示词一行 + 操作键一行 + 元信息一行的紧凑占位。
  */
 .studio-frame {
-  width: min(100cqw, calc(100cqh - 62px));
+  width: var(--studio-frame-w, min(100cqw, calc(100cqh - 62px)));
   max-width: 720px;
   aspect-ratio: 1 / 1;
   /* 有些窄屏会算出很大值，用 vmin 兜一层，防止超过视口 */
