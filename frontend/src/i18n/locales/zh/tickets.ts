@@ -1,8 +1,4 @@
 export default {
-  nav: {
-    tickets: '用户工单',
-    ticketManagement: '工单管理',
-  },
   tickets: {
     myTitle: '我的工单',
     adminTitle: '工单管理',

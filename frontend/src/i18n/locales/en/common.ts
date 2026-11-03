@@ -166,6 +166,8 @@ export default {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    tickets: 'My Tickets',
+    ticketManagement: 'Tickets',
     batchImage: 'Batch Images',
     imageStudio: 'Image Studio',
     usage: 'Usage',

@@ -1,8 +1,4 @@
 export default {
-  nav: {
-    tickets: 'My Tickets',
-    ticketManagement: 'Tickets',
-  },
   tickets: {
     myTitle: 'My Tickets',
     adminTitle: 'Tickets',

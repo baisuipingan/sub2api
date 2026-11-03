@@ -166,6 +166,8 @@ export default {
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
+    tickets: '用户工单',
+    ticketManagement: '工单管理',
     batchImage: '批量生图',
     imageStudio: '生图工作台',
     usage: '使用记录',
