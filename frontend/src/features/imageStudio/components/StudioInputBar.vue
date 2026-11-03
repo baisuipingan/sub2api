@@ -379,14 +379,28 @@ const buttonLabel = computed(() => {
   if (checking.value) return t('imageStudio.header.connecting')
   if (!connected.value) return t('imageStudio.input.connectAndGenerate')
   if (state.catalogStatus === 'loading') return t('imageStudio.input.loadingModels')
-  if (state.catalogStatus !== 'ready') return t('imageStudio.input.refetchModels')
+  if (state.catalogStatus !== 'ready') {
+    // 余额不足这类问题点「重新获取」是没用的，直接把原因写在按钮上，
+    // 避免用户反复点击困惑（他需要的是去充值，不是重试）。
+    if (isBalanceIssue.value) return t('imageStudio.errors.insufficientBalance')
+    return t('imageStudio.input.refetchModels')
+  }
   if (!model.value) return t('imageStudio.input.pickModel')
   return t('imageStudio.input.generateCount', { count: params.value.n })
+})
+
+/** 模型取不到是不是因为余额不足（此时重试无意义，需要用户去充值） */
+const isBalanceIssue = computed(() => {
+  if (state.catalogStatus !== 'error') return false
+  const message = String(state.catalogError ?? '')
+  return /余额不足|insufficient/i.test(message)
 })
 
 const buttonDisabled = computed(() => {
   if (isGenerating.value) return false
   if (checking.value) return true
+  // 余额不足时禁用主按钮：点它只会再次失败，正确动作是去充值
+  if (isBalanceIssue.value) return true
   if (connected.value && state.catalogStatus === 'loading') return true
   if (connected.value && state.catalogStatus === 'ready') {
     return !model.value || !prompt.value.trim()
