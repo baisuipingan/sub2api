@@ -12,7 +12,7 @@
         v-if="task.status === 'running'"
         role="status"
         class="result-image-stage flex min-h-[320px] w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-xl bg-gray-50 text-sm text-primary-600 dark:bg-black/20 dark:text-primary-400"
-        :style="{ maxHeight: 'min(56vh, 42rem)' }"
+        :style="{ maxHeight: 'min(46vh, 32rem)' }"
       >
         <template v-if="streamPreview">
           <img

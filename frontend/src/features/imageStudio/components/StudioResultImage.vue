@@ -1,7 +1,7 @@
 <template>
   <div
     class="result-image-stage flex w-full items-center justify-center overflow-hidden rounded-xl bg-gray-50 dark:bg-black/20"
-    :style="{ maxHeight: 'min(56vh, 42rem)' }"
+    :style="{ maxHeight: 'min(46vh, 32rem)' }"
   >
     <div v-if="failed" class="p-6 text-center text-sm text-gray-500" role="status">
       <p>{{ t('imageStudio.result.imageUnavailable') }}</p>
