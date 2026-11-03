@@ -46,7 +46,7 @@ import {
   readExportZipFileAsDataUrl,
 } from '../lib/exportZip'
 import { showBrowserNotification } from '../lib/browserNotification'
-import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
+import { ApiAuthError, ApiInsufficientBalanceError, getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { remapImageMentionsForOrder, replaceImageMentionsForApi, stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { GPT_IMAGE_MIN_PIXELS, normalizeImageSize } from '../lib/size'
 const MAX_INPUT_IMAGES = 16
@@ -236,9 +236,16 @@ const buildStore: StoreBuilder = (set, get) => ({
               }
             })
             return true
-          } catch {
+          } catch (error) {
             if (get().settings.miloRouter.apiKey.trim() !== apiKey) return false
-            set({ modelCatalog: [], catalogStatus: 'error', catalogError: st('imageStudio.store.catalogFailed') })
+            // 不能一律显示「加载失败，请稍后重试」：
+            // 余额不足、Key 无效、超时都长这样，用户根本不知道该干嘛。
+            // 这里按错误类型给出具体原因，认不出来才退回通用文案。
+            set({
+              modelCatalog: [],
+              catalogStatus: 'error',
+              catalogError: describeCatalogError(error),
+            })
             return false
           }
         },
@@ -1171,4 +1178,35 @@ function collectReferencedImageIds(tasks: TaskRecord[], inputImages: InputImage[
     ...inputImages.map((image) => image.id),
     ...tasks.flatMap(collectTaskImageIds),
   ])
+}
+
+/**
+ * 把「拉取模型列表」的错误翻译成用户能直接照做的提示。
+ *
+ * 之前这里无条件 st('catalogFailed')，把余额不足、Key 失效、超时全部抹平成
+ * 「加载失败，请稍后重试」——用户重试多少次都没用，因为问题不在重试。
+ */
+function describeCatalogError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  // 优先按类型判断：ApiInsufficientBalanceError 的 message 已经是本地化文案，
+  // 不再包含 INSUFFICIENT_BALANCE 字样，靠字符串匹配会漏掉。
+  if (error instanceof ApiInsufficientBalanceError) {
+    return st('imageStudio.errors.insufficientBalance')
+  }
+  if (/INSUFFICIENT_BALANCE|insufficient\s+(account\s+)?balance/i.test(message)) {
+    return st('imageStudio.errors.insufficientBalance')
+  }
+  if (/USAGE_LIMIT_EXCEEDED/i.test(message)) {
+    return st('imageStudio.errors.rateLimit')
+  }
+  if (error instanceof ApiAuthError || /API Key|\b401\b/i.test(message)) {
+    return st('imageStudio.errors.auth')
+  }
+  if (/timeout|timed out|超时/i.test(message)) {
+    return st('imageStudio.errors.timeout')
+  }
+  if (/\b5\d\d\b|暂时不可用|service unavailable/i.test(message)) {
+    return st('imageStudio.errors.unavailable')
+  }
+  return st('imageStudio.store.catalogFailed')
 }

@@ -360,6 +360,7 @@ imageStudio: {
   },
   errors: {
     stopped: '已停止生成',
+    insufficientBalance: '余额不足，请先充值后再试',
     auth: 'API Key 无效或无权限，请检查后重试',
     timeout: '连接超时，请稍后重试',
     rateLimit: '请求过于频繁，请稍后重试',

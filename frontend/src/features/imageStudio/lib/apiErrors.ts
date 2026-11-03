@@ -26,6 +26,19 @@ export class ApiUpstreamError extends Error {
   }
 }
 
+/**
+ * 余额/额度不足。
+ *
+ * 必须与「API Key 无效」区分开：两者都是 403，但处理方式完全不同——
+ * 前者去充值，后者去换 Key。混成一句「API Key 无效」会让用户白折腾。
+ */
+export class ApiInsufficientBalanceError extends Error {
+  constructor(message = '账户余额不足，请先充值') {
+    super(message)
+    this.name = 'ApiInsufficientBalanceError'
+  }
+}
+
 export class ApiInvalidResponseError extends Error {
   constructor(message = '接口返回了无法识别的数据') {
     super(message)
@@ -42,7 +55,43 @@ export function redactSensitiveText(value: unknown, secrets: string[] = []): str
     .reduce((text, secret) => text.split(secret).join('***'), redactedAuthorization)
 }
 
+/**
+ * 从后端错误体里取 reason。
+ *
+ * 后端可能返回 {code,reason,message} 或 {error:{code,message}} 两种形状，
+ * 这里都兼容；取不到就返回空串，交由状态码兜底判断。
+ */
+function extractErrorReason(detail: unknown): string {
+  if (!detail) return ''
+  let payload: unknown = detail
+  if (typeof detail === 'string') {
+    try {
+      payload = JSON.parse(detail)
+    } catch {
+      return ''
+    }
+  }
+  if (typeof payload !== 'object' || payload === null) return ''
+  const record = payload as Record<string, unknown>
+  if (typeof record.reason === 'string') return record.reason
+  if (typeof record.code === 'string') return record.code
+  const nested = record.error
+  if (typeof nested === 'object' && nested !== null) {
+    const inner = nested as Record<string, unknown>
+    if (typeof inner.code === 'string') return inner.code
+  }
+  return ''
+}
+
 export function createApiError(status: number, detail?: unknown, apiKey = ''): Error {
+  // 先看后端给的 reason：403 里至少有两种完全不同的语义，不能一律当鉴权失败。
+  // detail 可能是对象，也可能是 "REASON: message" 形式的字符串，两种都要认。
+  const reason = extractErrorReason(detail)
+  if (reason === 'INSUFFICIENT_BALANCE' || /INSUFFICIENT_BALANCE|insufficient\s+(account\s+)?balance/i.test(String(detail ?? ''))) {
+    return new ApiInsufficientBalanceError()
+  }
+  if (reason === 'USAGE_LIMIT_EXCEEDED') return new ApiRateLimitError('已超出用量上限')
+
   if (status === 401 || status === 403) return new ApiAuthError()
   if (status === 408) return new ApiTimeoutError()
   if (status === 429) return new ApiRateLimitError()
@@ -61,6 +110,10 @@ export function createApiError(status: number, detail?: unknown, apiKey = ''): E
 export function getApiErrorMessageKey(value: unknown): string {
   const message = value instanceof Error ? value.message : String(value ?? '')
   if (message.includes('已停止生成')) return 'imageStudio.errors.stopped'
+  // 余额不足必须排在鉴权判断之前：它同样是 403，但处理方式完全不同
+  if (/INSUFFICIENT_BALANCE|insufficient\s+(account\s+)?balance/i.test(message)) {
+    return 'imageStudio.errors.insufficientBalance'
+  }
   if (/API Key|\b40[13]\b/i.test(message)) return 'imageStudio.errors.auth'
   if (/超时|timeout|timed out/i.test(message)) return 'imageStudio.errors.timeout'
   if (/请求过于频繁|rate.?limit|\b429\b/i.test(message)) return 'imageStudio.errors.rateLimit'

@@ -81,22 +81,28 @@ export async function fetchMiloRouterImageModels(apiKey: string, timeoutMs = 15_
       if (!response.ok) throw createApiError(response.status, await getApiErrorMessage(response), key)
       let models = createImageModelCatalogFromModelList(await response.json() as unknown)
       if (models.some((model) => model.api === 'gemini')) {
-        const nonGeminiModels = models.filter((model) => model.api !== 'gemini')
-        // /v1beta/models 只是用来确认 Gemini 模型是否真的可用（后端没配 Gemini 账号时返回 503）。
-        // 这里任何失败都必须静默降级为「只保留非 Gemini 模型」：
-        // 之前只 catch 了 fetch，解析 503 的 {"error":...} 会抛错并让整个列表加载失败，
-        // 表现就是「模型列表加载失败」+ 下拉框空 —— 非 Gemini 模型其实完全可用。
+        // /v1beta/models 只用于「确认 Gemini 模型当前是否真的可用」。
+        //
+        // 关键原则：**这只是可选优化，任何一个模型探测失败都不该影响其它模型**。
+        //   - 探测请求失败（网络/超时）→ 保留全部模型，交给真正调用时再报错
+        //   - 探测返回非 2xx（如没配 Gemini 账号的 503）→ 同样保留全部模型
+        //   - 只有探测成功时才用它做过滤
+        // 之前这里一旦解析非 2xx 响应体就抛错并冒泡，导致整个列表加载失败，
+        // 而实际原因可能只是余额不足或某个渠道没配置——与模型本身是否可用无关。
+        //
+        // 另外：不在前端把 gemini 模型「猜」成不可用。用户以后配好了 Gemini，
+        // 这里不需要改代码就能自动出现。
         try {
-          response = await fetch(`${MILO_ROUTER_BASE_URL}/v1beta/models`, {
+          const probe = await fetch(`${MILO_ROUTER_BASE_URL}/v1beta/models`, {
             headers: { Authorization: `Bearer ${key}` },
             cache: 'no-store',
             signal: controller.signal,
           })
-          models = response.ok
-            ? filterGeminiImageModelsByNativeModelList(models, await response.json() as unknown)
-            : nonGeminiModels
+          if (probe.ok) {
+            models = filterGeminiImageModelsByNativeModelList(models, await probe.json() as unknown)
+          }
         } catch {
-          models = nonGeminiModels
+          // 探测失败就保持原样，不影响列表
         }
       }
       if (!models.length) throw new Error(libT('imageStudio.lib.noImageModels'))

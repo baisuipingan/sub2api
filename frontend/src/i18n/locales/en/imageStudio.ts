@@ -360,6 +360,7 @@ imageStudio: {
   },
   errors: {
     stopped: 'Generation stopped',
+    insufficientBalance: 'Insufficient balance. Please top up and try again',
     auth: 'Invalid or unauthorized API key, please check and retry',
     timeout: 'Connection timed out, please retry later',
     rateLimit: 'Too many requests, please retry later',
