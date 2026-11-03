@@ -22,8 +22,12 @@ export async function copyImageSourceToClipboard(src: string | Promise<string | 
   if (!resolvedSrc) throw new Error('Image source is not available')
 
   if (canCopyImageToClipboard()) {
-    const res = await fetch(resolvedSrc)
-    const blob = await res.blob()
+    // 关键：不要用 fetch(dataUrl) 拿 blob。
+    // 站点的 CSP 里 connect-src 不含 data:，浏览器会直接拒绝：
+    //   Refused to connect ... violates the Content Security Policy
+    // 表现就是「复制失败」，而错误根本不在剪贴板 API 上。
+    // dataUrl 本来就在内存里，直接解码成二进制即可，不需要任何网络请求。
+    const blob = await dataUrlToBlob(resolvedSrc)
     await writeImageBlobToClipboard(blob)
     return
   }
@@ -34,6 +38,36 @@ export async function copyImageSourceToClipboard(src: string | Promise<string | 
   if (copyImageWithExecCommand(resolvedSrc)) return
 
   throw new Error('Clipboard image API is not available')
+}
+
+/**
+ * 把 dataUrl 解码成 Blob，不发网络请求。
+ *
+ * 相比 `fetch(dataUrl).then(r => r.blob())`：
+ *   - 完全绕开 CSP 的 connect-src 限制
+ *   - 不产生一次多余的网络栈往返
+ * 非 dataUrl（http/https 地址）仍走 fetch。
+ */
+async function dataUrlToBlob(src: string): Promise<Blob> {
+  if (!src.startsWith('data:')) {
+    const res = await fetch(src)
+    return res.blob()
+  }
+  const commaIndex = src.indexOf(',')
+  if (commaIndex === -1) throw new Error('Malformed data URL')
+  const meta = src.slice(5, commaIndex)
+  const isBase64 = meta.includes(';base64')
+  const mime = meta.split(';')[0] || 'image/png'
+  const payload = src.slice(commaIndex + 1)
+
+  if (!isBase64) {
+    return new Blob([decodeURIComponent(payload)], { type: mime })
+  }
+
+  const binary = atob(payload)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
 }
 
 /**
