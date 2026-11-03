@@ -200,11 +200,11 @@
       </div>
 
       <!-- 再次生成 / 失败重试 -->
-      <div v-if="task.status === 'done' || task.status === 'error'" class="mt-3">
+      <div v-if="task.status === 'done' || task.status === 'error'" class="mt-3 flex">
         <button
           v-if="available"
           type="button"
-          class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-40"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700 disabled:opacity-40"
           :disabled="hasRunningTask || retrying"
           @click="onRetry"
         >
