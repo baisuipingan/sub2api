@@ -150,8 +150,10 @@
           </div>
         </template>
 
-        <!-- 空状态 -->
-        <div v-else class="max-w-lg text-center">
+        <!-- 空状态：父级是 items-stretch + flex-col，
+             必须自己 mx-auto（水平）与 my-auto（垂直）才会真正居中，
+             否则会贴到左上角。 -->
+        <div v-else class="mx-auto my-auto max-w-lg text-center">
           <div
             class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-500 dark:bg-primary-500/10 dark:text-primary-400"
           >
