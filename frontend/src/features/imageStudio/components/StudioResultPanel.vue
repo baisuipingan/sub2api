@@ -59,18 +59,20 @@
         </div>
       </header>
 
-      <!-- 主体：垂直居中放相框 + 下方操作键 -->
-      <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-4">
+      <!-- 主体：上=相框容器（声明尺寸查询上下文），下=操作区 -->
+      <div class="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-hidden px-4 py-4">
         <template v-if="activeTask">
-          <StudioSquarePreview
+          <!-- 相框容器：container-type:size 让相框能用 cqw/cqh 自适应 -->
+          <div class="studio-frame-host flex min-h-0 w-full flex-1 items-center justify-center">
+            <StudioSquarePreview
             :task="activeTask"
-            :image-id="currentImageId ?? undefined"
-            :size="frameSize"
-            @select-image="onSelectImage"
-          />
+              :image-id="currentImageId ?? undefined"
+              @select-image="onSelectImage"
+            />
+          </div>
 
           <!-- 相框下方：提示词 + 操作键 + 元信息 -->
-          <div class="flex w-full flex-col items-center gap-2" :style="{ maxWidth: frameSize }">
+          <div class="flex w-full max-w-xl shrink-0 flex-col items-center gap-2">
             <p
               v-if="activeTask.status === 'error'"
               class="w-full break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
@@ -190,7 +192,7 @@
  * 相框边长算法：容器高度减去工具栏、提示词、操作键、元信息的固定占位，
  * 再夹在 [240, 560] 之间。这样任何视口下都不会把中间撑出滚动条。
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import StudioSquarePreview from './StudioSquarePreview.vue'
@@ -219,9 +221,6 @@ const activeImageId = ref<string | null>(null)
 const railCollapsed = ref(readRailCollapsed())
 const retrying = ref(false)
 
-/** 由 ResizeObserver 测量，用于算相框边长 */
-const viewportHeight = ref(560)
-
 const statuses = ['all', 'done', 'running', 'error'] as const
 
 const filteredTasks = computed(() => {
@@ -243,19 +242,6 @@ const currentImageId = computed(() => {
     return activeImageId.value
   }
   return task.outputImages[0] ?? null
-})
-
-/**
- * 相框边长。
- *
- * 竖直方向让出：工具栏 ≈44、上下 padding 32、提示词 20、操作键 34、
- * 元信息 18、间距 24，合计约 172px。再夹在 [240, 560]。
- */
-const frameSize = computed(() => {
-  const overhead = 172
-  const available = viewportHeight.value - overhead
-  const side = Math.max(240, Math.min(560, available))
-  return `${Math.round(side)}px`
 })
 
 const displayPrompt = computed(() =>
@@ -421,19 +407,20 @@ watch(
   },
 )
 
-let observer: ResizeObserver | null = null
-onMounted(() => {
-  const root = document.querySelector('.image-studio-root')
-  if (!root || typeof ResizeObserver === 'undefined') return
-  observer = new ResizeObserver((entries) => {
-    const height = entries[0]?.contentRect.height ?? 0
-    if (height > 0) viewportHeight.value = height
-  })
-  observer.observe(root)
-})
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  observer = null
-})
 </script>
+
+<style scoped>
+/**
+ * 相框的尺寸查询上下文。
+ *
+ * StudioSquarePreview 内部用 cqw/cqh 算自己的边长，需要这个容器先声明
+ * container-type: size —— 否则 cqw/cqh 会回退到视口单位，又变成不准的估算。
+ *
+ * min-height: 0 是必须的：flex 子项默认 min-height:auto 会把容器撑高，
+ * 导致 100cqh 算出来比实际可用空间大，相框就会溢出（就是 100% 缩放那个 bug）。
+ */
+.studio-frame-host {
+  container-type: size;
+  min-height: 0;
+}
+</style>
