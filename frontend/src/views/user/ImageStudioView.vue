@@ -9,7 +9,7 @@
       <StudioProductHeader />
 
       <main
-        class="mx-auto grid w-full max-w-[1600px] flex-1 gap-0 lg:min-h-0 lg:grid-cols-[380px_minmax(0,1fr)]"
+        class="mx-auto grid w-full max-w-[1600px] flex-1 gap-0 lg:min-h-0 lg:grid-cols-[clamp(280px,26vw,340px)_minmax(0,1fr)]"
       >
         <StudioCreationPanel />
         <StudioResultPanel />

@@ -60,7 +60,7 @@
       </header>
 
       <!-- 主体：上=相框容器（声明尺寸查询上下文），下=操作区 -->
-      <div class="flex min-h-0 flex-1 flex-col items-stretch gap-2 overflow-hidden px-4 py-3">
+      <div class="flex min-h-0 flex-1 flex-col items-stretch gap-2 overflow-hidden px-3 py-3 sm:px-5">
         <template v-if="activeTask">
           <!-- 相框容器：container-type:size 让相框能用 cqw/cqh 自适应 -->
           <div class="studio-frame-host flex min-h-0 w-full flex-1 items-center justify-center">
