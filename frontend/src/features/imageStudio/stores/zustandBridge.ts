@@ -40,7 +40,7 @@ export function createStateHelpers<T extends object>(state: T) {
 /**
  * 兼容 `useStore.getState()` / `useStore.setState()` 的轻量包装。
  *
- * 老代码里有 `useStore.getState().updateTaskFavoriteCollections(...)` 这类写法，
+ * 老代码里有 `useStore.getState().setFilterStatus(...)` 这类写法，
  * 靠这个包装可以原样保留。
  */
 export function createStoreFacade<T extends object>(state: T, read: () => T) {

@@ -33,7 +33,6 @@ const { state, retryTask, reuseConfig, editOutputs, editOutputMask } = vi.hoiste
       selectedModelId: 'gpt-image-2',
     },
     setDetailTaskId: vi.fn(),
-    openFavoritePicker: vi.fn(),
     setShowSettings: vi.fn(),
     showToast: vi.fn(),
   },

@@ -94,15 +94,6 @@ export interface TaskRecord {
   createdAt: number
   finishedAt: number | null
   elapsed: number | null
-  isFavorite?: boolean
-  favoriteCollectionIds?: string[]
-}
-
-export interface FavoriteCollection {
-  id: string
-  name: string
-  createdAt: number
-  updatedAt: number
 }
 
 export interface StoredImage {
@@ -153,8 +144,6 @@ export interface ExportData {
   }
   settings?: AppSettings
   tasks?: TaskRecord[]
-  favoriteCollections?: FavoriteCollection[]
-  defaultFavoriteCollectionId?: string | null
   imageFiles?: Record<string, {
     path: string
     createdAt?: number

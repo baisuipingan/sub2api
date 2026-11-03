@@ -59,31 +59,19 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import { storeState as state, clearFailedTasks, taskMatchesFilterStatus, taskMatchesSearchQuery } from '../stores/store'
-import { taskMatchesFavoriteCollection } from './favorites/favoriteUtils'
 
-const props = defineProps<{ favoriteCollectionId?: string }>()
 const { t } = useI18n()
 
 type TaskFilterStatus = 'all' | 'done' | 'running' | 'error'
 const statuses: TaskFilterStatus[] = ['all', 'done', 'running', 'error']
 
-const ariaLabel = computed(() =>
-  props.favoriteCollectionId
-    ? t('imageStudio.search.ariaFavorites')
-    : t('imageStudio.search.ariaHistory'),
-)
+const ariaLabel = computed(() => t('imageStudio.search.ariaHistory'))
 
 /** 当前筛选范围内的失败条数 */
 const failedCount = computed(
   () =>
     state.tasks.filter(
       (task) =>
-        (!props.favoriteCollectionId ||
-          taskMatchesFavoriteCollection(
-            task,
-            props.favoriteCollectionId,
-            state.defaultFavoriteCollectionId,
-          )) &&
         taskMatchesFilterStatus(task, 'error') &&
         taskMatchesSearchQuery(task, state.searchQuery.trim().toLowerCase()),
     ).length,
@@ -93,19 +81,7 @@ function clearFailed() {
   if (!failedCount.value) return
   const query = state.searchQuery.trim().toLowerCase()
   const ids = state.tasks
-    .filter(
-      (task) =>
-        !props.favoriteCollectionId ||
-        taskMatchesFavoriteCollection(
-          task,
-          props.favoriteCollectionId,
-          state.defaultFavoriteCollectionId,
-        ),
-    )
-    .filter(
-      (task) =>
-        taskMatchesFilterStatus(task, 'error') && taskMatchesSearchQuery(task, query),
-    )
+    .filter((task) => taskMatchesFilterStatus(task, 'error') && taskMatchesSearchQuery(task, query))
     .map((task) => task.id)
 
   state.setConfirmDialog({

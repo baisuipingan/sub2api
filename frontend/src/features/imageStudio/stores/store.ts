@@ -1,6 +1,5 @@
 import type {
   AppSettings,
-  FavoriteCollection,
   ImageEditMode,
   InputImage,
   MaskDraft,
@@ -50,16 +49,6 @@ import { showBrowserNotification } from '../lib/browserNotification'
 import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { remapImageMentionsForOrder, replaceImageMentionsForApi, stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { GPT_IMAGE_MIN_PIXELS, normalizeImageSize } from '../lib/size'
-import {
-  DEFAULT_FAVORITE_COLLECTION_ID,
-  createDefaultFavoriteCollection,
-  deleteFavoriteCollectionState,
-  normalizeFavoriteCollectionIds,
-  normalizeFavoriteCollections,
-  normalizeFavoriteCollectionName,
-  normalizeLoadedFavoriteState,
-} from '../lib/favoriteState'
-
 const MAX_INPUT_IMAGES = 16
 const DEFAULT_API_TIMEOUT = 600
 const ERROR_TOAST_MAX_LENGTH = 80
@@ -147,21 +136,11 @@ interface AppState {
   streamPreviews: Record<string, { image: string; partialIndex: number; requestIndex?: number }>
   latestSubmittedTaskId: string | null
   setTasks: (tasks: TaskRecord[]) => void
-  favoriteCollections: FavoriteCollection[]
-  setFavoriteCollections: (collections: FavoriteCollection[]) => void
-  defaultFavoriteCollectionId: string | null
-  setDefaultFavoriteCollectionId: (id: string | null) => void
-  favoritePickerTaskIds: string[] | null
-  openFavoritePicker: (taskIds: string[]) => void
-  closeFavoritePicker: () => void
-  updateTaskFavoriteCollections: (taskIds: string[], collectionIds: string[]) => Promise<void>
 
   searchQuery: string
   setSearchQuery: (query: string) => void
   filterStatus: TaskStatus | 'all'
   setFilterStatus: (status: TaskStatus | 'all') => void
-  filterFavorite: boolean
-  setFilterFavorite: (favorite: boolean) => void
 
   detailTaskId: string | null
   setDetailTaskId: (id: string | null) => void
@@ -187,7 +166,6 @@ const defaultSettings = (): AppSettings => ({
   enterSubmit: false,
 })
 
-const initialCollections = [createDefaultFavoriteCollection()]
 
 
 type StoreBuilder = (
@@ -386,30 +364,11 @@ const buildStore: StoreBuilder = (set, get) => ({
         streamPreviews: {},
         latestSubmittedTaskId: null,
         setTasks: (tasks) => set({ tasks }),
-        favoriteCollections: initialCollections,
-        setFavoriteCollections: (favoriteCollections) => set({ favoriteCollections }),
-        defaultFavoriteCollectionId: DEFAULT_FAVORITE_COLLECTION_ID,
-        setDefaultFavoriteCollectionId: (defaultFavoriteCollectionId) => set({ defaultFavoriteCollectionId }),
-        favoritePickerTaskIds: null,
-        openFavoritePicker: (taskIds) => set({ favoritePickerTaskIds: taskIds }),
-        closeFavoritePicker: () => set({ favoritePickerTaskIds: null }),
-        updateTaskFavoriteCollections: async (taskIds, collectionIds) => {
-          const allowedIds = new Set(get().favoriteCollections.map((collection) => collection.id))
-          const ids = normalizeFavoriteCollectionIds(collectionIds).filter((id) => allowedIds.has(id))
-          const selected = new Set(taskIds)
-          const tasks = get().tasks.map((task) => selected.has(task.id)
-            ? { ...task, favoriteCollectionIds: ids, isFavorite: ids.length > 0 }
-            : task)
-          set({ tasks })
-          await Promise.all(tasks.filter((task) => selected.has(task.id)).map((task) => dbPutTask(task)))
-        },
 
         searchQuery: '',
         setSearchQuery: (searchQuery) => set({ searchQuery }),
         filterStatus: 'all',
         setFilterStatus: (filterStatus) => set({ filterStatus }),
-        filterFavorite: false,
-        setFilterFavorite: (filterFavorite) => set({ filterFavorite }),
 
         detailTaskId: null,
         setDetailTaskId: (detailTaskId) => set({ detailTaskId }),
@@ -497,14 +456,18 @@ export function initStore(): Promise<void> {
         .filter((task): task is TaskRecord => Boolean(task))
 
       const current = useStore.getState()
-      const favoriteState = normalizeLoadedFavoriteState(
-        loadedTasks,
-        current.favoriteCollections,
-        current.defaultFavoriteCollectionId,
-      )
+
+      // 收藏功能已下线：旧数据里可能残留 isFavorite / favoriteCollectionIds，
+      // 这里统一剥掉，避免残缺字段继续流到 UI 或后续持久化里。
+      const cleanedTasks = loadedTasks.map((task) => {
+        const raw = task as TaskRecord & Record<string, unknown>
+        if (!('isFavorite' in raw) && !('favoriteCollectionIds' in raw)) return task
+        const { isFavorite: _isFavorite, favoriteCollectionIds: _favoriteCollectionIds, ...rest } = raw
+        return rest as unknown as TaskRecord
+      })
 
       // 上次退出时仍在生成的任务 → 标记为中断
-      const interrupted = favoriteState.tasks.map((task) =>
+      const interrupted = cleanedTasks.map((task) =>
         task.status === 'running'
           ? { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()) }
           : task,
@@ -526,8 +489,6 @@ export function initStore(): Promise<void> {
 
       useStore.setState({
         tasks: interrupted,
-        favoriteCollections: favoriteState.collections,
-        defaultFavoriteCollectionId: favoriteState.defaultFavoriteCollectionId,
         prompt: remapImageMentionsForOrder(
           current.prompt,
           current.inputImages,
@@ -1006,8 +967,6 @@ export async function exportData(options: { exportConfig?: boolean; exportTasks?
     exportedAt: Date.now(),
     settings: stripApiKeysFromSettings(state.settings),
     tasks: options.exportTasks ? state.tasks : [],
-    favoriteCollections: state.favoriteCollections,
-    defaultFavoriteCollectionId: state.defaultFavoriteCollectionId,
   }
   const plan = getExportZipPlan(params, images.map((image) => ({
     id: image.id,
@@ -1063,85 +1022,13 @@ export async function importData(file: File, options: { importConfig?: boolean; 
       const importedTasks = manifest.tasks.map(normalizeTask).filter((task): task is TaskRecord => Boolean(task))
       await Promise.all(importedTasks.map((task) => dbPutTask(task)))
       const mergedTasks = [...state.tasks.filter((task) => !importedTasks.some((item) => item.id === task.id)), ...importedTasks]
-      useStore.setState({
-        tasks: mergedTasks,
-        favoriteCollections: manifest.favoriteCollections?.length ? normalizeFavoriteCollections(manifest.favoriteCollections) : state.favoriteCollections,
-        defaultFavoriteCollectionId: manifest.defaultFavoriteCollectionId ?? state.defaultFavoriteCollectionId,
-      })
+      useStore.setState({ tasks: mergedTasks })
     }
     state.showToast(st('imageStudio.store.backupRestored'), 'success')
   } catch (error) {
     console.error(error)
     state.showToast(st('imageStudio.store.backupInvalid'), 'error')
   }
-}
-
-export function createFavoriteCollection(name: string) {
-  const normalizedName = normalizeFavoriteCollectionName(name)
-  if (!normalizedName) return null
-  const now = Date.now()
-  const collection: FavoriteCollection = {
-    id: `collection-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    name: normalizedName.slice(0, 60),
-    createdAt: now,
-    updatedAt: now,
-  }
-  useStore.setState((state) => ({
-    favoriteCollections: [...state.favoriteCollections, collection],
-    defaultFavoriteCollectionId: state.defaultFavoriteCollectionId ?? collection.id,
-  }))
-  return collection
-}
-
-export function renameFavoriteCollection(id: string, name: string) {
-  const normalizedName = normalizeFavoriteCollectionName(name)
-  if (!id || !normalizedName) return
-  useStore.setState((state) => ({
-    favoriteCollections: state.favoriteCollections.map((collection) => collection.id === id
-      ? { ...collection, name: normalizedName.slice(0, 60), updatedAt: Date.now() }
-      : collection),
-  }))
-}
-
-export async function deleteFavoriteCollection(id: string, deleteTasks = false) {
-  const state = useStore.getState()
-  const result = deleteFavoriteCollectionState({
-    collections: state.favoriteCollections,
-    defaultFavoriteCollectionId: state.defaultFavoriteCollectionId,
-    activeFavoriteCollectionId: null,
-    selectedFavoriteCollectionIds: [],
-    selectedTaskIds: [],
-    tasks: state.tasks,
-    collectionId: id,
-    deleteTasks,
-  })
-  if (!result) return
-
-  const updatedById = new Map(result.updatedTasks.map((task) => [task.id, task]))
-  const deletedIds = new Set(result.taskIdsToDelete)
-  const tasks = state.tasks
-    .filter((task) => !deletedIds.has(task.id))
-    .map((task) => updatedById.get(task.id) ?? task)
-  const referenced = collectReferencedImageIds(tasks, state.inputImages)
-  const deleteImageIds = new Set<string>()
-  for (const task of state.tasks.filter((task) => deletedIds.has(task.id))) {
-    for (const imageId of collectTaskImageIds(task)) if (!referenced.has(imageId)) deleteImageIds.add(imageId)
-  }
-
-  useStore.setState({
-    favoriteCollections: result.collections,
-    defaultFavoriteCollectionId: result.defaultFavoriteCollectionId,
-    tasks,
-  })
-  await commitTaskDeletion(result.taskIdsToDelete, result.updatedTasks)
-  await Promise.all([...deleteImageIds].map(async (imageId) => {
-    await dbDeleteImage(imageId)
-    deleteImageCacheEntry(imageId)
-  }))
-}
-
-export async function updateTasksFavoriteCollections(taskIds: string[], collectionIds: string[]) {
-  await useStore.getState().updateTaskFavoriteCollections(taskIds, collectionIds)
 }
 
 export function taskMatchesFilterStatus(task: TaskRecord, filterStatus: AppState['filterStatus']) {
@@ -1245,8 +1132,6 @@ function normalizeTask(value: unknown): TaskRecord | null {
     createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
     finishedAt: typeof record.finishedAt === 'number' ? record.finishedAt : null,
     elapsed: typeof record.elapsed === 'number' ? record.elapsed : null,
-    isFavorite: record.isFavorite === true,
-    favoriteCollectionIds: normalizeFavoriteCollectionIds(record.favoriteCollectionIds),
   }
 }
 

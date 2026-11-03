@@ -22,10 +22,6 @@
       <StudioSettingsModal />
       <StudioConfirmDialog />
       <StudioImageContextMenu />
-      <StudioFavoriteCollectionPickerModal
-        v-if="state.favoritePickerTaskIds"
-        @close="state.closeFavoritePicker()"
-      />
       <StudioToast />
     </div>
   </AppLayout>
@@ -43,7 +39,6 @@ import StudioMaskEditorModal from '@/features/imageStudio/components/StudioMaskE
 import StudioSettingsModal from '@/features/imageStudio/components/StudioSettingsModal.vue'
 import StudioConfirmDialog from '@/features/imageStudio/components/StudioConfirmDialog.vue'
 import StudioImageContextMenu from '@/features/imageStudio/components/StudioImageContextMenu.vue'
-import StudioFavoriteCollectionPickerModal from '@/features/imageStudio/components/favorites/StudioFavoriteCollectionPickerModal.vue'
 import StudioToast from '@/features/imageStudio/components/StudioToast.vue'
 import { storeState as state, initStore } from '@/features/imageStudio/stores/store'
 import { loadImagePricing, collectBillingModels } from '@/features/imageStudio/lib/studioPricing'

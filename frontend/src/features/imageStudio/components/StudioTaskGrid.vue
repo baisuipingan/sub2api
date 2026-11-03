@@ -14,11 +14,6 @@
       </button>
     </template>
 
-    <template v-else-if="favoriteCollectionId">
-      <StudioIcon name="FavoriteIcon" class="mx-auto mb-4 h-16 w-16 text-amber-200 dark:text-amber-900/60" />
-      <p class="text-sm">{{ t('imageStudio.grid.emptyCollection') }}</p>
-    </template>
-
     <template v-else>
       <StudioIcon name="ImageUploadIcon" class="mx-auto mb-4 h-16 w-16 text-gray-200 dark:text-dark-700" />
       <p class="text-sm">{{ t('imageStudio.grid.emptyTasks') }}</p>
@@ -53,10 +48,8 @@ import {
   taskMatchesFilterStatus,
   taskMatchesSearchQuery,
 } from '../stores/store'
-import { taskMatchesFavoriteCollection } from './favorites/favoriteUtils'
 
 const props = defineProps<{
-  favoriteCollectionId?: string
   selectedTaskId?: string | null
   onSelectTask?: (taskId: string) => void
 }>()
@@ -69,15 +62,6 @@ const filteredTasks = computed(() => {
     .sort((a, b) => b.createdAt - a.createdAt)
     .filter(
       (task) =>
-        !props.favoriteCollectionId ||
-        taskMatchesFavoriteCollection(
-          task,
-          props.favoriteCollectionId,
-          state.defaultFavoriteCollectionId,
-        ),
-    )
-    .filter(
-      (task) =>
         taskMatchesFilterStatus(task, state.filterStatus) && taskMatchesSearchQuery(task, q),
     )
 })
@@ -88,9 +72,7 @@ const hasFilter = computed(
 
 const emptyFilterText = computed(() => {
   if (state.searchQuery.trim()) {
-    return props.favoriteCollectionId
-      ? t('imageStudio.grid.noMatchFavorite')
-      : t('imageStudio.grid.noMatchTask')
+    return t('imageStudio.grid.noMatchTask')
   }
   return t('imageStudio.grid.noStatusTask', {
     status: t(`imageStudio.search.status.${state.filterStatus}`),

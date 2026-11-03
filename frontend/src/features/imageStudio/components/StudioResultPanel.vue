@@ -5,86 +5,17 @@
   >
     <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
       <div class="min-w-0">
-        <button
-          v-if="showFavorites && activeCollectionId"
-          type="button"
-          class="mb-2 inline-flex items-center gap-1 text-sm text-gray-500 transition hover:text-primary-600 dark:text-dark-400 dark:hover:text-primary-400"
-          @click="backToCollections"
-        >
-          <StudioIcon name="ChevronLeftIcon" class="h-4 w-4" />{{ t('imageStudio.resultPanel.collections') }}
-        </button>
         <p class="text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
           {{ t('imageStudio.resultPanel.workspace') }}
         </p>
         <h2 class="mt-1 truncate text-xl font-semibold text-gray-950 dark:text-white">
           {{ heading }}
         </h2>
-        <p
-          v-if="showFavorites && activeCollectionId && activeCollection"
-          class="mt-1 text-sm text-gray-500 dark:text-dark-400"
-        >
-          {{ t('imageStudio.resultPanel.taskCount', { count: activeCollection.taskCount }) }}
-        </p>
-      </div>
-
-      <div
-        role="tablist"
-        :aria-label="t('imageStudio.resultPanel.viewAria')"
-        class="flex shrink-0 items-center rounded-lg border border-gray-200 bg-white p-1 dark:border-white/[0.1] dark:bg-white/[0.04]"
-      >
-        <button
-          type="button"
-          role="tab"
-          class="rounded-md px-3 py-1.5 text-sm transition"
-          :class="
-            !showFavorites
-              ? 'bg-gray-100 font-medium text-gray-900 shadow-sm dark:bg-white/[0.1] dark:text-white'
-              : 'text-gray-500 hover:text-gray-800 dark:text-dark-400'
-          "
-          :aria-selected="!showFavorites"
-          @click="switchView(false)"
-        >
-          {{ t('imageStudio.resultPanel.history') }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition"
-          :class="
-            showFavorites
-              ? 'bg-gray-100 font-medium text-gray-900 shadow-sm dark:bg-white/[0.1] dark:text-white'
-              : 'text-gray-500 hover:text-gray-800 dark:text-dark-400'
-          "
-          :aria-label="t('imageStudio.resultPanel.favorites')"
-          :aria-selected="showFavorites"
-          @click="switchView(true)"
-        >
-          <StudioIcon
-            name="FavoriteIcon"
-            class="h-4 w-4 text-amber-500"
-            :class="favoriteTaskCount > 0 ? 'fill-current' : ''"
-          />
-          <span>{{ t('imageStudio.resultPanel.favorites') }}</span>
-        </button>
       </div>
     </div>
 
-    <!-- 收藏视图 -->
-    <template v-if="showFavorites">
-      <template v-if="activeCollectionId">
-        <StudioActiveResult v-if="activeTask" :key="activeTask.id" :task="activeTask" />
-        <StudioSearchBar :favorite-collection-id="activeCollectionId" />
-        <StudioTaskGrid
-          :favorite-collection-id="activeCollectionId"
-          :selected-task-id="activeTaskId"
-          :on-select-task="setActiveTaskId"
-        />
-      </template>
-      <StudioFavoriteCollectionsView v-else @open-collection="openCollection" />
-    </template>
-
     <!-- 历史任务视图：有任务 -->
-    <template v-else-if="state.tasks.length">
+    <template v-if="state.tasks.length">
       <StudioActiveResult v-if="activeTask" :key="activeTask.id" :task="activeTask" />
 
       <div class="mb-3 flex items-center justify-between">
@@ -161,23 +92,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import StudioIcon from './StudioIcon.vue'
 import StudioActiveResult from './StudioActiveResult.vue'
 import StudioSearchBar from './StudioSearchBar.vue'
 import StudioTaskGrid from './StudioTaskGrid.vue'
-import StudioFavoriteCollectionsView from './favorites/StudioFavoriteCollectionsView.vue'
 import {
   storeState as state,
   taskMatchesFilterStatus,
   taskMatchesSearchQuery,
 } from '../stores/store'
-import { ALL_FAVORITES_COLLECTION_ID } from '../lib/favoriteState'
-import { getCollectionTasks, taskMatchesFavoriteCollection } from './favorites/favoriteUtils'
 
 const { t } = useI18n()
 
-const showFavorites = ref(false)
-const activeCollectionId = ref<string | null>(null)
 const activeTaskId = ref<string | null>(null)
 const noticeTaskId = ref<string | null>(null)
 
@@ -188,39 +113,11 @@ const sortedTasks = computed(() =>
   [...state.tasks].sort((a, b) => b.createdAt - a.createdAt),
 )
 
-const favoriteTaskCount = computed(() => state.tasks.filter((task) => task.isFavorite).length)
-
 const activeTask = computed(
   () => state.tasks.find((task) => task.id === activeTaskId.value) ?? null,
 )
 
-const activeCollection = computed(() => {
-  if (activeCollectionId.value === ALL_FAVORITES_COLLECTION_ID) {
-    return { name: t('imageStudio.resultPanel.allFavorites'), taskCount: favoriteTaskCount.value }
-  }
-  if (
-    activeCollectionId.value &&
-    state.favoriteCollections.some((c) => c.id === activeCollectionId.value)
-  ) {
-    const found = state.favoriteCollections.find((c) => c.id === activeCollectionId.value)!
-    return {
-      name: found.name,
-      taskCount: getCollectionTasks(
-        activeCollectionId.value,
-        state.tasks,
-        state.defaultFavoriteCollectionId,
-      ).length,
-    }
-  }
-  return null
-})
-
-const heading = computed(() => {
-  if (showFavorites.value) {
-    return activeCollection.value?.name ?? t('imageStudio.resultPanel.favorites')
-  }
-  return t('imageStudio.resultPanel.generatedResults')
-})
+const heading = computed(() => t('imageStudio.resultPanel.generatedResults'))
 
 const noticeTask = computed(() =>
   state.tasks.find((task) => task.id === noticeTaskId.value && task.id !== activeTaskId.value),
@@ -244,13 +141,6 @@ const hiddenSelection = computed(() => {
   if (!task) return false
   if (!taskMatchesFilterStatus(task, state.filterStatus)) return true
   if (!taskMatchesSearchQuery(task, state.searchQuery)) return true
-  if (
-    showFavorites.value &&
-    activeCollectionId.value &&
-    !taskMatchesFavoriteCollection(task, activeCollectionId.value, state.defaultFavoriteCollectionId)
-  ) {
-    return true
-  }
   return false
 })
 
@@ -301,8 +191,6 @@ watch(
   () => state.latestSubmittedTaskId,
   (id) => {
     if (!id) return
-    showFavorites.value = false
-    activeCollectionId.value = null
     activeTaskId.value = id
     noticeTaskId.value = null
     state.setSearchQuery('')
@@ -310,39 +198,7 @@ watch(
   },
 )
 
-/** 当前收藏夹被删除时退回列表 */
-watch(
-  () => state.favoriteCollections,
-  (collections) => {
-    const id = activeCollectionId.value
-    if (!id || id === ALL_FAVORITES_COLLECTION_ID) return
-    if (collections.some((c) => c.id === id)) return
-    activeCollectionId.value = null
-    state.setSearchQuery('')
-  },
-)
-
-function switchView(favorites: boolean) {
-  showFavorites.value = favorites
-  activeCollectionId.value = null
-  state.setSearchQuery('')
-  state.setFilterStatus('all')
-}
-
-function backToCollections() {
-  activeCollectionId.value = null
-  state.setSearchQuery('')
-  state.setFilterStatus('all')
-}
-
-function openCollection(collectionId: string) {
-  state.setSearchQuery('')
-  state.setFilterStatus('all')
-  activeCollectionId.value = collectionId
-}
-
 function revealTask(taskId: string) {
-  switchView(false)
   activeTaskId.value = taskId
   noticeTaskId.value = null
 }

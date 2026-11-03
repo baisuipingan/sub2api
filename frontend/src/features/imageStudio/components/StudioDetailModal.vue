@@ -248,17 +248,6 @@
           </button>
           <button
             type="button"
-            class="flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-600 transition hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400"
-            @click="state.openFavoritePicker([task.id])"
-          >
-            <StudioIcon
-              name="FavoriteIcon"
-              class="h-4 w-4"
-              :class="task.isFavorite ? 'fill-current' : ''"
-            />{{ t('imageStudio.resultPanel.favorites') }}
-          </button>
-          <button
-            type="button"
             class="flex items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400"
             @click="handleDelete"
           >

@@ -58,16 +58,6 @@
       <span class="text-[11px] text-gray-400">{{ timeLabel }}</span>
       <div class="flex items-center gap-1">
         <button
-          type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-amber-50 dark:hover:bg-white/[0.06]"
-          :class="task.isFavorite ? 'text-amber-500' : 'text-gray-400'"
-          :aria-label="favoriteLabel"
-          :title="favoriteLabel"
-          @click="state.openFavoritePicker([task.id])"
-        >
-          <StudioIcon name="FavoriteIcon" class="h-4 w-4" :class="task.isFavorite ? 'fill-current' : ''" />
-        </button>
-        <button
           ref="moreButtonRef"
           type="button"
           class="flex h-8 w-8 items-center justify-center rounded-md text-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
@@ -222,9 +212,6 @@ const timeLabel = computed(() => {
   return props.task.status === 'running' ? t('imageStudio.task.generating') : ''
 })
 
-const favoriteLabel = computed(() =>
-  props.task.isFavorite ? t('imageStudio.task.editFavorite') : t('imageStudio.task.addFavorite'),
-)
 
 function updateImageSize(size: { width: number; height: number }) {
   if (outputImageId.value) {

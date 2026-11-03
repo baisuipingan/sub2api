@@ -1,6 +1,6 @@
 import { libT } from './i18nMessage'
 import { strFromU8, strToU8, unzip, zip } from 'fflate'
-import type { AppSettings, ExportData, FavoriteCollection, StoredImage, StoredImageThumbnail, TaskRecord } from '../types'
+import type { AppSettings, ExportData, StoredImage, StoredImageThumbnail, TaskRecord } from '../types'
 import { bytesToDataUrl, dataUrlToBytes } from './dataUrl'
 import { getNumberedFileNameBase, sanitizeFileNamePart } from './exportFileName'
 import { getDataUrlDecodedByteSize } from './imageApiShared'
@@ -23,8 +23,6 @@ export interface BuildExportZipParams {
   tasks: TaskRecord[]
   images: StoredImage[]
   thumbnailsByImageId: Map<string, StoredImageThumbnail>
-  favoriteCollections: FavoriteCollection[]
-  defaultFavoriteCollectionId: string | null
   includeManifestData?: boolean
   backupPart?: ExportData['backupPart']
 }
@@ -90,8 +88,6 @@ export async function buildExportZip(params: BuildExportZipParams) {
     ...(params.options.exportTasks ? {
       ...(params.includeManifestData !== false || params.tasks.length ? { tasks: params.tasks } : {}),
       ...(params.includeManifestData !== false ? {
-        favoriteCollections: params.favoriteCollections,
-        defaultFavoriteCollectionId: params.defaultFavoriteCollectionId,
       } : {}),
       imageFiles,
       thumbnailFiles,
@@ -212,8 +208,6 @@ function getBaseManifestEstimatedBytes(params: Omit<BuildExportZipParams, 'image
     ...(params.options.exportConfig ? { settings: params.settings } : {}),
     ...(params.options.exportTasks ? {
       tasks: [],
-      favoriteCollections: params.favoriteCollections,
-      defaultFavoriteCollectionId: params.defaultFavoriteCollectionId,
     } : {}),
   }
   return strToU8(JSON.stringify(manifest)).byteLength + ZIP_ENTRY_OVERHEAD_BYTES

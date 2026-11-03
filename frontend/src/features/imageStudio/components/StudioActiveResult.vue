@@ -198,20 +198,6 @@
 
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-white/[0.06]"
-          :aria-label="favoriteLabel"
-          :title="favoriteLabel"
-          @click="state.openFavoritePicker([task.id])"
-        >
-          <StudioIcon
-            name="FavoriteIcon"
-            class="h-4 w-4"
-            :class="task.isFavorite ? 'fill-current' : ''"
-          />
-        </button>
-
-        <button
-          type="button"
           class="rounded-lg px-2 py-2 text-gray-500 hover:text-primary-600"
           @click="state.setDetailTaskId(task.id)"
         >
@@ -475,9 +461,6 @@ const partialFailure = computed(() => {
   })
 })
 
-const favoriteLabel = computed(() =>
-  props.task.isFavorite ? t('imageStudio.task.editFavorite') : t('imageStudio.task.addFavorite'),
-)
 
 const referenceTitle = computed(() => {
   if (alreadyAdded.value) return t('imageStudio.result.alreadyReferenced')

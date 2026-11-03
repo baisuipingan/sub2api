@@ -82,6 +82,10 @@ export async function fetchMiloRouterImageModels(apiKey: string, timeoutMs = 15_
       let models = createImageModelCatalogFromModelList(await response.json() as unknown)
       if (models.some((model) => model.api === 'gemini')) {
         const nonGeminiModels = models.filter((model) => model.api !== 'gemini')
+        // /v1beta/models 只是用来确认 Gemini 模型是否真的可用（后端没配 Gemini 账号时返回 503）。
+        // 这里任何失败都必须静默降级为「只保留非 Gemini 模型」：
+        // 之前只 catch 了 fetch，解析 503 的 {"error":...} 会抛错并让整个列表加载失败，
+        // 表现就是「模型列表加载失败」+ 下拉框空 —— 非 Gemini 模型其实完全可用。
         try {
           response = await fetch(`${MILO_ROUTER_BASE_URL}/v1beta/models`, {
             headers: { Authorization: `Bearer ${key}` },
