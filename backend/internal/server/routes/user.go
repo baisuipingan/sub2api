@@ -127,6 +127,15 @@ func RegisterUserRoutes(
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 
+		// 用户工单：只看自己的，回复按状态流转
+		tickets := authenticated.Group("/tickets")
+		{
+			tickets.GET("", h.Ticket.List)
+			tickets.POST("", h.Ticket.Create)
+			tickets.GET("/:id", h.Ticket.Get)
+			tickets.POST("/:id/messages", h.Ticket.Reply)
+		}
+
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{
