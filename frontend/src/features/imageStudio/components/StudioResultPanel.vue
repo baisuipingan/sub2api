@@ -60,7 +60,7 @@
       </header>
 
       <!-- 主体：上=相框容器（声明尺寸查询上下文），下=操作区 -->
-      <div class="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-hidden px-4 py-4">
+      <div class="flex min-h-0 flex-1 flex-col items-stretch gap-2 overflow-hidden px-4 py-3">
         <template v-if="activeTask">
           <!-- 相框容器：container-type:size 让相框能用 cqw/cqh 自适应 -->
           <div class="studio-frame-host flex min-h-0 w-full flex-1 items-center justify-center">
@@ -81,10 +81,14 @@
             </p>
             <p
               v-else
-              class="line-clamp-1 w-full break-words text-center text-xs text-gray-600 dark:text-dark-300"
-              :title="displayPrompt"
+              class="flex w-full min-w-0 items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-dark-400"
             >
-              {{ displayPrompt }}
+              <span class="line-clamp-1 min-w-0 break-words text-gray-700 dark:text-dark-200" :title="displayPrompt">
+                {{ displayPrompt }}
+              </span>
+              <span class="shrink-0 tabular-nums">{{ sizeLabel }}</span>
+              <span v-if="ratioLabel" class="shrink-0 tabular-nums">{{ ratioLabel }}</span>
+              <span class="shrink-0 tabular-nums">{{ elapsedLabel }}</span>
             </p>
 
             <div class="flex flex-wrap items-center justify-center gap-1.5">
@@ -128,11 +132,8 @@
               </button>
             </div>
 
-            <p class="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] text-gray-400">
-              <span class="max-w-[12rem] truncate">{{ modelName }}</span>
-              <span class="tabular-nums">{{ sizeLabel }}</span>
-              <span v-if="ratioLabel" class="tabular-nums">{{ ratioLabel }}</span>
-              <span class="tabular-nums">{{ elapsedLabel }}</span>
+            <p class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
+              <span class="max-w-[14rem] truncate">{{ modelName }}</span>
               <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
             </p>
           </div>

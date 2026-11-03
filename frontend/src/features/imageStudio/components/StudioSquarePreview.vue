@@ -174,11 +174,11 @@ function openLightbox() {
  * 结果 100% 缩放时算大了溢出、67% 缩放时被 560 上限卡住显得空。
  * 交给 CSS 后，缩放比例、窗口大小、历史栏展开收起都不需要重新计算。
  *
- * 预留 88px：操作键两行 + 提示词一行的实际占位（含间距）。
+ * 预留 62px：提示词一行 + 操作键一行 + 元信息一行的紧凑占位。
  */
 .studio-frame {
-  width: min(100cqw, calc(100cqh - 88px));
-  max-width: 640px;
+  width: min(100cqw, calc(100cqh - 62px));
+  max-width: 720px;
   aspect-ratio: 1 / 1;
   /* 有些窄屏会算出很大值，用 vmin 兜一层，防止超过视口 */
   max-height: 100cqh;
