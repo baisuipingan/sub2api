@@ -443,6 +443,7 @@ imageStudio: {
     fileTooLarge: '{label} exceeds the size limit',
   },
   history: {
+    shortTitle: 'History',
     title: 'History',
     aria: 'Generation history',
     expand: 'Expand history',

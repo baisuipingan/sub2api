@@ -13,11 +13,11 @@
     <!-- 栏头 -->
     <div
       class="flex shrink-0 items-center border-b border-gray-100 dark:border-white/[0.06]"
-      :class="collapsed ? 'justify-center px-1 py-2.5' : 'justify-between px-3 py-2.5'"
+      :class="collapsed ? 'justify-center px-1 py-2.5' : 'justify-between gap-1 px-2 py-2.5'"
     >
       <div v-if="!collapsed" class="flex min-w-0 items-center gap-1.5">
-        <span class="text-xs font-semibold text-gray-900 dark:text-white">
-          {{ t('imageStudio.history.title') }}
+        <span class="whitespace-nowrap text-xs font-semibold text-gray-900 dark:text-white">
+          {{ t('imageStudio.history.shortTitle') }}
         </span>
         <span
           class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-gray-500 dark:bg-white/[0.08] dark:text-dark-400"

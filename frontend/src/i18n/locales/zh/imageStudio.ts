@@ -443,6 +443,7 @@ imageStudio: {
     fileTooLarge: '{label}超过限制',
   },
   history: {
+    shortTitle: '历史',
     title: '生成历史',
     aria: '生成历史列表',
     expand: '展开历史栏',
