@@ -6,19 +6,13 @@
     class="result-preview-panel min-w-0 bg-white dark:bg-dark-950"
     :aria-label="t('imageStudio.result.previewAria')"
   >
-    <div
-      class="flex items-center justify-between gap-2 border-b border-gray-100 p-4 dark:border-white/[0.06]"
-    >
-      <h2 class="text-sm font-semibold">{{ t('imageStudio.result.title') }}</h2>
-      <StudioTaskStatusBadge :task="task" />
-    </div>
-
     <div class="p-4">
       <!-- 生成中 -->
       <div
         v-if="task.status === 'running'"
         role="status"
-        class="result-image-stage flex flex-col items-center justify-center gap-3 overflow-hidden bg-gray-50 text-sm text-primary-600 dark:bg-black/20 dark:text-primary-400"
+        class="result-image-stage flex min-h-[320px] w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-xl bg-gray-50 text-sm text-primary-600 dark:bg-black/20 dark:text-primary-400"
+        :style="{ maxHeight: 'min(56vh, 42rem)' }"
       >
         <template v-if="streamPreview">
           <img
@@ -48,7 +42,7 @@
       <!-- 无图 -->
       <div
         v-else
-        class="result-image-stage flex items-center justify-center bg-gray-50 text-sm text-gray-400 dark:bg-black/20"
+        class="result-image-stage flex min-h-[320px] w-full items-center justify-center rounded-xl bg-gray-50 text-sm text-gray-400 dark:bg-black/20"
       >
         {{
           task.status === 'error'
@@ -252,7 +246,6 @@ import { formatImageRatio, parseRatio } from '../lib/size'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
 import StudioIcon from './StudioIcon.vue'
 import StudioImageThumbnail from './StudioImageThumbnail.vue'
-import StudioTaskStatusBadge from './StudioTaskStatusBadge.vue'
 import StudioResultImage from './StudioResultImage.vue'
 
 const props = defineProps<{ task: TaskRecord }>()
