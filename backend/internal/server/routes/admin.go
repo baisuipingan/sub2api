@@ -446,9 +446,11 @@ func registerTicketRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	tickets := admin.Group("/tickets")
 	{
 		tickets.GET("", h.Admin.Ticket.List)
+		tickets.GET("/unread-count", h.Admin.Ticket.UnreadCount)
 		tickets.GET("/:id", h.Admin.Ticket.Get)
 		tickets.POST("/:id/messages", h.Admin.Ticket.Reply)
 		tickets.PUT("/:id", h.Admin.Ticket.Update)
+		tickets.DELETE("/:id", h.Admin.Ticket.Delete)
 	}
 }
 

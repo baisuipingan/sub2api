@@ -122,6 +122,13 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <!-- 未读红点：展开态贴右，收起态浮在图标右上角 -->
+            <span
+              v-if="resolveBadge(item) > 0"
+              class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white"
+              :class="sidebarCollapsed ? 'sidebar-badge-collapsed absolute right-1.5 top-1.5 ml-0' : ''"
+              :aria-label="t('tickets.unreadCount', { count: resolveBadge(item) })"
+            >{{ resolveBadge(item) > 99 ? '99+' : resolveBadge(item) }}</span>
           </router-link>
         </div>
       </template>
@@ -142,6 +149,13 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <!-- 未读红点：展开态贴右，收起态浮在图标右上角 -->
+            <span
+              v-if="resolveBadge(item) > 0"
+              class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white"
+              :class="sidebarCollapsed ? 'sidebar-badge-collapsed absolute right-1.5 top-1.5 ml-0' : ''"
+              :aria-label="t('tickets.unreadCount', { count: resolveBadge(item) })"
+            >{{ resolveBadge(item) > 99 ? '99+' : resolveBadge(item) }}</span>
           </router-link>
         </div>
       </template>
@@ -198,7 +212,7 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useTicketStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
@@ -211,6 +225,11 @@ interface NavItem {
   path: string
   label: string
   icon: unknown
+  /**
+   * 未读等提示数。>0 时在菜单右侧（收起态在图标右上角）渲染红点。
+   * 用 getter 传，保证 computed 能追踪到 store 变化。
+   */
+  badge?: () => number
   iconSvg?: string
   hideInSimpleMode?: boolean
   children?: NavItem[]
@@ -248,6 +267,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
+const ticketStore = useTicketStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
@@ -756,6 +776,17 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 //
 // 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 订阅/支付 → 兑换/资料。
 // 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
+/** 读取菜单项的提示数；getter 抛错时按 0 处理，避免侧栏整体崩掉 */
+function resolveBadge(item: NavItem): number {
+  if (!item.badge) return 0
+  try {
+    const value = item.badge()
+    return Number.isFinite(value) && value > 0 ? value : 0
+  } catch {
+    return 0
+  }
+}
+
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -763,7 +794,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/tickets', label: t('nav.tickets'), icon: TicketSupportIcon },
+    { path: '/tickets', label: t('nav.tickets'), icon: TicketSupportIcon, badge: () => ticketStore.userUnreadCount },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
@@ -878,7 +909,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
-    { path: '/admin/tickets', label: t('nav.ticketManagement'), icon: TicketSupportIcon },
+    { path: '/admin/tickets', label: t('nav.ticketManagement'), icon: TicketSupportIcon, badge: () => ticketStore.adminUnreadCount },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
   ]
 

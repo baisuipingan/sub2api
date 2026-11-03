@@ -1,5 +1,13 @@
 export default {
   tickets: {
+    delete: '删除工单',
+    deleteConfirm: '确定删除这个工单吗？删除后双方都不再看到它。',
+    deleteSuccess: '工单已删除',
+    deleteFailed: '删除失败，请稍后重试',
+    deleteHint: '删除后不再显示',
+    rateLimited: '操作太频繁，请稍后再试',
+    unreadHint: '有新回复',
+    unreadCount: '{count} 条未读',
     myTitle: '我的工单',
     adminTitle: '工单管理',
     adminHint: '查看并回复用户提交的问题，可关闭或重新打开',

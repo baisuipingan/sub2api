@@ -110,3 +110,27 @@ func (h *TicketHandler) Update(c *gin.Context) {
 	}
 	response.Success(c, ticket)
 }
+
+// UnreadCount GET /api/v1/admin/tickets/unread-count
+func (h *TicketHandler) UnreadCount(c *gin.Context) {
+	count, err := h.ticketService.UnreadCount(c.Request.Context(), 0)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"count": count})
+}
+
+// Delete DELETE /api/v1/admin/tickets/:id
+func (h *TicketHandler) Delete(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid ticket id")
+		return
+	}
+	if err := h.ticketService.Delete(c.Request.Context(), id, 0); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}

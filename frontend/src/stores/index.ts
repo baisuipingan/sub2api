@@ -4,6 +4,7 @@
  */
 
 export { useAuthStore } from './auth'
+export { useTicketStore } from './tickets'
 export { useAppStore } from './app'
 export { useAdminSettingsStore } from './adminSettings'
 export { useSubscriptionStore } from './subscriptions'

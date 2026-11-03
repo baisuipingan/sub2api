@@ -117,3 +117,39 @@ func (h *TicketHandler) Reply(c *gin.Context) {
 	}
 	response.Created(c, message)
 }
+
+// UnreadCount GET /api/v1/tickets/unread-count
+// 侧栏红点用。放在 /:id 之前注册，避免被当成 id 解析。
+func (h *TicketHandler) UnreadCount(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	count, err := h.ticketService.UnreadCount(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"count": count})
+}
+
+// Delete DELETE /api/v1/tickets/:id
+// 用户删自己的工单（清理误建）。软删除，数据仍在库里。
+func (h *TicketHandler) Delete(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid ticket id")
+		return
+	}
+	if err := h.ticketService.Delete(c.Request.Context(), id, subject.UserID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}

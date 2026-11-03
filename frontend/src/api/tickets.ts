@@ -22,6 +22,8 @@ export interface Ticket {
   updated_at: string
   user_email?: string
   message_count: number
+  /** 对该查看方而言是否有新回复 */
+  unread?: boolean
 }
 
 export interface TicketMessage {
@@ -43,6 +45,18 @@ export interface TicketListParams {
   page_size?: number
   status?: string
   search?: string
+}
+
+/** 用户：未读工单数（侧栏红点） */
+export async function getUnreadCount(): Promise<{ count: number }> {
+  const { data } = await apiClient.get<{ count: number }>('/tickets/unread-count')
+  return data
+}
+
+/** 管理端：未读工单数 */
+export async function adminGetUnreadCount(): Promise<{ count: number }> {
+  const { data } = await apiClient.get<{ count: number }>('/admin/tickets/unread-count')
+  return data
 }
 
 /** 用户：我的工单列表 */
@@ -73,6 +87,16 @@ export async function replyTicket(id: number, content: string): Promise<TicketMe
   return data
 }
 
+/** 用户：删除自己的工单（软删除） */
+export async function deleteTicket(id: number): Promise<void> {
+  await apiClient.delete(`/tickets/${id}`)
+}
+
+/** 管理端：删除任意工单（软删除） */
+export async function adminDeleteTicket(id: number): Promise<void> {
+  await apiClient.delete(`/admin/tickets/${id}`)
+}
+
 /** 管理端：全部工单 */
 export async function adminListTickets(params: TicketListParams = {}): Promise<PaginatedResponse<Ticket>> {
   const { data } = await apiClient.get<PaginatedResponse<Ticket>>('/admin/tickets', { params })
@@ -98,6 +122,10 @@ export async function adminUpdateTicket(id: number, status: TicketStatus): Promi
 }
 
 const ticketsAPI = {
+  deleteTicket,
+  adminDeleteTicket,
+  getUnreadCount,
+  adminGetUnreadCount,
   listTickets,
   createTicket,
   getTicket,

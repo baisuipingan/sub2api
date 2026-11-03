@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -31,6 +32,14 @@ const (
 	ticketTitleMaxRunes   = 120
 	ticketContentMaxRunes = 5000
 	ticketPageSizeMax     = 100
+
+	// 防刷：同一用户 10 分钟内最多新建 5 个工单、最多发 30 条消息。
+	// 用数据库计数而不是 Redis：工单量本身很小，一次 COUNT 足够便宜，
+	// 也不引入「Redis 挂了要不要 fail-open」的判断。
+	ticketCreateWindow        = 10 * time.Minute
+	ticketCreateMaxPerWindow  = 5
+	ticketMessageWindow       = 10 * time.Minute
+	ticketMessageMaxPerWindow = 30
 )
 
 // Ticket 工单主体。列表场景会额外带上用户邮箱与消息数。
@@ -48,6 +57,8 @@ type Ticket struct {
 	// 以下字段仅列表/详情补充，不属于 tickets 表
 	UserEmail    string `json:"user_email,omitempty"`
 	MessageCount int    `json:"message_count"`
+	// Unread 表示「对查看方而言有新回复」，用于侧栏红点与列表强调
+	Unread bool `json:"unread"`
 }
 
 // TicketMessage 工单里的一条消息。
@@ -78,6 +89,16 @@ type TicketRepository interface {
 	ListMessages(ctx context.Context, ticketID int64) ([]TicketMessage, error)
 	AddMessage(ctx context.Context, ticketID, senderID int64, role, content, nextStatus string) (*TicketMessage, error)
 	UpdateStatus(ctx context.Context, ticketID int64, status string) error
+	// MarkRead 把某一角色对该工单的已读时间推到「该工单最后消息时间」
+	MarkRead(ctx context.Context, ticketID int64, role string) error
+	// CountUnread 统计某用户/管理员视角下的未读工单数
+	CountUnread(ctx context.Context, userID int64, role string) (int64, error)
+	// CountUserTicketsSince 统计用户在某时刻之后创建的工单数（防刷）
+	CountUserTicketsSince(ctx context.Context, userID int64, since time.Time) (int64, error)
+	// CountUserMessagesSince 统计用户在某时刻之后发出的消息数（防刷）
+	CountUserMessagesSince(ctx context.Context, userID int64, since time.Time) (int64, error)
+	// SoftDelete 软删除工单
+	SoftDelete(ctx context.Context, ticketID int64) error
 }
 
 // TicketService 工单业务逻辑。
@@ -147,6 +168,10 @@ func (s *TicketService) Create(ctx context.Context, userID int64, title, content
 	if userID <= 0 {
 		return nil, infraerrors.BadRequest("TICKET_USER_REQUIRED", "user is required")
 	}
+
+	if err := s.checkCreateRate(ctx, userID); err != nil {
+		return nil, err
+	}
 	return s.repo.Create(ctx, userID, cleanTitle, normalizeTicketPriority(priority), cleanContent)
 }
 
@@ -193,6 +218,15 @@ func (s *TicketService) GetDetail(ctx context.Context, ticketID, userID int64) (
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// 打开即视为已读。失败不影响读取本身（最多红点晚消失一次）。
+	role := TicketSenderRoleAdmin
+	if userID > 0 {
+		role = TicketSenderRoleUser
+	}
+	_ = s.repo.MarkRead(ctx, ticketID, role)
+
+	ticket.Unread = false
 	return ticket, messages, nil
 }
 
@@ -215,6 +249,9 @@ func (s *TicketService) ReplyAsUser(ctx context.Context, ticketID, userID int64,
 	if ticket.Status == TicketStatusClosed {
 		return nil, infraerrors.BadRequest("TICKET_CLOSED", "ticket is closed")
 	}
+	if err := s.checkMessageRate(ctx, userID); err != nil {
+		return nil, err
+	}
 	// 用户发言后重新回到「待管理员处理」
 	return s.repo.AddMessage(ctx, ticketID, userID, TicketSenderRoleUser, cleanContent, TicketStatusPending)
 }
@@ -229,6 +266,32 @@ func (s *TicketService) ReplyAsAdmin(ctx context.Context, ticketID, adminID int6
 		return nil, err
 	}
 	return s.repo.AddMessage(ctx, ticketID, adminID, TicketSenderRoleAdmin, cleanContent, TicketStatusReplied)
+}
+
+// Delete 软删除工单。
+//
+// userID > 0 时校验归属（用户只能删自己的）；userID == 0 表示管理端。
+func (s *TicketService) Delete(ctx context.Context, ticketID, userID int64) error {
+	ticket, err := s.repo.GetByID(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+	if ticket == nil {
+		return NewTicketNotFoundError(ticketID)
+	}
+	if userID > 0 && ticket.UserID != userID {
+		return infraerrors.Forbidden("TICKET_FORBIDDEN", "ticket does not belong to current user")
+	}
+	return s.repo.SoftDelete(ctx, ticketID)
+}
+
+// UnreadCount 侧栏红点用。userID>0 查该用户的未读；userID==0 表示管理端全局未读。
+func (s *TicketService) UnreadCount(ctx context.Context, userID int64) (int64, error) {
+	role := TicketSenderRoleAdmin
+	if userID > 0 {
+		role = TicketSenderRoleUser
+	}
+	return s.repo.CountUnread(ctx, userID, role)
 }
 
 // UpdateStatus 管理端修改状态 / 优先级。
@@ -248,6 +311,34 @@ const (
 	TicketSenderRoleUser  = "user"
 	TicketSenderRoleAdmin = "admin"
 )
+
+// checkCreateRate 限制短时间内大量建单。
+//
+// 计数查询失败时**放行**：工单是用户求助通道，不该因为一次统计查询失败就把人挡在门外。
+func (s *TicketService) checkCreateRate(ctx context.Context, userID int64) error {
+	count, err := s.repo.CountUserTicketsSince(ctx, userID, time.Now().Add(-ticketCreateWindow))
+	if err != nil {
+		return nil
+	}
+	if count >= ticketCreateMaxPerWindow {
+		return infraerrors.New(http.StatusTooManyRequests, "TICKET_CREATE_RATE_LIMITED",
+			fmt.Sprintf("too many tickets created, please wait %d minutes", int(ticketCreateWindow.Minutes())))
+	}
+	return nil
+}
+
+// checkMessageRate 限制短时间刷消息。失败同样放行。
+func (s *TicketService) checkMessageRate(ctx context.Context, userID int64) error {
+	count, err := s.repo.CountUserMessagesSince(ctx, userID, time.Now().Add(-ticketMessageWindow))
+	if err != nil {
+		return nil
+	}
+	if count >= ticketMessageMaxPerWindow {
+		return infraerrors.New(http.StatusTooManyRequests, "TICKET_MESSAGE_RATE_LIMITED",
+			fmt.Sprintf("too many messages sent, please wait %d minutes", int(ticketMessageWindow.Minutes())))
+	}
+	return nil
+}
 
 func normalizeTicketParams(params pagination.PaginationParams) (pagination.PaginationParams, error) {
 	if params.Page <= 0 {

@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
+    <div class="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-8">
       <!-- 标题 + 新建 -->
       <div class="flex items-center justify-between gap-3">
         <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -54,14 +54,19 @@
           <li v-for="ticket in tickets" :key="ticket.id">
             <button
               type="button"
-              class="flex w-full items-start justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-dark-800"
+              class="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-dark-800"
               @click="openDetail(ticket.id)"
             >
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
-                  {{ ticket.title }}
+                <p class="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                  <span
+                    v-if="ticket.unread"
+                    class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500"
+                    :aria-label="t('tickets.unreadHint')"
+                  />
+                  <span class="truncate">{{ ticket.title }}</span>
                 </p>
-                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+                <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
                   <span class="tabular-nums">#{{ ticket.id }}</span>
                   <span class="rounded px-1.5 py-0.5 text-[11px]" :class="priorityClass(ticket.priority)">
                     {{ t(`tickets.priority.${ticket.priority}`) }}
@@ -69,9 +74,7 @@
                   <span>{{ t('tickets.updatedAt', { time: formatTime(ticket.last_message_at) }) }}</span>
                 </p>
               </div>
-              <span class="shrink-0 whitespace-nowrap text-xs font-medium" :class="statusClass(ticket.status)">
-                {{ t(`tickets.status.${ticket.status}`) }}
-              </span>
+              <StatusBadge :status="ticket.status" />
             </button>
           </li>
         </ul>
@@ -154,7 +157,7 @@
               {{ detail?.ticket.title }}
             </h2>
             <p class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <span :class="statusClass(detail?.ticket.status)">{{ t(`tickets.status.${detail?.ticket.status}`) }}</span>
+              <StatusBadge v-if="detail" :status="detail.ticket.status" />
               <span class="text-gray-400">
                 {{ t('tickets.updatedAt', { time: formatTime(detail?.ticket.last_message_at) }) }}
               </span>
@@ -184,6 +187,18 @@
               {{ message.content }}
             </div>
           </div>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-gray-100 px-5 py-2 dark:border-dark-700">
+          <button
+            class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400"
+            type="button"
+            :disabled="deleting"
+            @click="removeTicket"
+          >
+            {{ t('tickets.delete') }}
+          </button>
+          <span class="text-[11px] text-gray-400">{{ t('tickets.deleteHint') }}</span>
         </div>
 
         <div v-if="detail?.ticket.status !== 'closed'" class="border-t border-gray-100 px-5 py-3 dark:border-dark-700">
@@ -219,19 +234,22 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import StatusBadge from '@/components/tickets/TicketStatusBadge.vue'
 import { useAppStore } from '@/stores/app'
+import { useTicketStore } from '@/stores/tickets'
 import {
   createTicket,
+  deleteTicket,
   getTicket,
   listTickets,
   replyTicket,
   type Ticket,
-  type TicketDetail,
-  type TicketStatus
+  type TicketDetail
 } from '@/api/tickets'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const ticketStore = useTicketStore()
 
 const tickets = ref<Ticket[]>([])
 const loading = ref(false)
@@ -257,6 +275,7 @@ const detailOpen = ref(false)
 const detail = ref<TicketDetail | null>(null)
 const replyContent = ref('')
 const replying = ref(false)
+const deleting = ref(false)
 
 async function load() {
   loading.value = true
@@ -306,8 +325,8 @@ async function submitCreate() {
     appStore.showSuccess(t('tickets.createSuccess'))
     page.value = 1
     await load()
-  } catch {
-    appStore.showError(t('tickets.createFailed'))
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -319,6 +338,8 @@ async function openDetail(id: number) {
   replyContent.value = ''
   try {
     detail.value = await getTicket(id)
+    // 打开即已读：立刻刷新侧栏红点，不必等下一次轮询
+    void ticketStore.refreshUserUnread()
   } catch {
     appStore.showError(t('tickets.loadFailed'))
     detailOpen.value = false
@@ -330,6 +351,25 @@ function closeDetail() {
   detail.value = null
 }
 
+/** 删除当前工单。软删除，管理端仍可追溯。 */
+async function removeTicket() {
+  const id = detail.value?.ticket.id
+  if (!id || deleting.value) return
+  if (typeof window !== 'undefined' && !window.confirm(t('tickets.deleteConfirm'))) return
+  deleting.value = true
+  try {
+    await deleteTicket(id)
+    closeDetail()
+    appStore.showSuccess(t('tickets.deleteSuccess'))
+    await load()
+    void ticketStore.refreshUserUnread()
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.deleteFailed'))
+  } finally {
+    deleting.value = false
+  }
+}
+
 async function submitReply() {
   const id = detail.value?.ticket.id
   if (!id || !replyContent.value.trim() || replying.value) return
@@ -339,11 +379,28 @@ async function submitReply() {
     replyContent.value = ''
     detail.value = await getTicket(id)
     await load()
-  } catch {
-    appStore.showError(t('tickets.replyFailed'))
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.replyFailed'))
   } finally {
     replying.value = false
   }
+}
+
+/**
+ * 把后端错误翻成用户能看懂的一句话。
+ *
+ * 后端对已关闭工单、限流等都有明确 reason，直接吞成「提交失败」会让用户反复重试；
+ * 这里优先按 reason 给出具体原因，认不出来才退回通用文案。
+ */
+function resolveError(error: unknown, fallbackKey: string): string {
+  const reason = (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
+  if (reason === 'TICKET_CREATE_RATE_LIMITED' || reason === 'TICKET_MESSAGE_RATE_LIMITED') {
+    return t('tickets.rateLimited')
+  }
+  if (reason === 'TICKET_CLOSED') {
+    return t('tickets.closedHint')
+  }
+  return t(fallbackKey)
 }
 
 function formatTime(value?: string) {
@@ -352,12 +409,6 @@ function formatTime(value?: string) {
   if (Number.isNaN(date.getTime())) return value
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-}
-
-function statusClass(status?: TicketStatus) {
-  if (status === 'pending') return 'text-primary-600 dark:text-primary-400'
-  if (status === 'replied') return 'text-emerald-600 dark:text-emerald-400'
-  return 'text-gray-400 dark:text-dark-400'
 }
 
 function priorityClass(priority: string) {

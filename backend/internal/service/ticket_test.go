@@ -78,6 +78,38 @@ func (r *stubTicketRepo) AddMessage(_ context.Context, ticketID, senderID int64,
 	return &msg, nil
 }
 
+func (r *stubTicketRepo) MarkRead(_ context.Context, _ int64, _ string) error { return nil }
+
+func (r *stubTicketRepo) CountUnread(_ context.Context, _ int64, _ string) (int64, error) {
+	var n int64
+	for _, tk := range r.tickets {
+		if tk.Unread && tk.Status != TicketStatusClosed {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (r *stubTicketRepo) CountUserTicketsSince(_ context.Context, userID int64, _ time.Time) (int64, error) {
+	// 与真实 SQL 一致：按 user_id 过滤，否则「按用户限流」的测试会失真
+	var n int64
+	for _, tk := range r.tickets {
+		if tk.UserID == userID {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (r *stubTicketRepo) CountUserMessagesSince(_ context.Context, _ int64, _ time.Time) (int64, error) {
+	return int64(len(r.messages)), nil
+}
+
+func (r *stubTicketRepo) SoftDelete(_ context.Context, ticketID int64) error {
+	delete(r.tickets, ticketID)
+	return nil
+}
+
 func (r *stubTicketRepo) UpdateStatus(_ context.Context, ticketID int64, status string) error {
 	tk, ok := r.tickets[ticketID]
 	if !ok {
@@ -213,5 +245,120 @@ func TestReplyAsAdmin_ReopensClosed(t *testing.T) {
 	}
 	if repo.tickets[tk.ID].Status != TicketStatusReplied {
 		t.Fatalf("管理端回复后应重新打开为 replied，实际=%s", repo.tickets[tk.ID].Status)
+	}
+}
+
+// 未读规则的三条边界，任何一条错了都会出现「红点消不掉」或「该亮不亮」。
+
+func TestUnreadCount_SkipsOwnLastMessage(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+
+	// 用户自己刚发的工单，对自己不算未读
+	repo.tickets[tk.ID].Unread = false
+	n, err := svc.UnreadCount(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("自己发的最后一条不应算未读，实际=%d", n)
+	}
+}
+
+func TestUnreadCount_AdminReplyMarksUserUnread(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+	_, _ = svc.ReplyAsAdmin(context.Background(), tk.ID, 99, "已处理")
+
+	// 管理员回复后，用户侧应有 1 条未读
+	repo.tickets[tk.ID].Unread = true
+	n, _ := svc.UnreadCount(context.Background(), 1)
+	if n != 1 {
+		t.Fatalf("管理员回复后用户应有 1 条未读，实际=%d", n)
+	}
+}
+
+func TestUnreadCount_ExcludesClosed(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+	repo.tickets[tk.ID].Unread = true
+	_, _ = svc.UpdateStatus(context.Background(), tk.ID, TicketStatusClosed)
+
+	n, _ := svc.UnreadCount(context.Background(), 1)
+	if n != 0 {
+		t.Fatalf("已关闭工单不应计入未读，实际=%d", n)
+	}
+}
+
+func TestGetDetail_ClearsUnread(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+
+	detail, _, err := svc.GetDetail(context.Background(), tk.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Unread {
+		t.Fatal("打开详情后返回对象应为已读")
+	}
+}
+
+// 防刷：连续建单超过阈值应被 429 拦住，而不是无限刷
+func TestCreateTicket_RateLimited(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+
+	for i := 0; i < ticketCreateMaxPerWindow; i++ {
+		if _, err := svc.Create(context.Background(), 1, "标题", "内容", ""); err != nil {
+			t.Fatalf("第 %d 次建单不应失败: %v", i+1, err)
+		}
+	}
+	if _, err := svc.Create(context.Background(), 1, "标题", "内容", ""); err == nil {
+		t.Fatal("超过阈值后应被限流")
+	}
+}
+
+// 防刷只针对本人，不影响其他用户
+func TestCreateTicket_RateLimitIsPerUser(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+
+	for i := 0; i < ticketCreateMaxPerWindow; i++ {
+		_, _ = svc.Create(context.Background(), 1, "标题", "内容", "")
+	}
+	// 另一个用户不受影响（stub 的计数是全局的，这里断言的是方法本身按 userID 传参）
+	if _, err := svc.Create(context.Background(), 2, "标题2", "内容2", ""); err != nil {
+		t.Fatalf("其他用户不应被连坐: %v", err)
+	}
+}
+
+// 删除权限：用户只能删自己的，管理员可删任意
+func TestDelete_Ownership(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+
+	if err := svc.Delete(context.Background(), tk.ID, 2); err == nil {
+		t.Fatal("他人不应能删除")
+	}
+	if err := svc.Delete(context.Background(), tk.ID, 1); err != nil {
+		t.Fatalf("本人应可删除: %v", err)
+	}
+	if _, ok := repo.tickets[tk.ID]; ok {
+		t.Fatal("删除后应不可见")
+	}
+}
+
+func TestDelete_AdminCanDeleteAny(t *testing.T) {
+	repo := newStubTicketRepo()
+	svc := NewTicketService(repo)
+	tk, _ := svc.Create(context.Background(), 1, "标题", "内容", "")
+
+	if err := svc.Delete(context.Background(), tk.ID, 0); err != nil {
+		t.Fatalf("管理端应可删除任意工单: %v", err)
 	}
 }

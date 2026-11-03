@@ -1,18 +1,19 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6">
+    <div class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-8">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('tickets.adminTitle') }}</h1>
           <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">{{ t('tickets.adminHint') }}</p>
         </div>
         <div class="flex items-center gap-2">
-          <select v-model="statusFilter" class="input !w-auto !py-1.5 text-sm" @change="reload">
-            <option value="">{{ t('tickets.filterAll') }}</option>
-            <option value="pending">{{ t('tickets.status.pending') }}</option>
-            <option value="replied">{{ t('tickets.status.replied') }}</option>
-            <option value="closed">{{ t('tickets.status.closed') }}</option>
-          </select>
+          <Select
+            v-model="statusFilter"
+            :options="statusOptions"
+            class="w-40"
+            :aria-label="t('tickets.columnStatus')"
+            @change="reload"
+          />
           <input
             v-model="search"
             class="input !w-56 !py-1.5 text-sm"
@@ -62,8 +63,8 @@
                   {{ t(`tickets.priority.${ticket.priority}`) }}
                 </span>
               </td>
-              <td class="px-4 py-2.5 text-xs font-medium" :class="statusClass(ticket.status)">
-                {{ t(`tickets.status.${ticket.status}`) }}
+              <td class="px-4 py-2.5">
+                <StatusBadge :status="ticket.status" />
               </td>
               <td class="px-4 py-2.5 text-xs tabular-nums text-gray-500">{{ formatTime(ticket.last_message_at) }}</td>
               <td class="px-4 py-2.5 text-right">
@@ -102,7 +103,7 @@
               #{{ detail?.ticket.id }} {{ detail?.ticket.title }}
             </h2>
             <p class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <span :class="statusClass(detail?.ticket.status)">{{ t(`tickets.status.${detail?.ticket.status}`) }}</span>
+              <StatusBadge v-if="detail" :status="detail.ticket.status" />
               <span class="text-gray-400">{{ detail?.ticket.user_email }}</span>
               <span class="text-gray-400">{{ formatTime(detail?.ticket.last_message_at) }}</span>
             </p>
@@ -160,6 +161,14 @@
               >
                 {{ t('tickets.reopen') }}
               </button>
+              <button
+                class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400"
+                type="button"
+                :disabled="deleting"
+                @click="removeTicket"
+              >
+                {{ t('tickets.delete') }}
+              </button>
             </div>
             <button class="btn btn-primary" type="button" :disabled="replying || !replyContent.trim()" @click="submitReply">
               {{ replying ? t('tickets.replying') : t('tickets.reply') }}
@@ -178,12 +187,16 @@
  * 按状态/关键词筛，点开即可回复；回复会把工单置为「待用户回复」，
  * 也可以直接关闭或重新打开。
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import Select from '@/components/common/Select.vue'
+import StatusBadge from '@/components/tickets/TicketStatusBadge.vue'
 import { useAppStore } from '@/stores/app'
+import { useTicketStore } from '@/stores/tickets'
 import {
+  adminDeleteTicket,
   adminGetTicket,
   adminListTickets,
   adminReplyTicket,
@@ -195,6 +208,7 @@ import {
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const ticketStore = useTicketStore()
 
 const tickets = ref<Ticket[]>([])
 const loading = ref(false)
@@ -203,6 +217,14 @@ const pageSize = ref(20)
 const total = ref(0)
 const pages = ref(1)
 const statusFilter = ref('')
+
+// 用组件库的 Select，保持与站点其它筛选器一致（原生 select 在深浅色下样式不统一）
+const statusOptions = computed(() => [
+  { value: '', label: t('tickets.filterAll') },
+  { value: 'pending', label: t('tickets.status.pending') },
+  { value: 'replied', label: t('tickets.status.replied') },
+  { value: 'closed', label: t('tickets.status.closed') }
+])
 const search = ref('')
 
 const detailOpen = ref(false)
@@ -210,6 +232,7 @@ const detail = ref<TicketDetail | null>(null)
 const replyContent = ref('')
 const replying = ref(false)
 const updating = ref(false)
+const deleting = ref(false)
 
 async function load() {
   loading.value = true
@@ -246,6 +269,7 @@ async function openDetail(id: number) {
   replyContent.value = ''
   try {
     detail.value = await adminGetTicket(id)
+    void ticketStore.refreshAdminUnread()
   } catch {
     appStore.showError(t('tickets.loadFailed'))
     detailOpen.value = false
@@ -257,6 +281,25 @@ function closeDetail() {
   detail.value = null
 }
 
+/** 删除工单（软删除）。管理端可删任意工单，用于清理垃圾/广告。 */
+async function removeTicket() {
+  const id = detail.value?.ticket.id
+  if (!id || deleting.value) return
+  if (typeof window !== 'undefined' && !window.confirm(t('tickets.deleteConfirm'))) return
+  deleting.value = true
+  try {
+    await adminDeleteTicket(id)
+    closeDetail()
+    appStore.showSuccess(t('tickets.deleteSuccess'))
+    await load()
+    void ticketStore.refreshAdminUnread()
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.deleteFailed'))
+  } finally {
+    deleting.value = false
+  }
+}
+
 async function submitReply() {
   const id = detail.value?.ticket.id
   if (!id || !replyContent.value.trim() || replying.value) return
@@ -266,8 +309,8 @@ async function submitReply() {
     replyContent.value = ''
     detail.value = await adminGetTicket(id)
     await load()
-  } catch {
-    appStore.showError(t('tickets.replyFailed'))
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.replyFailed'))
   } finally {
     replying.value = false
   }
@@ -281,11 +324,23 @@ async function changeStatus(status: TicketStatus) {
     await adminUpdateTicket(id, status)
     detail.value = await adminGetTicket(id)
     await load()
-  } catch {
-    appStore.showError(t('tickets.updateFailed'))
+  } catch (error) {
+    appStore.showError(resolveError(error, 'tickets.updateFailed'))
   } finally {
     updating.value = false
   }
+}
+
+/** 与用户页保持一致：能识别具体原因就给具体提示 */
+function resolveError(error: unknown, fallbackKey: string): string {
+  const reason = (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
+  if (reason === 'TICKET_CREATE_RATE_LIMITED' || reason === 'TICKET_MESSAGE_RATE_LIMITED') {
+    return t('tickets.rateLimited')
+  }
+  if (reason === 'TICKET_CLOSED') {
+    return t('tickets.closedHint')
+  }
+  return t(fallbackKey)
 }
 
 function formatTime(value?: string) {
@@ -294,12 +349,6 @@ function formatTime(value?: string) {
   if (Number.isNaN(date.getTime())) return value
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function statusClass(status?: TicketStatus) {
-  if (status === 'pending') return 'text-primary-600 dark:text-primary-400'
-  if (status === 'replied') return 'text-emerald-600 dark:text-emerald-400'
-  return 'text-gray-400 dark:text-dark-400'
 }
 
 function priorityClass(priority: string) {

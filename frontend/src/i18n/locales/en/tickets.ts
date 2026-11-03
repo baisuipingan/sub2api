@@ -1,5 +1,13 @@
 export default {
   tickets: {
+    delete: 'Delete ticket',
+    deleteConfirm: 'Delete this ticket? Both sides will stop seeing it.',
+    deleteSuccess: 'Ticket deleted',
+    deleteFailed: 'Failed to delete, please retry',
+    deleteHint: 'Hidden after deletion',
+    rateLimited: 'Too many requests, please try again later',
+    unreadHint: 'New reply',
+    unreadCount: '{count} unread',
     myTitle: 'My Tickets',
     adminTitle: 'Tickets',
     adminHint: 'Review and reply to user-submitted issues; close or reopen as needed',

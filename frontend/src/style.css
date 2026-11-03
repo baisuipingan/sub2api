@@ -1167,3 +1167,11 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* 侧栏收起时，未读红点浮在图标右上角；展开时靠右显示 */
+.sidebar-badge-collapsed {
+  box-shadow: 0 0 0 2px white;
+}
+.dark .sidebar-badge-collapsed {
+  box-shadow: 0 0 0 2px rgb(17 24 39);
+}

@@ -26,11 +26,12 @@
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
+import { useTicketStore } from '@/stores/tickets'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 
@@ -45,9 +46,16 @@ const { replayTour } = useOnboardingTour({
 })
 
 const onboardingStore = useOnboardingStore()
+const ticketStore = useTicketStore()
 
 onMounted(() => {
   onboardingStore.setReplayCallback(replayTour)
+  // 侧栏工单红点：进入应用后开始轮询，管理员额外拉一次管理端未读
+  ticketStore.startPolling(isAdmin.value)
+})
+
+onBeforeUnmount(() => {
+  ticketStore.stopPolling()
 })
 
 defineExpose({ replayTour })

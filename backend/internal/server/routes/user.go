@@ -132,8 +132,11 @@ func RegisterUserRoutes(
 		{
 			tickets.GET("", h.Ticket.List)
 			tickets.POST("", h.Ticket.Create)
+			// 静态路径必须排在 /:id 之前
+			tickets.GET("/unread-count", h.Ticket.UnreadCount)
 			tickets.GET("/:id", h.Ticket.Get)
 			tickets.POST("/:id/messages", h.Ticket.Reply)
+			tickets.DELETE("/:id", h.Ticket.Delete)
 		}
 
 		// 卡密兑换
