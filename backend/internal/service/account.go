@@ -928,13 +928,6 @@ func mappingSupportsRequestedModel(mapping map[string]string, requestedModel str
 	if requestedModel == "" {
 		return false
 	}
-	// fork: image-tier-routing
-	// 带尺寸档位的生图请求（gpt-image-2:4k）走专门规则：
-	// 精确档位 key 优先，没有则回落到基础名，且不参与通配符匹配。
-	// 通配符一旦参与，"gpt-image-2*" 会让所有账号都"支持"任意档位，失去区分意义。
-	if _, _, isTier := splitImageTierModel(requestedModel); isTier {
-		return SupportsImageTierModel(mapping, requestedModel)
-	}
 	if _, exists := mapping[requestedModel]; exists {
 		return true
 	}
@@ -1009,23 +1002,6 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string, matched bool) {
 	mapping := a.GetModelMapping()
 	if len(mapping) == 0 {
-		// fork: image-tier-routing
-		// 空映射 = 透传全部模型。此时必须剥掉档位后缀，
-		// 否则 "gpt-image-2:4k" 会被原样发给上游（冒号不是合法模型名，必然 400）。
-		// 剥成基础名正是方案约定的「没配档位就回落到基础名」。
-		if base, _, isTier := splitImageTierModel(requestedModel); isTier {
-			return base, false
-		}
-		return requestedModel, false
-	}
-	// fork: image-tier-routing
-	// 带尺寸档位的生图请求：命中精确档位 key 用它，没有则回落基础名。
-	// 回落后返回的是上游真实模型名（如 gpt-image-2、gpt-image-2-4k），
-	// 档位后缀不会出现在发给上游的请求里。
-	if _, _, isTier := splitImageTierModel(requestedModel); isTier {
-		if mapped, ok := ResolveImageTierMapping(mapping, requestedModel); ok {
-			return mapped, true
-		}
 		return requestedModel, false
 	}
 	if mappedModel, matched := resolveRequestedModelInMapping(mapping, requestedModel); matched {
