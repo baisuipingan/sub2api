@@ -531,7 +531,7 @@
 
           <div
             v-if="imageSizeCapabilityRows.length > 0"
-            class="mb-2 grid grid-cols-[minmax(0,1.4fr)_5rem_minmax(0,1.4fr)_2.5rem] gap-2 text-xs text-gray-500 dark:text-dark-400"
+            class="mb-2 grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.4fr)_2.5rem] items-center gap-2 text-xs text-gray-500 dark:text-dark-400"
           >
             <span>{{ t('admin.accounts.imageSizeCapability.modelColumn') }}</span>
             <span>{{ t('admin.accounts.imageSizeCapability.tierColumn') }}</span>
@@ -542,8 +542,8 @@
           <div v-if="imageSizeCapabilityRows.length > 0" class="mb-2 space-y-2">
             <div
               v-for="(row, index) in imageSizeCapabilityRows"
-              :key="`size-cap-${index}`"
-              class="grid grid-cols-[minmax(0,1.4fr)_5rem_minmax(0,1.4fr)_2.5rem] items-center gap-2"
+              :key="row.rowId"
+              class="grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.4fr)_2.5rem] items-center gap-2"
             >
               <input
                 v-model="row.model"
@@ -553,15 +553,16 @@
                 :placeholder="t('admin.accounts.imageSizeCapability.modelPlaceholder')"
                 :aria-label="t('admin.accounts.imageSizeCapability.modelColumn')"
               />
-              <select
+              <!-- 用项目统一的 Select 组件：原生 select 在暗色/窄容器下样式会塌，
+                   且下拉层级容易和弹窗遮挡 -->
+              <Select
                 v-model="row.tier"
-                class="input w-full text-xs"
+                :options="imageSizeTierOptions"
+                value-key="value"
+                label-key="label"
+                :searchable="false"
                 :aria-label="t('admin.accounts.imageSizeCapability.tierColumn')"
-              >
-                <option v-for="tier in IMAGE_SIZE_TIERS" :key="tier" :value="tier">
-                  {{ tier.toUpperCase() }}
-                </option>
-              </select>
+              />
               <input
                 v-model="row.upstream"
                 type="text"
@@ -575,14 +576,7 @@
                 :aria-label="t('admin.accounts.imageSizeCapability.remove')"
                 @click="removeImageSizeCapabilityRow(index)"
               >
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
+                <Icon name="trash" size="sm" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -3926,11 +3920,22 @@ const openAICompactModelMappings = ref<ModelMapping[]>([])
 const IMAGE_SIZE_CAPABILITIES_EXTRA_KEY = 'image_size_capabilities'
 const IMAGE_SIZE_TIERS = ['1k', '2k', '4k'] as const
 
+/** Select 组件用的选项（项目统一组件要求 {value,label} 结构） */
+const imageSizeTierOptions = IMAGE_SIZE_TIERS.map((tier) => ({
+  value: tier,
+  label: tier.toUpperCase()
+}))
+
 interface ImageSizeCapabilityRow {
+  /** 稳定标识：仅用于 v-for 的 key。用 index 会导致删行后 Vue 复用错 DOM，
+   *  表现就是「选了 2K 却提交成 4K」。 */
+  rowId: number
   model: string
   tier: string
   upstream: string
 }
+
+let imageSizeRowSeq = 0
 
 const imageSizeCapabilityRows = ref<ImageSizeCapabilityRow[]>([])
 
@@ -3961,7 +3966,7 @@ function readImageSizeCapabilities(extra: Record<string, unknown> | undefined) {
       if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) continue
       for (const [tier, upstream] of Object.entries(tiers as Record<string, unknown>)) {
         if (typeof upstream !== 'string' || !upstream.trim()) continue
-        rows.push({ model, tier: tier.toLowerCase(), upstream: upstream.trim() })
+        rows.push({ rowId: ++imageSizeRowSeq, model, tier: tier.toLowerCase(), upstream: upstream.trim() })
       }
     }
   }
@@ -3984,7 +3989,7 @@ function buildImageSizeCapabilities(): Record<string, Record<string, string>> | 
 
 function addImageSizeCapabilityRow() {
   const firstModel = imageSizeModelCandidates.value[0] ?? 'gpt-image-2'
-  imageSizeCapabilityRows.value.push({ model: firstModel, tier: '4k', upstream: '' })
+  imageSizeCapabilityRows.value.push({ rowId: ++imageSizeRowSeq, model: firstModel, tier: '4k', upstream: '' })
 }
 
 function removeImageSizeCapabilityRow(index: number) {
