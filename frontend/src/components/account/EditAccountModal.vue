@@ -515,6 +515,98 @@
           </template>
         </div>
 
+        <!-- fork: image-size-routing -->
+        <!-- 生图尺寸能力：每个账号独立配置，告诉路由「这家在某个尺寸下用哪个上游模型」 -->
+        <div
+          v-if="account.platform === 'openai'"
+          class="border-t border-gray-200 pt-4 dark:border-dark-600"
+          data-testid="image-size-capability-section"
+        >
+          <div class="mb-3">
+            <label class="input-label mb-0">{{ t('admin.accounts.imageSizeCapability.title') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.imageSizeCapability.hint') }}
+            </p>
+          </div>
+
+          <div
+            v-if="imageSizeCapabilityRows.length > 0"
+            class="mb-2 grid grid-cols-[minmax(0,1.4fr)_5rem_minmax(0,1.4fr)_2.5rem] gap-2 text-xs text-gray-500 dark:text-dark-400"
+          >
+            <span>{{ t('admin.accounts.imageSizeCapability.modelColumn') }}</span>
+            <span>{{ t('admin.accounts.imageSizeCapability.tierColumn') }}</span>
+            <span>{{ t('admin.accounts.imageSizeCapability.upstreamColumn') }}</span>
+            <span></span>
+          </div>
+
+          <div v-if="imageSizeCapabilityRows.length > 0" class="mb-2 space-y-2">
+            <div
+              v-for="(row, index) in imageSizeCapabilityRows"
+              :key="`size-cap-${index}`"
+              class="grid grid-cols-[minmax(0,1.4fr)_5rem_minmax(0,1.4fr)_2.5rem] items-center gap-2"
+            >
+              <input
+                v-model="row.model"
+                type="text"
+                list="image-size-capability-models"
+                class="input min-w-0 w-full font-mono text-xs"
+                :placeholder="t('admin.accounts.imageSizeCapability.modelPlaceholder')"
+                :aria-label="t('admin.accounts.imageSizeCapability.modelColumn')"
+              />
+              <select
+                v-model="row.tier"
+                class="input w-full text-xs"
+                :aria-label="t('admin.accounts.imageSizeCapability.tierColumn')"
+              >
+                <option v-for="tier in IMAGE_SIZE_TIERS" :key="tier" :value="tier">
+                  {{ tier.toUpperCase() }}
+                </option>
+              </select>
+              <input
+                v-model="row.upstream"
+                type="text"
+                class="input min-w-0 w-full font-mono text-xs"
+                :placeholder="t('admin.accounts.imageSizeCapability.upstreamPlaceholder')"
+                :aria-label="t('admin.accounts.imageSizeCapability.upstreamColumn')"
+              />
+              <button
+                type="button"
+                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                :aria-label="t('admin.accounts.imageSizeCapability.remove')"
+                @click="removeImageSizeCapabilityRow(index)"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <datalist id="image-size-capability-models">
+            <option v-for="model in imageSizeModelCandidates" :key="model" :value="model" />
+          </datalist>
+
+          <button
+            type="button"
+            class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+            @click="addImageSizeCapabilityRow"
+          >
+            <svg class="mr-1 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            {{ t('admin.accounts.imageSizeCapability.add') }}
+          </button>
+
+          <p v-if="imageSizeCapabilityRows.length === 0" class="mt-2 text-xs text-gray-400">
+            {{ t('admin.accounts.imageSizeCapability.emptyHint') }}
+          </p>
+        </div>
+
         <!-- Pool Mode Section -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
@@ -3610,6 +3702,7 @@ watch(() => props.account?.id, () => {
   if (opencodeGoState.value && !opencodeGoState.value.snapshot) void loadOpenCodeGoUsage()
 })
 
+
 onMounted(() => {
   if (opencodeGoState.value && !opencodeGoState.value.snapshot) void loadOpenCodeGoUsage()
 })
@@ -3825,6 +3918,92 @@ const isBedrockAPIKeyMode = computed(() =>
 )
 const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
+
+// fork: image-size-routing
+// 生图尺寸能力表：每个账号独立配置，说明「这个模型在某个尺寸档位下
+// 应该用供应商的哪个模型名」。存在 account.extra.image_size_capabilities，
+// 与 model_mapping 物理隔离（后者是「对外名→上游名」的通用映射）。
+const IMAGE_SIZE_CAPABILITIES_EXTRA_KEY = 'image_size_capabilities'
+const IMAGE_SIZE_TIERS = ['1k', '2k', '4k'] as const
+
+interface ImageSizeCapabilityRow {
+  model: string
+  tier: string
+  upstream: string
+}
+
+const imageSizeCapabilityRows = ref<ImageSizeCapabilityRow[]>([])
+
+/** 可选的生图模型候选：取自账号已有的 model_mapping 里看起来像生图模型的 key */
+const imageSizeModelCandidates = computed(() => {
+  const keys = modelMappings.value
+    .map((item) => item.from.trim())
+    .filter((key) => key && !key.includes('*') && !key.includes('?'))
+    .filter((key) => {
+      const lower = key.toLowerCase()
+      return (
+        lower.startsWith('gpt-image') ||
+        lower.includes('-image') ||
+        lower.startsWith('grok-imagine') ||
+        lower.startsWith('gemini-') ||
+        lower.includes('image')
+      )
+    })
+  return [...new Set(keys)]
+})
+
+/** 把 extra 里的能力表读成扁平行，便于表格编辑 */
+function readImageSizeCapabilities(extra: Record<string, unknown> | undefined) {
+  const raw = extra?.[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY]
+  const rows: ImageSizeCapabilityRow[] = []
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [model, tiers] of Object.entries(raw as Record<string, unknown>)) {
+      if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) continue
+      for (const [tier, upstream] of Object.entries(tiers as Record<string, unknown>)) {
+        if (typeof upstream !== 'string' || !upstream.trim()) continue
+        rows.push({ model, tier: tier.toLowerCase(), upstream: upstream.trim() })
+      }
+    }
+  }
+  imageSizeCapabilityRows.value = rows
+}
+
+/** 把扁平行写回嵌套结构；空表时删除该字段，避免存一个空对象 */
+function buildImageSizeCapabilities(): Record<string, Record<string, string>> | undefined {
+  const table: Record<string, Record<string, string>> = {}
+  for (const row of imageSizeCapabilityRows.value) {
+    const model = row.model.trim()
+    const tier = row.tier.trim().toLowerCase()
+    const upstream = row.upstream.trim()
+    if (!model || !tier || !upstream) continue
+    if (!table[model]) table[model] = {}
+    table[model][tier] = upstream
+  }
+  return Object.keys(table).length > 0 ? table : undefined
+}
+
+function addImageSizeCapabilityRow() {
+  const firstModel = imageSizeModelCandidates.value[0] ?? 'gpt-image-2'
+  imageSizeCapabilityRows.value.push({ model: firstModel, tier: '4k', upstream: '' })
+}
+
+function removeImageSizeCapabilityRow(index: number) {
+  imageSizeCapabilityRows.value.splice(index, 1)
+}
+
+// fork: image-size-routing
+// 每次切换到不同账号时重新读取该账号的尺寸能力表。
+//
+// 必须放在 imageSizeCapabilityRows 定义之后：
+// watch 带 immediate，会立即执行回调，若变量尚未初始化会抛
+// "Cannot access before initialization"。
+watch(
+  () => props.account?.id,
+  () => {
+    readImageSizeCapabilities(props.account?.extra as Record<string, unknown> | undefined)
+  },
+  { immediate: true }
+)
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
@@ -5655,6 +5834,25 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
+
+    // fork: image-size-routing
+    // 尺寸能力写入 extra。放在平台分支之前统一处理，避免漏掉某个分支。
+    // 以现有 extra 为基底再覆盖，确保不会丢掉其它字段（如 grok 缓存开关、
+    // 上游探测配置等，它们各自在后面单独赋值）。
+    if (props.account.platform === 'openai') {
+      const baseExtra: Record<string, unknown> = {
+        ...((updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {})
+      }
+      const capabilities = buildImageSizeCapabilities()
+      if (capabilities) {
+        baseExtra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY] = capabilities
+      } else {
+        // 清空时移除字段，避免留下一个空对象
+        delete baseExtra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY]
+      }
+      updatePayload.extra = baseExtra
+    }
+
     if (props.account.type === 'apikey') {
       updatePayload.upstream_billing_probe_enabled = upstreamBillingAutoProbeEnabled.value
       updatePayload.upstream_billing_rate_sync_enabled = upstreamBillingRateSyncEnabled.value
