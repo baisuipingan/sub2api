@@ -116,7 +116,11 @@ export const IMAGE_MODEL_REGISTRY: readonly ImageModelDefinition[] = [
     name: 'GPT Image 2',
     api: 'openai',
     featured: true,
-    requestModels: { auto: GPT_IMAGE_2_MODEL_ID, '1K': GPT_IMAGE_2_MODEL_ID, '2K': 'gpt-image-2-4K', '4K': 'gpt-image-2-4K' },
+    // fork: image-size-routing
+    // 不再按档位切换模型名。对外只有 GPT_IMAGE_2_MODEL_ID 一个名字，
+    // 2K/4K 由 size 参数表达，路由层按 size 自动选到支持该尺寸的供应商。
+    // 此前 '2K' 也指向 gpt-image-2-4K，导致选 2K 实际按 4K 处理。
+    requestModels: { auto: GPT_IMAGE_2_MODEL_ID, '1K': GPT_IMAGE_2_MODEL_ID, '2K': GPT_IMAGE_2_MODEL_ID, '4K': GPT_IMAGE_2_MODEL_ID },
     capabilities: GPT_CAPABILITIES,
     defaults: DEFAULTS,
   },
@@ -218,7 +222,9 @@ function parseCatalogItem(value: unknown): ImageModelDefinition | null {
   if (isGptImage2) {
     if (!requestModels.auto && requestModels['1K']) requestModels.auto = requestModels['1K']
     if (!requestModels['1K'] && requestModels.auto) requestModels['1K'] = requestModels.auto
-    if (requestModels['4K']) requestModels['2K'] = requestModels['4K']
+    // fork: image-size-routing
+  // 原逻辑会把 2K 强制覆盖成 4K（因旧版供应商只有 4K 这一档可买），
+  // 现在档位由 size 参数决定，这里不能再覆盖，否则 2K 永远按 4K 处理。
     else delete requestModels['2K']
   }
   const availableResolutions = isGptImage2
@@ -447,24 +453,26 @@ export function createImageModelCatalogFromModelList(payload: unknown) {
   // ① 先处理注册表里的已知模型，保留它们精细的能力配置
   for (const model of IMAGE_MODEL_REGISTRY) {
     if (model.id === GPT_IMAGE_2_MODEL_ID) {
+      // fork: image-size-routing
+      // 不再探测 gpt-image-2-4K 并把它绑到 2K/4K。
+      //
+      // 旧逻辑会看分组里有没有 gpt-image-2-4K：有就让 2K 和 4K 都发这个名字。
+      // 现在档位由 size 参数表达、路由层按 size 选供应商，
+      // 客户端只发基础模型名即可。继续绑 4K 会让 2K 请求也走 4K 档，
+      // 表现为「2K/4K 轮着调但都算 4K」。
       const base = findAvailable(['gpt-image-2'])
-      const model4K = findAvailable(['gpt-image-2-4K', 'gpt-image-2-4k'])
-      const fallback = base ?? model4K
-      if (!fallback) continue
+      if (!base) continue
 
-      const requestModels: ImageModelDefinition['requestModels'] = {}
-      if (base) {
-        requestModels.auto = base
-        requestModels['1K'] = base
-      }
-      if (model4K) {
-        requestModels['2K'] = model4K
-        requestModels['4K'] = model4K
+      const requestModels: ImageModelDefinition['requestModels'] = {
+        auto: base,
+        '1K': base,
+        '2K': base,
+        '4K': base,
       }
       const built: ImageModelDefinition = {
         ...model,
         requestModels,
-        defaults: { ...model.defaults, resolution: base ? 'auto' : '4K' },
+        defaults: { ...model.defaults, resolution: 'auto' },
         capabilities: {
           ...model.capabilities,
           resolutions: RESOLUTIONS.filter((tier) => Boolean(requestModels[tier])),
