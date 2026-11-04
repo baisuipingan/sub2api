@@ -80,6 +80,14 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
 		routingModel = resolvedModel
 	}
+	// fork: image-tier-routing
+	// 把「模型名 + size」翻译成带档位的内部模型名（gpt-image-2:4k），
+	// 让账号筛选与模型映射能按尺寸选供应商。
+	// 只有 GPT 生图模型族才会命中；文本模型、auto 尺寸都返回空字符串，行为不变。
+	// 客户侧的 requestModel / clientRequestModel 保持原样，不暴露档位后缀。
+	if tierModel := service.ApplyImageTierToModel(routingModel, parsed.Size); tierModel != "" {
+		routingModel = tierModel
+	}
 	if !compositeTargetPlatformAllowed(c, apiKey, requestModel, service.PlatformOpenAI) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
