@@ -147,3 +147,44 @@ describe('EditAccountModal 生图尺寸能力', () => {
     expect(payload.extra.some_other_flag).toBe(true)
   })
 })
+
+describe('EditAccountModal 手动添加尺寸映射后保存', () => {
+  it('点「添加尺寸映射」填完能提交出去', async () => {
+    // 账号本来没有任何配置——模拟用户第一次配置
+    const wrapper = mountModal(makeAccount({}))
+    await wrapper.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const section = wrapper.find('[data-testid="image-size-capability-section"]')
+    expect(section.exists()).toBe(true)
+
+    // 点添加按钮
+    const addBtn = section.findAll('button').find((b) => b.text().includes('imageSizeCapability.add'))
+    expect(addBtn).toBeTruthy()
+    await addBtn!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // 填三个输入框
+    const modelInput = section.find('input[list="image-size-capability-models"]')
+    expect(modelInput.exists()).toBe(true)
+    // 直接检查渲染出的行数
+    const inputsAfterAdd = section.findAll('input').length
+    expect(inputsAfterAdd).toBeGreaterThan(1)
+    await modelInput.setValue('gpt-image-2')
+
+    // 上游模型名输入框（第三个 input）
+    const inputs = section.findAll('input')
+    // inputs[0]=model, inputs[1]=tier(Select 内部可能有), 取最后一个可写文本
+    const upstreamInput = inputs[inputs.length - 1]
+    await upstreamInput.setValue('gpt-image-2-4K')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('form').trigger('submit')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    const [, payload] = updateAccountMock.mock.calls[0]
+    expect(payload.extra?.image_size_capabilities).toBeTruthy()
+    expect(payload.extra.image_size_capabilities['gpt-image-2']).toBeTruthy()
+  })
+})

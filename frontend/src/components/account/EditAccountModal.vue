@@ -6394,7 +6394,11 @@ const handleSubmit = async () => {
 
     // For OpenAI OAuth/SetupToken/API Key accounts, handle passthrough mode in extra
     if (props.account.platform === 'openai' && (props.account.type === 'oauth' || props.account.type === 'setup-token' || props.account.type === 'apikey')) {
-      const currentExtra = (props.account.extra as Record<string, unknown>) || {}
+      // fork: image-size-routing
+      // 必须基于 updatePayload.extra（本次已写入的值）而不是 props.account.extra（服务器旧值），
+      // 否则这里整体覆盖会把前面写入的 image_size_capabilities 抹掉，
+      // 表现为「保存后配置丢了」。
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
       if (props.account.type === 'oauth' || props.account.type === 'setup-token') {
