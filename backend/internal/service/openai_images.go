@@ -639,6 +639,15 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		return nil, err
 	}
 	upstreamModel := account.GetMappedModel(requestModel)
+	// fork: image-size-routing
+	// 账号配了尺寸能力表且该档位有映射时，以尺寸表的上游名为准。
+	// 这里排在 model_mapping 之后：模型映射负责「对外名→基础上游名」，
+	// 尺寸表负责「基础上游名→该尺寸专用的上游名」，后者更具体。
+	if size, ok := ImageRequestSizeFromContext(ctx); ok {
+		if sizeUpstream, supported := ResolveImageSizeUpstream(account, requestModel, size); supported && sizeUpstream != "" {
+			upstreamModel = sizeUpstream
+		}
+	}
 	if err := validateCompatibleImagesModel(upstreamModel); err != nil {
 		return nil, err
 	}
