@@ -1,112 +1,78 @@
-import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * 设置弹窗里的「重新获取密钥」是唯一能自救的入口。
- *
- * 背景：密钥改由系统下发后，原来的「管理连接」指向一个已删除的弹窗，
- * 用户点击毫无反应。这里锁住行为：点击真的要重新拉取密钥，
- * 并且调用的是存在的接口。
- */
-
-const { state, ensureStudioApiKey, resetStudioApiKeyCache } = vi.hoisted(() => {
-  const ensure = vi.fn(async () => 'sk-test')
-  return {
-    state: {
-      showSettings: true,
-      settings: {
-        miloRouter: { connectionStatus: 'connected', billing: null },
-        clearInputAfterSubmit: false,
-        enterSubmit: false,
-        taskCompletionNotification: false,
-      },
-      setShowSettings: vi.fn(),
-      setSettings: vi.fn(),
-      showToast: vi.fn(),
+const { state, clearData, exportData, importData } = vi.hoisted(() => ({
+  state: {
+    showSettings: true,
+    settings: {
+      clearInputAfterSubmit: false,
+      enterSubmit: true,
+      taskCompletionNotification: false,
     },
-    ensureStudioApiKey: ensure,
-    resetStudioApiKeyCache: vi.fn(),
-  }
-})
-
-vi.mock('../../stores/store', () => ({
-  storeState: state,
+    setShowSettings: vi.fn(),
+    setSettings: vi.fn(),
+  },
   clearData: vi.fn(),
   exportData: vi.fn(),
   importData: vi.fn(),
 }))
 
-vi.mock('../../lib/studioAuth', () => ({
-  ensureStudioApiKey,
-  resetStudioApiKeyCache,
+vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData }))
+vi.mock('vue-i18n', async () => ({
+  ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
+  useI18n: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('vue-i18n', async () => {
-  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
-})
-
 import StudioSettingsModal from '../StudioSettingsModal.vue'
+import StudioCheckbox from '../StudioCheckbox.vue'
+
+enableAutoUnmount(afterEach)
 
 function mountModal() {
-  return mount(StudioSettingsModal, {
-    global: { stubs: { StudioIcon: true, StudioCheckbox: true } },
-  })
+  return mount(StudioSettingsModal, { global: { stubs: { StudioIcon: true } } })
 }
 
+beforeEach(() => vi.clearAllMocks())
+
 describe('StudioSettingsModal', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
+  it('only offers useful creation preferences and local data controls', () => {
+    const wrapper = mountModal()
+
+    expect(wrapper.text()).toContain('imageStudio.settings.prefClearInput')
+    expect(wrapper.text()).toContain('imageStudio.settings.prefNotify')
+    expect(wrapper.findAllComponents(StudioCheckbox)).toHaveLength(2)
+    expect(wrapper.text()).not.toContain('imageStudio.settings.prefEnterSubmit')
+    expect(wrapper.text()).not.toContain('imageStudio.settings.connectionTitle')
+    expect(wrapper.text()).not.toContain('imageStudio.settings.refreshKey')
   })
 
-  it('提供「重新获取密钥」按钮（不再是无效的管理连接）', async () => {
+  it('keeps the remaining preference controls functional', async () => {
     const wrapper = mountModal()
-    await nextTick()
+    await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
 
-    const button = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('imageStudio.settings.refreshKey'))
-
-    expect(button).toBeTruthy()
-    expect(wrapper.text()).not.toContain('imageStudio.settings.manageConnection')
+    expect(state.setSettings).toHaveBeenCalledWith({ clearInputAfterSubmit: true })
+    expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: true })
+    expect(state.setSettings).not.toHaveBeenCalledWith(expect.objectContaining({ enterSubmit: expect.anything() }))
   })
 
-  it('点击后清缓存并重新拉取密钥', async () => {
+  it('keeps export and history cleanup available', async () => {
     const wrapper = mountModal()
-    await nextTick()
+    await wrapper.findAll('button').find((button) => button.text().includes('imageStudio.settings.exportBackup'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('imageStudio.settings.clearHistory'))!.trigger('click')
 
-    const button = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('imageStudio.settings.refreshKey'))!
-
-    await button.trigger('click')
-    await nextTick()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(resetStudioApiKeyCache).toHaveBeenCalledTimes(1)
-    expect(ensureStudioApiKey).toHaveBeenCalledTimes(1)
-    expect(state.showToast).toHaveBeenCalledWith(
-      'imageStudio.settings.refreshKeySuccess',
-      'success',
-    )
+    expect(exportData).toHaveBeenCalledWith({ exportConfig: true, exportTasks: true })
+    expect(clearData).toHaveBeenCalledWith({ clearConfig: false, clearTasks: true })
   })
 
-  it('获取失败时提示错误而不是静默', async () => {
-    ensureStudioApiKey.mockResolvedValueOnce('')
+  it('keeps backup import available', async () => {
     const wrapper = mountModal()
-    await nextTick()
+    const input = wrapper.get('input[type="file"]')
+    const file = new File(['backup'], 'images.zip', { type: 'application/zip' })
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
+    await input.trigger('change')
+    await flushPromises()
 
-    const button = wrapper
-      .findAll('button')
-      .find((btn) => btn.text().includes('imageStudio.settings.refreshKey'))!
-
-    await button.trigger('click')
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(state.showToast).toHaveBeenCalledWith(
-      'imageStudio.settings.refreshKeyFailed',
-      'error',
-    )
+    expect(importData).toHaveBeenCalledWith(file, { importConfig: true, importTasks: true })
   })
 })

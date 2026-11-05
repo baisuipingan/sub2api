@@ -645,11 +645,7 @@ function handleKeyDown(event: KeyboardEvent) {
 
   if (event.key !== 'Enter') return
   event.preventDefault()
-  if (event.shiftKey || !state.settings.enterSubmit) {
-    insertTextAtSelection('\n')
-    return
-  }
-  handleSubmit()
+  insertTextAtSelection('\n')
 }
 
 /* ── 粘贴 / 复制 ───────────────────────────────────── */

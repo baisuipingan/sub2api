@@ -29,10 +29,9 @@
           :selected-model-id="state.settings.selectedModelId"
           :disabled="state.catalogStatus !== 'ready' || !state.modelCatalog.length"
           :placeholder="modelPlaceholder"
-          :refreshing="state.catalogStatus === 'loading'"
-          :refresh-disabled="!state.settings.miloRouter.apiKey.trim()"
+          :refreshing="refreshing"
           @change="state.selectModel"
-          @refresh="state.refreshImageModelCatalog()"
+          @refresh="refreshConnection"
         />
       </div>
 
@@ -43,8 +42,9 @@
         <span>{{ state.catalogError }}</span>
         <button
           type="button"
-          class="shrink-0 font-medium hover:underline"
-          @click="state.refreshImageModelCatalog()"
+          class="shrink-0 font-medium hover:underline disabled:opacity-50"
+          :disabled="refreshing"
+          @click="refreshConnection"
         >
           {{ t('imageStudio.creation.refetch') }}
         </button>
@@ -58,15 +58,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioModelSelect from './StudioModelSelect.vue'
 import StudioInputBar from './StudioInputBar.vue'
 import { storeState as state } from '../stores/store'
+import { ensureStudioApiKey } from '../lib/studioAuth'
 
 const { t } = useI18n()
 
 const connected = computed(() => state.settings.miloRouter.connectionStatus === 'connected')
+const reconnecting = ref(false)
+const refreshing = computed(() => reconnecting.value || state.catalogStatus === 'loading')
+
+async function refreshConnection() {
+  if (refreshing.value) return
+  reconnecting.value = true
+  try {
+    if (!await ensureStudioApiKey()) {
+      state.showToast(t('imageStudio.creation.connectionFailed'), 'error')
+    }
+  } catch {
+    state.showToast(t('imageStudio.creation.connectionFailed'), 'error')
+  } finally {
+    reconnecting.value = false
+  }
+}
 
 const modelPlaceholder = computed(() => {
   if (state.catalogStatus === 'loading') return t('imageStudio.input.loadingModels')

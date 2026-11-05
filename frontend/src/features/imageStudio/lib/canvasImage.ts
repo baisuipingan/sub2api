@@ -1,6 +1,6 @@
 import { libT } from './i18nMessage'
 import { assertUsableMaskCoverage, classifyMaskAlpha, type MaskCoverage } from './mask'
-import { blobToDataUrl } from './dataUrl'
+import { blobToDataUrl, imageSourceToBlob } from './dataUrl'
 
 export async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -12,9 +12,7 @@ export async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 }
 
 export async function dataUrlToBlob(dataUrl: string, fallbackType = 'image/png'): Promise<Blob> {
-  const response = await fetch(dataUrl)
-  const blob = await response.blob()
-  return blob.type ? blob : new Blob([await blob.arrayBuffer()], { type: fallbackType })
+  return imageSourceToBlob(dataUrl, fallbackType)
 }
 
 export async function imageDataUrlToPngBlob(dataUrl: string): Promise<Blob> {

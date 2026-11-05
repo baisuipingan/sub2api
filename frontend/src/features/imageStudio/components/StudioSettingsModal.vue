@@ -33,37 +33,6 @@
       </div>
 
       <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-        <!-- 连接状态：仅展示，不再允许手动配置 API Key -->
-        <section class="rounded-xl border border-gray-200 p-4 dark:border-white/[0.1]">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-                {{ t('imageStudio.settings.connectionTitle') }}
-              </h3>
-              <p
-                class="mt-1 text-sm"
-                :class="
-                  connected
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-gray-500 dark:text-dark-400'
-                "
-              >
-                {{ connectionText }}
-              </p>
-            </div>
-            <!-- 密钥由系统下发，用户不能手填；这里提供「重新获取」，
-                 用于密钥失效/切换分组后自救（原来指向已删除的连接弹窗） -->
-            <button
-              type="button"
-              class="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
-              :disabled="refreshingKey"
-              @click="handleRefreshKey"
-            >
-              {{ refreshingKey ? t('imageStudio.settings.refreshingKey') : t('imageStudio.settings.refreshKey') }}
-            </button>
-          </div>
-        </section>
-
         <!-- 创作偏好 -->
         <section>
           <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
@@ -141,30 +110,10 @@ import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import StudioCheckbox from './StudioCheckbox.vue'
 import { storeState as state, clearData, exportData, importData } from '../stores/store'
-import { ensureStudioApiKey, resetStudioApiKeyCache } from '../lib/studioAuth'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
 import { usePreventBackgroundScroll } from '../composables/usePreventBackgroundScroll'
-import { formatMiloRouterBalance } from '../lib/miloRouterDisplay'
 
 const { t } = useI18n()
-
-const refreshingKey = ref(false)
-
-/** 重新向后端取一次密钥（换过分组、密钥被停用时用） */
-async function handleRefreshKey() {
-  if (refreshingKey.value) return
-  refreshingKey.value = true
-  try {
-    resetStudioApiKeyCache()
-    const key = await ensureStudioApiKey()
-    state.showToast(
-      key ? t('imageStudio.settings.refreshKeySuccess') : t('imageStudio.settings.refreshKeyFailed'),
-      key ? 'success' : 'error',
-    )
-  } finally {
-    refreshingKey.value = false
-  }
-}
 
 const importing = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)
@@ -174,21 +123,10 @@ const open = computed(() => state.showSettings)
 useCloseOnEscape(() => open.value, () => state.setShowSettings(false))
 usePreventBackgroundScroll(() => open.value)
 
-const connected = computed(() => state.settings.miloRouter.connectionStatus === 'connected')
-
-const connectionText = computed(() => {
-  if (!connected.value) return t('imageStudio.settings.notConnected')
-  const balance = formatMiloRouterBalance(state.settings.miloRouter.billing?.balance)
-  return balance !== undefined
-    ? t('imageStudio.settings.connectedWithBalance', { balance })
-    : t('imageStudio.settings.connected')
-})
-
-type PrefKey = 'clearInputAfterSubmit' | 'enterSubmit' | 'taskCompletionNotification'
+type PrefKey = 'clearInputAfterSubmit' | 'taskCompletionNotification'
 
 const preferences = computed<Array<{ key: PrefKey; label: string }>>(() => [
   { key: 'clearInputAfterSubmit', label: t('imageStudio.settings.prefClearInput') },
-  { key: 'enterSubmit', label: t('imageStudio.settings.prefEnterSubmit') },
   { key: 'taskCompletionNotification', label: t('imageStudio.settings.prefNotify') },
 ])
 

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { initialState, refreshImageModelCatalog } = vi.hoisted(() => ({
-  refreshImageModelCatalog: vi.fn(async () => true),
+const { initialState, ensureStudioApiKey } = vi.hoisted(() => ({
+  ensureStudioApiKey: vi.fn<() => Promise<string | null>>(),
   initialState: {
     catalogStatus: 'ready',
     catalogError: undefined as string | undefined,
@@ -13,12 +13,14 @@ const { initialState, refreshImageModelCatalog } = vi.hoisted(() => ({
       miloRouter: { apiKey: 'sk-studio', connectionStatus: 'connected' },
     },
     selectModel: vi.fn(),
+    showToast: vi.fn(),
   },
 }))
 
 vi.mock('../../stores/store', async () => ({
-  storeState: (await import('vue')).reactive({ ...initialState, refreshImageModelCatalog }),
+  storeState: (await import('vue')).reactive(initialState),
 }))
+vi.mock('../../lib/studioAuth', () => ({ ensureStudioApiKey }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key }),
@@ -34,20 +36,50 @@ function mountPanel() {
 }
 
 beforeEach(() => {
-  refreshImageModelCatalog.mockClear()
+  vi.clearAllMocks()
+  ensureStudioApiKey.mockReset().mockResolvedValue('sk-studio')
   state.catalogStatus = 'ready'
   state.catalogError = undefined
   state.settings.miloRouter.apiKey = 'sk-studio'
 })
 
-describe('StudioCreationPanel model refresh', () => {
-  it('calls the existing catalog refresh action from the icon beside the selector', async () => {
+describe('StudioCreationPanel connection and model refresh', () => {
+  it('reconnects and refreshes through the shared automatic connection flow', async () => {
     const wrapper = mountPanel()
     await wrapper.get('[data-testid="refresh-models"]').trigger('click')
-    expect(refreshImageModelCatalog).toHaveBeenCalledTimes(1)
+    await flushPromises()
+
+    expect(ensureStudioApiKey).toHaveBeenCalledTimes(1)
   })
 
-  it('reflects loading and disables refresh until the request finishes', async () => {
+  it('allows connection retry even when the initial key request failed', async () => {
+    state.settings.miloRouter.apiKey = ''
+    state.settings.miloRouter.connectionStatus = 'idle'
+    state.catalogStatus = 'idle'
+    const wrapper = mountPanel()
+    expect(wrapper.get('[data-testid="refresh-models"]').attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-testid="refresh-models"]').trigger('click')
+    await flushPromises()
+
+    expect(ensureStudioApiKey).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables repeated refreshes while obtaining a key', async () => {
+    let finish!: (key: string) => void
+    ensureStudioApiKey.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mountPanel()
+    const refresh = wrapper.get('[data-testid="refresh-models"]')
+    await refresh.trigger('click')
+    expect(refresh.attributes('disabled')).toBeDefined()
+    expect(refresh.attributes('aria-busy')).toBe('true')
+    await refresh.trigger('click')
+    expect(ensureStudioApiKey).toHaveBeenCalledTimes(1)
+    finish('sk-studio')
+    await flushPromises()
+    expect(refresh.attributes('disabled')).toBeUndefined()
+  })
+
+  it('reflects loading and disables refresh until the catalog request finishes', async () => {
     const wrapper = mountPanel()
     state.catalogStatus = 'loading'
     await nextTick()
@@ -60,15 +92,28 @@ describe('StudioCreationPanel model refresh', () => {
     expect(refresh.attributes('disabled')).toBeUndefined()
   })
 
-  it('allows retry after a catalog failure but prevents requests without a key', async () => {
+  it('uses the same reconnect flow from the catalog error retry button', async () => {
     state.catalogStatus = 'error'
     state.catalogError = 'Fetch failed'
     const wrapper = mountPanel()
-    await wrapper.get('[data-testid="refresh-models"]').trigger('click')
-    expect(refreshImageModelCatalog).toHaveBeenCalledTimes(1)
+    await wrapper.findAll('button').find((button) => button.text() === 'imageStudio.creation.refetch')!.trigger('click')
+    await flushPromises()
 
-    state.settings.miloRouter.apiKey = '  '
-    await nextTick()
-    expect(wrapper.get('[data-testid="refresh-models"]').attributes('disabled')).toBeDefined()
+    expect(ensureStudioApiKey).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([null, new Error('Connection failed')])('reports connection failure and permits another attempt', async (failure) => {
+    if (failure instanceof Error) ensureStudioApiKey.mockRejectedValueOnce(failure)
+    else ensureStudioApiKey.mockResolvedValueOnce(failure)
+    const wrapper = mountPanel()
+    const refresh = wrapper.get('[data-testid="refresh-models"]')
+    await refresh.trigger('click')
+    await flushPromises()
+
+    expect(state.showToast).toHaveBeenCalledWith('imageStudio.creation.connectionFailed', 'error')
+    expect(refresh.attributes('disabled')).toBeUndefined()
+    await refresh.trigger('click')
+    await flushPromises()
+    expect(ensureStudioApiKey).toHaveBeenCalledTimes(2)
   })
 })

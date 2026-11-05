@@ -1,3 +1,5 @@
+import { imageSourceToBlob } from './dataUrl'
+
 let lastDownloadTimestamp = 0
 
 export async function downloadImageSource(
@@ -7,10 +9,7 @@ export async function downloadImageSource(
   const resolvedSource = await Promise.resolve(source)
   if (!resolvedSource) throw new Error('Image source is not available')
 
-  const response = await fetch(resolvedSource)
-  if (!response.ok) throw new Error('Image download failed')
-
-  const blob = await response.blob()
+  const blob = await imageSourceToBlob(resolvedSource)
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement('a')
   const extension = getImageExtension(blob.type)
@@ -18,9 +17,12 @@ export async function downloadImageSource(
   link.download = `${filename}.${extension}`
   link.rel = 'noopener'
   document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+  try {
+    link.click()
+  } finally {
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+  }
 }
 
 export function createImageDownloadFileName(now = Date.now()) {

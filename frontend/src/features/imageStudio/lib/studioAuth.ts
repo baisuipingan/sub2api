@@ -77,8 +77,3 @@ export async function ensureStudioApiKey(): Promise<string | null> {
 
   return pending
 }
-
-/** 供「重新获取」按钮调用 */
-export function resetStudioApiKeyCache() {
-  pending = null
-}

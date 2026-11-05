@@ -31,7 +31,7 @@ import {
   storeImageWithSize,
 } from '../lib/db'
 import { cacheImage, clearImageCaches, deleteImageCacheEntry, ensureImageCached } from '../lib/imageCache'
-import { blobToDataUrl, fileToDataUrl } from '../lib/dataUrl'
+import { blobToDataUrl, fileToDataUrl, imageSourceToBlob } from '../lib/dataUrl'
 import { createTransparentOutputMeta, getTransparentRequestParams, removeKeyedBackgroundFromDataUrl } from '../lib/transparentImage'
 import { createMaskConstrainedPrompt, orderInputImagesForMask } from '../lib/mask'
 import { compositeMaskEditResult, createMaskedInputImage, loadImage, validateMaskMatchesImage } from '../lib/canvasImage'
@@ -940,9 +940,15 @@ export async function createInputImageFromFile(file: File) {
 }
 
 export async function addImageFromUrl(url: string) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(st('imageStudio.store.imageReadFailed'))
-  const dataUrl = await blobToDataUrl(await response.blob(), 'image/png')
+  const dataUrl = await blobToDataUrl(await imageSourceToBlob(url), 'image/png')
+  // A successful HTTP response can still contain HTML or invalid image bytes.
+  // Decode before persistence so neither the draft nor its saved copy gets a broken image.
+  const decoded = await loadImage(dataUrl).catch(() => {
+    throw new Error(st('imageStudio.store.imageReadFailed'))
+  })
+  if (!decoded.naturalWidth || !decoded.naturalHeight) {
+    throw new Error(st('imageStudio.store.imageReadFailed'))
+  }
   const image = await storeImageWithSize(dataUrl, 'upload')
   useStore.getState().addInputImage({ id: image.id, dataUrl })
 }

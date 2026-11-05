@@ -33,6 +33,45 @@ export async function blobToDataUrl(blob: Blob, fallbackMime = 'application/octe
   return `data:${blob.type || fallbackMime};base64,${bytesToBase64(new Uint8Array(await blob.arrayBuffer()))}`
 }
 
+function decodeDataUrlPayload(payload: string): Uint8Array {
+  const encoded = new TextEncoder().encode(payload)
+  const bytes = new Uint8Array(encoded.length)
+  let offset = 0
+  for (let index = 0; index < encoded.length; index += 1) {
+    if (encoded[index] === 0x25) {
+      const escaped = String.fromCharCode(...encoded.subarray(index + 1, index + 3))
+      if (!/^[0-9a-f]{2}$/i.test(escaped)) throw new Error('Malformed data URL')
+      bytes[offset++] = parseInt(escaped, 16)
+      index += 2
+    } else {
+      bytes[offset++] = encoded[index]
+    }
+  }
+  return bytes.subarray(0, offset)
+}
+
+/** Decode in-memory image data locally so CSP never sees a fetch(data:) call. */
+export async function imageSourceToBlob(source: string, fallbackType = 'image/png'): Promise<Blob> {
+  const trimmed = source.trim()
+  if (!trimmed) throw new Error('Image source is not available')
+  if (/^data:/i.test(trimmed)) {
+    const commaIndex = trimmed.indexOf(',')
+    if (commaIndex === -1) throw new Error('Malformed data URL')
+    const metadata = trimmed.slice(5, commaIndex)
+    const type = metadata.split(';')[0].trim() || fallbackType
+    const payload = decodeDataUrlPayload(trimmed.slice(commaIndex + 1))
+    if (/(?:^|;)base64(?:;|$)/i.test(metadata)) {
+      const binary = atob(new TextDecoder().decode(payload))
+      return new Blob([Uint8Array.from(binary, (character) => character.charCodeAt(0))], { type })
+    }
+    return new Blob([payload], { type })
+  }
+  const response = await fetch(trimmed)
+  if (!response.ok) throw new Error(`Image request failed: HTTP ${response.status}`)
+  const blob = await response.blob()
+  return blob.type ? blob : new Blob([await blob.arrayBuffer()], { type: fallbackType })
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return blobToDataUrl(file, file.type || 'application/octet-stream')
 }

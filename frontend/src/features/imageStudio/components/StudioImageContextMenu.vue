@@ -123,17 +123,18 @@ const top = computed(() => {
   return y + MENU_HEIGHT.value > window.innerHeight ? y - MENU_HEIGHT.value : y
 })
 
-async function getOriginalImageSrc() {
-  if (!menuInfo.value) return ''
-  if (!menuInfo.value.imageId) return menuInfo.value.src
-  return (await ensureImageCached(menuInfo.value.imageId)) ?? menuInfo.value.src
+async function getOriginalImageSrc(info: MenuInfo) {
+  if (!info.imageId) return info.src
+  return (await ensureImageCached(info.imageId)) ?? info.src
 }
 
 async function handleCopy(e: MouseEvent) {
   e.stopPropagation()
-  const target = await getOriginalImageSrc()
+  const info = menuInfo.value
+  if (!info) return
   menuInfo.value = null
   try {
+    const target = await getOriginalImageSrc(info)
     await copyImageSourceToClipboard(target)
     state.showToast(t('imageStudio.contextMenu.copied'), 'success')
   } catch (err) {
@@ -144,6 +145,8 @@ async function handleCopy(e: MouseEvent) {
 
 async function handleEdit(e: MouseEvent) {
   e.stopPropagation()
+  const info = menuInfo.value
+  if (!info) return
   menuInfo.value = null
 
   if (state.inputImages.length >= 16) {
@@ -152,7 +155,7 @@ async function handleEdit(e: MouseEvent) {
   }
 
   try {
-    const src = await getOriginalImageSrc()
+    const src = await getOriginalImageSrc(info)
     await addImageFromUrl(src)
     state.setDetailTaskId(null)
     state.setLightboxImageId(null)
@@ -171,9 +174,11 @@ async function handleEdit(e: MouseEvent) {
 
 async function handleDownload(e: MouseEvent) {
   e.stopPropagation()
-  const target = await getOriginalImageSrc()
+  const info = menuInfo.value
+  if (!info) return
   menuInfo.value = null
   try {
+    const target = await getOriginalImageSrc(info)
     await downloadImageSource(target)
     state.showToast(t('imageStudio.lightbox.downloaded'), 'success')
   } catch (err) {

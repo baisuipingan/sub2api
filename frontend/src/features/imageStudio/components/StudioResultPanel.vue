@@ -115,6 +115,20 @@
               <button
                 v-if="currentImageId"
                 type="button"
+                data-testid="download-result-image"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                :disabled="downloading"
+                :aria-busy="downloading"
+                :title="t('imageStudio.lightbox.download')"
+                @click="downloadImage"
+              >
+                <StudioIcon name="DownloadIcon" class="h-3.5 w-3.5" />
+                {{ t('imageStudio.lightbox.download') }}
+              </button>
+
+              <button
+                v-if="currentImageId"
+                type="button"
                 class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
                 @click="addAsReference"
               >
@@ -227,6 +241,7 @@ import { stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { copyImageSourceToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { ensureImageCached } from '../lib/imageCache'
+import { downloadImageSource } from '../lib/downloadImage'
 
 const { t } = useI18n()
 
@@ -379,6 +394,21 @@ function onSelectImage(index: number) {
 }
 
 const copying = ref(false)
+const downloading = ref(false)
+
+async function downloadImage() {
+  const imageId = currentImageId.value
+  if (!imageId || downloading.value) return
+  downloading.value = true
+  try {
+    await downloadImageSource(ensureImageCached(imageId))
+    state.showToast(t('imageStudio.lightbox.downloaded'), 'success')
+  } catch {
+    state.showToast(t('imageStudio.lightbox.downloadFailed'), 'error')
+  } finally {
+    downloading.value = false
+  }
+}
 
 /** 复制当前图片到剪贴板。走 clipboard 库，内部会处理 http 环境下的降级。 */
 async function copyImage() {
