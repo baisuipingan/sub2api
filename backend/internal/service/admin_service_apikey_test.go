@@ -155,6 +155,21 @@ func (s *apiKeyRepoStubForGroupUpdate) Update(_ context.Context, key *APIKey, _ 
 
 // Unused methods – panic on unexpected call.
 func (s *apiKeyRepoStubForGroupUpdate) Create(context.Context, *APIKey) error { panic("unexpected") }
+func (s *apiKeyRepoStubForGroupUpdate) GetSystemKey(context.Context, int64, string) (*APIKey, error) {
+	panic("unexpected GetSystemKey call")
+}
+func (s *apiKeyRepoStubForGroupUpdate) ListSystemKeyIDs(context.Context, int64) (map[int64]struct{}, error) {
+	panic("unexpected ListSystemKeyIDs call")
+}
+func (s *apiKeyRepoStubForGroupUpdate) CreateSystemKey(context.Context, *APIKey) error {
+	panic("unexpected CreateSystemKey call")
+}
+func (s *apiKeyRepoStubForGroupUpdate) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	panic("unexpected UpdateSystemKeyGroup call")
+}
+func (s *apiKeyRepoStubForGroupUpdate) IsSystemKey(_ context.Context, id int64) (bool, error) {
+	return s.key != nil && s.key.ID == id && s.key.KeyType == APIKeyTypeSystem, nil
+}
 func (s *apiKeyRepoStubForGroupUpdate) GetKeyAndOwnerID(context.Context, int64) (string, int64, error) {
 	panic("unexpected")
 }

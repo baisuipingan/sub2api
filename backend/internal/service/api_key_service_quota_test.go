@@ -82,6 +82,21 @@ type quotaBaseAPIKeyRepoStub struct {
 func (s *quotaBaseAPIKeyRepoStub) Create(context.Context, *APIKey) error {
 	panic("unexpected Create call")
 }
+func (s *quotaBaseAPIKeyRepoStub) GetSystemKey(context.Context, int64, string) (*APIKey, error) {
+	panic("unexpected GetSystemKey call")
+}
+func (s *quotaBaseAPIKeyRepoStub) ListSystemKeyIDs(context.Context, int64) (map[int64]struct{}, error) {
+	panic("unexpected ListSystemKeyIDs call")
+}
+func (s *quotaBaseAPIKeyRepoStub) CreateSystemKey(context.Context, *APIKey) error {
+	panic("unexpected CreateSystemKey call")
+}
+func (s *quotaBaseAPIKeyRepoStub) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	panic("unexpected UpdateSystemKeyGroup call")
+}
+func (s *quotaBaseAPIKeyRepoStub) IsSystemKey(context.Context, int64) (bool, error) {
+	return false, nil // These fixtures contain ordinary user keys only.
+}
 func (s *quotaBaseAPIKeyRepoStub) GetByID(context.Context, int64) (*APIKey, error) {
 	s.getByIDCalls++
 	return nil, nil

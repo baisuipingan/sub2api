@@ -448,13 +448,7 @@ export function createImageModelCatalogFromModelList(payload: unknown) {
   // ① 先处理注册表里的已知模型，保留它们精细的能力配置
   for (const model of IMAGE_MODEL_REGISTRY) {
     if (model.id === GPT_IMAGE_2_MODEL_ID) {
-      // fork: image-size-routing
-      // 不再探测 gpt-image-2-4K 并把它绑到 2K/4K。
-      //
-      // 旧逻辑会看分组里有没有 gpt-image-2-4K：有就让 2K 和 4K 都发这个名字。
-      // 现在档位由 size 参数表达、路由层按 size 选供应商，
-      // 客户端只发基础模型名即可。继续绑 4K 会让 2K 请求也走 4K 档，
-      // 表现为「2K/4K 轮着调但都算 4K」。
+      // 所有尺寸使用公开基础名，交给官方尺寸调度和账号模型映射。
       const base = findAvailable(['gpt-image-2'])
       if (!base) continue
 

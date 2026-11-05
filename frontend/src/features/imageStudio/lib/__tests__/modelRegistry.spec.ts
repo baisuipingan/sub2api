@@ -106,15 +106,13 @@ describe('createImageModelCatalogFromModelList', () => {
     expect(ids).not.toContain('gpt-image-2-4K')
 
     const base = catalog.find((m) => m.id === 'gpt-image-2')!
-    // fork: image-size-routing
-    // 所有档位都发基础模型名，档位由 size 参数表达、由路由层解析。
-    // 曾经 2K 也指向 gpt-image-2-4K，导致选 2K 实际按 4K 处理。
+    // 客户端通过 size 表达档位，公开模型名保持一致。
     expect(base.requestModels['1K']).toBe('gpt-image-2')
     expect(base.requestModels['2K']).toBe('gpt-image-2')
     expect(base.requestModels['4K']).toBe('gpt-image-2')
   })
 
-  it('2K 与 4K 不共用同一个上游模型名（防止退回按档位换模型的旧行为）', () => {
+  it('所有档位使用公开基础模型名，避免客户端绑定供应商后缀', () => {
     const base = catalog.find((m) => m.id === 'gpt-image-2')!
     // 关键不变量：2K 请求必须能区分出 2K，不能被并到 4K
     expect(base.requestModels['2K']).not.toBe('gpt-image-2-4K')

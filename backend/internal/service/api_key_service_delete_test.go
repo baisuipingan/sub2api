@@ -53,6 +53,32 @@ func (s *apiKeyRepoStub) Create(ctx context.Context, key *APIKey) error {
 	panic("unexpected Create call")
 }
 
+func (s *apiKeyRepoStub) GetSystemKey(context.Context, int64, string) (*APIKey, error) {
+	panic("unexpected GetSystemKey call")
+}
+
+func (s *apiKeyRepoStub) ListSystemKeyIDs(_ context.Context, userID int64) (map[int64]struct{}, error) {
+	ids := make(map[int64]struct{})
+	for _, key := range s.listByUserIDKeys {
+		if key.UserID == userID && key.KeyType == APIKeyTypeSystem {
+			ids[key.ID] = struct{}{}
+		}
+	}
+	return ids, nil
+}
+
+func (s *apiKeyRepoStub) CreateSystemKey(context.Context, *APIKey) error {
+	panic("unexpected CreateSystemKey call")
+}
+
+func (s *apiKeyRepoStub) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	panic("unexpected UpdateSystemKeyGroup call")
+}
+
+func (s *apiKeyRepoStub) IsSystemKey(_ context.Context, id int64) (bool, error) {
+	return s.apiKey != nil && s.apiKey.ID == id && s.apiKey.KeyType == APIKeyTypeSystem, nil
+}
+
 func (s *apiKeyRepoStub) GetByID(ctx context.Context, id int64) (*APIKey, error) {
 	if s.getByIDErr != nil {
 		return nil, s.getByIDErr

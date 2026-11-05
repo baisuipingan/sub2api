@@ -27,6 +27,26 @@ func (s *authRepoStub) Create(ctx context.Context, key *APIKey) error {
 	panic("unexpected Create call")
 }
 
+func (s *authRepoStub) GetSystemKey(context.Context, int64, string) (*APIKey, error) {
+	panic("unexpected GetSystemKey call")
+}
+
+func (s *authRepoStub) ListSystemKeyIDs(context.Context, int64) (map[int64]struct{}, error) {
+	panic("unexpected ListSystemKeyIDs call")
+}
+
+func (s *authRepoStub) CreateSystemKey(context.Context, *APIKey) error {
+	panic("unexpected CreateSystemKey call")
+}
+
+func (s *authRepoStub) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	panic("unexpected UpdateSystemKeyGroup call")
+}
+
+func (s *authRepoStub) IsSystemKey(context.Context, int64) (bool, error) {
+	panic("unexpected IsSystemKey call")
+}
+
 func (s *authRepoStub) GetByID(ctx context.Context, id int64) (*APIKey, error) {
 	panic("unexpected GetByID call")
 }
