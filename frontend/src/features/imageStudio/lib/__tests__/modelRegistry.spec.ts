@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createImageModelCatalogFromModelList } from '../modelRegistry'
+import {
+  createImageModelCatalogFromModelList,
+  getRequestModelId,
+  IMAGE_MODEL_REGISTRY,
+  parseImageModelCatalog,
+  type ImageModelDefinition,
+  type ImageResolutionTier,
+} from '../modelRegistry'
 
 /**
  * 这些用例锁住「模型列表 = 分组真实提供的生图模型」这一行为。
@@ -25,6 +32,53 @@ const GROUP_MODELS = [
   'grok-imagine-video',
   'grok-imagine-video-1.5',
 ]
+
+describe('parseImageModelCatalog', () => {
+  function catalogPayload(tiers: ImageResolutionTier[]) {
+    const base = IMAGE_MODEL_REGISTRY.find((model) => model.id === 'gpt-image-2')!
+    const model: ImageModelDefinition = {
+      ...base,
+      requestModels: Object.fromEntries(tiers.map((tier) => [tier, base.id])),
+      capabilities: { ...base.capabilities, resolutions: tiers },
+      defaults: { ...base.defaults, resolution: tiers[0]! },
+    }
+    return { version: 1, data: [model] }
+  }
+
+  it('完整目录保留全部档位，所有尺寸都使用公开基础模型', () => {
+    const tiers: ImageResolutionTier[] = ['auto', '1K', '2K', '4K']
+    const catalog = parseImageModelCatalog(catalogPayload(tiers))
+
+    expect(catalog).toHaveLength(1)
+    const model = catalog[0]!
+    expect(model.capabilities.resolutions).toEqual(tiers)
+    for (const tier of tiers) {
+      expect(model.requestModels[tier]).toBe('gpt-image-2')
+      expect(getRequestModelId(model, 'auto', tier)).toBe('gpt-image-2')
+    }
+  })
+
+  it.each([
+    { tiers: ['1K', '2K', '4K'], missing: 'auto' },
+    { tiers: ['auto', '2K', '4K'], missing: '1K' },
+  ] as const)('兼容补齐 $missing 时保留合法 2K 档位', ({ tiers, missing }) => {
+    const [model] = parseImageModelCatalog(catalogPayload([...tiers]))
+
+    expect(model).toBeDefined()
+    expect(model!.requestModels[missing]).toBe('gpt-image-2')
+    expect(model!.requestModels['2K']).toBe('gpt-image-2')
+    expect(model!.capabilities.resolutions).toEqual(['auto', '1K', '2K', '4K'])
+  })
+
+  it('仅声明 2K 的有效目录不会被丢弃', () => {
+    const catalog = parseImageModelCatalog(catalogPayload(['2K']))
+
+    expect(catalog).toHaveLength(1)
+    expect(catalog[0]!.capabilities.resolutions).toEqual(['2K'])
+    expect(catalog[0]!.requestModels).toEqual({ '2K': 'gpt-image-2' })
+    expect(catalog[0]!.defaults.resolution).toBe('2K')
+  })
+})
 
 describe('createImageModelCatalogFromModelList', () => {
   const catalog = createImageModelCatalogFromModelList(payloadOf(GROUP_MODELS))

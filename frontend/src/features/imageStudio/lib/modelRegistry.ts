@@ -220,12 +220,9 @@ function parseCatalogItem(value: unknown): ImageModelDefinition | null {
 
   const isGptImage2 = value.id.trim() === GPT_IMAGE_2_MODEL_ID
   if (isGptImage2) {
+    // 兼容旧目录中的 auto / 1K 别名；其他已声明档位保持原样。
     if (!requestModels.auto && requestModels['1K']) requestModels.auto = requestModels['1K']
     if (!requestModels['1K'] && requestModels.auto) requestModels['1K'] = requestModels.auto
-    // fork: image-size-routing
-  // 原逻辑会把 2K 强制覆盖成 4K（因旧版供应商只有 4K 这一档可买），
-  // 现在档位由 size 参数决定，这里不能再覆盖，否则 2K 永远按 4K 处理。
-    else delete requestModels['2K']
   }
   const availableResolutions = isGptImage2
     ? RESOLUTIONS.filter((tier) => Boolean(requestModels[tier]) && (

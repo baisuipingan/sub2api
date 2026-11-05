@@ -516,90 +516,15 @@
         </div>
 
         <!-- fork: image-size-routing -->
-        <!-- 生图尺寸能力：每个账号独立配置，告诉路由「这家在某个尺寸下用哪个上游模型」 -->
-        <div
-          v-if="account.platform === 'openai'"
-          class="border-t border-gray-200 pt-4 dark:border-dark-600"
-          data-testid="image-size-capability-section"
-        >
-          <div class="mb-3">
-            <label class="input-label mb-0">{{ t('admin.accounts.imageSizeCapability.title') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.imageSizeCapability.hint') }}
-            </p>
-          </div>
-
-          <div
-            v-if="imageSizeCapabilityRows.length > 0"
-            class="mb-2 grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.4fr)_2.5rem] items-center gap-2 text-xs text-gray-500 dark:text-dark-400"
-          >
-            <span>{{ t('admin.accounts.imageSizeCapability.modelColumn') }}</span>
-            <span>{{ t('admin.accounts.imageSizeCapability.tierColumn') }}</span>
-            <span>{{ t('admin.accounts.imageSizeCapability.upstreamColumn') }}</span>
-            <span></span>
-          </div>
-
-          <div v-if="imageSizeCapabilityRows.length > 0" class="mb-2 space-y-2">
-            <div
-              v-for="(row, index) in imageSizeCapabilityRows"
-              :key="row.rowId"
-              class="grid grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.4fr)_2.5rem] items-center gap-2"
-            >
-              <input
-                v-model="row.model"
-                type="text"
-                list="image-size-capability-models"
-                class="input min-w-0 w-full font-mono text-xs"
-                :placeholder="t('admin.accounts.imageSizeCapability.modelPlaceholder')"
-                :aria-label="t('admin.accounts.imageSizeCapability.modelColumn')"
-              />
-              <!-- 用项目统一的 Select 组件：原生 select 在暗色/窄容器下样式会塌，
-                   且下拉层级容易和弹窗遮挡 -->
-              <Select
-                v-model="row.tier"
-                :options="imageSizeTierOptions"
-                value-key="value"
-                label-key="label"
-                :searchable="false"
-                :aria-label="t('admin.accounts.imageSizeCapability.tierColumn')"
-              />
-              <input
-                v-model="row.upstream"
-                type="text"
-                class="input min-w-0 w-full font-mono text-xs"
-                :placeholder="t('admin.accounts.imageSizeCapability.upstreamPlaceholder')"
-                :aria-label="t('admin.accounts.imageSizeCapability.upstreamColumn')"
-              />
-              <button
-                type="button"
-                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                :aria-label="t('admin.accounts.imageSizeCapability.remove')"
-                @click="removeImageSizeCapabilityRow(index)"
-              >
-                <Icon name="trash" size="sm" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-
-          <datalist id="image-size-capability-models">
-            <option v-for="model in imageSizeModelCandidates" :key="model" :value="model" />
-          </datalist>
-
-          <button
-            type="button"
-            class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
-            @click="addImageSizeCapabilityRow"
-          >
-            <svg class="mr-1 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            {{ t('admin.accounts.imageSizeCapability.add') }}
-          </button>
-
-          <p v-if="imageSizeCapabilityRows.length === 0" class="mt-2 text-xs text-gray-400">
-            {{ t('admin.accounts.imageSizeCapability.emptyHint') }}
-          </p>
-        </div>
+        <ImageSizeCapabilityEditor
+          v-if="account.platform === 'openai' && account.type === 'apikey'"
+          v-model="imageSizeCapabilityRows"
+          :errors="imageSizeCapabilityErrors"
+          :validation-attempted="imageSizeValidationAttempted"
+          :model-candidates="imageSizeModelCandidates"
+          @add="addImageSizeCapabilityRow"
+          @remove="removeImageSizeCapabilityRow"
+        />
 
         <!-- Pool Mode Section -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -3471,6 +3396,8 @@ import { useAppStore } from '@/stores/app'
 
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
+import ImageSizeCapabilityEditor from './ImageSizeCapabilityEditor.vue'
+import { IMAGE_SIZE_CAPABILITIES_EXTRA_KEY, getImageSizeModelCandidates, useImageSizeCapabilities } from '@/composables/useImageSizeCapabilities'
 import type {
   Account,
   Proxy,
@@ -3914,101 +3841,21 @@ const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 
 // fork: image-size-routing
-// 生图尺寸能力表：每个账号独立配置，说明「这个模型在某个尺寸档位下
-// 应该用供应商的哪个模型名」。存在 account.extra.image_size_capabilities，
-// 与 model_mapping 物理隔离（后者是「对外名→上游名」的通用映射）。
-const IMAGE_SIZE_CAPABILITIES_EXTRA_KEY = 'image_size_capabilities'
-const IMAGE_SIZE_TIERS = ['1k', '2k', '4k'] as const
+const imageSizeModelCandidates = computed(() => getImageSizeModelCandidates(
+  allowedModels.value,
+  modelMappings.value.map((item) => item.from)
+))
+const {
+  rows: imageSizeCapabilityRows,
+  errors: imageSizeCapabilityErrors,
+  validationAttempted: imageSizeValidationAttempted,
+  read: readImageSizeCapabilities,
+  build: buildImageSizeCapabilities,
+  validate: validateImageSizeCapabilities,
+  add: addImageSizeCapabilityRow,
+  remove: removeImageSizeCapabilityRow
+} = useImageSizeCapabilities(imageSizeModelCandidates)
 
-/** Select 组件用的选项（项目统一组件要求 {value,label} 结构） */
-const imageSizeTierOptions = IMAGE_SIZE_TIERS.map((tier) => ({
-  value: tier,
-  label: tier.toUpperCase()
-}))
-
-interface ImageSizeCapabilityRow {
-  /** 稳定标识：仅用于 v-for 的 key。用 index 会导致删行后 Vue 复用错 DOM，
-   *  表现就是「选了 2K 却提交成 4K」。 */
-  rowId: number
-  model: string
-  tier: string
-  upstream: string
-}
-
-let imageSizeRowSeq = 0
-
-const imageSizeCapabilityRows = ref<ImageSizeCapabilityRow[]>([])
-
-/** 可选的生图模型候选：取自账号已有的 model_mapping 里看起来像生图模型的 key */
-const imageSizeModelCandidates = computed(() => {
-  const keys = modelMappings.value
-    .map((item) => item.from.trim())
-    .filter((key) => key && !key.includes('*') && !key.includes('?'))
-    .filter((key) => {
-      const lower = key.toLowerCase()
-      return (
-        lower.startsWith('gpt-image') ||
-        lower.includes('-image') ||
-        lower.startsWith('grok-imagine') ||
-        lower.startsWith('gemini-') ||
-        lower.includes('image')
-      )
-    })
-  return [...new Set(keys)]
-})
-
-/** 把 extra 里的能力表读成扁平行，便于表格编辑 */
-function readImageSizeCapabilities(extra: Record<string, unknown> | undefined) {
-  const raw = extra?.[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY]
-  const rows: ImageSizeCapabilityRow[] = []
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    for (const [model, tiers] of Object.entries(raw as Record<string, unknown>)) {
-      if (!tiers || typeof tiers !== 'object' || Array.isArray(tiers)) continue
-      for (const [tier, upstream] of Object.entries(tiers as Record<string, unknown>)) {
-        if (typeof upstream !== 'string' || !upstream.trim()) continue
-        rows.push({ rowId: ++imageSizeRowSeq, model, tier: tier.toLowerCase(), upstream: upstream.trim() })
-      }
-    }
-  }
-  imageSizeCapabilityRows.value = rows
-}
-
-/** 把扁平行写回嵌套结构；空表时删除该字段，避免存一个空对象 */
-function buildImageSizeCapabilities(): Record<string, Record<string, string>> | undefined {
-  const table: Record<string, Record<string, string>> = {}
-  for (const row of imageSizeCapabilityRows.value) {
-    const model = row.model.trim()
-    const tier = row.tier.trim().toLowerCase()
-    const upstream = row.upstream.trim()
-    if (!model || !tier || !upstream) continue
-    if (!table[model]) table[model] = {}
-    table[model][tier] = upstream
-  }
-  return Object.keys(table).length > 0 ? table : undefined
-}
-
-function addImageSizeCapabilityRow() {
-  const firstModel = imageSizeModelCandidates.value[0] ?? 'gpt-image-2'
-  imageSizeCapabilityRows.value.push({ rowId: ++imageSizeRowSeq, model: firstModel, tier: '4k', upstream: '' })
-}
-
-function removeImageSizeCapabilityRow(index: number) {
-  imageSizeCapabilityRows.value.splice(index, 1)
-}
-
-// fork: image-size-routing
-// 每次切换到不同账号时重新读取该账号的尺寸能力表。
-//
-// 必须放在 imageSizeCapabilityRows 定义之后：
-// watch 带 immediate，会立即执行回调，若变量尚未初始化会抛
-// "Cannot access before initialization"。
-watch(
-  () => props.account?.id,
-  () => {
-    readImageSizeCapabilities(props.account?.extra as Record<string, unknown> | undefined)
-  },
-  { immediate: true }
-)
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
@@ -4768,6 +4615,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
   }
+  readImageSizeCapabilities(newAccount.extra as Record<string, unknown> | undefined)
   // 进入回填窗口：抑制 CN 模式/协议 watcher 联动重置 base_url（见 syncingForm 注释）。
   syncingForm.value = true
   void nextTick(() => {
@@ -5816,6 +5664,10 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
     return
   }
+  if (props.account.platform === 'openai' && props.account.type === 'apikey' && !validateImageSizeCapabilities()) {
+    appStore.showError(t('admin.accounts.imageSizeCapability.validationError'))
+    return
+  }
 	if (autoResetCreditEnabled.value) {
 		const thresholds = [autoResetCredit5hThreshold.value, autoResetCredit7dThreshold.value]
 		if (thresholds.some((value) => !Number.isFinite(value) || value < 0.1 || value > 100)) {
@@ -5844,7 +5696,7 @@ const handleSubmit = async () => {
     // 尺寸能力写入 extra。放在平台分支之前统一处理，避免漏掉某个分支。
     // 以现有 extra 为基底再覆盖，确保不会丢掉其它字段（如 grok 缓存开关、
     // 上游探测配置等，它们各自在后面单独赋值）。
-    if (props.account.platform === 'openai') {
+    if (props.account.platform === 'openai' && props.account.type === 'apikey') {
       const baseExtra: Record<string, unknown> = {
         ...((updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {})
       }

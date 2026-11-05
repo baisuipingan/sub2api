@@ -1781,6 +1781,16 @@
           </template>
         </div>
 
+        <ImageSizeCapabilityEditor
+          v-if="form.platform === 'openai' && accountCategory === 'apikey'"
+          v-model="imageSizeCapabilityRows"
+          :errors="imageSizeCapabilityErrors"
+          :validation-attempted="imageSizeValidationAttempted"
+          :model-candidates="imageSizeModelCandidates"
+          @add="addImageSizeCapabilityRow"
+          @remove="removeImageSizeCapabilityRow"
+        />
+
         <!-- Pool Mode Section -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
@@ -4160,6 +4170,12 @@ import ProxySelector from '@/components/common/ProxySelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import ImageSizeCapabilityEditor from '@/components/account/ImageSizeCapabilityEditor.vue'
+import {
+  getImageSizeModelCandidates,
+  IMAGE_SIZE_CAPABILITIES_EXTRA_KEY,
+  useImageSizeCapabilities
+} from '@/composables/useImageSizeCapabilities'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
@@ -4631,6 +4647,20 @@ const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
+const imageSizeModelCandidates = computed(() => getImageSizeModelCandidates(
+  allowedModels.value,
+  modelMappings.value.map((item) => item.from)
+))
+const {
+  rows: imageSizeCapabilityRows,
+  errors: imageSizeCapabilityErrors,
+  validationAttempted: imageSizeValidationAttempted,
+  build: buildImageSizeCapabilities,
+  validate: validateImageSizeCapabilities,
+  reset: resetImageSizeCapabilities,
+  add: addImageSizeCapabilityRow,
+  remove: removeImageSizeCapabilityRow
+} = useImageSizeCapabilities(imageSizeModelCandidates)
 const upstreamModelsPreviewed = ref(false)
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
@@ -5078,6 +5108,8 @@ const canExchangeCode = computed(() => {
 })
 
 // Watchers
+watch([() => form.platform, accountCategory], resetImageSizeCapabilities)
+
 watch(
   () => props.show,
   (newVal) => {
@@ -5609,6 +5641,7 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
 
 // Methods
 const resetForm = () => {
+  resetImageSizeCapabilities()
   step.value = 1
   form.name = ''
   form.notes = ''
@@ -5747,6 +5780,12 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   } else if (accountCategory.value === 'apikey') {
     extra.openai_apikey_responses_websockets_v2_mode = openaiAPIKeyResponsesWebSocketV2Mode.value
     extra.openai_apikey_responses_websockets_v2_enabled = isOpenAIWSModeEnabled(openaiAPIKeyResponsesWebSocketV2Mode.value)
+    const imageSizeCapabilities = buildImageSizeCapabilities()
+    if (imageSizeCapabilities) {
+      extra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY] = imageSizeCapabilities
+    } else {
+      delete extra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY]
+    }
   }
   // 清理兼容旧键，统一改用分类型开关。
   delete extra.responses_websockets_v2_enabled
@@ -5939,6 +5978,10 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
 }
 
 const handleSubmit = async () => {
+  if (form.platform === 'openai' && accountCategory.value === 'apikey' && !validateImageSizeCapabilities()) {
+    appStore.showError(t('admin.accounts.imageSizeCapability.validationError'))
+    return
+  }
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
     if (!isGrokSSOInputMethod.value && !form.name.trim()) {
