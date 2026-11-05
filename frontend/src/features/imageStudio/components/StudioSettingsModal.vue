@@ -27,10 +27,13 @@
             <Toggle
               :model-value="state.settings[item.key]"
               :aria-label="item.label"
+              :disabled="item.key === 'taskCompletionNotification' && requestingNotification"
+              :aria-busy="item.key === 'taskCompletionNotification' && requestingNotification"
               @update:model-value="setPreference(item.key, $event)"
             />
           </div>
         </div>
+        <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('imageStudio.settings.notificationHint') }}</p>
       </section>
 
       <!-- 本地数据 -->
@@ -88,10 +91,12 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import { storeState as state, clearData, exportData, importData } from '../stores/store'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
+import { getBrowserNotificationSession, requestBrowserNotificationPermission } from '../lib/browserNotification'
 
 const { t } = useI18n()
 
 const importing = ref(false)
+const requestingNotification = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)
 
 const open = computed(() => state.showSettings)
@@ -105,8 +110,36 @@ const preferences = computed<Array<{ key: PrefKey; label: string }>>(() => [
   { key: 'taskCompletionNotification', label: t('imageStudio.settings.prefNotify') },
 ])
 
-function setPreference(key: PrefKey, value: boolean) {
-  state.setSettings({ [key]: value })
+async function setPreference(key: PrefKey, value: boolean) {
+  if (key !== 'taskCompletionNotification' || !value) {
+    state.setSettings({ [key]: value })
+    return
+  }
+  if (requestingNotification.value) return
+  const session = getBrowserNotificationSession()
+  requestingNotification.value = true
+  try {
+    const result = await requestBrowserNotificationPermission()
+    if (getBrowserNotificationSession() !== session) return
+    state.setSettings({ taskCompletionNotification: result.ok })
+    if (!result.ok) {
+      const messages = {
+        unsupported: 'imageStudio.settings.notificationUnsupported',
+        insecure: 'imageStudio.settings.notificationInsecure',
+        denied: 'imageStudio.settings.notificationDenied',
+        default: 'imageStudio.settings.notificationPermissionRequired',
+        error: 'imageStudio.settings.notificationEnableFailed',
+      }
+      state.showToast(t(messages[result.reason]), 'error')
+    }
+  } catch {
+    if (getBrowserNotificationSession() === session) {
+      state.setSettings({ taskCompletionNotification: false })
+      state.showToast(t('imageStudio.settings.notificationEnableFailed'), 'error')
+    }
+  } finally {
+    requestingNotification.value = false
+  }
 }
 
 async function handleImport(event: Event) {

@@ -13,6 +13,7 @@ const { initialState, ensureStudioApiKey } = vi.hoisted(() => ({
       miloRouter: { apiKey: 'sk-studio', connectionStatus: 'connected' },
     },
     selectModel: vi.fn(),
+    setShowSettings: vi.fn(),
     showToast: vi.fn(),
   },
 }))
@@ -44,6 +45,14 @@ beforeEach(() => {
 })
 
 describe('StudioCreationPanel connection and model refresh', () => {
+  it('keeps settings beside the model count without adding a connection header', async () => {
+    const wrapper = mountPanel()
+    const settings = wrapper.get('button[aria-label="imageStudio.header.settings"]')
+    expect(settings.attributes('title')).toBe('imageStudio.header.settings')
+    await settings.trigger('click')
+    expect(state.setShowSettings).toHaveBeenCalledWith(true)
+  })
+
   it('reconnects and refreshes through the shared automatic connection flow', async () => {
     const wrapper = mountPanel()
     await wrapper.get('[data-testid="refresh-models"]').trigger('click')

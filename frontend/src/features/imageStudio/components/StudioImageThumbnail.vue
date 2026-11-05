@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ensureImageThumbnailCached, subscribeImageThumbnail } from '../lib/imageCache'
 
@@ -39,31 +39,21 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const source = ref<string | null>(null)
 
-let cancelled = false
-let unsubscribe: (() => void) | null = null
-
-function teardown() {
-  cancelled = true
-  unsubscribe?.()
-  unsubscribe = null
-}
-
-function load(id: string) {
-  teardown()
-  cancelled = false
+watch(() => props.imageId, (id, _previous, onCleanup) => {
+  let active = true
   source.value = null
-
-  unsubscribe = subscribeImageThumbnail(id, (value) => {
-    if (cancelled) return
+  const unsubscribe = subscribeImageThumbnail(id, (value) => {
+    if (!active) return
     source.value = value.dataUrl
     if (value.width && value.height) {
       emit('size', { width: value.width, height: value.height })
     }
   })
+  onCleanup(() => { active = false; unsubscribe() })
 
   void ensureImageThumbnailCached(id)
     .then((value) => {
-      if (cancelled || !value) return
+      if (!active || !value) return
       source.value = value.dataUrl
       if (value.width && value.height) {
         emit('size', { width: value.width, height: value.height })
@@ -72,8 +62,5 @@ function load(id: string) {
     .catch(() => {
       /* 后台补建后仍可通过订阅恢复 */
     })
-}
-
-watch(() => props.imageId, load, { immediate: true })
-onUnmounted(teardown)
+}, { immediate: true })
 </script>

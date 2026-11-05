@@ -323,17 +323,15 @@ const createdText = computed(() => {
     : t('imageStudio.detail.createdOnly', { created })
 })
 
-let cancelled = false
-
 /** 预加载任务涉及的全部图片（输出 + 参考 + 遮罩） */
 watch(
-  task,
-  async (current) => {
-    imageIndex.value = 0
+  [task, () => state.detailImageId],
+  async ([current, selectedId], _previous, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => { cancelled = true })
+    imageIndex.value = Math.max(0, current?.outputImages.indexOf(selectedId ?? '') ?? 0)
     imageSources.value = {}
     if (!current) return
-
-    cancelled = false
     const ids = [
       ...current.outputImages,
       ...current.inputImageIds,
@@ -353,7 +351,9 @@ watch(
 /** 合成遮罩预览 */
 watch(
   [imageSources, task],
-  async ([sources, current]) => {
+  async ([sources, current], _previous, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => { cancelled = true })
     maskPreview.value = ''
     if (!current?.maskTargetImageId || !current.maskImageId) return
     const source = sources[current.maskTargetImageId]

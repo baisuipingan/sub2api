@@ -13,11 +13,22 @@
             {{ t('imageStudio.creation.title') }}
           </h2>
         </div>
-        <span
-          class="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500 dark:bg-white/[0.06] dark:text-dark-400"
-        >
-          {{ t('imageStudio.creation.modelCount', { count: state.modelCatalog.length }) }}
-        </span>
+        <div class="flex shrink-0 items-center gap-1.5">
+          <span
+            class="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-500 dark:bg-white/[0.06] dark:text-dark-400"
+          >
+            {{ t('imageStudio.creation.modelCount', { count: state.modelCatalog.length }) }}
+          </span>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm h-8 w-8 p-0"
+            :aria-label="t('imageStudio.header.settings')"
+            :title="t('imageStudio.header.settings')"
+            @click="state.setShowSettings(true)"
+          >
+            <StudioIcon name="SettingsIcon" class="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div class="mt-4">
@@ -62,6 +73,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioModelSelect from './StudioModelSelect.vue'
 import StudioInputBar from './StudioInputBar.vue'
+import StudioIcon from './StudioIcon.vue'
 import { storeState as state } from '../stores/store'
 import { ensureStudioApiKey } from '../lib/studioAuth'
 

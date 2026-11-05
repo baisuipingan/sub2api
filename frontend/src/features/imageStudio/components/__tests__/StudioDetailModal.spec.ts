@@ -6,6 +6,7 @@ const { rawState } = vi.hoisted(() => ({
   rawState: {
     tasks: [] as TaskRecord[],
     detailTaskId: 'failed-task' as string | null,
+    detailImageId: null as string | null,
     modelCatalog: [],
     streamPreviews: {},
     setDetailTaskId: vi.fn(),
@@ -21,6 +22,9 @@ vi.mock('../../stores/store', async () => ({
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key }),
+}))
+vi.mock('../../lib/imageCache', () => ({
+  ensureImageCached: vi.fn().mockResolvedValue(undefined),
 }))
 
 import { storeState as state } from '../../stores/store'
@@ -39,6 +43,7 @@ function mountDetails() {
 beforeEach(() => {
   vi.clearAllMocks()
   state.detailTaskId = 'failed-task'
+  state.detailImageId = null
   state.tasks = [{
     id: 'failed-task', modelId: 'gpt-image-2', modelName: 'gpt-image-2', apiModel: 'gpt-image-2',
     prompt: 'A landscape', params: { ...DEFAULT_PARAMS }, status: 'error',
@@ -48,6 +53,16 @@ beforeEach(() => {
 })
 
 describe('StudioDetailModal shared dialog', () => {
+  it('opens the selected result image and resets to the first image for an old caller without a selection', async () => {
+    state.tasks = [{ ...state.tasks[0], status: 'done', error: null, outputImages: ['image-one', 'image-two', 'image-three'] }]
+    state.detailImageId = 'image-three'
+    const wrapper = mountDetails()
+    await flushPromises()
+    expect(wrapper.text()).toContain('3 / 3')
+    state.detailImageId = null
+    await flushPromises()
+    expect(wrapper.text()).toContain('1 / 3')
+  })
   it('uses the common dialog header and keeps the detailed task error visible', async () => {
     const wrapper = mountDetails()
     await flushPromises()

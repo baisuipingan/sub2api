@@ -1,102 +1,58 @@
 <template>
-  <!--
-    固定正方形相框。
-
-    为什么要固定尺寸：不同比例的图（1:1 / 16:9 / 9:16）放进同一个框，
-    切换历史时画面不跳动，眼睛有稳定的落点。
-    图片用 object-contain：以「最短边贴合相框」缩放，另一方向留白居中，
-    不裁切也不拉伸。
-  -->
-  <div
-    class="studio-frame relative flex items-center justify-center overflow-hidden rounded-2xl bg-gray-100/80 ring-1 ring-inset ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]"
-    role="region"
-    :aria-label="t('imageStudio.result.previewAria')"
-  >
-    <!-- 生成中 -->
-    <template v-if="task.status === 'running'">
-      <img
-        v-if="streamPreview"
-        :src="streamPreview"
-        :alt="t('imageStudio.task.streamPreview')"
-        class="h-full w-full object-contain"
-      />
-      <div v-else class="flex flex-col items-center gap-3 text-sm text-primary-600 dark:text-primary-400">
-        <LoadingSpinner size="md" />
-        {{ t('imageStudio.result.generating') }}
-      </div>
-      <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
-        {{ t('imageStudio.result.rendering') }}
-      </span>
-    </template>
-
-    <!-- 已生成：点击放大 -->
+  <div class="studio-preview-shell" :class="{ 'studio-preview-single': !multiple }" role="region" :aria-label="t('imageStudio.result.previewAria')">
     <button
-      v-else-if="source"
+      v-if="multiple"
       type="button"
-      class="group h-full w-full outline-none"
-      :aria-label="t('imageStudio.result.zoomAria')"
-      @click="openLightbox"
+      class="studio-preview-arrow btn btn-secondary btn-icon"
+      :aria-label="t('imageStudio.result.prevImage')"
+      :title="t('imageStudio.result.prevImage')"
+      :disabled="imageIndex <= 0"
+      @click="selectImage(imageIndex - 1)"
     >
-      <img
-        :src="source"
-        :alt="t('imageStudio.result.imageAlt')"
-        class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.01]"
-      />
+      <StudioIcon name="ChevronLeftIcon" size="lg" />
     </button>
-
-    <!-- 失败 / 无图 / 加载中 -->
-    <div v-else class="flex flex-col items-center gap-2 px-6 text-center text-sm text-gray-400">
-      <StudioIcon
-        v-if="task.status === 'error'"
-        name="ImageUploadIcon"
-        class="h-10 w-10 text-gray-300 dark:text-dark-600"
-      />
-      <LoadingSpinner v-else-if="task.status === 'done'" size="md" />
-      <span>
-        {{ task.status === 'error' ? t('imageStudio.result.noOutput') : t('imageStudio.result.unavailable') }}
-      </span>
+    <div class="studio-frame-cell">
+      <div class="studio-frame relative flex items-center justify-center overflow-hidden rounded-2xl bg-gray-100/80 ring-1 ring-inset ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
+        <template v-if="task.status === 'running'">
+          <img v-if="streamPreview" :src="streamPreview" :alt="t('imageStudio.task.streamPreview')" class="h-full w-full object-contain" />
+          <div v-else class="flex flex-col items-center gap-3 text-sm text-primary-600 dark:text-primary-400">
+            <LoadingSpinner size="md" />
+            {{ t('imageStudio.result.generating') }}
+          </div>
+          <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">{{ t('imageStudio.result.rendering') }}</span>
+        </template>
+        <button
+          v-else-if="source"
+          type="button"
+          class="group h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+          :aria-label="t('imageStudio.result.zoomAria')"
+          @click="openLightbox"
+        >
+          <img :src="source" :data-image-id="imageId" :alt="t('imageStudio.result.imageAlt')" class="h-full w-full object-contain" @error="failed = true; source = null" />
+        </button>
+        <div v-else class="flex flex-col items-center gap-2 px-4 text-center text-sm text-gray-400">
+          <StudioIcon v-if="task.status === 'error'" name="ImageUploadIcon" class="h-10 w-10 text-gray-300 dark:text-dark-600" />
+          <LoadingSpinner v-else-if="loading" size="md" />
+          <span>{{ task.status === 'error' ? t('imageStudio.result.noOutput') : failed ? t('imageStudio.result.imageUnavailable') : t('imageStudio.result.unavailable') }}</span>
+        </div>
+      </div>
     </div>
-
-    <!-- 多图切换：浮在框内侧，不占布局空间 -->
-    <template v-if="task.outputImages.length > 1 && source">
-      <button
-        type="button"
-        class="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/65 disabled:pointer-events-none disabled:opacity-0"
-        :aria-label="t('imageStudio.result.prevImage')"
-        :disabled="imageIndex <= 0"
-        @click="selectImage(imageIndex - 1)"
-      >
-        <StudioIcon name="ChevronLeftIcon" class="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/65 disabled:pointer-events-none disabled:opacity-0"
-        :aria-label="t('imageStudio.result.nextImage')"
-        :disabled="imageIndex >= task.outputImages.length - 1"
-        @click="selectImage(imageIndex + 1)"
-      >
-        <StudioIcon name="ChevronRightIcon" class="h-4 w-4" />
-      </button>
-      <span
-        class="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] tabular-nums text-white"
-      >
-        {{ imageIndex + 1 }} / {{ task.outputImages.length }}
-      </span>
-    </template>
+    <button
+      v-if="multiple"
+      type="button"
+      class="studio-preview-arrow btn btn-secondary btn-icon"
+      :aria-label="t('imageStudio.result.nextImage')"
+      :title="t('imageStudio.result.nextImage')"
+      :disabled="imageIndex >= task.outputImages.length - 1"
+      @click="selectImage(imageIndex + 1)"
+    >
+      <StudioIcon name="ChevronRightIcon" size="lg" />
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
-/**
- * 方形预览框。
- *
- * 边长完全由 CSS 决定（见下方 .studio-frame）：取「父容器可用宽」与
- * 「父容器可用高」的较小值。这样浏览器缩放到 67% 或 150%、窗口任意拉伸，
- * 相框都恰好填满但不溢出，不需要任何 JS 测量。
- *
- * 图片走 imageCache：先读缓存同步出图，未命中再异步补，避免闪白。
- */
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TaskRecord } from '../types'
 import { storeState as state } from '../stores/store'
@@ -104,92 +60,80 @@ import { ensureImageCached, getCachedImage } from '../lib/imageCache'
 import StudioIcon from './StudioIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
-const props = defineProps<{
-  task: TaskRecord
-  /** 当前显示的图片 id，由父级持有，和右侧历史栏联动 */
-  imageId?: string
-}>()
-
-const emit = defineEmits<{
-  selectImage: [index: number]
-}>()
-
+const props = defineProps<{ task: TaskRecord; imageId?: string }>()
+const emit = defineEmits<{ selectImage: [index: number] }>()
 const { t } = useI18n()
-
 const source = ref<string | null>(null)
-let cancelled = false
-
-const imageIndex = computed(() => {
-  const id = props.imageId
-  return id ? Math.max(0, props.task.outputImages.indexOf(id)) : 0
-})
-
+const failed = ref(false)
+const loading = ref(false)
+const imageIndex = computed(() => Math.max(0, props.task.outputImages.indexOf(props.imageId ?? '')))
+const multiple = computed(() => props.task.outputImages.length > 1)
 const streamPreview = computed(() => state.streamPreviews[props.task.id]?.image)
 
-function load(id: string | undefined) {
-  cancelled = false
+watch(() => props.imageId, async (id, _previous, onCleanup) => {
+  let active = true
+  onCleanup(() => { active = false })
   source.value = id ? getCachedImage(id) ?? null : null
+  failed.value = false
+  loading.value = Boolean(id && !source.value)
   if (!id || source.value) return
-
-  void ensureImageCached(id)
-    .then((dataUrl) => {
-      if (cancelled || !dataUrl) return
-      source.value = dataUrl
-    })
-    .catch(() => {
-      /* 取不到就停在占位态，不阻塞其它交互 */
-    })
-}
-
-watch(
-  () => props.imageId,
-  (id) => {
-    cancelled = true
-    load(id)
-  },
-  { immediate: true },
-)
-
-onUnmounted(() => {
-  cancelled = true
-})
+  try {
+    const value = await ensureImageCached(id)
+    if (!active) return
+    source.value = value ?? null
+    failed.value = !value
+  } catch {
+    if (active) failed.value = true
+  } finally {
+    if (active) loading.value = false
+  }
+}, { immediate: true })
 
 function selectImage(index: number) {
-  emit('selectImage', index)
+  if (index >= 0 && index < props.task.outputImages.length) emit('selectImage', index)
 }
-
 function openLightbox() {
-  if (!props.imageId) return
-  state.setLightboxImageId(props.imageId, props.task.outputImages)
+  if (props.imageId) state.setLightboxImageId(props.imageId, props.task.outputImages)
 }
 </script>
 
 <style scoped>
-/**
- * 方形相框尺寸。
- *
- * 关键点：父级给了 `container-type: size` 后，这里的 cqw / cqh 就是父容器的
- * 内容宽高。相框取两者的较小值 → 永远是正方形，且永不超过父容器。
- *
- * 为什么不用 JS 算：之前是「视口高度 - 172px」这种硬编码估算，
- * 结果 100% 缩放时算大了溢出、67% 缩放时被 560 上限卡住显得空。
- * 交给 CSS 后，缩放比例、窗口大小、历史栏展开收起都不需要重新计算。
- *
- * 预留 62px：提示词一行 + 操作键一行 + 元信息一行的紧凑占位。
- */
-.studio-frame {
-  width: var(--studio-frame-w, min(100cqw, calc(100cqh - 62px)));
-  max-width: 720px;
-  aspect-ratio: 1 / 1;
-  /* 有些窄屏会算出很大值，用 vmin 兜一层，防止超过视口 */
-  max-height: 100cqh;
+.studio-preview-shell {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
-
-/* 容器查询不可用时退化为纯宽高比方案，保证仍能看到图 */
-@supports not (width: 1cqw) {
-  .studio-frame {
-    width: 100%;
-    max-width: min(560px, 62vh);
-  }
+.studio-preview-single { grid-template-columns: minmax(0, 1fr); }
+.studio-frame-cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+.studio-frame {
+  width: min(100%, 100cqh, 720px);
+  aspect-ratio: 1;
+}
+.studio-preview-arrow {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border-color: rgb(209 213 219);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+}
+.studio-preview-arrow:disabled { opacity: 0.3; }
+@media (max-width: 479px) {
+  .studio-preview-shell { grid-template-columns: 2rem minmax(0, 1fr) 2rem; gap: 0.25rem; }
+  .studio-preview-single { grid-template-columns: minmax(0, 1fr); }
+  .studio-preview-arrow { width: 2rem; height: 2.5rem; padding: 0; }
+}
+@supports not (width: 1cqh) {
+  .studio-frame { width: min(100%, 62vh, 720px); }
 }
 </style>

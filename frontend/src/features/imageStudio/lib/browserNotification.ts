@@ -6,6 +6,24 @@ export type BrowserNotificationReadiness =
   | { ok: true }
   | { ok: false; reason: 'unsupported' | 'insecure' | 'denied' | 'default' }
 
+/** Stable for a signed-in user across token refreshes, different after logout/account switch. */
+export function getBrowserNotificationSession(): string | null {
+  try {
+    const token = localStorage.getItem('auth_token')
+    if (!token) return null
+    const user = JSON.parse(localStorage.getItem('auth_user') ?? 'null') as { id?: unknown } | null
+    return user && (typeof user.id === 'number' || typeof user.id === 'string')
+      ? `user:${user.id}`
+      : `session:${token}`
+  } catch {
+    return null
+  }
+}
+
+export function isBrowserNotificationBackground() {
+  return typeof document !== 'undefined' && (document.visibilityState === 'hidden' || !document.hasFocus())
+}
+
 function getNotificationConstructor() {
   if (typeof window === 'undefined' || !('Notification' in window)) return null
   return window.Notification

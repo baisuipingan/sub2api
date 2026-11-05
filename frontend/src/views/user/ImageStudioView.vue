@@ -6,8 +6,6 @@
     <div
       class="image-studio-root -m-4 flex flex-col md:-m-6 lg:-m-8 lg:h-[calc(100dvh-4rem-1px)] lg:overflow-hidden"
     >
-      <StudioProductHeader />
-
       <main
         class="mx-auto grid w-full max-w-[1600px] flex-1 gap-0 lg:min-h-0 lg:grid-cols-[clamp(280px,26vw,340px)_minmax(0,1fr)]"
       >
@@ -30,7 +28,6 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import StudioProductHeader from '@/features/imageStudio/components/StudioProductHeader.vue'
 import StudioCreationPanel from '@/features/imageStudio/components/StudioCreationPanel.vue'
 import StudioResultPanel from '@/features/imageStudio/components/StudioResultPanel.vue'
 import StudioDetailModal from '@/features/imageStudio/components/StudioDetailModal.vue'

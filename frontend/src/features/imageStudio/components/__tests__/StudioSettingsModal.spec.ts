@@ -1,7 +1,7 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { state, clearData, exportData, importData } = vi.hoisted(() => ({
+const { state, clearData, exportData, importData, requestPermission } = vi.hoisted(() => ({
   state: {
     showSettings: true,
     settings: {
@@ -11,13 +11,19 @@ const { state, clearData, exportData, importData } = vi.hoisted(() => ({
     },
     setShowSettings: vi.fn(),
     setSettings: vi.fn(),
+    showToast: vi.fn(),
   },
   clearData: vi.fn(),
   exportData: vi.fn(),
   importData: vi.fn(),
+  requestPermission: vi.fn(),
 }))
 
 vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData }))
+vi.mock('../../lib/browserNotification', () => ({
+  getBrowserNotificationSession: () => 'user:100',
+  requestBrowserNotificationPermission: requestPermission,
+}))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key }),
@@ -33,7 +39,11 @@ function mountModal() {
   return mount(StudioSettingsModal, { global: { stubs: { StudioIcon: true, Teleport: true, Transition: false } } })
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  requestPermission.mockReset().mockResolvedValue({ ok: true })
+  state.settings.taskCompletionNotification = false
+})
 
 describe('StudioSettingsModal', () => {
   it('only offers useful creation preferences and local data controls', () => {
@@ -52,10 +62,50 @@ describe('StudioSettingsModal', () => {
     const wrapper = mountModal()
     await wrapper.findAll('[role="switch"]')[0].trigger('click')
     await wrapper.findAll('[role="switch"]')[1].trigger('click')
+    await flushPromises()
 
     expect(state.setSettings).toHaveBeenCalledWith({ clearInputAfterSubmit: true })
     expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: true })
     expect(state.setSettings).not.toHaveBeenCalledWith(expect.objectContaining({ enterSubmit: expect.anything() }))
+  })
+
+  it.each([
+    ['denied', 'notificationDenied'],
+    ['unsupported', 'notificationUnsupported'],
+    ['insecure', 'notificationInsecure'],
+    ['default', 'notificationPermissionRequired'],
+    ['error', 'notificationEnableFailed'],
+  ])('keeps system notifications off after %s permission result', async (reason, messageKey) => {
+    requestPermission.mockResolvedValueOnce({ ok: false, reason })
+    const wrapper = mountModal()
+    await wrapper.findAll('[role="switch"]')[1].trigger('click')
+    await flushPromises()
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+    expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: false })
+    expect(state.setSettings).not.toHaveBeenCalledWith({ taskCompletionNotification: true })
+    expect(state.showToast).toHaveBeenCalledWith(`imageStudio.settings.${messageKey}`, 'error')
+  })
+
+  it('prevents duplicate permission prompts while the browser is asking', async () => {
+    let finish!: (result: { ok: boolean }) => void
+    requestPermission.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const wrapper = mountModal()
+    const toggle = wrapper.findAll('[role="switch"]')[1]
+    await toggle.trigger('click')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    await toggle.trigger('click')
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+    finish({ ok: true })
+    await flushPromises()
+    expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: true })
+  })
+
+  it('can switch notifications off without requesting browser permission', async () => {
+    state.settings.taskCompletionNotification = true
+    const wrapper = mountModal()
+    await wrapper.findAll('[role="switch"]')[1].trigger('click')
+    expect(requestPermission).not.toHaveBeenCalled()
+    expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: false })
   })
 
   it('keeps export and history cleanup available', async () => {

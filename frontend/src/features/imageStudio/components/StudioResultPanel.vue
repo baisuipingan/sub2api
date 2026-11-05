@@ -1,11 +1,9 @@
 <template>
   <section
-    class="flex min-h-[420px] min-w-0 bg-white dark:bg-dark-950 lg:h-full lg:min-h-0"
+    class="flex min-h-[420px] min-w-0 flex-col bg-white dark:bg-dark-950 lg:h-full lg:min-h-0 lg:flex-row"
     :aria-label="t('imageStudio.resultPanel.aria')"
   >
-    <!-- ══════════ 中间：预览区（不滚动） ══════════
-         顶部工具栏 + 固定方形相框 + 相框下操作键，全部塞进一屏，
-         高度按视口算，永不产生纵向滚动。 -->
+    <!-- 当前任务：图片区、批次胶卷和操作区各自分配高度。 -->
     <div class="flex min-w-0 flex-1 flex-col lg:min-h-0">
       <header
         class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-100 px-4 py-2.5 dark:border-white/[0.06] sm:px-6"
@@ -55,108 +53,112 @@
         </div>
       </header>
 
-      <!-- 主体：上=相框容器（声明尺寸查询上下文），下=操作区 -->
-      <div class="flex min-h-0 flex-1 flex-col items-stretch gap-2 overflow-hidden px-3 py-3 sm:px-5">
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 py-3 sm:px-5">
         <template v-if="activeTask">
-          <!-- 舞台：相框与操作区共用一个宽度变量，保证两者左右对齐 -->
-          <div class="studio-stage flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2">
-            <StudioSquarePreview
-              :task="activeTask"
-              :image-id="currentImageId ?? undefined"
+          <div class="studio-stage" :class="{ 'studio-stage-batch': activeTask.outputImages.length > 1 }">
+            <div class="studio-picture-area">
+              <StudioSquarePreview
+                :task="activeTask"
+                :image-id="currentImageId ?? undefined"
+                @select-image="onSelectImage"
+              />
+            </div>
+            <StudioBatchFilmstrip
+              v-if="activeTask.outputImages.length > 1"
+              :images="activeTask.outputImages"
+              :selected-image-id="currentImageId"
               @select-image="onSelectImage"
             />
-
-            <!-- 操作区：宽度 = 相框宽度，因此天然与图片居中对齐 -->
-            <div class="studio-ops flex flex-col items-center gap-2">
-            <p
-              v-if="activeTask.status === 'error'"
-              data-testid="result-error-message"
-              class="w-full whitespace-pre-wrap break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
-            >
-              {{ errorMessage }}
-            </p>
-            <p
-              v-else
-              class="flex w-full min-w-0 items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-dark-400"
-            >
-              <span class="line-clamp-1 min-w-0 break-words text-gray-700 dark:text-dark-200" :title="displayPrompt">
-                {{ displayPrompt }}
-              </span>
-              <span class="shrink-0 tabular-nums">{{ sizeLabel }}</span>
-              <span v-if="ratioLabel" class="shrink-0 tabular-nums">{{ ratioLabel }}</span>
-              <span class="shrink-0 tabular-nums">{{ elapsedLabel }}</span>
-            </p>
-
-            <div class="flex flex-wrap items-center justify-center gap-1.5">
-              <button
-                v-if="activeTask.status !== 'error'"
-                type="button"
-                class="btn btn-secondary btn-sm gap-1.5"
-                @click="reuseConfig(activeTask)"
+            <div class="studio-ops flex min-w-0 flex-col items-center gap-2">
+              <p
+                v-if="activeTask.status === 'error'"
+                data-testid="result-error-message"
+                class="w-full whitespace-pre-wrap break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
               >
-                <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
-                {{ t('imageStudio.task.reuseParams') }}
-              </button>
-
-              <button
-                v-if="currentImageId"
-                type="button"
-                class="btn btn-secondary btn-sm gap-1.5"
-                :disabled="copying"
-                @click="copyImage"
+                {{ errorMessage }}
+              </p>
+              <p
+                v-else
+                class="flex w-full min-w-0 items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-dark-400"
               >
-                <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
-                {{ t('imageStudio.result.copyImage') }}
-              </button>
+                <span class="line-clamp-1 min-w-0 break-words text-gray-700 dark:text-dark-200" :title="displayPrompt">
+                  {{ displayPrompt }}
+                </span>
+                <span class="shrink-0 tabular-nums">{{ sizeLabel }}</span>
+                <span v-if="ratioLabel" class="shrink-0 tabular-nums">{{ ratioLabel }}</span>
+                <span class="shrink-0 tabular-nums">{{ elapsedLabel }}</span>
+              </p>
 
-              <button
-                v-if="currentImageId"
-                type="button"
-                data-testid="download-result-image"
-                class="btn btn-secondary btn-sm gap-1.5"
-                :disabled="downloading"
-                :aria-busy="downloading"
-                :title="t('imageStudio.lightbox.download')"
-                @click="downloadImage"
-              >
-                <StudioIcon name="DownloadIcon" class="h-3.5 w-3.5" />
-                {{ t('imageStudio.lightbox.download') }}
-              </button>
+              <div class="flex flex-wrap items-center justify-center gap-1.5">
+                <button
+                  v-if="activeTask.status !== 'error'"
+                  type="button"
+                  class="btn btn-secondary btn-sm gap-1.5"
+                  @click="reuseConfig(activeTask)"
+                >
+                  <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
+                  {{ t('imageStudio.task.reuseParams') }}
+                </button>
 
-              <button
-                v-if="currentImageId"
-                type="button"
-                class="btn btn-secondary btn-sm gap-1.5"
-                @click="addAsReference"
-              >
-                <StudioIcon name="EditIcon" class="h-3.5 w-3.5" />
-                {{ t('imageStudio.task.asReference') }}
-              </button>
+                <button
+                  v-if="currentImageId"
+                  type="button"
+                  class="btn btn-secondary btn-sm gap-1.5"
+                  :disabled="copying"
+                  @click="copyImage"
+                >
+                  <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
+                  {{ t('imageStudio.result.copyImage') }}
+                </button>
 
-              <button
-                type="button"
-                class="btn btn-secondary btn-sm gap-1.5"
-                @click="state.setDetailTaskId(activeTask.id)"
-              >
-                {{ t('imageStudio.result.viewDetail') }}
-              </button>
+                <button
+                  v-if="currentImageId"
+                  type="button"
+                  data-testid="download-result-image"
+                  class="btn btn-secondary btn-sm gap-1.5"
+                  :disabled="downloading"
+                  :aria-busy="downloading"
+                  :title="t('imageStudio.lightbox.download')"
+                  @click="downloadImage"
+                >
+                  <StudioIcon name="DownloadIcon" class="h-3.5 w-3.5" />
+                  {{ t('imageStudio.lightbox.download') }}
+                </button>
 
-              <button
-                v-if="canRegenerate"
-                type="button"
-                class="btn btn-primary btn-sm gap-1.5"
-                :disabled="hasRunningTask || retrying"
-                @click="onRetry"
-              >
-                <StudioIcon name="RefreshIcon" class="h-3.5 w-3.5" />
-                {{ activeTask.status === 'error' ? t('imageStudio.task.retry') : t('imageStudio.result.regenerate') }}
-              </button>
-            </div>
+                <button
+                  v-if="currentImageId"
+                  type="button"
+                  class="btn btn-secondary btn-sm gap-1.5"
+                  @click="addAsReference"
+                >
+                  <StudioIcon name="EditIcon" class="h-3.5 w-3.5" />
+                  {{ t('imageStudio.task.asReference') }}
+                </button>
 
-            <p class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
-              <span class="max-w-[14rem] truncate">{{ modelName }}</span>
-              <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
-            </p>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm gap-1.5"
+                  @click="state.setDetailTaskId(activeTask.id, currentImageId ?? undefined)"
+                >
+                  {{ t('imageStudio.result.viewDetail') }}
+                </button>
+
+                <button
+                  v-if="canRegenerate"
+                  type="button"
+                  class="btn btn-primary btn-sm gap-1.5"
+                  :disabled="hasRunningTask || retrying"
+                  @click="onRetry"
+                >
+                  <StudioIcon name="RefreshIcon" class="h-3.5 w-3.5" />
+                  {{ activeTask.status === 'error' ? t('imageStudio.task.retry') : t('imageStudio.result.regenerate') }}
+                </button>
+              </div>
+
+              <p class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
+                <span class="max-w-[14rem] truncate">{{ modelName }}</span>
+                <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
+              </p>
             </div>
           </div>
         </template>
@@ -183,11 +185,10 @@
       </div>
     </div>
 
-    <!-- ══════════ 右侧：生成历史（独立纵向滚动） ══════════ -->
+    <!-- 小屏在预览下方横向滚动；桌面在右侧纵向滚动。 -->
     <StudioHistoryRail
       :tasks="filteredTasks"
       :active-task-id="activeTaskId"
-      :active-image-id="currentImageId"
       :collapsed="railCollapsed"
       @select="onSelectHistory"
       @toggle="toggleRail"
@@ -196,25 +197,14 @@
 </template>
 
 <script setup lang="ts">
-/**
- * 生图结果区：三段式中的「中 + 右」。
- *
- * 设计约束：
- *   1. 中间预览框固定正方形，不随图片比例变化
- *   2. 中间区域不上下滚动 —— 相框边长按可视高度动态计算
- *   3. 不同尺寸图片以最短边贴合相框、居中留白（object-contain）
- *   4. 相框下放操作键
- *   5. 右侧历史栏可收起，内部纵向滚动
- *
- * 相框边长算法：容器高度减去工具栏、提示词、操作键、元信息的固定占位，
- * 再夹在 [240, 560] 之间。这样任何视口下都不会把中间撑出滚动条。
- */
+/** One current-image ID drives the preview, batch strip and all image actions. */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Input from '@/components/common/Input.vue'
 import StudioIcon from './StudioIcon.vue'
 import StudioSquarePreview from './StudioSquarePreview.vue'
+import StudioBatchFilmstrip from './StudioBatchFilmstrip.vue'
 import StudioHistoryRail from './StudioHistoryRail.vue'
 import {
   editOutputs,
@@ -464,45 +454,28 @@ watch(
 </script>
 
 <style scoped>
-/**
- * 舞台：相框与操作区共用同一个宽度。
- *
- * 关键点：--studio-frame-w 在这里算一次，相框和操作区都读它。
- * 之前操作区写死 max-w-xl(576px)，而相框是 371px，
- * 两者宽度不一致，操作区就偏左了 —— 看着像「跑到左边」。
- *
- * 88px 是操作区实际占位（提示词行 + 按钮行 + 元信息行 + 间距）。
- */
 .studio-stage {
-  container-type: size;
+  display: grid;
+  grid-template-rows: minmax(12rem, 1fr) auto;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 52rem;
   min-height: 0;
-  --studio-frame-w: min(100cqw, calc(100cqh - 88px), 720px);
+  flex: 1;
+  margin-inline: auto;
 }
-
-.studio-ops {
-  width: var(--studio-frame-w);
-  max-width: 100%;
+.studio-stage-batch {
+  grid-template-rows: minmax(12rem, 1fr) auto auto;
 }
-
+.studio-picture-area {
+  container-type: size;
+  min-width: 0;
+  min-height: 12rem;
+}
+.studio-ops { width: 100%; }
 @media (max-width: 1023px) {
-  .studio-stage {
-    container-type: inline-size;
-    --studio-frame-w: min(100cqw, 720px);
-    flex: 0 0 auto;
-  }
-}
-
-/**
- * 相框的尺寸查询上下文。
- *
- * StudioSquarePreview 内部用 cqw/cqh 算自己的边长，需要这个容器先声明
- * container-type: size —— 否则 cqw/cqh 会回退到视口单位，又变成不准的估算。
- *
- * min-height: 0 是必须的：flex 子项默认 min-height:auto 会把容器撑高，
- * 导致 100cqh 算出来比实际可用空间大，相框就会溢出（就是 100% 缩放那个 bug）。
- */
-.studio-frame-host {
-  container-type: size;
-  min-height: 0;
+  .studio-stage { flex: none; grid-template-rows: auto auto; }
+  .studio-stage-batch { grid-template-rows: auto auto auto; }
+  .studio-picture-area { height: clamp(12rem, 76vw, 36rem); }
 }
 </style>

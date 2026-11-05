@@ -45,7 +45,7 @@ import {
   readExportZip,
   readExportZipFileAsDataUrl,
 } from '../lib/exportZip'
-import { showBrowserNotification } from '../lib/browserNotification'
+import { getBrowserNotificationSession, isBrowserNotificationBackground, showBrowserNotification } from '../lib/browserNotification'
 import { ApiAuthError, ApiInsufficientBalanceError, getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { remapImageMentionsForOrder, replaceImageMentionsForApi, stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { GPT_IMAGE_MIN_PIXELS, normalizeImageSize } from '../lib/size'
@@ -143,7 +143,8 @@ interface AppState {
   setFilterStatus: (status: TaskStatus | 'all') => void
 
   detailTaskId: string | null
-  setDetailTaskId: (id: string | null) => void
+  detailImageId: string | null
+  setDetailTaskId: (id: string | null, imageId?: string | null) => void
   lightboxImageId: string | null
   lightboxImageList: string[]
   setLightboxImageId: (id: string | null, list?: string[]) => void
@@ -381,7 +382,8 @@ const buildStore: StoreBuilder = (set, get) => {
         setFilterStatus: (filterStatus) => set({ filterStatus }),
 
         detailTaskId: null,
-        setDetailTaskId: (detailTaskId) => set({ detailTaskId }),
+        detailImageId: null,
+        setDetailTaskId: (detailTaskId, imageId) => set({ detailTaskId, detailImageId: detailTaskId ? imageId ?? null : null }),
         lightboxImageId: null,
         lightboxImageList: [],
         setLightboxImageId: (lightboxImageId, lightboxImageList = []) => set({
@@ -519,6 +521,7 @@ export function initStore(): Promise<void> {
 
 export async function submitTask() {
   const state = useStore.getState()
+  const notificationSession = getBrowserNotificationSession()
   const prompt = state.prompt.trim()
   if (!prompt) {
     state.showToast(st('imageStudio.store.promptRequired'), 'error')
@@ -711,8 +714,12 @@ export async function submitTask() {
       return { tasks: taskList, streamPreviews }
     })
     await dbPutTask(finished)
-    state.showToast(st('imageStudio.store.taskDone'), 'success')
-    if (state.settings.taskCompletionNotification) showBrowserNotification(st('imageStudio.store.notificationTitle'), { body: prompt })
+    const current = useStore.getState()
+    if (current.settings.taskCompletionNotification && notificationSession !== null &&
+      getBrowserNotificationSession() === notificationSession && current.settings.miloRouter.apiKey.trim() === apiKey &&
+      isBrowserNotificationBackground()) {
+      showBrowserNotification(st('imageStudio.store.notificationTitle'), { body: prompt })
+    }
     if (state.settings.clearInputAfterSubmit) {
       useStore.setState({ prompt: '', inputImages: [], maskDraft: null })
     }
@@ -918,6 +925,7 @@ export async function removeMultipleTasks(taskIds: string[]) {
     tasks: remaining,
     streamPreviews: Object.fromEntries(Object.entries(state.streamPreviews).filter(([taskId]) => !ids.has(taskId))),
     detailTaskId: state.detailTaskId && ids.has(state.detailTaskId) ? null : state.detailTaskId,
+    detailImageId: state.detailTaskId && ids.has(state.detailTaskId) ? null : state.detailImageId,
   })
   await commitTaskDeletion([...ids], [])
   await Promise.all([...deleteIds].map(async (id) => {
@@ -984,6 +992,7 @@ export async function clearData(options: { clearConfig?: boolean; clearTasks?: b
       maskEditorImageId: null,
       imageEditSession: null,
       detailTaskId: null,
+      detailImageId: null,
       lightboxImageId: null,
       lightboxImageList: [],
     })

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import type { TaskRecord } from '../../types'
 
-const { rawState, downloadImageSource, ensureImageCached } = vi.hoisted(() => ({
+const { rawState, downloadImageSource, ensureImageCached, editOutputs, copyImageSourceToClipboard } = vi.hoisted(() => ({
   rawState: {
     tasks: [] as TaskRecord[],
     searchQuery: '',
@@ -20,11 +20,13 @@ const { rawState, downloadImageSource, ensureImageCached } = vi.hoisted(() => ({
   },
   downloadImageSource: vi.fn(),
   ensureImageCached: vi.fn(),
+  editOutputs: vi.fn(),
+  copyImageSourceToClipboard: vi.fn(),
 }))
 
 vi.mock('../../stores/store', async () => ({
   storeState: (await import('vue')).reactive(rawState),
-  editOutputs: vi.fn(),
+  editOutputs,
   retryTask: vi.fn(),
   reuseConfig: vi.fn(),
   taskMatchesFilterStatus: () => true,
@@ -32,6 +34,7 @@ vi.mock('../../stores/store', async () => ({
 }))
 vi.mock('../../lib/downloadImage', () => ({ downloadImageSource }))
 vi.mock('../../lib/imageCache', () => ({ ensureImageCached }))
+vi.mock('../../lib/clipboard', () => ({ copyImageSourceToClipboard, getClipboardFailureMessage: () => 'Copy failed' }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key }),
@@ -41,6 +44,7 @@ import { storeState as state } from '../../stores/store'
 import StudioResultPanel from '../StudioResultPanel.vue'
 import StudioSquarePreview from '../StudioSquarePreview.vue'
 import StudioHistoryRail from '../StudioHistoryRail.vue'
+import StudioBatchFilmstrip from '../StudioBatchFilmstrip.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -64,7 +68,7 @@ function task(overrides: Partial<TaskRecord> = {}): TaskRecord {
 
 function mountPanel() {
   return mount(StudioResultPanel, {
-    global: { stubs: { StudioSquarePreview: true, StudioHistoryRail: true, StudioIcon: true } },
+    global: { stubs: { StudioSquarePreview: true, StudioHistoryRail: true, StudioBatchFilmstrip: true, StudioIcon: true } },
   })
 }
 
@@ -109,6 +113,45 @@ describe('StudioResultPanel download', () => {
     await flushPromises()
 
     expect(ensureImageCached).toHaveBeenCalledWith('older-image')
+  })
+
+  it('uses the filmstrip selection consistently for preview, copy, download, reference and detail', async () => {
+    const wrapper = mountPanel()
+    const filmstrip = wrapper.getComponent(StudioBatchFilmstrip)
+    expect(filmstrip.props('images')).toEqual(['image-one', 'image-two'])
+    filmstrip.vm.$emit('selectImage', 1)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.getComponent(StudioSquarePreview).props('imageId')).toBe('image-two')
+    expect(filmstrip.props('selectedImageId')).toBe('image-two')
+    expect(wrapper.getComponent(StudioHistoryRail).props('activeTaskId')).toBe('task-download')
+
+    await wrapper.get('[data-testid="download-result-image"]').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'imageStudio.result.copyImage')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'imageStudio.task.asReference')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === 'imageStudio.result.viewDetail')!.trigger('click')
+    await flushPromises()
+
+    expect(ensureImageCached.mock.calls.every(([id]) => id === 'image-two')).toBe(true)
+    expect(copyImageSourceToClipboard).toHaveBeenCalledTimes(1)
+    expect(editOutputs).toHaveBeenCalledWith(state.tasks[0], ['image-two'])
+    expect(state.setDetailTaskId).toHaveBeenCalledWith('task-download', 'image-two')
+  })
+
+  it('places the task history below the preview on small screens and beside it on desktop', () => {
+    const wrapper = mountPanel()
+    expect(wrapper.get('section').classes()).toContain('flex-col')
+    expect(wrapper.get('section').classes()).toContain('lg:flex-row')
+    expect(wrapper.getComponent(StudioHistoryRail).props('collapsed')).toBeTypeOf('boolean')
+  })
+
+  it('removes the batch rail when switching to a single-image task', async () => {
+    state.tasks = [task(), task({ id: 'single', outputImages: ['single-image'], createdAt: Date.now() - 1000 })]
+    const wrapper = mountPanel()
+    expect(wrapper.findComponent(StudioBatchFilmstrip).exists()).toBe(true)
+    wrapper.getComponent(StudioHistoryRail).vm.$emit('select', 'single', 'single-image')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findComponent(StudioBatchFilmstrip).exists()).toBe(false)
+    expect(wrapper.getComponent(StudioSquarePreview).props('imageId')).toBe('single-image')
   })
 
   it('disables repeated clicks while the download is pending', async () => {
