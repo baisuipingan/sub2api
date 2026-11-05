@@ -116,10 +116,8 @@ export const IMAGE_MODEL_REGISTRY: readonly ImageModelDefinition[] = [
     name: 'GPT Image 2',
     api: 'openai',
     featured: true,
-    // fork: image-size-routing
-    // 不再按档位切换模型名。对外只有 GPT_IMAGE_2_MODEL_ID 一个名字，
-    // 2K/4K 由 size 参数表达，路由层按 size 自动选到支持该尺寸的供应商。
-    // 此前 '2K' 也指向 gpt-image-2-4K，导致选 2K 实际按 4K 处理。
+    // 客户端统一使用公开模型名；官方调度器按 size 选择账号，
+    // 再通过该账号的普通模型映射使用供应商型号。
     requestModels: { auto: GPT_IMAGE_2_MODEL_ID, '1K': GPT_IMAGE_2_MODEL_ID, '2K': GPT_IMAGE_2_MODEL_ID, '4K': GPT_IMAGE_2_MODEL_ID },
     capabilities: GPT_CAPABILITIES,
     defaults: DEFAULTS,

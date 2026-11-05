@@ -2620,20 +2620,6 @@ func summarizeSelectionFailureStats(stats selectionFailureStats) string {
 // isModelSupportedByAccountWithContext 根据账户平台检查模型支持（带 context）
 // 对于 Antigravity 平台，会先获取映射后的最终模型名（包括 thinking 后缀）再检查支持
 func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Context, account *Account, requestedModel string) bool {
-	// fork: image-size-routing
-	// 生图请求按尺寸再筛一道：账号配了尺寸能力表但没有该档位，
-	// 说明它出不了这个尺寸，直接判定不支持（避免只支持 1K 的供应商接 4K 单）。
-	//
-	// 放在这里而不是各个筛选循环里：本函数被 12 处调度路径调用，
-	// 在入口统一拦截可以保证「粘性会话 / 窗口成本 / 常规筛选」等所有分支
-	// 行为一致，也不会因为将来新增调度路径而漏掉。
-	// 账号没配能力表时 supported 恒为 true，行为与未装此功能完全一致。
-	if size, ok := ImageRequestSizeFromContext(ctx); ok {
-		if _, supported := ResolveImageSizeUpstream(account, requestedModel, size); !supported {
-			return false
-		}
-	}
-
 	if source, ok := CompositeRouteSourceFromContext(ctx); ok && source == CompositeRouteSourceAccount {
 		if publicModel, modelOK := RequestedPublicModelFromContext(ctx); modelOK && !explicitModelMappingClaims(*account, publicModel) {
 			return false

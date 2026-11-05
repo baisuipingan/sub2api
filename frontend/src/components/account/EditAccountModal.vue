@@ -515,17 +515,6 @@
           </template>
         </div>
 
-        <!-- fork: image-size-routing -->
-        <ImageSizeCapabilityEditor
-          v-if="account.platform === 'openai' && account.type === 'apikey'"
-          v-model="imageSizeCapabilityRows"
-          :errors="imageSizeCapabilityErrors"
-          :validation-attempted="imageSizeValidationAttempted"
-          :model-candidates="imageSizeModelCandidates"
-          @add="addImageSizeCapabilityRow"
-          @remove="removeImageSizeCapabilityRow"
-        />
-
         <!-- Pool Mode Section -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <div class="mb-3 flex items-center justify-between">
@@ -3396,8 +3385,6 @@ import { useAppStore } from '@/stores/app'
 
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
-import ImageSizeCapabilityEditor from './ImageSizeCapabilityEditor.vue'
-import { IMAGE_SIZE_CAPABILITIES_EXTRA_KEY, getImageSizeModelCandidates, useImageSizeCapabilities } from '@/composables/useImageSizeCapabilities'
 import type {
   Account,
   Proxy,
@@ -3623,7 +3610,6 @@ watch(() => props.account?.id, () => {
   if (opencodeGoState.value && !opencodeGoState.value.snapshot) void loadOpenCodeGoUsage()
 })
 
-
 onMounted(() => {
   if (opencodeGoState.value && !opencodeGoState.value.snapshot) void loadOpenCodeGoUsage()
 })
@@ -3839,23 +3825,6 @@ const isBedrockAPIKeyMode = computed(() =>
 )
 const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
-
-// fork: image-size-routing
-const imageSizeModelCandidates = computed(() => getImageSizeModelCandidates(
-  allowedModels.value,
-  modelMappings.value.map((item) => item.from)
-))
-const {
-  rows: imageSizeCapabilityRows,
-  errors: imageSizeCapabilityErrors,
-  validationAttempted: imageSizeValidationAttempted,
-  read: readImageSizeCapabilities,
-  build: buildImageSizeCapabilities,
-  validate: validateImageSizeCapabilities,
-  add: addImageSizeCapabilityRow,
-  remove: removeImageSizeCapabilityRow
-} = useImageSizeCapabilities(imageSizeModelCandidates)
-
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
@@ -4615,7 +4584,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
   }
-  readImageSizeCapabilities(newAccount.extra as Record<string, unknown> | undefined)
   // 进入回填窗口：抑制 CN 模式/协议 watcher 联动重置 base_url（见 syncingForm 注释）。
   syncingForm.value = true
   void nextTick(() => {
@@ -5664,10 +5632,6 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
     return
   }
-  if (props.account.platform === 'openai' && props.account.type === 'apikey' && !validateImageSizeCapabilities()) {
-    appStore.showError(t('admin.accounts.imageSizeCapability.validationError'))
-    return
-  }
 	if (autoResetCreditEnabled.value) {
 		const thresholds = [autoResetCredit5hThreshold.value, autoResetCredit7dThreshold.value]
 		if (thresholds.some((value) => !Number.isFinite(value) || value < 0.1 || value > 100)) {
@@ -5691,25 +5655,6 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
-
-    // fork: image-size-routing
-    // 尺寸能力写入 extra。放在平台分支之前统一处理，避免漏掉某个分支。
-    // 以现有 extra 为基底再覆盖，确保不会丢掉其它字段（如 grok 缓存开关、
-    // 上游探测配置等，它们各自在后面单独赋值）。
-    if (props.account.platform === 'openai' && props.account.type === 'apikey') {
-      const baseExtra: Record<string, unknown> = {
-        ...((updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {})
-      }
-      const capabilities = buildImageSizeCapabilities()
-      if (capabilities) {
-        baseExtra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY] = capabilities
-      } else {
-        // 清空时移除字段，避免留下一个空对象
-        delete baseExtra[IMAGE_SIZE_CAPABILITIES_EXTRA_KEY]
-      }
-      updatePayload.extra = baseExtra
-    }
-
     if (props.account.type === 'apikey') {
       updatePayload.upstream_billing_probe_enabled = upstreamBillingAutoProbeEnabled.value
       updatePayload.upstream_billing_rate_sync_enabled = upstreamBillingRateSyncEnabled.value
@@ -6117,7 +6062,7 @@ const handleSubmit = async () => {
 
     // For antigravity accounts, handle mixed_scheduling and allow_overages in extra
     if (props.account.platform === 'antigravity') {
-      const currentExtra = (props.account.extra as Record<string, unknown>) || {}
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       if (mixedScheduling.value) {
         newExtra.mixed_scheduling = true
@@ -6246,11 +6191,7 @@ const handleSubmit = async () => {
 
     // For OpenAI OAuth/SetupToken/API Key accounts, handle passthrough mode in extra
     if (props.account.platform === 'openai' && (props.account.type === 'oauth' || props.account.type === 'setup-token' || props.account.type === 'apikey')) {
-      // fork: image-size-routing
-      // 必须基于 updatePayload.extra（本次已写入的值）而不是 props.account.extra（服务器旧值），
-      // 否则这里整体覆盖会把前面写入的 image_size_capabilities 抹掉，
-      // 表现为「保存后配置丢了」。
-      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
+      const currentExtra = (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
       if (props.account.type === 'oauth' || props.account.type === 'setup-token') {

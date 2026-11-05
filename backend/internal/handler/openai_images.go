@@ -157,10 +157,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	sessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
 	requestCtx := service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context()))
-	// fork: image-size-routing
-	// 把 size 带上：调度阶段据此判断账号是否支持该尺寸档位。
-	// 只传 size 这一个纯数据，不改模型名，因此不会污染 model_mapping。
-	requestCtx = service.WithImageRequestSize(requestCtx, parsed.Size)
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
