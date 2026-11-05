@@ -28,18 +28,23 @@
           v-for="resolution in capabilities.resolutions"
           :key="resolution"
           type="button"
-          class="rounded-lg border px-2 py-2 text-sm transition"
+          class="btn btn-sm border px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
           :class="
             currentResolution === resolution
               ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
               : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/[0.1] dark:text-dark-300'
           "
           :aria-pressed="currentResolution === resolution"
+          :disabled="!isResolutionAvailable(model, resolution)"
+          :title="!isResolutionAvailable(model, resolution) ? t('imageStudio.params.channelSizeUnavailable', { resolution: RESOLUTION_LABELS[resolution] }) : undefined"
           @click="setResolution(resolution)"
         >
           {{ capabilities.customSize && resolution === 'auto' ? t('imageStudio.params.default') : RESOLUTION_LABELS[resolution] }}
         </button>
       </div>
+      <p v-if="model.availableSizeTiers && capabilities.resolutions.some((tier) => !isResolutionAvailable(model, tier))" class="mt-2 text-xs leading-5 text-gray-500" role="status">
+        {{ t('imageStudio.params.availableSizes', { sizes: model.availableSizeTiers.join(' / ') }) }}
+      </p>
     </div>
 
     <!-- 比例 -->
@@ -50,7 +55,7 @@
       <div role="group" :aria-label="t('imageStudio.params.aspectRatio')" class="flex flex-wrap gap-2">
         <button
           type="button"
-          class="rounded-lg border px-2.5 py-1.5 text-sm transition"
+          class="btn btn-sm btn-ghost rounded-lg border px-2.5 py-1.5 text-sm transition"
           :class="
             ratioIsAuto
               ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
@@ -65,7 +70,7 @@
           v-for="ratio in quickRatios"
           :key="ratio"
           type="button"
-          class="rounded-lg border px-2.5 py-1.5 text-sm transition"
+          class="btn btn-sm btn-ghost rounded-lg border px-2.5 py-1.5 text-sm transition"
           :class="
             currentRatio === ratio && !ratioIsAuto
               ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
@@ -99,7 +104,7 @@
           v-for="quality in capabilities.qualities"
           :key="quality"
           type="button"
-          class="rounded-lg border px-2 py-2 text-sm transition"
+          class="btn btn-sm btn-ghost rounded-lg border px-2 py-2 text-sm transition"
           :class="
             params.quality === quality
               ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
@@ -120,7 +125,7 @@
           v-for="complexity in capabilities.complexities"
           :key="complexity"
           type="button"
-          class="rounded-lg border px-2 py-2 text-sm transition"
+          class="btn btn-sm btn-ghost rounded-lg border px-2 py-2 text-sm transition"
           :class="(params.complexity ?? 'auto') === complexity ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'border-gray-200 text-gray-600 dark:border-white/[0.1] dark:text-dark-300'"
           :aria-pressed="(params.complexity ?? 'auto') === complexity"
           @click="setParams({ complexity })"
@@ -137,7 +142,7 @@
       <div class="flex h-9 items-center overflow-hidden rounded-lg border border-gray-200 dark:border-white/[0.1]">
         <button
           type="button"
-          class="h-9 w-9 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-white/[0.06]"
+          class="btn btn-sm btn-ghost h-9 w-9 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-white/[0.06]"
           :aria-label="t('imageStudio.params.decreaseCount')"
           :title="t('imageStudio.params.decreaseCount')"
           :disabled="params.n <= capabilities.imageCount.min"
@@ -145,18 +150,19 @@
         >
           −
         </button>
-        <input
+        <Input
           id="image-count"
           type="number"
-          class="h-9 w-12 border-x border-gray-200 bg-transparent text-center text-sm outline-none focus:bg-primary-50 dark:border-white/[0.1] dark:focus:bg-white/[0.06]"
+          class="w-16 [&_input]:h-9 [&_input]:rounded-none [&_input]:border-x [&_input]:border-y-0 [&_input]:px-1 [&_input]:text-center"
           :min="capabilities.imageCount.min"
           :max="maxImageCount"
-          :value="params.n"
+          :model-value="params.n"
+          :aria-label="t('imageStudio.params.count')"
           @change="onCountChange"
         />
         <button
           type="button"
-          class="h-9 w-9 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-white/[0.06]"
+          class="btn btn-sm btn-ghost h-9 w-9 hover:bg-gray-100 disabled:opacity-30 dark:hover:bg-white/[0.06]"
           :aria-label="t('imageStudio.params.increaseCount')"
           :title="t('imageStudio.params.increaseCount')"
           :disabled="params.n >= maxImageCount"
@@ -171,7 +177,7 @@
     <button
       v-if="hasAdvancedParams"
       type="button"
-      class="flex w-full items-center justify-between border-t border-gray-100 pt-3 text-sm text-gray-500 transition hover:text-gray-800 dark:border-white/[0.06] dark:text-dark-400 dark:hover:text-dark-200"
+      class="btn btn-sm btn-ghost flex w-full items-center justify-between border-t border-gray-100 pt-3 text-sm text-gray-500 transition hover:text-gray-800 dark:border-white/[0.06] dark:text-dark-400 dark:hover:text-dark-200"
       :aria-expanded="advanced"
       @click="advanced = !advanced"
     >
@@ -183,77 +189,65 @@
       v-if="hasAdvancedParams && advanced"
       class="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 dark:border-white/[0.06]"
     >
-      <label v-if="capabilities.outputFormats.length > 1" class="min-w-0">
+      <div v-if="capabilities.outputFormats.length > 1" class="min-w-0">
         <span class="mb-1.5 block text-xs text-gray-500">{{ t('imageStudio.detail.format') }}</span>
-        <select
-          class="field"
-          :value="params.output_format"
-          @change="setParams({ output_format: ($event.target as HTMLSelectElement).value as TaskParams['output_format'] })"
-        >
-          <option v-for="format in capabilities.outputFormats" :key="format" :value="format">
-            {{ format.toUpperCase() }}
-          </option>
-        </select>
-      </label>
+        <Select
+          :model-value="params.output_format"
+          :options="capabilities.outputFormats.map((format) => ({ value: format, label: format.toUpperCase() }))"
+          :aria-label="t('imageStudio.detail.format')"
+          :searchable="false"
+          @update:model-value="setParams({ output_format: $event as TaskParams['output_format'] })"
+        />
+      </div>
 
       <label v-if="capabilities.outputCompression && params.output_format !== 'png'" class="min-w-0">
         <span class="mb-1.5 block text-xs text-gray-500">{{ t('imageStudio.params.compression') }}</span>
-        <input
+        <Input
           type="number"
           min="0"
           max="100"
-          class="field"
-          :value="params.output_compression ?? ''"
-          @change="setParams({ output_compression: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })"
+          :aria-label="t('imageStudio.params.compression')"
+          :model-value="params.output_compression ?? ''"
+          @change="setParams({ output_compression: $event === '' ? null : Math.min(100, Math.max(0, Number($event) || 0)) })"
         />
       </label>
 
-      <label v-if="capabilities.moderation.length > 1" class="min-w-0">
+      <div v-if="capabilities.moderation.length > 1" class="min-w-0">
         <span class="mb-1.5 block text-xs text-gray-500">{{ t('imageStudio.detail.moderation') }}</span>
-        <select
-          class="field"
-          :value="params.moderation"
-          @change="setParams({ moderation: ($event.target as HTMLSelectElement).value as TaskParams['moderation'] })"
-        >
-          <option v-for="moderation in capabilities.moderation" :key="moderation" :value="moderation">
-            {{ moderation === 'auto' ? t('imageStudio.params.moderationStandard') : t('imageStudio.params.moderationLoose') }}
-          </option>
-        </select>
-      </label>
+        <Select
+          :model-value="params.moderation"
+          :options="capabilities.moderation.map((moderation) => ({ value: moderation, label: moderation === 'auto' ? t('imageStudio.params.moderationStandard') : t('imageStudio.params.moderationLoose') }))"
+          :aria-label="t('imageStudio.detail.moderation')"
+          :searchable="false"
+          @update:model-value="setParams({ moderation: $event as TaskParams['moderation'] })"
+        />
+      </div>
 
-      <label
+      <div
         v-if="capabilities.transparentOutput && (params.output_format === 'png' || params.output_format === 'webp')"
         class="col-span-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-dark-200"
       >
         <span>{{ t('imageStudio.detail.transparent') }}</span>
-        <input
-          type="checkbox"
-          class="h-4 w-4 accent-primary-600"
-          :checked="params.transparent_output"
-          @change="setParams({ transparent_output: ($event.target as HTMLInputElement).checked })"
+        <Toggle
+          :model-value="params.transparent_output"
+          :aria-label="t('imageStudio.detail.transparent')"
+          @update:model-value="setParams({ transparent_output: $event })"
         />
-      </label>
+      </div>
 
-      <label v-if="capabilities.maxPartialImages > 0" class="col-span-2 min-w-0">
+      <div v-if="capabilities.maxPartialImages > 0" class="col-span-2 min-w-0">
         <span class="mb-1.5 block text-xs text-gray-500">{{ t('imageStudio.params.partialPreview') }}</span>
-        <select
-          class="field"
-          :value="params.partial_images"
-          @change="setParams({ partial_images: Number(($event.target as HTMLSelectElement).value) as TaskParams['partial_images'] })"
-        >
-          <option :value="0">{{ t('imageStudio.params.off') }}</option>
-          <option
-            v-for="count in Array.from({ length: capabilities.maxPartialImages }, (_, i) => i + 1)"
-            :key="count"
-            :value="count"
-          >
-            {{ t('imageStudio.params.partialCount', { count }) }}
-          </option>
-        </select>
+        <Select
+          :model-value="params.partial_images"
+          :options="[{ value: 0, label: t('imageStudio.params.off') }, ...Array.from({ length: capabilities.maxPartialImages }, (_, i) => ({ value: i + 1, label: t('imageStudio.params.partialCount', { count: i + 1 }) }))]"
+          :aria-label="t('imageStudio.params.partialPreview')"
+          :searchable="false"
+          @update:model-value="setParams({ partial_images: Number($event) as TaskParams['partial_images'] })"
+        />
         <span class="mt-1 block text-[11px] leading-4 text-amber-600 dark:text-amber-400">
           {{ t('imageStudio.params.partialHint') }}
         </span>
-      </label>
+      </div>
     </div>
 
     <StudioRatioPickerModal
@@ -272,10 +266,13 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioRatioPickerModal from './StudioRatioPickerModal.vue'
+import Select from '@/components/common/Select.vue'
+import Input from '@/components/common/Input.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import type { TaskParams } from '../types'
 import type { ImageModelDefinition, ImageResolutionTier } from '../lib/modelRegistry'
 import { getModelResolution } from '../lib/modelRegistry'
-import { MAX_OUTPUT_IMAGES, parameterImageSize, usesNativeGeometry } from '../lib/paramCompatibility'
+import { MAX_OUTPUT_IMAGES, parameterImageSize, usesNativeGeometry, isResolutionAvailable } from '../lib/paramCompatibility'
 import { parseRatio } from '../lib/size'
 
 const props = defineProps<{
@@ -400,6 +397,7 @@ function setResolution(resolution: ImageResolutionTier) {
   const model = props.model
   const cap = capabilities.value
   if (!model || !cap) return
+  if (!isResolutionAvailable(model, resolution)) return
   if (usesNativeGeometry(model)) {
     setParams({ resolution })
     return
@@ -446,28 +444,12 @@ function setAutoRatio() {
   setParams({ size: 'auto', ...(usesNativeGeometry(props.model) ? { aspect_ratio: 'auto' } : {}) })
 }
 
-function onCountChange(event: Event) {
+function onCountChange(value: string) {
   const cap = capabilities.value
   const model = props.model
   if (!cap || !model) return
-  const raw = Math.floor(Number((event.target as HTMLInputElement).value) || model.defaults.imageCount)
+  const raw = Math.floor(Number(value) || model.defaults.imageCount)
   const next = Math.max(cap.imageCount.min, Math.min(maxImageCount.value, raw))
   setParams({ n: next })
 }
 </script>
-
-<style scoped>
-.field {
-  width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-gray-200, #e5e7eb);
-  background: white;
-  padding: 0.5rem 0.625rem;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.15s;
-}
-.field:focus {
-  border-color: #3b82f6;
-}
-</style>

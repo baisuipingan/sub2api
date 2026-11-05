@@ -24,12 +24,13 @@ vi.mock('vue-i18n', async () => ({
 }))
 
 import StudioSettingsModal from '../StudioSettingsModal.vue'
-import StudioCheckbox from '../StudioCheckbox.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Toggle from '@/components/common/Toggle.vue'
 
 enableAutoUnmount(afterEach)
 
 function mountModal() {
-  return mount(StudioSettingsModal, { global: { stubs: { StudioIcon: true } } })
+  return mount(StudioSettingsModal, { global: { stubs: { StudioIcon: true, Teleport: true, Transition: false } } })
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -40,7 +41,8 @@ describe('StudioSettingsModal', () => {
 
     expect(wrapper.text()).toContain('imageStudio.settings.prefClearInput')
     expect(wrapper.text()).toContain('imageStudio.settings.prefNotify')
-    expect(wrapper.findAllComponents(StudioCheckbox)).toHaveLength(2)
+    expect(wrapper.findComponent(BaseDialog).exists()).toBe(true)
+    expect(wrapper.findAllComponents(Toggle)).toHaveLength(2)
     expect(wrapper.text()).not.toContain('imageStudio.settings.prefEnterSubmit')
     expect(wrapper.text()).not.toContain('imageStudio.settings.connectionTitle')
     expect(wrapper.text()).not.toContain('imageStudio.settings.refreshKey')
@@ -48,8 +50,8 @@ describe('StudioSettingsModal', () => {
 
   it('keeps the remaining preference controls functional', async () => {
     const wrapper = mountModal()
-    await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
-    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+    await wrapper.findAll('[role="switch"]')[0].trigger('click')
+    await wrapper.findAll('[role="switch"]')[1].trigger('click')
 
     expect(state.setSettings).toHaveBeenCalledWith({ clearInputAfterSubmit: true })
     expect(state.setSettings).toHaveBeenCalledWith({ taskCompletionNotification: true })
@@ -74,5 +76,20 @@ describe('StudioSettingsModal', () => {
     await flushPromises()
 
     expect(importData).toHaveBeenCalledWith(file, { importConfig: true, importTasks: true })
+  })
+
+  it('uses common dialog close controls without submitting preference changes', async () => {
+    const wrapper = mountModal()
+    await wrapper.get('button[aria-label="Close modal"]').trigger('click')
+    expect(state.setShowSettings).toHaveBeenCalledWith(false)
+    expect(state.setSettings).not.toHaveBeenCalled()
+  })
+
+  it('closes on Escape through the existing studio modal stack', () => {
+    const wrapper = mountModal()
+    expect(wrapper.getComponent(BaseDialog).props('closeOnEscape')).toBe(false)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(state.setShowSettings).toHaveBeenCalledTimes(1)
+    expect(state.setShowSettings).toHaveBeenCalledWith(false)
   })
 })

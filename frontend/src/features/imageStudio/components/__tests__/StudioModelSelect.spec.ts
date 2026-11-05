@@ -15,6 +15,7 @@ function model(id: string, name = 'Preset display name'): ImageModelDefinition {
 
 function mountSelect(overrides: Record<string, unknown> = {}) {
   return mount(StudioModelSelect, {
+    attachTo: document.body,
     props: {
       models: [model('gpt-image-2'), model('gpt-image-2.5')],
       selectedModelId: 'gpt-image-2',
@@ -22,14 +23,15 @@ function mountSelect(overrides: Record<string, unknown> = {}) {
       placeholder: 'Select a model',
       ...overrides,
     },
+    global: { stubs: { Teleport: true, Transition: false } },
   })
 }
 
 describe('StudioModelSelect', () => {
   it('displays only the raw model IDs supplied by the catalog', async () => {
     const wrapper = mountSelect()
-    expect(wrapper.get('button[aria-haspopup="listbox"]').text()).toBe('gpt-image-2')
-    await wrapper.get('button[aria-haspopup="listbox"]').trigger('click')
+    expect(wrapper.get('button[aria-haspopup]').text()).toBe('gpt-image-2')
+    await wrapper.get('button[aria-haspopup]').trigger('click')
 
     expect(wrapper.findAll('[role="option"]').map((option) => option.text())).toEqual(['gpt-image-2', 'gpt-image-2.5'])
     expect(wrapper.text()).not.toContain('Preset display name')
@@ -39,7 +41,7 @@ describe('StudioModelSelect', () => {
 
   it('refreshes from the icon button without changing the selected model', async () => {
     const wrapper = mountSelect()
-    await wrapper.get('button[aria-haspopup="listbox"]').trigger('click')
+    await wrapper.get('button[aria-haspopup]').trigger('click')
     const refresh = wrapper.get('[data-testid="refresh-models"]')
     expect(refresh.attributes('type')).toBe('button')
     expect(refresh.attributes('aria-label')).toBe('imageStudio.modelSelect.refresh')
@@ -53,7 +55,7 @@ describe('StudioModelSelect', () => {
 
   it('does not apply a highlighted option when the refresh button receives Enter', async () => {
     const wrapper = mountSelect()
-    await wrapper.get('button[aria-haspopup="listbox"]').trigger('click')
+    await wrapper.get('button[aria-haspopup]').trigger('click')
     const refresh = wrapper.get('[data-testid="refresh-models"]')
     await refresh.trigger('keydown', { key: 'Enter' })
     await refresh.trigger('click')
@@ -64,7 +66,7 @@ describe('StudioModelSelect', () => {
 
   it('keeps refresh available for an empty or failed catalog', async () => {
     const wrapper = mountSelect({ models: [], disabled: true })
-    expect(wrapper.get('button[aria-haspopup="listbox"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[aria-haspopup]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('[data-testid="refresh-models"]').attributes('disabled')).toBeUndefined()
     await wrapper.get('[data-testid="refresh-models"]').trigger('click')
 
@@ -73,7 +75,7 @@ describe('StudioModelSelect', () => {
 
   it('shows progress and prevents repeated refreshes while loading', async () => {
     const wrapper = mountSelect()
-    await wrapper.get('button[aria-haspopup="listbox"]').trigger('click')
+    await wrapper.get('button[aria-haspopup]').trigger('click')
     await wrapper.setProps({ refreshing: true })
     const refresh = wrapper.get('[data-testid="refresh-models"]')
 
@@ -98,7 +100,7 @@ describe('StudioModelSelect', () => {
     const wrapper = mountSelect({
       models: Array.from({ length: 9 }, (_, index) => model(`provider-image-${index}`, 'Friendly display name')),
     })
-    await wrapper.get('button[aria-haspopup="listbox"]').trigger('click')
+    await wrapper.get('button[aria-haspopup]').trigger('click')
     await wrapper.get('input').setValue('IMAGE-7')
     expect(wrapper.findAll('[role="option"]').map((option) => option.text())).toEqual(['provider-image-7'])
     await wrapper.get('input').setValue('Friendly')
@@ -107,10 +109,10 @@ describe('StudioModelSelect', () => {
 
   it('retains keyboard selection for the catalog models', async () => {
     const wrapper = mountSelect()
-    const trigger = wrapper.get('button[aria-haspopup="listbox"]')
+    const trigger = wrapper.get('button[aria-haspopup]')
     await trigger.trigger('keydown', { key: 'ArrowDown' })
-    await trigger.trigger('keydown', { key: 'ArrowDown' })
-    await trigger.trigger('keydown', { key: 'Enter' })
+    await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
+    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
 
     expect(wrapper.emitted('change')).toEqual([['gpt-image-2.5']])
   })

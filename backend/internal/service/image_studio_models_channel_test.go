@@ -27,7 +27,7 @@ func TestImageStudioModelsRespectPersistentChannelRestrictions(t *testing.T) {
 			svc.channelService = newTestChannelService(makeStandardRepo(channel, map[int64]string{14: PlatformOpenAI}))
 			models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 			require.NoError(t, err)
-			require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "unknown", "unknown")}, models)
+			require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "unknown", "unknown")}, models)
 		})
 	}
 }
@@ -48,5 +48,22 @@ func TestImageStudioProfilesFollowCompositeChannelAndAccountMapping(t *testing.T
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-painter", "openai", "openai", "gpt-image-2.6")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "openai", "gpt-image-2.6")}, models)
+}
+
+func TestImageStudioSizeTiersExcludeChannelRejectedSupplier(t *testing.T) {
+	const model = "gpt-image-2.6-flare"
+	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
+		studioTierAccount(1, model, "gpt-image-2.6-flare-1K", "1K", "2K"),
+		studioTierAccount(2, model, "gpt-image-2.6-flare-4K", "4K"),
+	}})
+	channel := Channel{
+		ID: 1, Status: StatusActive, GroupIDs: []int64{14}, RestrictModels: true, BillingModelSource: BillingModelSourceUpstream,
+		ModelPricing: []ChannelModelPricing{{Platform: PlatformOpenAI, Models: []string{"gpt-image-2.6-flare-1K"}}},
+	}
+	svc.channelService = newTestChannelService(makeStandardRepo(channel, map[int64]string{14: PlatformOpenAI}))
+	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
+	require.NoError(t, err)
+	require.Len(t, models, 1)
+	require.Equal(t, []string{"1K", "2K"}, models[0].AvailableSizeTiers)
 }

@@ -54,6 +54,12 @@ func studioModelWithProfile(id, api, provider, profile string) ImageStudioModel 
 	return ImageStudioModel{ID: id, API: api, Profiles: []ImageStudioModelProfile{{Provider: provider, Profile: profile}}}
 }
 
+func studioOpenAIModelWithProfile(id, provider, profile string) ImageStudioModel {
+	model := studioModelWithProfile(id, "openai", provider, profile)
+	model.AvailableSizeTiers = []string{ImageBillingSize1K, ImageBillingSize2K, ImageBillingSize4K}
+	return model
+}
+
 func TestImageStudioModelsIgnoreRoutesWithoutConfiguredSupplier(t *testing.T) {
 	disabled := studioModelsAccount(68, PlatformOpenAI, map[string]any{"gpt-image-2.5-flare": "gpt-image-2.5-flare"})
 	disabled.Schedulable = false
@@ -70,7 +76,7 @@ func TestImageStudioModelsIgnoreRoutesWithoutConfiguredSupplier(t *testing.T) {
 	)
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformComposite, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "unknown", "unknown"), studioModelWithProfile("gpt-image-2.5", "openai", "unknown", "unknown")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "unknown", "unknown"), studioOpenAIModelWithProfile("gpt-image-2.5", "unknown", "unknown")}, models)
 	require.Equal(t, int64(14), repo.groupID)
 	encoded, err := json.Marshal(models)
 	require.NoError(t, err)
@@ -87,7 +93,7 @@ func TestImageStudioModelsKeepTemporaryUnavailableAccountsAndRespectPublicAllowl
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-image-2.5"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2.5", "openai", "openai", "gpt-image-2.5")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2.5", "openai", "gpt-image-2.5")}, models)
 }
 
 func TestImageStudioModelsResolveAliasesToCorrectClientProtocol(t *testing.T) {
@@ -104,7 +110,7 @@ func TestImageStudioModelsResolveAliasesToCorrectClientProtocol(t *testing.T) {
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter", "public-banana", "fake-image"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-painter", "openai", "unknown", "unknown"), studioModelWithProfile("public-banana", "gemini", "google", "gemini-3.1-flash-image")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "unknown", "unknown"), studioModelWithProfile("public-banana", "gemini", "google", "gemini-3.1-flash-image")}, models)
 }
 
 func TestImageStudioModelsCompatibleGeminiUsesImagesProtocol(t *testing.T) {
@@ -113,7 +119,7 @@ func TestImageStudioModelsCompatibleGeminiUsesImagesProtocol(t *testing.T) {
 	}})
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "google", "gemini-3.1-flash-image")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "google", "gemini-3.1-flash-image")}, models)
 }
 
 func TestImageStudioModelsOAuthCannotServeCompatibleGeminiAlias(t *testing.T) {
@@ -157,7 +163,7 @@ func TestImageStudioModelsUnmappedAccountNeedsExplicitCatalog(t *testing.T) {
 	group.Platform = PlatformComposite
 	models, err = svc.ListImageStudioModels(context.Background(), group)
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioModelWithProfile("configured-painter", "openai", "openai", "gpt-image-2")}, models,
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("configured-painter", "openai", "gpt-image-2")}, models,
 		"an explicit public route backed by an unrestricted account remains available")
 }
 

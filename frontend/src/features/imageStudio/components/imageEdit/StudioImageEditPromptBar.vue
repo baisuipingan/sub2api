@@ -7,7 +7,7 @@
           v-for="item in MODES"
           :key="item.id"
           type="button"
-          class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35"
+          class="btn btn-sm btn-ghost shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35"
           :class="
             mode === item.id
               ? 'bg-primary-600 text-white'
@@ -24,35 +24,33 @@
         <div
           class="flex min-w-0 flex-1 items-center rounded-xl border border-gray-200 bg-gray-50 px-3 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/10 dark:border-white/[0.1] dark:bg-white/[0.04]"
         >
-          <textarea
-            :value="prompt"
+          <TextArea
+            :model-value="prompt"
             :disabled="busy"
             :placeholder="promptPlaceholder"
             :aria-label="t('imageStudio.edit.promptAria')"
             rows="2"
             class="max-h-28 min-h-12 w-full resize-none bg-transparent py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60 dark:text-white"
-            @input="emit('promptChange', ($event.target as HTMLTextAreaElement).value)"
+            @update:model-value="emit('promptChange', $event)"
           />
         </div>
 
         <div class="grid grid-cols-2 gap-2 sm:flex sm:items-stretch">
-          <label class="col-span-2 min-w-0 sm:col-span-1">
+          <div class="col-span-2 min-w-0 sm:col-span-1">
             <span class="sr-only">{{ t('imageStudio.edit.modelAria') }}</span>
-            <select
-              :value="selectedModelId"
+            <Select
+              :model-value="selectedModelId"
+              :options="models.map((item) => ({ value: item.id, label: item.id }))"
               :disabled="busy"
-              class="h-full min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none focus:border-primary-500 dark:border-white/[0.1] dark:bg-dark-900 dark:text-dark-200 sm:max-w-56"
-              @change="emit('modelChange', ($event.target as HTMLSelectElement).value)"
-            >
-              <option v-for="item in models" :key="item.id" :value="item.id">
-                {{ item.name }} · {{ profileLabel(item) }}
-              </option>
-            </select>
-          </label>
+              :aria-label="t('imageStudio.edit.modelAria')"
+              class="sm:w-56"
+              @update:model-value="emit('modelChange', String($event))"
+            />
+          </div>
 
           <button
             type="button"
-            class="min-h-11 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-35 dark:border-white/[0.1] dark:text-dark-300 dark:hover:bg-white/[0.06]"
+            class="btn btn-sm btn-secondary min-h-11 rounded-xl border border-gray-200 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-35 dark:border-white/[0.1] dark:text-dark-300 dark:hover:bg-white/[0.06]"
             :disabled="!canSubmit"
             @click="emit('save')"
           >
@@ -60,7 +58,7 @@
           </button>
           <button
             type="button"
-            class="min-h-11 rounded-xl bg-primary-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-35"
+            class="btn btn-sm btn-primary min-h-11 rounded-xl bg-primary-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-35"
             :disabled="!canSubmit"
             @click="emit('generate')"
           >
@@ -73,19 +71,17 @@
         class="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-dark-400"
       >
         <span>{{ statusText }}</span>
-        <label v-if="model && model.capabilities.qualities.length > 1" class="flex items-center gap-1.5">
+        <div v-if="model && model.capabilities.qualities.length > 1" class="flex items-center gap-1.5">
           {{ t('imageStudio.detail.quality') }}
-          <select
-            :value="params.quality"
+          <Select
+            :model-value="params.quality"
+            :options="model.capabilities.qualities.map((quality) => ({ value: quality, label: quality === 'auto' ? t('imageStudio.params.auto') : quality }))"
             :disabled="busy"
-            class="rounded-md border border-gray-200 bg-white px-1.5 py-1 outline-none dark:border-white/[0.1] dark:bg-dark-900"
-            @change="emit('paramsChange', { ...params, quality: ($event.target as HTMLSelectElement).value as TaskParams['quality'] })"
-          >
-            <option v-for="quality in model.capabilities.qualities" :key="quality" :value="quality">
-              {{ quality === 'auto' ? t('imageStudio.params.auto') : quality }}
-            </option>
-          </select>
-        </label>
+            :aria-label="t('imageStudio.detail.quality')"
+            :searchable="false"
+            @update:model-value="emit('paramsChange', { ...params, quality: $event as TaskParams['quality'] })"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -94,6 +90,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Select from '@/components/common/Select.vue'
+import TextArea from '@/components/common/TextArea.vue'
 import type { ImageEditMode, TaskParams } from '../../types'
 import { getImageEditProfile, type ImageModelDefinition } from '../../lib/modelRegistry'
 

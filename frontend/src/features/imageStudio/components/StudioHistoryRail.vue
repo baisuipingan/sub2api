@@ -77,9 +77,10 @@
         </span>
 
         <!-- 状态点：生成中转圈，失败标红 -->
-        <span
+        <LoadingSpinner
           v-if="item.task.status === 'running'"
-          class="absolute right-1.5 top-1.5 h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-primary-500"
+          size="sm"
+          class="absolute right-1.5 top-1.5"
         />
         <span
           v-else-if="item.task.status === 'error'"
@@ -110,6 +111,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TaskRecord } from '../types'
 import StudioIcon from './StudioIcon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StudioImageThumbnail from './StudioImageThumbnail.vue'
 
 const props = defineProps<{

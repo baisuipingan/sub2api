@@ -7,7 +7,7 @@
       <p class="text-sm">{{ emptyFilterText }}</p>
       <button
         type="button"
-        class="mt-3 text-sm font-medium text-primary-600 hover:underline"
+        class="btn btn-ghost btn-sm mt-3 text-primary-600"
         @click="clearFilters"
       >
         {{ t('imageStudio.grid.clearFilter') }}

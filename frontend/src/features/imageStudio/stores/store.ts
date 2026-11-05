@@ -16,7 +16,7 @@ import { fetchMiloRouterImageModels } from '../lib/miloRouterApi'
 import { createMiloRouterConfig, readStoredMiloRouterConfig, saveMiloRouterApiKey, stripApiKeysFromSettings } from '../lib/miloRouterConfig'
 import { getImageModel, getModelResolution, getRequestModelId, GPT_IMAGE_2_MODEL_ID, migrateLegacyImageModelId, type ImageModelDefinition } from '../lib/modelRegistry'
 import { getImageModelCapabilities } from '../lib/imageModelCapabilities'
-import { normalizeParamsForSettings, MAX_OUTPUT_IMAGES } from '../lib/paramCompatibility'
+import { normalizeParamsForSettings, MAX_OUTPUT_IMAGES, isRequestedImageSizeAvailable } from '../lib/paramCompatibility'
 import {
   clearTasks as dbClearTasks,
   commitTaskDeletion,
@@ -544,6 +544,10 @@ export async function submitTask() {
   const model = getImageModel(modelId, state.modelCatalog)
   if (!model) {
     state.showToast(st('imageStudio.store.modelInvalid'), 'error')
+    return
+  }
+  if (!isRequestedImageSizeAvailable(model, state.params)) {
+    state.showToast(st('imageStudio.store.channelSizeUnavailable'), 'error')
     return
   }
   const params = normalizeParamsForSettings(state.params, state.settings, state.modelCatalog)

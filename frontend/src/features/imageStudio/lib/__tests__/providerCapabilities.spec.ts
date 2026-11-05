@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createImageModelCatalogFromModelList, getRequestModelId } from '../modelRegistry'
-import { normalizeParamsForSettings, parameterImageSize } from '../paramCompatibility'
+import { normalizeParamsForSettings, parameterImageSize, isRequestedImageSizeAvailable, isResolutionAvailable } from '../paramCompatibility'
 import { DEFAULT_PARAMS, type AppSettings } from '../../types'
 import { normalizeBillingTier } from '../studioPricing'
 
@@ -12,6 +12,34 @@ function settings(id: string): AppSettings {
 }
 
 describe('Image Studio documented provider capabilities', () => {
+  it('keeps documented 4K visible but disables it when serving accounts allow only 1K and 2K', () => {
+    const current = model('gpt-image-2.6-sunburst', { api: 'openai', available_size_tiers: ['1K', '2K'] })
+    expect(current.capabilities.resolutions).toContain('4K')
+    expect(isResolutionAvailable(current, '4K')).toBe(false)
+    expect(isResolutionAvailable(current, '2K')).toBe(true)
+    expect(isResolutionAvailable(current, 'auto')).toBe(true)
+    expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' })).toBe(false)
+    expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS, resolution: '2K', size: '2560x1440' })).toBe(false)
+    const normalized = normalizeParamsForSettings({ ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' }, settings(current.id), [current])
+    expect(normalized).toMatchObject({ resolution: 'auto', size: 'auto' })
+    expect(normalizeParamsForSettings({ ...DEFAULT_PARAMS, resolution: '2K' }, settings(current.id), [current])).toMatchObject({ resolution: '2K', size: '2048x2048' })
+  })
+
+  it('does not invent an account restriction when the server omits tier metadata', () => {
+    const current = model('gpt-image-2.6-flare')
+    expect(current.availableSizeTiers).toBeUndefined()
+    expect(isResolutionAvailable(current, '4K')).toBe(true)
+    expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' })).toBe(true)
+  })
+
+  it('treats the Grok auto request as its actual 1K default on an Images account restricted to 2K', () => {
+    const current = model('grok-imagine-image-2.0', { api: 'openai', available_size_tiers: ['2K'] })
+    expect(isResolutionAvailable(current, 'auto')).toBe(false)
+    expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS })).toBe(false)
+    const params = normalizeParamsForSettings({ ...DEFAULT_PARAMS }, settings(current.id), [current])
+    expect(params).toMatchObject({ resolution: '2K', size: 'auto' })
+    expect(isRequestedImageSizeAvailable(current, params)).toBe(true)
+  })
   it.each(['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst', 'gpt-image-2.6-flare-2026-11-01', 'gpt-image-2.6-flare-4K'])('offers current OpenAI controls for %s without changing its public name', (id) => {
     const current = model(id)
     expect(current.provider).toBe('openai')

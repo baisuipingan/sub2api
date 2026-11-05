@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="imageId && src"
+    v-if="imageId"
     role="dialog"
     aria-modal="true"
     :aria-label="t('imageStudio.lightbox.aria')"
@@ -13,7 +13,7 @@
     >
       <button
         type="button"
-        class="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
+        class="btn btn-sm btn-ghost absolute right-2 top-2 z-10 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
         :aria-label="t('imageStudio.lightbox.close')"
         :title="t('imageStudio.common.close')"
         @click="state.setLightboxImageId(null)"
@@ -21,7 +21,8 @@
         <StudioIcon name="CloseIcon" class="h-5 w-5" />
       </button>
 
-      <div class="relative max-h-full max-w-full">
+      <LoadingSpinner v-if="!src" size="lg" color="white" :aria-label="t('imageStudio.result.loadingImage')" />
+      <div v-else class="relative max-h-full max-w-full">
         <img
           :src="src"
           :data-image-id="imageId"
@@ -40,7 +41,7 @@
       <template v-if="canNavigate">
         <button
           type="button"
-          class="absolute left-2 top-1/2 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
+          class="btn btn-sm btn-ghost absolute left-2 top-1/2 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
           :aria-label="t('imageStudio.result.prevImage')"
           :title="t('imageStudio.result.prevImage')"
           @click="goTo(currentIndex - 1)"
@@ -49,7 +50,7 @@
         </button>
         <button
           type="button"
-          class="absolute right-2 top-1/2 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
+          class="btn btn-sm btn-ghost absolute right-2 top-1/2 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/75"
           :aria-label="t('imageStudio.result.nextImage')"
           :title="t('imageStudio.result.nextImage')"
           @click="goTo(currentIndex + 1)"
@@ -76,7 +77,7 @@
         />
         <button
           type="button"
-          class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition hover:bg-white/15"
+          class="btn btn-sm btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition hover:bg-white/15"
           @click="fileRef?.click()"
         >
           <StudioIcon name="RefreshIcon" class="h-4 w-4" />{{ t('imageStudio.lightbox.replace') }}
@@ -84,7 +85,7 @@
         <button
           v-if="supportsMask"
           type="button"
-          class="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm text-white transition hover:bg-primary-700"
+          class="btn btn-sm btn-primary flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-sm text-white transition hover:bg-primary-700"
           @click="openMaskEditor"
         >
           <StudioIcon name="EditIcon" class="h-4 w-4" />{{ t('imageStudio.lightbox.editMask') }}
@@ -97,7 +98,7 @@
       >
         <button
           type="button"
-          class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition hover:bg-white/15"
+          class="btn btn-sm btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-white transition hover:bg-white/15"
           :aria-label="t('imageStudio.lightbox.download')"
           :title="t('imageStudio.lightbox.download')"
           @click="handleDownload"
@@ -113,6 +114,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import {
   storeState as state,
   createInputImageFromFile,

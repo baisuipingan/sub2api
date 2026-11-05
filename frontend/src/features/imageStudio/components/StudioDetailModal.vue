@@ -1,21 +1,16 @@
 <template>
-  <div
-    v-if="task"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    @click="close"
+  <BaseDialog
+    :show="open"
+    :title="t('imageStudio.detail.title')"
+    width="extra-wide"
+    :close-on-escape="false"
+    close-on-click-outside
+    @close="close"
   >
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-    <div
-      ref="modalRef"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="task-detail-title"
-      class="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/[0.1] dark:bg-dark-900 lg:flex-row"
-      @click.stop
-    >
+    <div v-if="task" class="flex min-h-0 flex-col gap-5 lg:flex-row">
       <!-- 左侧大图 -->
       <div
-        class="relative flex min-h-[280px] flex-1 items-center justify-center bg-gray-100 p-4 dark:bg-black/20"
+        class="relative flex min-h-[280px] min-w-0 flex-1 items-center justify-center rounded-xl bg-gray-100 p-4 dark:bg-black/20"
       >
         <button
           v-if="task.status === 'done' && outputSrc"
@@ -42,14 +37,11 @@
             :alt="t('imageStudio.task.streamPreview')"
             class="max-h-[58vh] max-w-full object-contain"
           />
-          <span
-            v-else
-            class="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600"
-          />
+          <LoadingSpinner v-else size="lg" />
           <span :class="streamPreview ? 'sr-only' : ''">{{ t('imageStudio.status.running') }}</span>
         </div>
 
-        <div v-else class="max-w-sm text-center text-sm leading-6 text-red-500">
+        <div v-else data-testid="detail-error-message" class="max-h-[58vh] max-w-sm overflow-y-auto whitespace-pre-wrap break-words text-center text-sm leading-6 text-red-500">
           {{ errorMessage }}
         </div>
 
@@ -79,26 +71,10 @@
       </div>
 
       <!-- 右侧详情 -->
-      <div class="flex min-h-0 w-full flex-col overflow-y-auto p-5 lg:w-[420px]">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400">
-              {{ t('imageStudio.detail.title') }}
-            </p>
-            <h2 id="task-detail-title" class="mt-1 text-lg font-semibold text-gray-950 dark:text-white">
-              {{ modelName || t('imageStudio.detail.generationTask') }}
-            </h2>
-          </div>
-          <button
-            type="button"
-            class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-dark-200"
-            :aria-label="t('imageStudio.common.close')"
-            :title="t('imageStudio.common.close')"
-            @click="close"
-          >
-            <StudioIcon name="CloseIcon" class="h-5 w-5" />
-          </button>
-        </div>
+      <div class="flex min-h-0 w-full min-w-0 flex-col lg:w-[380px] lg:shrink-0">
+        <h2 class="text-lg font-semibold text-gray-950 dark:text-white">
+          {{ modelName || t('imageStudio.detail.generationTask') }}
+        </h2>
 
         <!-- 提示词 -->
         <section class="mt-5">
@@ -108,7 +84,7 @@
             </h3>
             <button
               type="button"
-              class="rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06]"
+              class="btn btn-ghost btn-icon"
               :aria-label="t('imageStudio.detail.copyPrompt')"
               :title="t('imageStudio.detail.copyPrompt')"
               @click="handleCopyPrompt"
@@ -225,14 +201,14 @@
         >
           <button
             type="button"
-            class="flex items-center justify-center gap-1.5 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-600 transition hover:bg-primary-100 dark:bg-primary-500/10 dark:text-primary-400"
+            class="btn btn-secondary btn-sm gap-1.5"
             @click="handleReuse"
           >
             <StudioIcon name="RefreshIcon" class="h-4 w-4 rotate-180" />{{ t('imageStudio.detail.reuse') }}
           </button>
           <button
             type="button"
-            class="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-600 transition hover:bg-emerald-100 disabled:opacity-40 dark:bg-emerald-500/10 dark:text-emerald-400"
+            class="btn btn-success btn-sm gap-1.5"
             :disabled="!task.outputImages.length"
             @click="handleEdit"
           >
@@ -241,14 +217,14 @@
           <button
             v-if="task.status === 'error'"
             type="button"
-            class="flex items-center justify-center gap-1.5 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-600 transition hover:bg-primary-100 dark:bg-primary-500/10 dark:text-primary-400"
+            class="btn btn-secondary btn-sm gap-1.5"
             @click="handleRetry"
           >
             <StudioIcon name="RefreshIcon" class="h-4 w-4" />{{ t('imageStudio.task.retry') }}
           </button>
           <button
             type="button"
-            class="flex items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400"
+            class="btn btn-danger btn-sm gap-1.5"
             @click="handleDelete"
           >
             <StudioIcon name="TrashIcon" class="h-4 w-4" />{{ t('imageStudio.task.delete') }}
@@ -256,13 +232,15 @@
         </div>
       </div>
     </div>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import {
   storeState as state,
   editOutputs,
@@ -271,7 +249,6 @@ import {
   reuseConfig,
 } from '../stores/store'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
-import { usePreventBackgroundScroll } from '../composables/usePreventBackgroundScroll'
 import { ensureImageCached } from '../lib/imageCache'
 import { getImageModel } from '../lib/modelRegistry'
 import { getImageModelCapabilities } from '../lib/imageModelCapabilities'
@@ -283,7 +260,6 @@ import { formatImageRatio, parseRatio } from '../lib/size'
 
 const { t } = useI18n()
 
-const modalRef = ref<HTMLDivElement | null>(null)
 const imageSources = ref<Record<string, string>>({})
 const maskPreview = ref('')
 const imageIndex = ref(0)
@@ -315,7 +291,6 @@ const modelName = computed(() => {
 const open = computed(() => Boolean(task.value))
 
 useCloseOnEscape(() => open.value, () => state.setDetailTaskId(null))
-usePreventBackgroundScroll(() => open.value, modalRef)
 
 const outputId = computed(() => task.value?.outputImages[imageIndex.value] ?? '')
 const outputSrc = computed(() => (outputId.value ? imageSources.value[outputId.value] : ''))

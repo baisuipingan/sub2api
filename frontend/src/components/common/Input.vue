@@ -23,6 +23,10 @@
         :placeholder="placeholderText"
         :autocomplete="autocomplete"
         :readonly="readonly"
+        :min="min"
+        :max="max"
+        :step="step"
+        :aria-label="ariaLabel"
         :class="[
           'input w-full transition-all duration-200',
           $slots.prefix ? 'pl-11' : '',
@@ -70,6 +74,10 @@ interface Props {
   hint?: string
   id?: string
   autocomplete?: string
+  min?: string | number
+  max?: string | number
+  step?: string | number
+  ariaLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {

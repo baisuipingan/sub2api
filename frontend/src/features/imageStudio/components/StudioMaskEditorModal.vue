@@ -22,8 +22,9 @@
     >
       <div
         v-if="isLoading"
-        class="absolute inset-0 z-20 flex items-center justify-center bg-white/50 text-sm text-gray-500 backdrop-blur-sm dark:bg-dark-900/50 dark:text-dark-300"
+        class="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-white/50 text-sm text-gray-500 backdrop-blur-sm dark:bg-dark-900/50 dark:text-dark-300"
       >
+        <LoadingSpinner size="sm" />
         {{ t('imageStudio.mask.loading') }}
       </div>
 
@@ -108,6 +109,7 @@
 </template>
 
 <script setup lang="ts">
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioImageEditHeader from './imageEdit/StudioImageEditHeader.vue'

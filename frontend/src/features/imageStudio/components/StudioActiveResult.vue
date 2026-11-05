@@ -81,7 +81,7 @@
           <div class="flex gap-1">
             <button
               type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 disabled:opacity-30 dark:border-white/[0.1]"
+              class="btn btn-sm btn-secondary flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 disabled:opacity-30 dark:border-white/[0.1]"
               :aria-label="t('imageStudio.result.prevImage')"
               :title="t('imageStudio.result.prevImage')"
               :disabled="imageIndex === 0"
@@ -91,7 +91,7 @@
             </button>
             <button
               type="button"
-              class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 disabled:opacity-30 dark:border-white/[0.1]"
+              class="btn btn-sm btn-secondary flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 disabled:opacity-30 dark:border-white/[0.1]"
               :aria-label="t('imageStudio.result.nextImage')"
               :title="t('imageStudio.result.nextImage')"
               :disabled="imageIndex === task.outputImages.length - 1"
@@ -107,7 +107,7 @@
             v-for="(id, index) in task.outputImages"
             :key="id"
             type="button"
-            class="h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 bg-gray-100 dark:bg-white/[0.06]"
+            class="btn btn-sm btn-ghost h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 bg-gray-100 dark:bg-white/[0.06]"
             :class="id === imageId ? 'border-primary-500' : 'border-transparent'"
             :aria-label="t('imageStudio.result.viewImageN', { index: index + 1 })"
             :aria-pressed="id === imageId"
@@ -163,7 +163,7 @@
         <button
           v-if="task.status !== 'error'"
           type="button"
-          class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 dark:border-white/[0.1]"
+          class="btn btn-sm btn-secondary inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 dark:border-white/[0.1]"
           @click="reuseConfig(task)"
         >
           <StudioIcon name="CopyIcon" class="h-4 w-4" />{{ t('imageStudio.task.reuseParams') }}
@@ -172,7 +172,7 @@
         <template v-if="imageId">
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 disabled:opacity-40 dark:border-white/[0.1]"
+            class="btn btn-sm btn-secondary inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 disabled:opacity-40 dark:border-white/[0.1]"
             :disabled="!canAddReference || editing"
             :title="referenceTitle"
             @click="onEditOutputs"
@@ -182,7 +182,7 @@
           <button
             v-if="showEditImage"
             type="button"
-            class="rounded-lg border border-gray-200 px-3 py-2 disabled:opacity-40 dark:border-white/[0.1]"
+            class="btn btn-sm btn-secondary rounded-lg border border-gray-200 px-3 py-2 disabled:opacity-40 dark:border-white/[0.1]"
             :disabled="!canEdit || editing"
             @click="onEditMask"
           >
@@ -192,7 +192,7 @@
 
         <button
           type="button"
-          class="rounded-lg px-2 py-2 text-gray-500 hover:text-primary-600"
+          class="btn btn-sm btn-ghost rounded-lg px-2 py-2 text-gray-500 hover:text-primary-600"
           @click="state.setDetailTaskId(task.id)"
         >
           {{ t('imageStudio.result.viewDetail') }}
@@ -204,7 +204,7 @@
         <button
           v-if="available"
           type="button"
-          class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700 disabled:opacity-40"
+          class="btn btn-sm btn-primary inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700 disabled:opacity-40"
           :disabled="hasRunningTask || retrying"
           @click="onRetry"
         >
@@ -217,7 +217,7 @@
         <button
           v-else
           type="button"
-          class="text-sm text-primary-600 hover:underline"
+          class="btn btn-sm btn-ghost text-sm text-primary-600 hover:underline"
           @click="reuseConfig(task)"
         >
           {{ t('imageStudio.result.reuseAndPick') }}

@@ -16,24 +16,11 @@
       <div class="ml-auto flex items-center gap-3">
         <!-- 纯状态展示：密钥由系统下发，用户无需也无法手动配置，
              因此这里不再是按钮（原来点了会打开一个已不存在的连接弹窗） -->
-        <span
-          class="flex items-center gap-2 whitespace-nowrap px-2 py-1.5 text-xs"
-          :class="
-            connected
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-gray-600 dark:text-dark-300'
-          "
-        >
-          <span
-            class="h-2 w-2 rounded-full"
-            :class="connected ? 'bg-emerald-500' : 'bg-gray-400'"
-          />
-          {{ statusLabel }}
-        </span>
+        <StatusBadge :status="statusVariant" :label="statusLabel" class="whitespace-nowrap px-2 py-1.5" />
 
         <button
           type="button"
-          class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
+          class="btn btn-secondary btn-sm gap-2"
           @click="state.setShowSettings(true)"
         >
           <StudioIcon name="SettingsIcon" class="h-4 w-4" />
@@ -48,13 +35,17 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import { storeState as state } from '../stores/store'
 import { formatMiloRouterBalance } from '../lib/miloRouterDisplay'
 import type { MiloRouterConnectionStatus } from '../types'
 
 const { t } = useI18n()
 
-const connected = computed(() => state.settings.miloRouter.connectionStatus === 'connected')
+const statusVariant = computed(() => {
+  const status = state.settings.miloRouter.connectionStatus
+  return status === 'connected' ? 'success' : status === 'checking' ? 'warning' : status === 'error' ? 'error' : 'idle'
+})
 
 const statusLabel = computed(() => {
   const status = state.settings.miloRouter.connectionStatus as MiloRouterConnectionStatus

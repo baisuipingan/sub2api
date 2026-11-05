@@ -9,21 +9,21 @@
     <button
       v-if="menuInfo.canCopyImage"
       type="button"
-      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
+      class="btn btn-sm btn-ghost flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
       @click="handleCopy"
     >
       <StudioIcon name="CopyIcon" class="h-4 w-4 flex-shrink-0" />{{ t('imageStudio.contextMenu.copy') }}
     </button>
     <button
       type="button"
-      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
+      class="btn btn-sm btn-ghost flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
       @click="handleDownload"
     >
       <StudioIcon name="DownloadIcon" class="h-4 w-4 flex-shrink-0" />{{ t('imageStudio.contextMenu.download') }}
     </button>
     <button
       type="button"
-      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
+      class="btn btn-sm btn-ghost flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-200 dark:hover:bg-dark-700/50"
       @click="handleEdit"
     >
       <StudioIcon name="EditIcon" class="h-4 w-4 flex-shrink-0" />{{ t('imageStudio.contextMenu.edit') }}

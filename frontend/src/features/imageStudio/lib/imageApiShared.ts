@@ -97,39 +97,17 @@ export function assertMaskEditFileSize(label: string, bytes: number) {
   if (bytes > MAX_MASK_EDIT_FILE_BYTES) throw new Error(libT('imageStudio.lib.fileTooLarge', { label }))
 }
 
-/**
- * 读取后端错误体，并**保留 reason/code**。
- *
- * 之前只取 message，把 reason 丢了，导致 createApiError 无法区分
- * INSUFFICIENT_BALANCE 和真正的鉴权失败——两者都是 403，
- * 结果余额不足被显示成「API Key 无效或无权限」，用户根本想不到要充值。
- *
- * 返回纯文本时把 reason 拼进前缀（如 "INSUFFICIENT_BALANCE: Insufficient account balance"），
- * 这样下游按字符串匹配也能识别；返回对象时调用方可以直接读 reason。
- */
-export async function getApiErrorMessage(response: Response) {
+/** Preserve the provider's structured fields; createApiError selects and sanitizes display text. */
+export async function getApiErrorMessage(response: Response): Promise<unknown> {
   try {
     const payload = await response.clone().json() as unknown
-    if (payload && typeof payload === 'object') {
-      const record = payload as Record<string, unknown>
-      const error = record.error
-      if (error && typeof error === 'object') {
-        const inner = error as Record<string, unknown>
-        const code = typeof inner.code === 'string' ? inner.code : ''
-        const message = typeof inner.message === 'string' ? inner.message : ''
-        if (message) return code ? `${code}: ${message}` : message
-      }
-      const reason = typeof record.reason === 'string'
-        ? record.reason
-        : typeof record.code === 'string' ? record.code : ''
-      const message = typeof record.detail === 'string'
-        ? record.detail
-        : typeof record.message === 'string' ? record.message : ''
-      if (message) return reason ? `${reason}: ${message}` : message
-      if (reason) return reason
-    }
+    if (typeof payload === 'string' || payload && typeof payload === 'object' && !Array.isArray(payload)) return payload
   } catch {
-    // 非 JSON 响应继续使用状态码。
+    // Plain-text errors are useful too; HTML pages are rejected by createApiError.
+    try {
+      const text = await response.clone().text()
+      if (text.trim()) return text
+    } catch { /* Fall back to the HTTP status if the body cannot be read. */ }
   }
   return `HTTP ${response.status}`
 }

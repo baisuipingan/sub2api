@@ -14,6 +14,7 @@
         :placeholder="placeholderText"
         :readonly="readonly"
         :rows="rows"
+        :aria-label="ariaLabel"
         :class="[
           'input w-full min-h-[80px] transition-all duration-200 resize-y',
           error ? 'input-error ring-2 ring-red-500/20' : '',
@@ -49,6 +50,7 @@ interface Props {
   hint?: string
   id?: string
   rows?: number | string
+  ariaLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {

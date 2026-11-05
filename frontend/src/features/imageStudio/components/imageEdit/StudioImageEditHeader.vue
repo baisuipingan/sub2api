@@ -5,7 +5,7 @@
     <div class="flex min-w-0 items-center gap-3">
       <button
         type="button"
-        class="-ml-2 rounded-xl p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:text-dark-400 dark:hover:bg-dark-800"
+        class="btn btn-sm btn-ghost -ml-2 rounded-xl p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:text-dark-400 dark:hover:bg-dark-800"
         :disabled="busy"
         :aria-label="t('imageStudio.edit.cancelAria')"
         :title="t('imageStudio.common.cancel')"
@@ -28,7 +28,7 @@
     <button
       v-if="hasSavedMask"
       type="button"
-      class="shrink-0 rounded-xl bg-gray-100 px-3.5 py-2 text-xs font-medium text-gray-700 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:bg-white/[0.08] dark:text-dark-300 dark:hover:bg-red-500/20 dark:hover:text-red-400 sm:text-sm"
+      class="btn btn-sm btn-ghost shrink-0 rounded-xl bg-gray-100 px-3.5 py-2 text-xs font-medium text-gray-700 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:bg-white/[0.08] dark:text-dark-300 dark:hover:bg-red-500/20 dark:hover:text-red-400 sm:text-sm"
       :disabled="busy"
       @click="emit('removeMask')"
     >

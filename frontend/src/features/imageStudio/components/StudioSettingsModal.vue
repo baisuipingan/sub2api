@@ -1,117 +1,93 @@
 <template>
-  <div
-    v-if="open"
-    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
-    @click="state.setShowSettings(false)"
+  <BaseDialog
+    :show="open"
+    :title="t('imageStudio.settings.title')"
+    width="normal"
+    :z-index="100"
+    :close-on-escape="false"
+    close-on-click-outside
+    @close="state.setShowSettings(false)"
   >
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="settings-title"
-      class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/[0.1] dark:bg-dark-900"
-      @click.stop
-    >
-      <div
-        class="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/[0.08]"
-      >
-        <div>
-          <h2 id="settings-title" class="text-lg font-semibold text-gray-950 dark:text-white">
-            {{ t('imageStudio.settings.title') }}
-          </h2>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-            {{ t('imageStudio.settings.subtitle') }}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-dark-200"
-          :aria-label="t('imageStudio.common.close')"
-          @click="state.setShowSettings(false)"
+    <p class="mb-5 text-sm text-gray-500 dark:text-dark-400">{{ t('imageStudio.settings.subtitle') }}</p>
+    <div class="space-y-6">
+      <!-- 创作偏好 -->
+      <section>
+        <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+          {{ t('imageStudio.settings.preferences') }}
+        </h3>
+        <div
+          class="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-white/[0.08] dark:border-white/[0.1]"
         >
-          <StudioIcon name="CloseIcon" class="h-5 w-5" />
-        </button>
-      </div>
-
-      <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-        <!-- 创作偏好 -->
-        <section>
-          <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
-            {{ t('imageStudio.settings.preferences') }}
-          </h3>
           <div
-            class="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-white/[0.08] dark:border-white/[0.1]"
+            v-for="item in preferences"
+            :key="item.key"
+            class="flex items-center justify-between gap-4 px-4 py-3 text-sm text-gray-700 dark:text-dark-200"
           >
-            <label
-              v-for="item in preferences"
-              :key="item.key"
-              class="flex items-center justify-between gap-4 px-4 py-3 text-sm text-gray-700 dark:text-dark-200"
-            >
-              <span>{{ item.label }}</span>
-              <StudioCheckbox
-                :checked="state.settings[item.key]"
-                :label="''"
-                @change="toggle(item.key)"
-              />
-            </label>
+            <span>{{ item.label }}</span>
+            <Toggle
+              :model-value="state.settings[item.key]"
+              :aria-label="item.label"
+              @update:model-value="setPreference(item.key, $event)"
+            />
           </div>
-        </section>
+        </div>
+      </section>
 
-        <!-- 本地数据 -->
-        <section>
-          <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
-            {{ t('imageStudio.settings.localData') }}
-          </h3>
-          <div class="flex flex-wrap gap-2">
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
-              @click="exportData({ exportConfig: true, exportTasks: true })"
-            >
-              <StudioIcon name="ExportIcon" class="h-4 w-4" />{{ t('imageStudio.settings.exportBackup') }}
-            </button>
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:bg-white/[0.06]"
-              :disabled="importing"
-              @click="fileRef?.click()"
-            >
-              <StudioIcon name="ImportIcon" class="h-4 w-4" />{{
-                importing ? t('imageStudio.settings.importing') : t('imageStudio.settings.importBackup')
-              }}
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
-              @click="clearData({ clearConfig: false, clearTasks: true })"
-            >
-              {{ t('imageStudio.settings.clearHistory') }}
-            </button>
-          </div>
-          <input
-            ref="fileRef"
-            type="file"
-            accept=".zip"
-            class="hidden"
-            @change="handleImport"
-          />
-        </section>
+      <!-- 本地数据 -->
+      <section>
+        <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+          {{ t('imageStudio.settings.localData') }}
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm gap-2"
+            @click="exportData({ exportConfig: true, exportTasks: true })"
+          >
+            <StudioIcon name="ExportIcon" class="h-4 w-4" />{{ t('imageStudio.settings.exportBackup') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm gap-2"
+            :disabled="importing"
+            @click="fileRef?.click()"
+          >
+            <StudioIcon name="ImportIcon" class="h-4 w-4" />{{
+              importing ? t('imageStudio.settings.importing') : t('imageStudio.settings.importBackup')
+            }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger btn-sm"
+            @click="clearData({ clearConfig: false, clearTasks: true })"
+          >
+            {{ t('imageStudio.settings.clearHistory') }}
+          </button>
+        </div>
+        <input
+          ref="fileRef"
+          type="file"
+          accept=".zip"
+          class="hidden"
+          @change="handleImport"
+        />
+      </section>
 
-        <p class="text-xs leading-relaxed text-gray-500 dark:text-dark-400">
-          {{ t('imageStudio.settings.footerHint') }}
-        </p>
-      </div>
+      <p class="text-xs leading-relaxed text-gray-500 dark:text-dark-400">
+        {{ t('imageStudio.settings.footerHint') }}
+      </p>
     </div>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
-import StudioCheckbox from './StudioCheckbox.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import { storeState as state, clearData, exportData, importData } from '../stores/store'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
-import { usePreventBackgroundScroll } from '../composables/usePreventBackgroundScroll'
 
 const { t } = useI18n()
 
@@ -121,7 +97,6 @@ const fileRef = ref<HTMLInputElement | null>(null)
 const open = computed(() => state.showSettings)
 
 useCloseOnEscape(() => open.value, () => state.setShowSettings(false))
-usePreventBackgroundScroll(() => open.value)
 
 type PrefKey = 'clearInputAfterSubmit' | 'taskCompletionNotification'
 
@@ -130,8 +105,8 @@ const preferences = computed<Array<{ key: PrefKey; label: string }>>(() => [
   { key: 'taskCompletionNotification', label: t('imageStudio.settings.prefNotify') },
 ])
 
-function toggle(key: PrefKey) {
-  state.setSettings({ [key]: !state.settings[key] })
+function setPreference(key: PrefKey, value: boolean) {
+  state.setSettings({ [key]: value })
 }
 
 async function handleImport(event: Event) {

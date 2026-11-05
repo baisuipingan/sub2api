@@ -42,7 +42,7 @@
         <span>{{ state.catalogError }}</span>
         <button
           type="button"
-          class="shrink-0 font-medium hover:underline disabled:opacity-50"
+          class="btn btn-ghost btn-sm shrink-0"
           :disabled="refreshing"
           @click="refreshConnection"
         >

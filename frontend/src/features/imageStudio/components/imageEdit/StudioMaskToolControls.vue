@@ -10,7 +10,7 @@
         <div class="flex items-center rounded-xl bg-gray-100/80 p-1 dark:bg-[#232325]/80 sm:rounded-[14px]">
           <button
             type="button"
-            class="rounded-lg p-2 transition-all sm:rounded-xl sm:p-2.5"
+            class="btn btn-sm btn-ghost rounded-lg p-2 transition-all sm:rounded-xl sm:p-2.5"
             :class="
               tool === 'brush'
                 ? 'bg-white text-primary-500 shadow-sm dark:bg-[#323338] dark:text-primary-400 dark:shadow-none'
@@ -32,7 +32,7 @@
           </button>
           <button
             type="button"
-            class="rounded-lg p-2 transition-all sm:rounded-xl sm:p-2.5"
+            class="btn btn-sm btn-ghost rounded-lg p-2 transition-all sm:rounded-xl sm:p-2.5"
             :class="
               tool === 'eraser'
                 ? 'bg-white text-primary-500 shadow-sm dark:bg-[#323338] dark:text-primary-400 dark:shadow-none'
@@ -57,7 +57,7 @@
           <button
             ref="brushSizeButtonRef"
             type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-xl border transition-all sm:h-[46px] sm:w-[46px] sm:rounded-[14px]"
+            class="btn btn-sm btn-ghost flex h-10 w-10 items-center justify-center rounded-xl border transition-all sm:h-[46px] sm:w-[46px] sm:rounded-[14px]"
             :class="
               showBrushControls
                 ? 'border-primary-200 bg-primary-50 text-primary-600 dark:border-[#323338] dark:bg-[#323338] dark:text-primary-400'
@@ -77,7 +77,7 @@
       <div class="flex items-center gap-0.5 sm:ml-1 sm:gap-2">
         <button
           type="button"
-          class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
+          class="btn btn-sm btn-ghost rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
           :disabled="!canUndo"
           :aria-label="t('imageStudio.mask.undo')"
           :title="t('imageStudio.mask.undo')"
@@ -89,7 +89,7 @@
         </button>
         <button
           type="button"
-          class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
+          class="btn btn-sm btn-ghost rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
           :disabled="!canRedo"
           :aria-label="t('imageStudio.mask.redo')"
           :title="t('imageStudio.mask.redo')"
@@ -102,7 +102,7 @@
         <div class="mx-1 h-4 w-px bg-gray-300 dark:bg-[#323338] sm:h-5" />
         <button
           type="button"
-          class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
+          class="btn btn-sm btn-ghost rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
           :disabled="!canResetView"
           :aria-label="t('imageStudio.mask.resetView')"
           :title="t('imageStudio.mask.resetView')"
@@ -114,7 +114,7 @@
         </button>
         <button
           type="button"
-          class="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
+          class="btn btn-sm btn-ghost rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-30 dark:text-[#8a8a8e] dark:hover:bg-white/10 dark:hover:text-dark-200 sm:rounded-xl sm:p-2.5"
           :disabled="!ready || busy"
           :aria-label="t('imageStudio.mask.clear')"
           :title="t('imageStudio.mask.clear')"
@@ -207,7 +207,8 @@ function updateBrushFromPointer(event: PointerEvent) {
 }
 
 function onPointerDown(event: PointerEvent) {
-  ;(event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId)
+  const target = event.currentTarget as HTMLDivElement
+  target.setPointerCapture(event.pointerId)
   updateBrushFromPointer(event)
 }
 

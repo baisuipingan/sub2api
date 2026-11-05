@@ -10,9 +10,10 @@ import (
 // ImageStudioModel exposes the public request ID, client protocol and capability profiles.
 // Account IDs, credentials and private upstream mapping targets stay server-side.
 type ImageStudioModel struct {
-	ID       string                    `json:"id"`
-	API      string                    `json:"api"`
-	Profiles []ImageStudioModelProfile `json:"profiles"`
+	ID                 string                    `json:"id"`
+	API                string                    `json:"api"`
+	Profiles           []ImageStudioModelProfile `json:"profiles"`
+	AvailableSizeTiers []string                  `json:"available_size_tiers,omitempty"`
 }
 
 // ListImageStudioModels builds the studio catalog from persistent configuration.
@@ -152,6 +153,7 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 		}
 		checkUpstreamRestriction := s.needsUpstreamChannelRestrictionCheck(requestCtx, &group.ID)
 		profiles := make(map[ImageStudioModelProfile]struct{})
+		sizeTiers := make(map[string]bool)
 		for i := range accounts {
 			account := &accounts[i]
 			mixed := platform == PlatformGemini && account.Platform == PlatformAntigravity && account.IsMixedSchedulingEnabled()
@@ -177,6 +179,13 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 					account.IsOpenAIOAuthLike() && validateOpenAIImagesModel(requestModel) == nil &&
 						validateOpenAIImagesModel(channelModel) == nil && validateOpenAIImagesModel(upstream) == nil {
 					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
+					// Any admitted supplier can serve its allowed tiers. An
+					// unrestricted supplier therefore makes all three available.
+					for _, tier := range openAIImageSizeTierOrder {
+						if account.SupportsOpenAIImageSizeTier(tier) {
+							sizeTiers[tier] = true
+						}
+					}
 				}
 			case PlatformGrok:
 				if account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityGrokMediaGeneration) && isGrokImageGenerationModel(requestModel) {
@@ -195,7 +204,15 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 			}
 		}
 		if len(profiles) > 0 {
-			return ImageStudioModel{ID: public, API: api.name, Profiles: sortedImageStudioProfiles(profiles)}, nil
+			metadata := ImageStudioModel{ID: public, API: api.name, Profiles: sortedImageStudioProfiles(profiles)}
+			if api.name == "openai" && platform == PlatformOpenAI {
+				for _, tier := range openAIImageSizeTierOrder {
+					if sizeTiers[tier] {
+						metadata.AvailableSizeTiers = append(metadata.AvailableSizeTiers, tier)
+					}
+				}
+			}
+			return metadata, nil
 		}
 	}
 	return ImageStudioModel{}, nil

@@ -46,6 +46,7 @@ export interface ImageModelDefinition {
   provider?: ImageModelProvider
   capabilityStatus?: 'known' | 'mixed' | 'unknown'
   profiles?: ImageModelProfile[]
+  availableSizeTiers?: Array<'1K' | '2K' | '4K'>
   featured?: boolean
   requestModels: Partial<Record<ImageResolutionTier, string>>
   capabilities: ImageModelCapabilities
@@ -515,6 +516,7 @@ export function createImageModelCatalogFromModelList(payload: unknown): ImageMod
     const known = profiles.every((profile) => CAPABILITY_PROFILES[profile.profile]?.provider === profile.provider)
     return {
       id, name: id, api, provider, profiles,
+      ...(Array.isArray(item?.available_size_tiers) ? { availableSizeTiers: ['1K', '2K', '4K'].filter((tier) => (item.available_size_tiers as unknown[]).includes(tier)) as Array<'1K' | '2K' | '4K'> } : {}),
       capabilityStatus: !known ? 'unknown' as const : new Set(profiles.map((profile) => profile.profile + (profile.transport ?? ''))).size > 1 ? 'mixed' as const : 'known' as const,
       requestModels: Object.fromEntries(capabilities.resolutions.map((tier) => [tier, id])) as ImageModelDefinition['requestModels'],
       capabilities,

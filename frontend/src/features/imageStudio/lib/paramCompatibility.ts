@@ -5,6 +5,23 @@ import { calculateImageSize, GPT_IMAGE_MIN_PIXELS, normalizeImageSize, parseRati
 
 export const MAX_OUTPUT_IMAGES = 10
 
+export function isResolutionAvailable(model: ImageModelDefinition | null, resolution: TaskParams['resolution']) {
+  if (!model?.availableSizeTiers) return true
+  // The Grok adapter explicitly sends its documented 1K default for auto.
+  if (resolution === 'auto') return model.provider !== 'xai' || model.availableSizeTiers.includes('1K')
+  return model.availableSizeTiers.includes(resolution === '0.5K' ? '1K' : resolution)
+}
+
+/** Account tier routing classifies the actual requested pixels by longest edge. */
+export function isRequestedImageSizeAvailable(model: ImageModelDefinition, params: TaskParams) {
+  if (!model.availableSizeTiers) return true
+  if (usesNativeGeometry(model)) return isResolutionAvailable(model, params.resolution)
+  const dimensions = params.size.match(/^(\d+)x(\d+)$/i)
+  if (!dimensions) return isResolutionAvailable(model, params.resolution)
+  const edge = Math.max(Number(dimensions[1]), Number(dimensions[2]))
+  return model.availableSizeTiers.includes(edge <= 1024 ? '1K' : edge <= 2048 ? '2K' : '4K')
+}
+
 export function usesNativeGeometry(model: ImageModelDefinition | null | undefined) {
   return model?.api === 'gemini' || model?.provider === 'xai'
 }
@@ -76,6 +93,12 @@ export function normalizeParamsForSettings(params: TaskParams, settings: AppSett
 
   if (next.output_format === 'png') next.output_compression = null
   if (next.output_format === 'jpeg') next.transparent_output = false
+  if (model && !isRequestedImageSizeAvailable(model, next)) {
+    next.resolution = capabilities?.resolutions.find((tier) => isResolutionAvailable(model, tier)) ?? 'auto'
+    next.size = nativeGeometry || next.resolution === 'auto'
+      ? 'auto'
+      : parameterImageSize(model, next.resolution, model.defaults.aspectRatio) ?? 'auto'
+  }
   return next
 }
 

@@ -21,19 +21,15 @@
         </span>
 
         <div class="order-last w-full min-w-0 sm:order-none sm:ml-auto sm:max-w-64 sm:flex-1">
-          <label class="relative block">
-            <StudioIcon
-              name="SearchIcon"
-              class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              :aria-label="t('imageStudio.search.ariaHistory')"
-              :value="state.searchQuery"
-              :placeholder="t('imageStudio.search.placeholder')"
-              class="w-full rounded-lg border border-transparent bg-gray-100 py-1.5 pl-8 pr-3 text-xs text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-500/15 dark:bg-white/[0.06] dark:text-white dark:focus:bg-dark-900"
-              @input="state.setSearchQuery(($event.target as HTMLInputElement).value)"
-            />
-          </label>
+          <label for="studio-history-search" class="sr-only">{{ t('imageStudio.search.ariaHistory') }}</label>
+          <Input
+            id="studio-history-search"
+            :model-value="state.searchQuery"
+            :placeholder="t('imageStudio.search.placeholder')"
+            @update:model-value="state.setSearchQuery"
+          >
+            <template #prefix><StudioIcon name="SearchIcon" class="h-4 w-4" /></template>
+          </Input>
         </div>
 
         <div
@@ -45,7 +41,7 @@
             v-for="status in statuses"
             :key="status"
             type="button"
-            class="rounded-md px-2 py-1 text-[11px] font-medium transition"
+            class="btn btn-ghost btn-sm text-[11px]"
             :class="
               state.filterStatus === status
                 ? 'bg-white text-gray-900 shadow-sm dark:bg-white/[0.12] dark:text-white'
@@ -74,7 +70,8 @@
             <div class="studio-ops flex flex-col items-center gap-2">
             <p
               v-if="activeTask.status === 'error'"
-              class="w-full break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+              data-testid="result-error-message"
+              class="w-full whitespace-pre-wrap break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
             >
               {{ errorMessage }}
             </p>
@@ -94,7 +91,7 @@
               <button
                 v-if="activeTask.status !== 'error'"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                class="btn btn-secondary btn-sm gap-1.5"
                 @click="reuseConfig(activeTask)"
               >
                 <StudioIcon name="CopyIcon" class="h-3.5 w-3.5" />
@@ -104,7 +101,7 @@
               <button
                 v-if="currentImageId"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                class="btn btn-secondary btn-sm gap-1.5"
                 :disabled="copying"
                 @click="copyImage"
               >
@@ -116,7 +113,7 @@
                 v-if="currentImageId"
                 type="button"
                 data-testid="download-result-image"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 disabled:opacity-50 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                class="btn btn-secondary btn-sm gap-1.5"
                 :disabled="downloading"
                 :aria-busy="downloading"
                 :title="t('imageStudio.lightbox.download')"
@@ -129,7 +126,7 @@
               <button
                 v-if="currentImageId"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                class="btn btn-secondary btn-sm gap-1.5"
                 @click="addAsReference"
               >
                 <StudioIcon name="EditIcon" class="h-3.5 w-3.5" />
@@ -138,7 +135,7 @@
 
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/[0.1] dark:text-dark-200 dark:hover:border-primary-500/40"
+                class="btn btn-secondary btn-sm gap-1.5"
                 @click="state.setDetailTaskId(activeTask.id)"
               >
                 {{ t('imageStudio.result.viewDetail') }}
@@ -147,7 +144,7 @@
               <button
                 v-if="canRegenerate"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700 disabled:opacity-40"
+                class="btn btn-primary btn-sm gap-1.5"
                 :disabled="hasRunningTask || retrying"
                 @click="onRetry"
               >
@@ -167,30 +164,22 @@
         <!-- 空状态：父级是 items-stretch + flex-col，
              必须自己 mx-auto（水平）与 my-auto（垂直）才会真正居中，
              否则会贴到左上角。 -->
-        <div v-else class="mx-auto my-auto max-w-lg text-center">
-          <div
-            class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-500 dark:bg-primary-500/10 dark:text-primary-400"
-          >
-            ✦
-          </div>
-          <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-white">
-            {{ t('imageStudio.resultPanel.emptyTitle') }}
-          </h3>
-          <p class="mt-1.5 text-sm leading-6 text-gray-500 dark:text-dark-400">
-            {{ t('imageStudio.resultPanel.emptyHint') }}
-          </p>
+        <EmptyState v-else class="mx-auto my-auto max-w-lg" :title="t('imageStudio.resultPanel.emptyTitle')" :description="t('imageStudio.resultPanel.emptyHint')">
+          <template #icon><StudioIcon name="ImageUploadIcon" class="h-10 w-10" /></template>
+          <template #action>
           <div class="mt-5 grid gap-2 sm:grid-cols-2">
             <button
               v-for="prompt in examplePrompts"
               :key="prompt"
               type="button"
-              class="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs leading-5 text-gray-600 transition hover:border-primary-300 hover:text-primary-700 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-dark-300 dark:hover:border-primary-500/40"
+              class="btn btn-secondary btn-sm whitespace-normal text-left text-xs leading-5"
               @click="state.setPrompt(prompt)"
             >
               {{ prompt }}
             </button>
           </div>
-        </div>
+          </template>
+        </EmptyState>
       </div>
     </div>
 
@@ -222,6 +211,8 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyState from '@/components/common/EmptyState.vue'
+import Input from '@/components/common/Input.vue'
 import StudioIcon from './StudioIcon.vue'
 import StudioSquarePreview from './StudioSquarePreview.vue'
 import StudioHistoryRail from './StudioHistoryRail.vue'
@@ -491,6 +482,14 @@ watch(
 .studio-ops {
   width: var(--studio-frame-w);
   max-width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .studio-stage {
+    container-type: inline-size;
+    --studio-frame-w: min(100cqw, 720px);
+    flex: 0 0 auto;
+  }
 }
 
 /**

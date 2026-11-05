@@ -21,7 +21,7 @@
         class="h-full w-full object-contain"
       />
       <div v-else class="flex flex-col items-center gap-3 text-sm text-primary-600 dark:text-primary-400">
-        <span class="h-9 w-9 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" />
+        <LoadingSpinner size="md" />
         {{ t('imageStudio.result.generating') }}
       </div>
       <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
@@ -51,7 +51,7 @@
         name="ImageUploadIcon"
         class="h-10 w-10 text-gray-300 dark:text-dark-600"
       />
-      <span v-else-if="task.status === 'done'" class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" />
+      <LoadingSpinner v-else-if="task.status === 'done'" size="md" />
       <span>
         {{ task.status === 'error' ? t('imageStudio.result.noOutput') : t('imageStudio.result.unavailable') }}
       </span>
@@ -102,6 +102,7 @@ import type { TaskRecord } from '../types'
 import { storeState as state } from '../stores/store'
 import { ensureImageCached, getCachedImage } from '../lib/imageCache'
 import StudioIcon from './StudioIcon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const props = defineProps<{
   task: TaskRecord

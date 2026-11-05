@@ -7,7 +7,7 @@
       <p>{{ t('imageStudio.result.imageUnavailable') }}</p>
       <button
         type="button"
-        class="mt-3 inline-flex items-center gap-2 font-medium text-primary-600 hover:underline"
+        class="btn btn-secondary btn-sm mt-3 gap-2"
         @click="reload"
       >
         <StudioIcon name="RefreshIcon" class="h-4 w-4" />
@@ -32,11 +32,10 @@
       />
     </button>
 
-    <span
+    <LoadingSpinner
       v-else
-      role="status"
       :aria-label="t('imageStudio.result.loadingImage')"
-      class="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500"
+      size="md"
     />
   </div>
 </template>
@@ -45,6 +44,7 @@
 import { onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { storeState as state } from '../stores/store'
 import { deleteCachedImage, ensureImageCached } from '../lib/imageCache'
 

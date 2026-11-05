@@ -71,6 +71,7 @@ func TestImageStudioModelsUseConfiguredStudioGroup(t *testing.T) {
 				require.Equal(t, "openai", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.api").String())
 				require.Equal(t, "unknown", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.profiles.0.provider").String())
 				require.Equal(t, "unknown", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.profiles.0.profile").String())
+				require.Equal(t, `["1K","2K","4K"]`, gjson.GetBytes(rec.Body.Bytes(), "data.models.0.available_size_tiers").Raw)
 				require.NotContains(t, rec.Body.String(), "private")
 				require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 			}

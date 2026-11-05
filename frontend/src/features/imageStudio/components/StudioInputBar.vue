@@ -52,7 +52,7 @@
                   :key="option.image.id"
                   type="button"
                   role="option"
-                  class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition"
+                  class="btn btn-sm btn-ghost flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition"
                   :class="
                     optionIndex === mentionMenuIndex
                       ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
@@ -98,7 +98,7 @@
             <button
               v-if="visiblePrompt"
               type="button"
-              class="absolute right-2 top-2 rounded-md p-1.5 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/[0.08] dark:hover:text-dark-200"
+              class="btn btn-sm btn-ghost absolute right-2 top-2 rounded-md p-1.5 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-white/[0.08] dark:hover:text-dark-200"
               :aria-label="t('imageStudio.input.clearPrompt')"
               :title="t('imageStudio.input.clearPrompt')"
               @click="clearPrompt"
@@ -130,7 +130,7 @@
           </span>
           <button
             type="button"
-            class="text-xs text-gray-400 transition hover:text-red-500"
+            class="btn btn-sm btn-ghost text-xs text-gray-400 transition hover:text-red-500"
             @click="handleClearImages"
           >
             {{ t('imageStudio.input.clearAll') }}
@@ -159,7 +159,7 @@
 
             <button
               type="button"
-              class="absolute bottom-1 left-1 rounded bg-primary-600/90 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-primary-700"
+              class="btn btn-sm btn-primary absolute bottom-1 left-1 rounded bg-primary-600/90 px-1.5 py-0.5 text-[10px] font-medium text-white transition hover:bg-primary-700"
               :aria-label="t('imageStudio.input.insertMentionN', { index: index + 1 })"
               :title="t('imageStudio.input.insertToPrompt')"
               @click="insertMentionAtCursor(index)"
@@ -170,7 +170,7 @@
             <button
               v-if="capabilities.mask && index === 0"
               type="button"
-              class="absolute bottom-1 right-1 rounded p-1 text-white transition hover:bg-primary-600"
+              class="btn btn-sm btn-primary absolute bottom-1 right-1 rounded p-1 text-white transition hover:bg-primary-600"
               :class="maskDraft?.targetImageId === image.id ? 'bg-primary-600' : 'bg-black/60'"
               :aria-label="t('imageStudio.input.editFirstMask')"
               :title="t('imageStudio.lightbox.editMask')"
@@ -181,7 +181,7 @@
 
             <button
               type="button"
-              class="absolute right-1 top-1 rounded-full bg-black/65 p-1 text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
+              class="btn btn-sm btn-ghost absolute right-1 top-1 rounded-full bg-black/65 p-1 text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
               :aria-label="t('imageStudio.input.removeReferenceN', { index: index + 1 })"
               :title="t('imageStudio.input.removeReference')"
               @click="removeImage(index)"
@@ -269,7 +269,7 @@
 
       <button
         type="button"
-        class="w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+        class="btn btn-sm btn-ghost w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
         :class="isGenerating ? 'bg-red-500 hover:bg-red-600' : 'bg-primary-600 hover:bg-primary-700'"
         :disabled="buttonDisabled"
         @click="handleSubmit"

@@ -95,7 +95,7 @@
         <button
           ref="moreButtonRef"
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-md text-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+          class="btn btn-sm btn-ghost flex h-8 w-8 items-center justify-center rounded-md text-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
           :aria-label="t('imageStudio.task.moreActions')"
           :title="t('imageStudio.task.moreActions')"
           :aria-expanded="moreOpen"
@@ -116,7 +116,7 @@
       <button
         v-if="task.status === 'error' && available"
         type="button"
-        class="inline-flex items-center gap-1.5 rounded px-2 py-2 text-primary-600 disabled:opacity-40"
+        class="btn btn-sm btn-ghost inline-flex items-center gap-1.5 rounded px-2 py-2 text-primary-600 disabled:opacity-40"
         :disabled="hasRunningTask || retrying"
         @click="onRetry"
       >
@@ -124,7 +124,7 @@
       </button>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded px-2 py-2 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+        class="btn btn-sm btn-ghost inline-flex items-center gap-1.5 rounded px-2 py-2 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
         @click="closeAnd('reuse')"
       >
         <StudioIcon name="CopyIcon" class="h-4 w-4" />{{ t('imageStudio.task.reuseParams') }}
@@ -140,7 +140,7 @@
       </button>
       <button
         type="button"
-        class="inline-flex items-center gap-1.5 rounded px-2 py-2 text-red-600"
+        class="btn btn-sm btn-ghost inline-flex items-center gap-1.5 rounded px-2 py-2 text-red-600"
         @click="closeAnd('delete')"
       >
         <StudioIcon name="TrashIcon" class="h-4 w-4" />{{ t('imageStudio.task.delete') }}

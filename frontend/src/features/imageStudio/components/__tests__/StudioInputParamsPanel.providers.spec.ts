@@ -32,7 +32,7 @@ function mountPanel(current: ImageModelDefinition, initial: Partial<TaskParams> 
         void wrapper.setProps({ params: normalizeParamsForSettings({ ...wrapper.props('params'), ...patch }, settings(selected.id), [selected]) })
       },
     },
-    global: { stubs: { StudioIcon: true } },
+    global: { stubs: { StudioIcon: true, teleport: true } },
   })
   return wrapper
 }
@@ -47,6 +47,18 @@ async function clickText(wrapper: Panel, text: string) {
 }
 
 describe('StudioInputParamsPanel provider controls', () => {
+  it('greys out 4K when account routing only admits 1K and 2K, and blocks clicks', async () => {
+    const current = model('gpt-image-2.6-sunburst', { api: 'openai', available_size_tiers: ['1K', '2K'] })
+    const wrapper = mountPanel(current)
+    const fourK = wrapper.findAll('button').find((button) => button.text() === '4K')!
+    expect(fourK.attributes('disabled')).toBeDefined()
+    expect(fourK.attributes('title')).toBe('imageStudio.params.channelSizeUnavailable')
+    await fourK.trigger('click')
+    expect(wrapper.props('params').resolution).toBe('auto')
+    await clickText(wrapper, '2K')
+    expect(wrapper.props('params').resolution).toBe('2K')
+    expect(wrapper.find('[role="status"]').text()).toBe('imageStudio.params.availableSizes')
+  })
   it.each(['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst-2026-11-01'])('shows resolution, quality, and independent complexity controls for %s', async (id) => {
     const current = model(id)
     const wrapper = mountPanel(current)
