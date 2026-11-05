@@ -35,12 +35,12 @@ const (
 )
 
 type APIKey struct {
-	ID          int64
-	UserID      int64
-	Key         string
-	Name        string
-	GroupID     *int64
-	Status      string
+	ID      int64
+	UserID  int64
+	Key     string
+	Name    string
+	GroupID *int64
+	Status  string
 	// KeyType 区分用户自建与系统托管，见 APIKeyType* 常量
 	KeyType     string
 	IPWhitelist []string

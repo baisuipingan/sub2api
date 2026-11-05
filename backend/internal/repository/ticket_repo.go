@@ -43,19 +43,6 @@ func unreadExpr(readCol string, roleParam int) string {
 	)
 }
 
-func scanTicket(row interface {
-	Scan(dest ...any) error
-}) (*service.Ticket, error) {
-	var tk service.Ticket
-	if err := row.Scan(
-		&tk.ID, &tk.UserID, &tk.Title, &tk.Status, &tk.Priority,
-		&tk.LastMessageAt, &tk.LastMessageRole, &tk.CreatedAt, &tk.UpdatedAt,
-	); err != nil {
-		return nil, err
-	}
-	return &tk, nil
-}
-
 func (r *ticketRepository) Create(ctx context.Context, userID int64, title, priority, content string) (*service.Ticket, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
