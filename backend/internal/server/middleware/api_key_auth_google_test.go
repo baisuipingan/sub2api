@@ -91,6 +91,21 @@ type fakeGoogleSubscriptionRepo struct {
 func (f fakeAPIKeyRepo) Create(ctx context.Context, key *service.APIKey) error {
 	return errors.New("not implemented")
 }
+func (f fakeAPIKeyRepo) GetSystemKey(context.Context, int64, string) (*service.APIKey, error) {
+	return nil, errors.New("GetSystemKey not implemented")
+}
+func (f fakeAPIKeyRepo) ListSystemKeyIDs(context.Context, int64) (map[int64]struct{}, error) {
+	return nil, errors.New("ListSystemKeyIDs not implemented")
+}
+func (f fakeAPIKeyRepo) CreateSystemKey(context.Context, *service.APIKey) error {
+	return errors.New("CreateSystemKey not implemented")
+}
+func (f fakeAPIKeyRepo) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	return errors.New("UpdateSystemKeyGroup not implemented")
+}
+func (f fakeAPIKeyRepo) IsSystemKey(context.Context, int64) (bool, error) {
+	return false, errors.New("IsSystemKey not implemented")
+}
 func (f fakeAPIKeyRepo) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
 	return nil, errors.New("not implemented")
 }

@@ -1531,6 +1531,26 @@ func (r *stubApiKeyRepo) Create(ctx context.Context, key *service.APIKey) error 
 	return errors.New("not implemented")
 }
 
+func (r *stubApiKeyRepo) GetSystemKey(context.Context, int64, string) (*service.APIKey, error) {
+	return nil, errors.New("GetSystemKey not implemented")
+}
+
+func (r *stubApiKeyRepo) ListSystemKeyIDs(context.Context, int64) (map[int64]struct{}, error) {
+	return nil, errors.New("ListSystemKeyIDs not implemented")
+}
+
+func (r *stubApiKeyRepo) CreateSystemKey(context.Context, *service.APIKey) error {
+	return errors.New("CreateSystemKey not implemented")
+}
+
+func (r *stubApiKeyRepo) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	return errors.New("UpdateSystemKeyGroup not implemented")
+}
+
+func (r *stubApiKeyRepo) IsSystemKey(context.Context, int64) (bool, error) {
+	return false, errors.New("IsSystemKey not implemented")
+}
+
 func (r *stubApiKeyRepo) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
 	return nil, errors.New("not implemented")
 }

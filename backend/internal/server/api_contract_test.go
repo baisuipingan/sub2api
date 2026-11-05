@@ -231,6 +231,7 @@ func TestAPIContracts(t *testing.T) {
 					"user_id": 1,
 					"key": "sk_custom_1234567890",
 					"name": "Key One",
+					"is_system": false,
 					"group_id": null,
 					"status": "active",
 					"ip_whitelist": null,
@@ -282,6 +283,7 @@ func TestAPIContracts(t *testing.T) {
 							"user_id": 1,
 							"key": "sk_custom_1234567890",
 							"name": "Key One",
+							"is_system": false,
 							"group_id": null,
 							"status": "active",
 							"ip_whitelist": null,
@@ -897,6 +899,10 @@ func TestAPIContracts(t *testing.T) {
 					"grok_cross_client_model_map_enabled": true,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
+					"recharge_link_mode": "",
+					"recharge_custom_url": "",
+					"image_studio_enabled": true,
+					"image_studio_group_id": 0,
 					"table_default_page_size": 20,
 						"table_page_size_options": [10, 20, 50, 100],
 					"min_claude_code_version": "",
@@ -1191,6 +1197,10 @@ func TestAPIContracts(t *testing.T) {
 					"grok_cross_client_model_map_enabled": true,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
+					"recharge_link_mode": "",
+					"recharge_custom_url": "",
+					"image_studio_enabled": true,
+					"image_studio_group_id": 0,
 					"table_default_page_size": 20,
 					"table_page_size_options": [10, 20, 50],
 					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"cline":{"daily":null,"weekly":null,"monthly":null},"command_code":{"daily":null,"weekly":null,"monthly":null},"deepseek":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"kimi":{"daily":null,"weekly":null,"monthly":null},"minimax":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null},"opencode_go":{"daily":null,"weekly":null,"monthly":null},"typesafe":{"daily":null,"weekly":null,"monthly":null},"zhipu":{"daily":null,"weekly":null,"monthly":null}},
@@ -2366,6 +2376,36 @@ func (r *stubApiKeyRepo) Create(ctx context.Context, key *service.APIKey) error 
 	r.byID[clone.ID] = &clone
 	r.byKey[clone.Key] = &clone
 	return nil
+}
+
+func (r *stubApiKeyRepo) GetSystemKey(context.Context, int64, string) (*service.APIKey, error) {
+	return nil, errors.New("GetSystemKey not implemented")
+}
+
+func (r *stubApiKeyRepo) ListSystemKeyIDs(_ context.Context, userID int64) (map[int64]struct{}, error) {
+	ids := make(map[int64]struct{})
+	for id, key := range r.byID {
+		if key.UserID == userID && key.KeyType == service.APIKeyTypeSystem {
+			ids[id] = struct{}{}
+		}
+	}
+	return ids, nil
+}
+
+func (r *stubApiKeyRepo) CreateSystemKey(context.Context, *service.APIKey) error {
+	return errors.New("CreateSystemKey not implemented")
+}
+
+func (r *stubApiKeyRepo) UpdateSystemKeyGroup(context.Context, int64, *int64) error {
+	return errors.New("UpdateSystemKeyGroup not implemented")
+}
+
+func (r *stubApiKeyRepo) IsSystemKey(_ context.Context, id int64) (bool, error) {
+	key, ok := r.byID[id]
+	if !ok {
+		return false, service.ErrAPIKeyNotFound
+	}
+	return key.KeyType == service.APIKeyTypeSystem, nil
 }
 
 func (r *stubApiKeyRepo) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
