@@ -27,7 +27,26 @@ func TestImageStudioModelsRespectPersistentChannelRestrictions(t *testing.T) {
 			svc.channelService = newTestChannelService(makeStandardRepo(channel, map[int64]string{14: PlatformOpenAI}))
 			models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 			require.NoError(t, err)
-			require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2", API: "openai"}}, models)
+			require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "unknown", "unknown")}, models)
 		})
 	}
+}
+
+func TestImageStudioProfilesFollowCompositeChannelAndAccountMapping(t *testing.T) {
+	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
+		studioModelsAccount(1, PlatformOpenAI, map[string]any{
+			"gpt-image-2": "gpt-image-1", "gpt-image-2.5": "gpt-image-2.6-sunburst-2026-11-01",
+		}),
+	}}, studioModelRoute("public-painter", "gpt-image-2", PlatformOpenAI, CompositeRouteEndpointImages))
+	channel := Channel{
+		ID: 1, Status: StatusActive, GroupIDs: []int64{14},
+		ModelMapping: map[string]map[string]string{PlatformOpenAI: {"gpt-image-2": "gpt-image-2.5"}},
+	}
+	svc.channelService = newTestChannelService(makeStandardRepo(channel, map[int64]string{14: PlatformOpenAI}))
+	models, err := svc.ListImageStudioModels(context.Background(), &Group{
+		ID: 14, Platform: PlatformComposite, Status: StatusActive, AllowImageGeneration: true,
+		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-painter", "openai", "openai", "gpt-image-2.6")}, models)
 }

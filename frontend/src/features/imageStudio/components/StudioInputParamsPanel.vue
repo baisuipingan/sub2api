@@ -1,10 +1,16 @@
 <template>
   <div v-if="model && capabilities" class="space-y-4">
     <div class="border-t border-gray-100 pt-4 dark:border-white/[0.06]">
-      <h3 class="text-sm font-medium text-gray-700 dark:text-dark-200">
-        {{ t('imageStudio.params.title') }}
+      <h3 class="text-sm font-medium text-gray-700 dark:text-dark-200" data-testid="provider-parameters-title">
+        {{ model.provider && model.provider !== 'unknown' ? t(`imageStudio.params.providers.${model.provider}`) : t('imageStudio.params.title') }}
       </h3>
       <p aria-live="polite" class="mt-1 text-xs text-gray-500">{{ sizeSummary }}</p>
+      <p v-if="model.capabilityStatus === 'unknown'" class="mt-2 text-xs leading-5 text-gray-500" role="status">
+        {{ t('imageStudio.params.unknownCapabilities') }}
+      </p>
+      <p v-else-if="model.capabilityStatus === 'mixed'" class="mt-2 text-xs leading-5 text-gray-500" role="status">
+        {{ t('imageStudio.params.sharedCapabilities') }}
+      </p>
     </div>
 
     <!-- 清晰度 -->
@@ -46,12 +52,12 @@
           type="button"
           class="rounded-lg border px-2.5 py-1.5 text-sm transition"
           :class="
-            params.size === 'auto'
+            ratioIsAuto
               ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
               : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/[0.1] dark:text-dark-300'
           "
-          :aria-pressed="params.size === 'auto'"
-          @click="setParams({ size: 'auto' })"
+          :aria-pressed="ratioIsAuto"
+          @click="setAutoRatio"
         >
           {{ t('imageStudio.params.auto') }}
         </button>
@@ -61,11 +67,11 @@
           type="button"
           class="rounded-lg border px-2.5 py-1.5 text-sm transition"
           :class="
-            currentRatio === ratio && params.size !== 'auto'
+            currentRatio === ratio && !ratioIsAuto
               ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
               : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/[0.1] dark:text-dark-300'
           "
-          :aria-pressed="currentRatio === ratio && params.size !== 'auto'"
+          :aria-pressed="currentRatio === ratio && !ratioIsAuto"
           @click="setRatio(ratio)"
         >
           {{ ratio }}
@@ -105,6 +111,22 @@
           {{ qualityLabel(quality) }}
         </button>
       </div>
+    </div>
+
+    <div v-if="capabilities.complexities?.length" data-testid="image-complexity">
+      <span class="mb-2 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ t('imageStudio.params.complexity') }}</span>
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          v-for="complexity in capabilities.complexities"
+          :key="complexity"
+          type="button"
+          class="rounded-lg border px-2 py-2 text-sm transition"
+          :class="(params.complexity ?? 'auto') === complexity ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300' : 'border-gray-200 text-gray-600 dark:border-white/[0.1] dark:text-dark-300'"
+          :aria-pressed="(params.complexity ?? 'auto') === complexity"
+          @click="setParams({ complexity })"
+        >{{ t(`imageStudio.params.complexityOptions.${complexity}`) }}</button>
+      </div>
+      <p class="mt-1.5 text-[11px] leading-4 text-gray-500">{{ t('imageStudio.params.complexityHint') }}</p>
     </div>
 
     <!-- 数量 -->
@@ -236,7 +258,7 @@
 
     <StudioRatioPickerModal
       v-if="showRatioPicker"
-      :current-ratio="params.size === 'auto' ? '' : currentRatio || exactRatio"
+      :current-ratio="ratioIsAuto ? '' : currentRatio || exactRatio"
       :ratios="moreRatios"
       :all-preset-ratios="capabilities.aspectRatios"
       :allow-custom="capabilities.customSize"
@@ -253,8 +275,8 @@ import StudioRatioPickerModal from './StudioRatioPickerModal.vue'
 import type { TaskParams } from '../types'
 import type { ImageModelDefinition, ImageResolutionTier } from '../lib/modelRegistry'
 import { getModelResolution } from '../lib/modelRegistry'
-import { MAX_OUTPUT_IMAGES } from '../lib/paramCompatibility'
-import { calculateImageSize, GPT_IMAGE_MIN_PIXELS, parseRatio } from '../lib/size'
+import { MAX_OUTPUT_IMAGES, parameterImageSize, usesNativeGeometry } from '../lib/paramCompatibility'
+import { parseRatio } from '../lib/size'
 
 const props = defineProps<{
   params: TaskParams
@@ -270,7 +292,8 @@ const showRatioPicker = ref(false)
 const capabilities = computed(() => props.model?.capabilities)
 
 const RESOLUTION_LABELS: Record<ImageResolutionTier, string> = {
-  auto: 'Auto',
+  auto: t('imageStudio.params.default'),
+  '0.5K': '512',
   '1K': '1K',
   '2K': '2K',
   '4K': '4K',
@@ -318,8 +341,14 @@ const currentResolution = computed(() =>
 )
 
 const exactRatio = computed(() =>
-  getExactRatio(props.params.size, props.model?.defaults.aspectRatio ?? '1:1'),
+  usesNativeGeometry(props.model) && props.params.aspect_ratio && props.params.aspect_ratio !== 'auto'
+    ? props.params.aspect_ratio
+    : getExactRatio(props.params.size, props.model?.defaults.aspectRatio ?? '1:1'),
 )
+
+const ratioIsAuto = computed(() => usesNativeGeometry(props.model)
+  ? !props.params.aspect_ratio || props.params.aspect_ratio === 'auto'
+  : props.params.size === 'auto')
 
 const currentRatio = computed(() =>
   closestRatio(exactRatio.value, capabilities.value?.aspectRatios ?? []),
@@ -327,10 +356,6 @@ const currentRatio = computed(() =>
 
 const maxImageCount = computed(() =>
   Math.min(MAX_OUTPUT_IMAGES, capabilities.value?.imageCount.max ?? MAX_OUTPUT_IMAGES),
-)
-
-const sizeOptions = computed(() =>
-  capabilities.value?.customSize ? { minPixels: GPT_IMAGE_MIN_PIXELS } : undefined,
 )
 
 const resolutionLabel = computed(() => {
@@ -341,7 +366,9 @@ const resolutionLabel = computed(() => {
 })
 
 const sizeSummary = computed(() =>
-  props.params.size === 'auto'
+  usesNativeGeometry(props.model)
+    ? t('imageStudio.params.nativeSizeSummary', { resolution: resolutionLabel.value, ratio: ratioIsAuto.value ? t('imageStudio.params.auto') : exactRatio.value })
+    : props.params.size === 'auto'
     ? t('imageStudio.params.sizeAutoSummary', { resolution: resolutionLabel.value })
     : t('imageStudio.params.sizeSummary', {
         size: props.params.size.replace('x', ' × '),
@@ -373,11 +400,15 @@ function setResolution(resolution: ImageResolutionTier) {
   const model = props.model
   const cap = capabilities.value
   if (!model || !cap) return
+  if (usesNativeGeometry(model)) {
+    setParams({ resolution })
+    return
+  }
 
   if (props.params.size === 'auto') {
     const size =
       cap.customSize && resolution !== 'auto'
-        ? calculateImageSize(resolution, model.defaults.aspectRatio, sizeOptions.value)
+        ? parameterImageSize(model, resolution, model.defaults.aspectRatio)
         : null
     setParams(size ? { resolution, size } : { resolution })
     return
@@ -389,13 +420,17 @@ function setResolution(resolution: ImageResolutionTier) {
         ? '1K'
         : model.defaults.resolution
       : resolution
-  const size = calculateImageSize(sizeTier, exactRatio.value, sizeOptions.value)
+  const size = parameterImageSize(model, sizeTier, exactRatio.value)
   if (size) setParams({ resolution, size })
 }
 
 function setRatio(ratio: string) {
   const model = props.model
   if (!model) return
+  if (usesNativeGeometry(model)) {
+    setParams({ aspect_ratio: ratio, size: 'auto' })
+    return
+  }
 
   const tier =
     currentResolution.value === 'auto'
@@ -403,8 +438,12 @@ function setRatio(ratio: string) {
         ? '1K'
         : model.defaults.resolution
       : currentResolution.value
-  const size = calculateImageSize(tier, ratio, sizeOptions.value)
+  const size = parameterImageSize(model, tier, ratio)
   if (size) setParams({ size })
+}
+
+function setAutoRatio() {
+  setParams({ size: 'auto', ...(usesNativeGeometry(props.model) ? { aspect_ratio: 'auto' } : {}) })
 }
 
 function onCountChange(event: Event) {

@@ -17,6 +17,7 @@ export type ImagePricingTable = Record<string, Record<string, number>>
 
 /** 把 'auto' 归一化成实际计费档位（后端对未知尺寸默认按 2K 计） */
 export function normalizeBillingTier(tier: ImageResolutionTier | string): string {
+  if (tier === '0.5K') return '1K'
   if (tier === '1K' || tier === '2K' || tier === '4K') return tier
   return '2K'
 }
@@ -45,7 +46,8 @@ export function resolveUnitPrice(
   resolution: ImageResolutionTier,
 ): number | undefined {
   if (!model) return undefined
-  const tier = getModelResolution(model, size, resolution)
+  const selectedTier = getModelResolution(model, size, resolution)
+  const tier = model.provider === 'xai' && selectedTier === 'auto' ? '1K' : selectedTier
   const billingModel = model.requestModels[tier] ?? model.requestModels.auto ?? model.id
   return lookupUnitPrice(table, billingModel, tier)
 }

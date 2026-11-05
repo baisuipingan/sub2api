@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 const geminiTestPNG = "iVBORw0KGgoAAAANSUhEUg=="
@@ -65,6 +66,17 @@ func TestCountGeminiImageOutputs(t *testing.T) {
 			name:    "uppercase mime type",
 			payload: geminiImageResponse(`{"inlineData":{"mimeType":"IMAGE/PNG","data":"` + geminiTestPNG + `"}}`),
 			want:    1,
+		},
+		{
+			name: "thought previews are not final image outputs",
+			payload: geminiImageResponse(`{"thought":true,"inlineData":{"mimeType":"image/png","data":"` + geminiTestPNG + `"}},` +
+				`{"inlineData":{"mimeType":"image/png","data":"` + geminiTestPNG + `"}}`),
+			want: 1,
+		},
+		{
+			name:    "thought-only file preview is not a final output",
+			payload: geminiImageResponse(`{"thought":true,"fileData":{"mimeType":"image/png","fileUri":"https://example.test/preview.png"}}`),
+			want:    0,
 		},
 		{
 			name:    "text only",
@@ -288,4 +300,40 @@ func TestObserveGeminiImageOutputs_FileDataCumulativeChunks(t *testing.T) {
 	require.Equal(t, 1, observedGeminiImageOutputs(c))
 	beginGeminiImageOutputObservation(c)
 	require.Zero(t, observedGeminiImageOutputs(c))
+}
+
+func TestGeminiForwardNative512IgnoresThoughtPreviewsForImageCount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, stream := range []bool{false, true} {
+		name, action, contentType := "buffered", "generateContent", "application/json"
+		if stream {
+			name, action, contentType = "streaming", "streamGenerateContent", "text/event-stream"
+		}
+		t.Run(name, func(t *testing.T) {
+			const model = "gemini-3.1-flash-image"
+			body := []byte(`{"contents":[{"role":"user","parts":[{"text":"draw"}]}],"generationConfig":{"responseModalities":["IMAGE"],"imageConfig":{"imageSize":"512"}}}`)
+			c := newGeminiImageTestContext(t)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/"+model+":"+action, strings.NewReader(string(body)))
+			responseBody := geminiImageResponse(`{"thought":true,"inlineData":{"mimeType":"image/png","data":"` + geminiTestPNG + `"}},` +
+				`{"inlineData":{"mimeType":"image/png","data":"` + geminiTestPNG + `"}}`)
+			if stream {
+				responseBody = "data: " + responseBody + "\n\n"
+			}
+			upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{{
+				StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}},
+				Body: io.NopCloser(strings.NewReader(responseBody)),
+			}}}
+			svc := &GeminiMessagesCompatService{cfg: &config.Config{}, httpUpstream: upstream}
+			result, err := svc.ForwardNative(context.Background(), c, geminiSignalTestAccount(), model, action, stream, body)
+			require.NoError(t, err)
+			require.Len(t, upstream.requestBodies, 1)
+			require.Equal(t, "512", gjson.GetBytes(upstream.requestBodies[0], "generationConfig.imageConfig.imageSize").String())
+			require.Equal(t, 1, result.ImageCount, "a reasoning preview must not add a billable output")
+			require.Equal(t, "512", result.ImageInputSize)
+			require.Equal(t, ImageBillingSize1K, result.ImageSize)
+			ApplyForwardImageBillingResolution(result)
+			require.Equal(t, ImageBillingSize1K, result.ImageSize)
+			require.Equal(t, ImageSizeSourceInput, result.ImageSizeSource)
+		})
+	}
 }

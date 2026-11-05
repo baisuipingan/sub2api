@@ -184,6 +184,13 @@ imageStudio: {
   },
   params: {
     title: 'Canvas settings',
+    providers: { openai: 'OpenAI image settings', google: 'Gemini image settings', xai: 'Grok image settings' },
+    unknownCapabilities: 'Optional parameters are not confirmed for this model. Upstream defaults will be used.',
+    sharedCapabilities: 'Multiple channel types serve this model. Only their shared parameters are shown.',
+    complexity: 'Planning complexity',
+    complexityHint: 'Controls planning independently of rendering quality. Higher complexity may take longer.',
+    complexityOptions: { auto: 'Default', low: 'Low', medium: 'Medium', high: 'High' },
+    nativeSizeSummary: '{resolution} · Ratio {ratio}',
     resolution: 'Resolution',
     default: 'Default',
     defaultResolution: 'Default resolution',

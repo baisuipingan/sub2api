@@ -21,6 +21,7 @@ func TestClassifyImageBillingTier(t *testing.T) {
 		{name: "long edge 2k", size: "1280x768", wantTier: "2K", wantOK: true},
 		{name: "long edge 4k", size: "2560x1600", wantTier: "4K", wantOK: true},
 		{name: "tier string 1k", size: "1k", wantTier: "1K", wantOK: true},
+		{name: "Gemini 512 imageSize uses smallest tier", size: "512", wantTier: "1K", wantOK: true},
 		{name: "empty", size: "", wantOK: false},
 		{name: "auto", size: "auto", wantOK: false},
 		{name: "invalid", size: "not-a-size", wantOK: false},
@@ -57,6 +58,12 @@ func TestResolveImageBillingSize(t *testing.T) {
 		{
 			name:        "input fallback",
 			inputSize:   "1024x1024",
+			wantBilling: "1K",
+			wantSource:  ImageSizeSourceInput,
+		},
+		{
+			name:        "Gemini 512 input does not default to 2K",
+			inputSize:   "512",
 			wantBilling: "1K",
 			wantSource:  ImageSizeSourceInput,
 		},

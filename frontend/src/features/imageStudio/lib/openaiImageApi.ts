@@ -38,6 +38,7 @@ function imageRequestParams(opts: CallApiOptions, modelId: string) {
     ...(capabilities?.outputFormats.includes(params.output_format) ? { output_format: params.output_format } : {}),
     ...(capabilities?.outputCompression && params.output_compression != null ? { output_compression: params.output_compression } : {}),
     ...(capabilities?.moderation.includes(params.moderation) ? { moderation: params.moderation } : {}),
+    ...(params.complexity && params.complexity !== 'auto' && capabilities?.complexities?.includes(params.complexity) ? { complexity: params.complexity } : {}),
     n: params.n,
   }
 }

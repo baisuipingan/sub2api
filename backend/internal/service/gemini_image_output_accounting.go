@@ -109,6 +109,11 @@ func countGeminiImageOutputs(payload []byte) int {
 }
 
 func geminiPartIsImage(part gjson.Result) bool {
+	// Gemini may emit image previews as thought parts. They are reasoning
+	// intermediates, not the final output images displayed by the client.
+	if part.Get("thought").Type == gjson.True {
+		return false
+	}
 	for _, key := range []string{"inlineData", "inline_data", "fileData", "file_data"} {
 		image := part.Get(key)
 		mimeType := image.Get("mimeType")

@@ -69,6 +69,8 @@ func TestImageStudioModelsUseConfiguredStudioGroup(t *testing.T) {
 			if tc.want == http.StatusOK {
 				require.Equal(t, "gpt-image-2.5", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.id").String())
 				require.Equal(t, "openai", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.api").String())
+				require.Equal(t, "unknown", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.profiles.0.provider").String())
+				require.Equal(t, "unknown", gjson.GetBytes(rec.Body.Bytes(), "data.models.0.profiles.0.profile").String())
 				require.NotContains(t, rec.Body.String(), "private")
 				require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 			}

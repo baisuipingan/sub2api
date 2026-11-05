@@ -636,6 +636,7 @@ export async function submitTask() {
       modelId: requestModelId,
       apiKind: model.api,
       modelCapabilities: model.capabilities,
+      modelProvider: model.provider,
       prompt: maskDraft
         ? createMaskConstrainedPrompt(replaceImageMentionsForApi(prompt, orderedInputImages.length))
         : replaceImageMentionsForApi(transparentMeta?.effectivePrompt ?? prompt, orderedInputImages.length),
@@ -1188,10 +1189,12 @@ function normalizeTaskParams(value: unknown): TaskParams {
   const record = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const size = typeof record.size === 'string' ? record.size : DEFAULT_PARAMS.size
   return {
-    resolution: record.resolution === 'auto' || record.resolution === '1K' || record.resolution === '2K' || record.resolution === '4K'
+    resolution: record.resolution === 'auto' || record.resolution === '0.5K' || record.resolution === '1K' || record.resolution === '2K' || record.resolution === '4K'
       ? record.resolution
       : getModelResolution(null, size),
     size,
+    aspect_ratio: typeof record.aspect_ratio === 'string' ? record.aspect_ratio : undefined,
+    complexity: record.complexity === 'low' || record.complexity === 'medium' || record.complexity === 'high' ? record.complexity : undefined,
     quality: record.quality === 'low' || record.quality === 'medium' || record.quality === 'high' || record.quality === 'xhigh' || record.quality === 'max' ? record.quality : DEFAULT_PARAMS.quality,
     output_format: record.output_format === 'jpeg' || record.output_format === 'webp' ? record.output_format : DEFAULT_PARAMS.output_format,
     output_compression: typeof record.output_compression === 'number' ? record.output_compression : null,

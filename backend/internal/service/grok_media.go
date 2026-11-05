@@ -128,6 +128,11 @@ func ParseGrokMediaRequest(contentType string, body []byte) GrokMediaRequestInfo
 	} else {
 		parseGrokMediaMultipartRequest(contentType, body, &info)
 	}
+	if info.Size == "" && info.ImageResolution != "" {
+		// Keep native resolution available to billing without adding a size field
+		// to the forwarded JSON body.
+		info.Size = imageSizeForCompatibleResolution(info.ImageResolution)
+	}
 	info.Model = strings.TrimSpace(info.Model)
 	info.Prompt = strings.TrimSpace(info.Prompt)
 	info.Size = strings.TrimSpace(info.Size)
@@ -674,7 +679,15 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		return nil, err
 	}
 
-	body, contentType, err = prepareGrokMediaForwardBody(endpoint, body, contentType)
+	editModel := ""
+	if endpoint == GrokMediaEndpointImagesEdits {
+		info := ParseGrokMediaRequest(contentType, body)
+		editModel = NormalizeGrokMediaModelForEndpoint(endpoint, info.Model, info.HasInputImage())
+		if mapped := strings.TrimSpace(account.GetMappedModel(editModel)); mapped != "" {
+			editModel = mapped
+		}
+	}
+	body, contentType, err = prepareGrokMediaForwardBody(endpoint, body, contentType, editModel)
 	if err != nil {
 		return nil, err
 	}
@@ -958,12 +971,22 @@ func isGrokCLIProxyTarget(rawURL string) bool {
 	return err == nil && strings.EqualFold(parsed.Hostname(), "cli-chat-proxy.grok.com")
 }
 
-func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
+func grokMediaEditSourceImageLimit(model string) int {
+	// The documented five-image contract belongs to 2.0. Preserve the existing
+	// three-image limit for legacy models and unrecognized provider aliases.
+	if strings.EqualFold(strings.TrimSpace(model), "grok-imagine-image-2.0") {
+		return 5
+	}
+	return grokMediaMaxEditSourceImages
+}
+
+func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType, model string) ([]byte, string, error) {
 	if endpoint != GrokMediaEndpointImagesEdits {
 		return body, contentType, nil
 	}
+	maxSources := grokMediaEditSourceImageLimit(model)
 	if gjson.ValidBytes(body) {
-		out, err := normalizeGrokMediaJSONImageRefs(body)
+		out, err := normalizeGrokMediaJSONImageRefs(body, maxSources)
 		return out, contentType, err
 	}
 	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
@@ -1005,14 +1028,13 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 		}
 		images = append(images, grokMediaImageObject(dataURL))
 	}
-	if len(images) > grokMediaMaxEditSourceImages {
-		return nil, "", fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
+	if len(images) > maxSources {
+		return nil, "", fmt.Errorf("a maximum of %d source images is supported for image edits", maxSources)
 	}
-	if len(images) > 0 {
+	if len(images) == 1 {
 		payload["image"] = images[0]
-		if len(images) > 1 {
-			payload["images"] = images
-		}
+	} else if len(images) > 1 {
+		payload["images"] = images
 	}
 
 	maskImageURL := strings.TrimSpace(info.MaskImageURL)
@@ -1034,10 +1056,10 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 	return out, "application/json", nil
 }
 
-func normalizeGrokMediaJSONImageRefs(body []byte) ([]byte, error) {
+func normalizeGrokMediaJSONImageRefs(body []byte, maxSources int) ([]byte, error) {
 	info := ParseGrokMediaRequest("application/json", body)
-	if len(info.InputImageURLs) > grokMediaMaxEditSourceImages {
-		return nil, fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
+	if len(info.InputImageURLs) > maxSources {
+		return nil, fmt.Errorf("a maximum of %d source images is supported for image edits", maxSources)
 	}
 	out := body
 	var err error

@@ -271,6 +271,12 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 	if sizeResult := gjson.GetBytes(body, "size"); sizeResult.Exists() {
 		req.Size = strings.TrimSpace(sizeResult.String())
 		req.ExplicitSize = req.Size != ""
+	} else if size := imageSizeForCompatibleResolution(gjson.GetBytes(body, "resolution").String()); size != "" {
+		// Compatible providers can express the image tier with resolution rather
+		// than size. This is internal routing/billing metadata; forward the original
+		// JSON without injecting the representative pixel dimensions.
+		req.Size = size
+		req.ExplicitSize = true
 	}
 	req.ResponseFormat = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "response_format").String()))
 	req.Quality = strings.TrimSpace(gjson.GetBytes(body, "quality").String())
@@ -295,13 +301,23 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 		req.PartialImages = &v
 	}
 	if req.IsEdits() {
+		if image := gjson.GetBytes(body, "image"); image.Exists() {
+			if !image.IsObject() {
+				return fmt.Errorf("invalid image field type")
+			}
+			if imageURL := compatibleImageURL(image); imageURL != "" {
+				req.InputImageURLs = append(req.InputImageURLs, imageURL)
+			} else if image.Get("file_id").Exists() {
+				return fmt.Errorf("image.file_id is not supported (use image.url instead)")
+			}
+		}
 		images := gjson.GetBytes(body, "images")
 		if images.Exists() {
 			if !images.IsArray() {
 				return fmt.Errorf("invalid images field type")
 			}
 			for _, item := range images.Array() {
-				if imageURL := strings.TrimSpace(item.Get("image_url").String()); imageURL != "" {
+				if imageURL := compatibleImageURL(item); imageURL != "" {
 					req.InputImageURLs = append(req.InputImageURLs, imageURL)
 					continue
 				}
@@ -325,6 +341,24 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 		return gjson.GetBytes(body, path).Exists()
 	})
 	return nil
+}
+
+func compatibleImageURL(image gjson.Result) string {
+	if value := strings.TrimSpace(image.Get("image_url").String()); value != "" {
+		return value
+	}
+	return strings.TrimSpace(image.Get("url").String())
+}
+
+func imageSizeForCompatibleResolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "1k":
+		return "1024x1024"
+	case "2k":
+		return "2048x2048"
+	default:
+		return ""
+	}
 }
 
 func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *OpenAIImagesRequest) error {

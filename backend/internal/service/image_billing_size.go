@@ -31,7 +31,9 @@ func ClassifyImageBillingTier(size string) (string, bool) {
 	switch normalized {
 	case "", "auto":
 		return "", false
-	case "1k":
+	case "1k", "512":
+		// Gemini's 512 imageSize uses the existing smallest billing tier.
+		// A distinct half-K price is not configured by the gateway.
 		return ImageBillingSize1K, true
 	case "2k":
 		return ImageBillingSize2K, true

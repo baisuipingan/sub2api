@@ -50,6 +50,10 @@ func studioModelRoute(public, target, platform, endpoint string) CompositeModelR
 		TargetPlatform: platform, Endpoint: endpoint, MatchType: CompositeRouteMatchExact, Enabled: true}
 }
 
+func studioModelWithProfile(id, api, provider, profile string) ImageStudioModel {
+	return ImageStudioModel{ID: id, API: api, Profiles: []ImageStudioModelProfile{{Provider: provider, Profile: profile}}}
+}
+
 func TestImageStudioModelsIgnoreRoutesWithoutConfiguredSupplier(t *testing.T) {
 	disabled := studioModelsAccount(68, PlatformOpenAI, map[string]any{"gpt-image-2.5-flare": "gpt-image-2.5-flare"})
 	disabled.Schedulable = false
@@ -66,7 +70,7 @@ func TestImageStudioModelsIgnoreRoutesWithoutConfiguredSupplier(t *testing.T) {
 	)
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformComposite, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2", API: "openai"}, {ID: "gpt-image-2.5", API: "openai"}}, models)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "unknown", "unknown"), studioModelWithProfile("gpt-image-2.5", "openai", "unknown", "unknown")}, models)
 	require.Equal(t, int64(14), repo.groupID)
 	encoded, err := json.Marshal(models)
 	require.NoError(t, err)
@@ -83,7 +87,7 @@ func TestImageStudioModelsKeepTemporaryUnavailableAccountsAndRespectPublicAllowl
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-image-2.5"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2.5", API: "openai"}}, models)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2.5", "openai", "openai", "gpt-image-2.5")}, models)
 }
 
 func TestImageStudioModelsResolveAliasesToCorrectClientProtocol(t *testing.T) {
@@ -100,7 +104,7 @@ func TestImageStudioModelsResolveAliasesToCorrectClientProtocol(t *testing.T) {
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter", "public-banana", "fake-image"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "public-painter", API: "openai"}, {ID: "public-banana", API: "gemini"}}, models)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-painter", "openai", "unknown", "unknown"), studioModelWithProfile("public-banana", "gemini", "google", "gemini-3.1-flash-image")}, models)
 }
 
 func TestImageStudioModelsCompatibleGeminiUsesImagesProtocol(t *testing.T) {
@@ -109,7 +113,7 @@ func TestImageStudioModelsCompatibleGeminiUsesImagesProtocol(t *testing.T) {
 	}})
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2", API: "openai"}}, models)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("gpt-image-2", "openai", "google", "gemini-3.1-flash-image")}, models)
 }
 
 func TestImageStudioModelsOAuthCannotServeCompatibleGeminiAlias(t *testing.T) {
@@ -130,7 +134,7 @@ func TestImageStudioModelsGrokUsesNormalizedRequestAndAllowsProviderTarget(t *te
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-grok"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "public-grok", API: "openai"}}, models)
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-grok", "openai", "unknown", "unknown")}, models)
 }
 
 func TestImageStudioModelsEmptyPoolDoesNotResurrectDefaults(t *testing.T) {
@@ -153,7 +157,7 @@ func TestImageStudioModelsUnmappedAccountNeedsExplicitCatalog(t *testing.T) {
 	group.Platform = PlatformComposite
 	models, err = svc.ListImageStudioModels(context.Background(), group)
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "configured-painter", API: "openai"}}, models,
+	require.Equal(t, []ImageStudioModel{studioModelWithProfile("configured-painter", "openai", "openai", "gpt-image-2")}, models,
 		"an explicit public route backed by an unrestricted account remains available")
 }
 

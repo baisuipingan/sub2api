@@ -7,11 +7,12 @@ import (
 	"strings"
 )
 
-// ImageStudioModel exposes only the public request ID and its client protocol.
+// ImageStudioModel exposes the public request ID, client protocol and capability profiles.
 // Account IDs, credentials and private upstream mapping targets stay server-side.
 type ImageStudioModel struct {
-	ID  string `json:"id"`
-	API string `json:"api"`
+	ID       string                    `json:"id"`
+	API      string                    `json:"api"`
+	Profiles []ImageStudioModelProfile `json:"profiles"`
 }
 
 // ListImageStudioModels builds the studio catalog from persistent configuration.
@@ -76,12 +77,12 @@ func (s *GatewayService) ListImageStudioModels(ctx context.Context, group *Group
 		ids = group.ModelAllowlist.FilterForListing(ids)
 	}
 	for _, model := range ids {
-		api, err := s.imageStudioModelAPI(ctx, group, eligible, model)
+		metadata, err := s.imageStudioModelMetadata(ctx, group, eligible, model)
 		if err != nil {
 			return nil, err
 		}
-		if api != "" {
-			models = append(models, ImageStudioModel{ID: model, API: api})
+		if metadata.API != "" {
+			models = append(models, metadata)
 		}
 	}
 	return models, nil
@@ -99,10 +100,14 @@ func imageStudioGroupAcceptsAccount(group *Group, account *Account) bool {
 }
 
 func imageStudioImageModel(model string) bool {
-	return isOpenAIImageGenerationModel(model) || isGeminiCompatibleImageModel(model)
+	return isOpenAIImageGenerationModel(model) || imageStudioGoogleImageModel(model)
 }
 
-func (s *GatewayService) imageStudioModelAPI(ctx context.Context, group *Group, accounts []Account, public string) (string, error) {
+func imageStudioGoogleImageModel(model string) bool {
+	return isGeminiCompatibleImageModel(model) || imageStudioProfileForModel(model).Provider == "google"
+}
+
+func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Group, accounts []Account, public string) (ImageStudioModel, error) {
 	for _, api := range []struct{ name, endpoint string }{
 		{"openai", CompositeRouteEndpointImages},
 		{"gemini", CompositeRouteEndpointGemini},
@@ -112,11 +117,11 @@ func (s *GatewayService) imageStudioModelAPI(ctx context.Context, group *Group, 
 		if group.Platform == PlatformComposite {
 			resolver := s.compositeResolver
 			if resolver == nil {
-				return "", fmt.Errorf("image studio composite routing is not configured")
+				return ImageStudioModel{}, fmt.Errorf("image studio composite routing is not configured")
 			}
 			decision, err := resolver.Resolve(ctx, group.ID, public, api.endpoint)
 			if err != nil {
-				return "", fmt.Errorf("resolve image studio model: %w", err)
+				return ImageStudioModel{}, fmt.Errorf("resolve image studio model: %w", err)
 			}
 			if !decision.Matched {
 				continue
@@ -146,6 +151,7 @@ func (s *GatewayService) imageStudioModelAPI(ctx context.Context, group *Group, 
 			continue
 		}
 		checkUpstreamRestriction := s.needsUpstreamChannelRestrictionCheck(requestCtx, &group.ID)
+		profiles := make(map[ImageStudioModelProfile]struct{})
 		for i := range accounts {
 			account := &accounts[i]
 			mixed := platform == PlatformGemini && account.Platform == PlatformAntigravity && account.IsMixedSchedulingEnabled()
@@ -170,11 +176,11 @@ func (s *GatewayService) imageStudioModelAPI(ctx context.Context, group *Group, 
 				if account.Type == AccountTypeAPIKey && validateCompatibleImagesModel(upstream) == nil ||
 					account.IsOpenAIOAuthLike() && validateOpenAIImagesModel(requestModel) == nil &&
 						validateOpenAIImagesModel(channelModel) == nil && validateOpenAIImagesModel(upstream) == nil {
-					return api.name, nil
+					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
 				}
 			case PlatformGrok:
 				if account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityGrokMediaGeneration) && isGrokImageGenerationModel(requestModel) {
-					return api.name, nil
+					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
 				}
 			case PlatformGemini, PlatformAntigravity:
 				if account.Platform == PlatformAntigravity {
@@ -183,11 +189,14 @@ func (s *GatewayService) imageStudioModelAPI(ctx context.Context, group *Group, 
 					upstream = channelModel // Gemini OAuth native forwarding does not apply account mappings.
 				}
 				if (account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount || account.Type == AccountTypeOAuth) &&
-					isGeminiCompatibleImageModel(upstream) {
-					return api.name, nil
+					imageStudioGoogleImageModel(upstream) {
+					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
 				}
 			}
 		}
+		if len(profiles) > 0 {
+			return ImageStudioModel{ID: public, API: api.name, Profiles: sortedImageStudioProfiles(profiles)}, nil
+		}
 	}
-	return "", nil
+	return ImageStudioModel{}, nil
 }

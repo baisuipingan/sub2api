@@ -136,12 +136,12 @@ describe('createImageModelCatalogFromModelList', () => {
   })
 
   it('未收录模型给保守能力，避免上游拒绝', () => {
-    const fallback = catalog.find((m) => m.id === 'grok-imagine-image')!
+    const [fallback] = createImageModelCatalogFromModelList(payloadOf(['provider-image-v3']))
     expect(fallback.capabilities.resolutions).toEqual(['auto'])
     expect(fallback.capabilities.imageCount.max).toBe(1)
     expect(fallback.capabilities.referenceImages).toBe(0)
     expect(fallback.capabilities.mask).toBe(false)
-    expect(fallback.name).toBe('grok-imagine-image')
+    expect(fallback.name).toBe('provider-image-v3')
     expect(fallback.capabilities.qualities).toEqual([])
     expect(fallback.capabilities.outputFormats).toEqual([])
   })

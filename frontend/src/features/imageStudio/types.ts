@@ -26,9 +26,12 @@ export interface AppSettings {
   enterSubmit: boolean
 }
 
-export type ImageResolutionTier = 'auto' | '1K' | '2K' | '4K'
+export type ImageResolutionTier = 'auto' | '0.5K' | '1K' | '2K' | '4K'
+export type ImageModelProvider = 'openai' | 'google' | 'xai' | 'unknown'
 
 export interface TaskParams {
+  aspect_ratio?: string
+  complexity?: 'auto' | 'low' | 'medium' | 'high'
   resolution: ImageResolutionTier
   size: string
   quality: 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'

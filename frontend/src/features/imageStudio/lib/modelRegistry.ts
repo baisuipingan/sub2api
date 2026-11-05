@@ -1,5 +1,5 @@
 import { libT } from './i18nMessage'
-import type { ImageApiKind, ImageResolutionTier, TaskParams } from '../types'
+import type { ImageApiKind, ImageResolutionTier, ImageModelProvider, TaskParams } from '../types'
 import { getImageSizeTier } from './size'
 
 export type { ImageResolutionTier } from '../types'
@@ -12,6 +12,8 @@ export const GEMINI_FLASH_IMAGE_MODEL_ID = 'gemini-3.1-flash-image'
 export const GEMINI_PRO_IMAGE_MODEL_ID = 'gemini-3-pro-image'
 
 export interface ImageModelCapabilities {
+  fixedSizes?: string[]
+  complexities?: NonNullable<TaskParams['complexity']>[]
   resolutions: ImageResolutionTier[]
   customSize: boolean
   aspectRatios: string[]
@@ -41,10 +43,19 @@ export interface ImageModelDefinition {
   id: string
   name: string
   api: ImageApiKind
+  provider?: ImageModelProvider
+  capabilityStatus?: 'known' | 'mixed' | 'unknown'
+  profiles?: ImageModelProfile[]
   featured?: boolean
   requestModels: Partial<Record<ImageResolutionTier, string>>
   capabilities: ImageModelCapabilities
   defaults: ImageModelDefaults
+}
+
+export interface ImageModelProfile {
+  provider: ImageModelProvider
+  profile: string
+  transport?: 'images' | 'bridge'
 }
 
 const GPT_CAPABILITIES: ImageModelCapabilities = {
@@ -55,7 +66,7 @@ const GPT_CAPABILITIES: ImageModelCapabilities = {
   outputFormats: ['png', 'jpeg', 'webp'],
   outputCompression: true,
   moderation: ['auto', 'low'],
-  imageCount: { min: 1, max: 5 },
+  imageCount: { min: 1, max: 10 },
   referenceImages: 16,
   mask: true,
   transparentOutput: true,
@@ -76,12 +87,12 @@ export function getImageEditProfile(model: ImageModelDefinition): ImageEditProfi
 const GPT_IMAGE_2_5_CAPABILITIES: ImageModelCapabilities = {
   ...GPT_CAPABILITIES,
   qualities: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'],
-  outputFormats: ['png'],
-  outputCompression: false,
-  moderation: ['auto'],
+  outputFormats: ['png', 'jpeg', 'webp'],
+  outputCompression: true,
+  moderation: ['auto', 'low'],
   streamingGeneration: true,
   streamingEdit: true,
-  maxPartialImages: 0,
+  maxPartialImages: 3,
 }
 
 const GEMINI_CAPABILITIES: ImageModelCapabilities = {
@@ -159,7 +170,7 @@ export const IMAGE_MODEL_REGISTRY: readonly ImageModelDefinition[] = [
   },
 ]
 
-const RESOLUTIONS: ImageResolutionTier[] = ['auto', '1K', '2K', '4K']
+const RESOLUTIONS: ImageResolutionTier[] = ['auto', '0.5K', '1K', '2K', '4K']
 const QUALITIES: TaskParams['quality'][] = ['auto', 'low', 'medium', 'high', 'xhigh', 'max']
 const OUTPUT_FORMATS: TaskParams['output_format'][] = ['png', 'jpeg', 'webp']
 const MODERATION: TaskParams['moderation'][] = ['auto', 'low']
@@ -326,7 +337,9 @@ export function filterGeminiImageModelsByNativeModelList(catalog: readonly Image
   const availableIds = getAvailableModelIds(payload)
   return catalog.map((model) => {
     if (!model.id.startsWith('gemini-')) return model
-    return { ...model, api: availableIds.has(model.id) ? 'gemini' as const : 'openai' as const }
+    const api = availableIds.has(model.id) ? 'gemini' as const : 'openai' as const
+    const capabilities = model.profiles?.length ? commonCapabilities(model.profiles, api) : model.capabilities
+    return { ...model, api, capabilities, requestModels: Object.fromEntries(capabilities.resolutions.map((tier) => [tier, model.id])) }
   })
 }
 
@@ -375,41 +388,146 @@ function createFallbackImageModel(modelId: string): ImageModelDefinition {
   }
 }
 
-/** Model membership and names come only from the response; presets supply controls. */
-export function createImageModelCatalogFromModelList(payload: unknown) {
-  const availableIds = getAvailableModelIds(payload)
-  const items = extractModelItems(payload) ?? []
-  const protocols = new Map<string, 'openai' | 'gemini'>()
-  for (const item of items) {
-    if (!isRecord(item) || typeof item.id !== 'string') continue
-    if (item.api === 'openai' || item.api === 'gemini') {
-      protocols.set(item.id.trim(), item.api)
+const GOOGLE_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
+const GOOGLE_WIDE_RATIOS = [...GOOGLE_RATIOS, '1:4', '4:1', '1:8', '8:1']
+const GROK_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '2:1', '1:2', '19.5:9', '9:19.5', '20:9', '9:20', '21:9', '5:2']
+
+/** These profiles describe documented parameters, never add model-list entries. */
+const CAPABILITY_PROFILES: Record<string, { provider: ImageModelProvider; capabilities: ImageModelCapabilities }> = {
+  'gpt-image-2': { provider: 'openai', capabilities: GPT_CAPABILITIES },
+  'gpt-image-2.5': { provider: 'openai', capabilities: GPT_IMAGE_2_5_CAPABILITIES },
+  'gpt-image-2.6': { provider: 'openai', capabilities: {
+    ...GPT_IMAGE_2_5_CAPABILITIES,
+    qualities: ['auto', 'low', 'medium', 'high'],
+    complexities: ['auto', 'low', 'medium', 'high'],
+  } },
+  'gpt-image-1': { provider: 'openai', capabilities: {
+    ...GPT_CAPABILITIES, resolutions: ['auto', '1K'], customSize: false,
+    aspectRatios: ['1:1', '3:2', '2:3'], fixedSizes: ['1024x1024', '1536x1024', '1024x1536'],
+  } },
+  'gemini-2.5-flash-image': { provider: 'google', capabilities: {
+    ...GEMINI_CAPABILITIES, resolutions: ['auto', '1K'], aspectRatios: GOOGLE_RATIOS, referenceImages: 3,
+  } },
+  'gemini-3-pro-image': { provider: 'google', capabilities: { ...GEMINI_CAPABILITIES, aspectRatios: GOOGLE_RATIOS } },
+  'gemini-3.1-flash-image': { provider: 'google', capabilities: {
+    ...GEMINI_CAPABILITIES, resolutions: ['auto', '0.5K', '1K', '2K', '4K'], aspectRatios: GOOGLE_WIDE_RATIOS,
+  } },
+  'gemini-3.1-flash-lite-image': { provider: 'google', capabilities: {
+    ...GEMINI_CAPABILITIES, resolutions: ['auto', '1K'], aspectRatios: GOOGLE_RATIOS, referenceImages: 1,
+  } },
+  'gemini-nano-banana-2.1': { provider: 'google', capabilities: { ...GEMINI_CAPABILITIES, aspectRatios: GOOGLE_WIDE_RATIOS } },
+  'grok-imagine-image': { provider: 'xai', capabilities: {
+    ...GEMINI_CAPABILITIES, resolutions: ['auto', '1K', '2K'], aspectRatios: GROK_RATIOS,
+    referenceImages: 3, imageCount: { min: 1, max: 10 },
+  } },
+  'grok-imagine-image-2.0': { provider: 'xai', capabilities: {
+    ...GEMINI_CAPABILITIES, resolutions: ['auto', '1K', '2K'], aspectRatios: GROK_RATIOS,
+    qualities: ['auto', 'low', 'medium'], referenceImages: 5, imageCount: { min: 1, max: 10 },
+  } },
+}
+CAPABILITY_PROFILES['gpt-image-1.5'] = CAPABILITY_PROFILES['gpt-image-1']
+CAPABILITY_PROFILES['gpt-image-1-mini'] = CAPABILITY_PROFILES['gpt-image-1']
+CAPABILITY_PROFILES['grok-imagine-image-pro'] = CAPABILITY_PROFILES['grok-imagine-image']
+
+function inferModelProfile(id: string): ImageModelProfile {
+  const model = id.replace(/^models\//, '').toLowerCase()
+  // A version/snapshot/size boundary prevents 2.60 or arbitrary suffixes matching 2.6.
+  for (const profile of Object.keys(CAPABILITY_PROFILES).sort((a, b) => b.length - a.length)) {
+    const escaped = profile.replace(/\./g, '\\.')
+    const family = profile === 'gpt-image-2.5' || profile === 'gpt-image-2.6' ? escaped + '(?:-(?:flare|sunburst))?' : escaped
+    const suffix = profile.startsWith('gpt-')
+      ? '(?:-\\d{4}-\\d{2}-\\d{2})?(?:-[124]k)?$'
+      : profile.startsWith('gemini-') ? '(?:-preview)?(?:-\\d{4}-\\d{2}-\\d{2})?$' : '$'
+    if (new RegExp('^' + family + suffix).test(model)) {
+      return { provider: CAPABILITY_PROFILES[profile].provider, profile }
     }
   }
+  return { provider: 'unknown', profile: 'unknown' }
+}
 
-  return [...availableIds].filter((id) => isImageModelId(id) || protocols.has(id)).map((id) => {
-    const preset = IMAGE_MODEL_REGISTRY.find((model) => model.id === id)
-      ?? (id.endsWith('-preview') ? IMAGE_MODEL_REGISTRY.find((model) => `${model.id}-preview` === id) : undefined)
-    const fallback = createFallbackImageModel(id)
-    const base = preset ?? (id === GPT_IMAGE_2_5_LEGACY_MODEL_ID
-      ? { ...fallback, capabilities: GPT_IMAGE_2_5_CAPABILITIES }
-      : fallback)
+function profileCapabilities(profile: ImageModelProfile, api: ImageApiKind): ImageModelCapabilities {
+  const known = CAPABILITY_PROFILES[profile.profile]
+  if (!known || known.provider !== profile.provider) return createFallbackImageModel('').capabilities
+  const capabilities = structuredClone(known.capabilities)
+  if (profile.transport === 'bridge') {
+    // Existing Responses bridging supports raster parameters, not every new Images field.
+    capabilities.complexities = []
+  }
+  if (api === 'openai' && profile.provider === 'google') {
+    // Third-party Images compatibility does not advertise Google's 512/ultrawide native fields.
+    capabilities.resolutions = capabilities.resolutions.filter((tier) => tier !== '0.5K')
+    capabilities.aspectRatios = capabilities.aspectRatios.filter((ratio) => {
+      const [w, h] = ratio.split(':').map(Number)
+      return w / h <= 3 && h / w <= 3
+    })
+  }
+  return capabilities
+}
+
+function commonCapabilities(profiles: ImageModelProfile[], api: ImageApiKind): ImageModelCapabilities {
+  // Images providers can use incompatible JSON fields for the same concept.
+  // Without one shared adapter, only their minimal generation request is safe.
+  if (new Set(profiles.map((profile) => profile.provider)).size > 1) return createFallbackImageModel('').capabilities
+  const caps = profiles.map((profile) => profileCapabilities(profile, api))
+  const common = structuredClone(caps[0])
+  const arrays = ['resolutions', 'aspectRatios', 'qualities', 'outputFormats', 'moderation', 'complexities'] as const
+  for (const key of arrays) {
+    const values = (common[key] ?? []).filter((value) => caps.every((cap) => (cap[key] as readonly string[] | undefined)?.includes(value)))
+    ;(common as unknown as Record<string, unknown>)[key] = values
+  }
+  for (const key of ['customSize', 'outputCompression', 'mask', 'transparentOutput', 'nativeTransparentOutput', 'streamingGeneration', 'streamingEdit'] as const) {
+    common[key] = caps.every((cap) => cap[key])
+  }
+  common.imageCount = { min: Math.max(...caps.map((cap) => cap.imageCount.min)), max: Math.min(...caps.map((cap) => cap.imageCount.max)) }
+  common.referenceImages = Math.min(...caps.map((cap) => cap.referenceImages))
+  common.maxPartialImages = Math.min(...caps.map((cap) => cap.maxPartialImages)) as 0 | 1 | 2 | 3
+  if (!common.resolutions.length) common.resolutions = ['auto']
+  if (!common.aspectRatios.length) common.aspectRatios = ['1:1']
+  if (caps.some((cap) => cap.fixedSizes)) {
+    common.fixedSizes = caps.find((cap) => cap.fixedSizes)?.fixedSizes?.filter((size) => caps.every((cap) => !cap.fixedSizes || cap.fixedSizes.includes(size)))
+  }
+  return common
+}
+
+/** Model membership and names come only from the response; profiles supply controls. */
+export function createImageModelCatalogFromModelList(payload: unknown): ImageModelDefinition[] {
+  const availableIds = getAvailableModelIds(payload)
+  const items = extractModelItems(payload) ?? []
+  const metadata = new Map<string, Record<string, unknown>>()
+  for (const item of items) {
+    if (isRecord(item) && typeof item.id === 'string') metadata.set(item.id.trim(), item)
+  }
+  return [...availableIds].filter((id) => isImageModelId(id) || inferModelProfile(id).provider !== 'unknown' || metadata.get(id)?.api === 'openai' || metadata.get(id)?.api === 'gemini').map((id) => {
+    const item = metadata.get(id)
+    const api: ImageApiKind = item?.api === 'gemini' || item?.api === 'openai' ? item.api : /^gemini-/i.test(id) ? 'gemini' : 'openai'
+    // Explicit unknown metadata is authoritative; a public alias must not override it.
+    const profiles: ImageModelProfile[] = Array.isArray(item?.profiles) && item.profiles.length
+      ? item.profiles.map((entry: unknown) => {
+        if (!isRecord(entry) || !['openai', 'google', 'xai', 'unknown'].includes(String(entry.provider)) || typeof entry.profile !== 'string') {
+          return { provider: 'unknown', profile: 'unknown' }
+        }
+        return { provider: entry.provider as ImageModelProvider, profile: entry.profile, ...(entry.transport === 'bridge' ? { transport: 'bridge' as const } : {}) }
+      })
+      : [inferModelProfile(id)]
+    const providers = new Set(profiles.map((profile) => profile.provider))
+    const provider: ImageModelProvider = providers.size === 1 ? profiles[0].provider : 'unknown'
+    const capabilities = commonCapabilities(profiles, api)
+    const known = profiles.every((profile) => CAPABILITY_PROFILES[profile.profile]?.provider === profile.provider)
     return {
-      ...base,
-      id,
-      name: id,
-      api: protocols.get(id) ?? base.api,
-      requestModels: Object.fromEntries(base.capabilities.resolutions.map((tier) => [tier, id])) as ImageModelDefinition['requestModels'],
-      capabilities: { ...base.capabilities },
-      defaults: { ...base.defaults },
+      id, name: id, api, provider, profiles,
+      capabilityStatus: !known ? 'unknown' as const : new Set(profiles.map((profile) => profile.profile + (profile.transport ?? ''))).size > 1 ? 'mixed' as const : 'known' as const,
+      requestModels: Object.fromEntries(capabilities.resolutions.map((tier) => [tier, id])) as ImageModelDefinition['requestModels'],
+      capabilities,
+      defaults: { ...DEFAULTS },
     }
   })
 }
 
 export function getImageModel(modelId: string, catalog?: readonly ImageModelDefinition[]) {
   const id = modelId.trim()
-  const source = catalog ?? IMAGE_MODEL_REGISTRY
-  return source.find((model) => model.id === id || Object.values(model.requestModels).includes(id)) ?? null
+  if (catalog) return catalog.find((model) => model.id === id || Object.values(model.requestModels).includes(id)) ?? null
+  if (inferModelProfile(id).provider === 'unknown') return null
+  return createImageModelCatalogFromModelList({ data: [{ id }] })[0] ?? null
 }
 
 export function migrateLegacyImageModelId(modelId: string) {

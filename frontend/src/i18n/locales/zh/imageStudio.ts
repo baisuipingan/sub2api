@@ -184,6 +184,13 @@ imageStudio: {
   },
   params: {
     title: '画面设置',
+    providers: { openai: 'OpenAI 画面设置', google: 'Gemini 画面设置', xai: 'Grok 画面设置' },
+    unknownCapabilities: '暂未确认此模型的可选参数，将使用上游默认设置。',
+    sharedCapabilities: '此模型由多种渠道承接，仅显示它们共同支持的参数。',
+    complexity: '画面规划复杂度',
+    complexityHint: '控制构图前的规划程度，与生成质量独立；较高复杂度可能增加耗时。',
+    complexityOptions: { auto: '默认', low: '低', medium: '中', high: '高' },
+    nativeSizeSummary: '{resolution} · 比例 {ratio}',
     resolution: '清晰度',
     default: '默认',
     defaultResolution: '默认清晰度',

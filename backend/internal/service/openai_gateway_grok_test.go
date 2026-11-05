@@ -1148,7 +1148,7 @@ func TestPrepareGrokImageEditNormalizesOfficialImageObjects(t *testing.T) {
 		"mask":{"image_url":"https://example.com/mask.png"}
 	}`)
 
-	out, contentType, err := prepareGrokMediaForwardBody(GrokMediaEndpointImagesEdits, body, "application/json")
+	out, contentType, err := prepareGrokMediaForwardBody(GrokMediaEndpointImagesEdits, body, "application/json", "grok-imagine-image-quality")
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
 	for _, path := range []string{"image", "images.0", "mask"} {
@@ -1161,7 +1161,7 @@ func TestPrepareGrokImageEditNormalizesOfficialImageObjects(t *testing.T) {
 func TestPrepareGrokImageEditRejectsMoreThanThreeSources(t *testing.T) {
 	body := []byte(`{"images":["https://example.com/1.png","https://example.com/2.png","https://example.com/3.png","https://example.com/4.png"]}`)
 
-	out, _, err := prepareGrokMediaForwardBody(GrokMediaEndpointImagesEdits, body, "application/json")
+	out, _, err := prepareGrokMediaForwardBody(GrokMediaEndpointImagesEdits, body, "application/json", "")
 	require.Error(t, err)
 	require.Nil(t, out)
 	require.Contains(t, err.Error(), "maximum of 3 source images")

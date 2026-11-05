@@ -1,9 +1,31 @@
 import { DEFAULT_PARAMS, type AppSettings, type TaskParams } from '../types'
 import type { ImageModelDefinition } from './modelRegistry'
 import { getImageModel, getModelResolution } from './modelRegistry'
-import { calculateImageSize, GPT_IMAGE_MIN_PIXELS, normalizeImageSize } from './size'
+import { calculateImageSize, GPT_IMAGE_MIN_PIXELS, normalizeImageSize, parseRatio } from './size'
 
-export const MAX_OUTPUT_IMAGES = 5
+export const MAX_OUTPUT_IMAGES = 10
+
+export function usesNativeGeometry(model: ImageModelDefinition | null | undefined) {
+  return model?.api === 'gemini' || model?.provider === 'xai'
+}
+
+export function closestSupportedRatio(size: string, ratios: readonly string[]) {
+  const dimensions = parseRatio(size)
+  if (!dimensions) return undefined
+  const ratio = dimensions.width / dimensions.height
+  const nearest = ratios.map((value) => {
+    const parsed = parseRatio(value)
+    return { value, delta: parsed ? Math.abs(Math.log(ratio / (parsed.width / parsed.height))) : Infinity }
+  }).sort((a, b) => a.delta - b.delta)[0]
+  return nearest && nearest.delta < 0.02 ? nearest.value : undefined
+}
+
+export function parameterImageSize(model: ImageModelDefinition, resolution: TaskParams['resolution'], ratio: string) {
+  const fixed = model.capabilities.fixedSizes
+  if (fixed?.length) return fixed.find((size) => closestSupportedRatio(size, [ratio])) ?? fixed[0]
+  const tier = resolution === 'auto' || resolution === '0.5K' ? '1K' : resolution
+  return calculateImageSize(tier, ratio, model.capabilities.customSize ? { minPixels: GPT_IMAGE_MIN_PIXELS } : undefined)
+}
 
 export function normalizeParamsForSettings(params: TaskParams, settings: AppSettings, catalog?: readonly ImageModelDefinition[]) {
   const model = getImageModel(settings.selectedModelId, catalog)
@@ -17,18 +39,24 @@ export function normalizeParamsForSettings(params: TaskParams, settings: AppSett
   const supportsGeometry = capabilities?.customSize
     || capabilities?.resolutions.some((tier) => tier !== 'auto')
     || (capabilities?.aspectRatios.length ?? 0) > 1
-  const size = capabilities && !supportsGeometry
-    ? 'auto'
-    : resolution !== 'auto' && (capabilities?.customSize || model?.api === 'openai')
-    ? calculateImageSize(resolution, params.size === 'auto' ? model?.defaults.aspectRatio ?? '1:1' : params.size, { minPixels })
-      ?? calculateImageSize(resolution, model?.defaults.aspectRatio ?? '1:1', { minPixels })
-      ?? normalizedSize
-    : normalizedSize
+  const nativeGeometry = usesNativeGeometry(model)
+  const aspectRatio = nativeGeometry
+    ? capabilities?.aspectRatios.includes(params.aspect_ratio ?? '') ? params.aspect_ratio : params.aspect_ratio === 'auto' ? 'auto' : closestSupportedRatio(params.size, capabilities?.aspectRatios ?? []) ?? 'auto'
+    : undefined
+  let size = normalizedSize
+  if (!nativeGeometry) {
+    if (capabilities && !supportsGeometry) size = 'auto'
+    else if (model && (resolution !== 'auto' || capabilities?.fixedSizes?.length) && (capabilities?.customSize || model.api === 'openai')) {
+      size = params.size === 'auto' && resolution === 'auto' ? 'auto' : parameterImageSize(model, resolution, params.size === 'auto' ? model.defaults.aspectRatio : params.size) ?? normalizedSize
+    }
+  }
   const outputFormat = capabilities?.outputFormats.includes(params.output_format)
     ? params.output_format
     : model?.defaults.outputFormat ?? DEFAULT_PARAMS.output_format
   const next: TaskParams = {
     ...params,
+    aspect_ratio: aspectRatio,
+    complexity: capabilities?.complexities?.includes(params.complexity ?? 'auto') ? params.complexity ?? 'auto' : undefined,
     resolution,
     size,
     n: capabilities
