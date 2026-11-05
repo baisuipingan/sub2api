@@ -175,6 +175,8 @@ imageStudio: {
   },
   modelSelect: {
     ariaLabel: 'Model, {name}',
+    refresh: 'Refresh model list',
+    refreshing: 'Refreshing model list…',
     searchPlaceholder: 'Search available models',
     listAria: 'Available models',
     noMatch: 'No matching models',

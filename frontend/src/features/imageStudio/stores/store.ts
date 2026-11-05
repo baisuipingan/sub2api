@@ -14,7 +14,7 @@ import i18n from '@/i18n'
 import { callImageApi } from '../lib/api'
 import { fetchMiloRouterImageModels } from '../lib/miloRouterApi'
 import { createMiloRouterConfig, readStoredMiloRouterConfig, saveMiloRouterApiKey, stripApiKeysFromSettings } from '../lib/miloRouterConfig'
-import { getImageModel, getModelResolution, getRequestModelId, GPT_IMAGE_2_5_FLARE_MODEL_ID, GPT_IMAGE_2_5_SUNBURST_MODEL_ID, GPT_IMAGE_2_MODEL_ID, migrateLegacyImageModelId, type ImageModelDefinition } from '../lib/modelRegistry'
+import { getImageModel, getModelResolution, getRequestModelId, GPT_IMAGE_2_MODEL_ID, migrateLegacyImageModelId, type ImageModelDefinition } from '../lib/modelRegistry'
 import { getImageModelCapabilities } from '../lib/imageModelCapabilities'
 import { normalizeParamsForSettings, MAX_OUTPUT_IMAGES } from '../lib/paramCompatibility'
 import {
@@ -173,7 +173,9 @@ type StoreBuilder = (
   get: () => AppState,
 ) => AppState
 
-const buildStore: StoreBuilder = (set, get) => ({
+const buildStore: StoreBuilder = (set, get) => {
+  let catalogRequest = 0
+  return ({
         settings: defaultSettings(),
         modelCatalog: [],
         imagePricing: {},
@@ -187,6 +189,7 @@ const buildStore: StoreBuilder = (set, get) => ({
           const next = { ...state.settings.miloRouter, ...patch, baseUrl: state.settings.miloRouter.baseUrl }
           const keyChanged = patch.apiKey !== undefined
             && patch.apiKey.trim() !== state.settings.miloRouter.apiKey.trim()
+          if (keyChanged) catalogRequest += 1
           if (patch.apiKey !== undefined || patch.rememberApiKey !== undefined) {
             saveMiloRouterApiKey(next.apiKey, next.rememberApiKey)
           }
@@ -216,16 +219,15 @@ const buildStore: StoreBuilder = (set, get) => ({
         refreshImageModelCatalog: async () => {
           const apiKey = get().settings.miloRouter.apiKey.trim()
           if (!apiKey) return false
+          const request = ++catalogRequest
           set({ catalogStatus: 'loading', catalogError: undefined })
           try {
             const modelCatalog = await fetchMiloRouterImageModels(apiKey)
-            if (get().settings.miloRouter.apiKey.trim() !== apiKey) return false
+            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey) return false
             set((state) => {
               const selectedModelId = modelCatalog.some((model) => model.id === state.settings.selectedModelId)
                 ? state.settings.selectedModelId
-                : state.settings.selectedModelId === GPT_IMAGE_2_5_FLARE_MODEL_ID
-                  ? modelCatalog.find((model) => model.id === GPT_IMAGE_2_5_SUNBURST_MODEL_ID)?.id ?? modelCatalog[0].id
-                  : modelCatalog[0].id
+                : modelCatalog[0].id
               const settings = { ...state.settings, selectedModelId }
               return {
                 modelCatalog,
@@ -233,11 +235,12 @@ const buildStore: StoreBuilder = (set, get) => ({
                 catalogError: undefined,
                 settings,
                 params: normalizeParamsForSettings(state.params, settings, modelCatalog),
+                maskDraft: modelCatalog.find((model) => model.id === selectedModelId)?.capabilities.mask ? state.maskDraft : null,
               }
             })
             return true
           } catch (error) {
-            if (get().settings.miloRouter.apiKey.trim() !== apiKey) return false
+            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey) return false
             // 不能一律显示「加载失败，请稍后重试」：
             // 余额不足、Key 无效、超时都长这样，用户根本不知道该干嘛。
             // 这里按错误类型给出具体原因，认不出来才退回通用文案。
@@ -391,7 +394,8 @@ const buildStore: StoreBuilder = (set, get) => ({
         showToast: (message, type = 'info') => set({ toast: { message: getToastMessage(message, type), type } }),
         confirmDialog: null,
         setConfirmDialog: (confirmDialog) => set({ confirmDialog }),
-})
+  })
+}
 
 function createImageStudioStore(): AppState {
   return buildStore(
@@ -631,6 +635,7 @@ export async function submitTask() {
       settings: state.settings,
       modelId: requestModelId,
       apiKind: model.api,
+      modelCapabilities: model.capabilities,
       prompt: maskDraft
         ? createMaskConstrainedPrompt(replaceImageMentionsForApi(prompt, orderedInputImages.length))
         : replaceImageMentionsForApi(transparentMeta?.effectivePrompt ?? prompt, orderedInputImages.length),

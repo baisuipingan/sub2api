@@ -234,7 +234,7 @@ function parseCatalogItem(value: unknown): ImageModelDefinition | null {
 
   return {
     id: value.id.trim(),
-    name: value.name.trim(),
+    name: value.id.trim(),
     api: value.api,
     featured: value.featured === true,
     requestModels,
@@ -276,7 +276,7 @@ export function parseImageModelCatalog(payload: unknown) {
       seen.add(item.id)
       return true
     })
-    .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)))
+
 }
 
 /**
@@ -303,7 +303,7 @@ function getAvailableModelIds(payload: unknown) {
   const ids = new Set<string>()
   for (const item of items) {
     if (typeof item === 'string') {
-      const trimmed = item.trim().replace(/^models\//, '')
+      const trimmed = item.trim()
       if (trimmed) ids.add(trimmed)
       continue
     }
@@ -315,7 +315,7 @@ function getAvailableModelIds(payload: unknown) {
         : typeof item.name === 'string'
           ? item.name
           : ''
-    const normalized = raw.trim().replace(/^models\//, '')
+    const normalized = typeof item.id === 'string' ? raw.trim() : raw.trim().replace(/^models\//, '')
     if (normalized) ids.add(normalized)
   }
   return ids
@@ -323,27 +323,10 @@ function getAvailableModelIds(payload: unknown) {
 
 export function filterGeminiImageModelsByNativeModelList(catalog: readonly ImageModelDefinition[], payload: unknown) {
   if (!isRecord(payload) || !Array.isArray(payload.models)) throw new Error(libT('imageStudio.lib.geminiModelListFormatUnsupported'))
-
-  const availableIds = new Set(payload.models.flatMap((item) => {
-    if (!isRecord(item)) return []
-    const modelId = typeof item.name === 'string' ? item.name : typeof item.id === 'string' ? item.id : ''
-    return modelId.trim() ? [modelId.trim().replace(/^models\//, '')] : []
-  }))
-
-  return catalog.flatMap<ImageModelDefinition>((model) => {
-    if (model.api !== 'gemini') return [{ ...model }]
-
-    const requestModel = [...new Set([
-      ...Object.values(model.requestModels),
-      model.id,
-      `${model.id}-preview`,
-    ])].find((modelId) => availableIds.has(modelId))
-    if (!requestModel) return []
-
-    return [{
-      ...model,
-      requestModels: Object.fromEntries(model.capabilities.resolutions.map((tier) => [tier, requestModel])) as ImageModelDefinition['requestModels'],
-    }]
+  const availableIds = getAvailableModelIds(payload)
+  return catalog.map((model) => {
+    if (!model.id.startsWith('gemini-')) return model
+    return { ...model, api: availableIds.has(model.id) ? 'gemini' as const : 'openai' as const }
   })
 }
 
@@ -361,47 +344,12 @@ function isImageModelId(modelId: string) {
   return IMAGE_MODEL_HINT.test(modelId) && !NON_IMAGE_HINT.test(modelId)
 }
 
-/** 把 gpt-image-2-4K 这类分辨率变体归并到基础模型名下 */
-function getBaseModelId(modelId: string) {
-  return modelId.replace(/[-_.](1k|2k|4k|hd)$/i, '')
-}
-
-/**
- * 为「注册表里没有、但分组确实提供」的生图模型生成兜底定义。
- *
- * 能力取最保守的一组：只开放 auto 分辨率、单张、无参考图、无遮罩。
- * 猜错能力的代价是请求被上游拒绝，比少给几个选项严重得多；
- * 等确认该模型的实际能力后，再把它加进 IMAGE_MODEL_REGISTRY 即可获得完整选项。
- */
-/** 已知缩写保持大写，其余首字母大写，如 grok-imagine-image-2.0 → Grok Imagine Image 2.0 */
-const ACRONYMS: Record<string, string> = {
-  gpt: 'GPT',
-  ai: 'AI',
-  hd: 'HD',
-  sdxl: 'SDXL',
-  api: 'API',
-}
-
-function humanizeModelId(modelId: string) {
-  return modelId
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => {
-      const lower = part.toLowerCase()
-      if (ACRONYMS[lower]) return ACRONYMS[lower]
-      // 纯版本号（2.5 / 2）原样保留
-      if (/^[0-9.]+$/.test(part)) return part
-      return part.charAt(0).toUpperCase() + part.slice(1)
-    })
-    .join(' ')
-}
-
 function createFallbackImageModel(modelId: string): ImageModelDefinition {
-  const isGemini = /^(?:gemini|imagen)/i.test(modelId)
+  const isGemini = /^gemini-/i.test(modelId)
 
   return {
     id: modelId,
-    name: humanizeModelId(modelId),
+    name: modelId,
     api: isGemini ? 'gemini' : 'openai',
     requestModels: Object.fromEntries(
       RESOLUTIONS.map((tier) => [tier, modelId]),
@@ -410,10 +358,10 @@ function createFallbackImageModel(modelId: string): ImageModelDefinition {
       resolutions: ['auto'],
       customSize: false,
       aspectRatios: ['1:1'],
-      qualities: ['auto'],
-      outputFormats: ['png'],
+      qualities: [],
+      outputFormats: [],
       outputCompression: false,
-      moderation: ['auto'],
+      moderation: [],
       imageCount: { min: 1, max: 1 },
       referenceImages: 0,
       mask: false,
@@ -427,87 +375,35 @@ function createFallbackImageModel(modelId: string): ImageModelDefinition {
   }
 }
 
-/**
- * 从 /v1/models 的返回构建生图模型列表。
- *
- * 与原实现的区别：不再「只遍历写死的注册表」，而是以分组真实提供的模型为准 ——
- * 注册表里有精细配置的沿用配置，没有的按命名补齐并给保守能力。
- * 这样管理员在分组里加了生图模型，工作台不用改代码就能看到。
- */
+/** Model membership and names come only from the response; presets supply controls. */
 export function createImageModelCatalogFromModelList(payload: unknown) {
   const availableIds = getAvailableModelIds(payload)
-  const findAvailable = (candidates: string[]) => candidates.find((id) => availableIds.has(id))
-  const consumed = new Set<string>()
-  const catalog: ImageModelDefinition[] = []
-
-  const consume = (model: ImageModelDefinition) => {
-    for (const id of Object.values(model.requestModels)) consumed.add(id)
-    consumed.add(model.id)
-  }
-
-  // ① 先处理注册表里的已知模型，保留它们精细的能力配置
-  for (const model of IMAGE_MODEL_REGISTRY) {
-    if (model.id === GPT_IMAGE_2_MODEL_ID) {
-      // 所有尺寸使用公开基础名，交给官方尺寸调度和账号模型映射。
-      const base = findAvailable(['gpt-image-2'])
-      if (!base) continue
-
-      const requestModels: ImageModelDefinition['requestModels'] = {
-        auto: base,
-        '1K': base,
-        '2K': base,
-        '4K': base,
-      }
-      const built: ImageModelDefinition = {
-        ...model,
-        requestModels,
-        defaults: { ...model.defaults, resolution: 'auto' },
-        capabilities: {
-          ...model.capabilities,
-          resolutions: RESOLUTIONS.filter((tier) => Boolean(requestModels[tier])),
-        },
-      }
-      consume(built)
-      catalog.push(built)
-      continue
+  const items = extractModelItems(payload) ?? []
+  const protocols = new Map<string, 'openai' | 'gemini'>()
+  for (const item of items) {
+    if (!isRecord(item) || typeof item.id !== 'string') continue
+    if (item.api === 'openai' || item.api === 'gemini') {
+      protocols.set(item.id.trim(), item.api)
     }
+  }
 
-    const candidates = model.id === GPT_IMAGE_2_5_FLARE_MODEL_ID || model.id === GPT_IMAGE_2_5_SUNBURST_MODEL_ID
-      ? [model.id]
-      : [model.id, `${model.id}-preview`]
-    const requestModel = findAvailable(candidates)
-    if (!requestModel) continue
-
-    const built: ImageModelDefinition = {
-      ...model,
-      requestModels: Object.fromEntries(
-        RESOLUTIONS.map((tier) => [tier, requestModel]),
-      ) as ImageModelDefinition['requestModels'],
+  return [...availableIds].filter((id) => isImageModelId(id) || protocols.has(id)).map((id) => {
+    const preset = IMAGE_MODEL_REGISTRY.find((model) => model.id === id)
+      ?? (id.endsWith('-preview') ? IMAGE_MODEL_REGISTRY.find((model) => `${model.id}-preview` === id) : undefined)
+    const fallback = createFallbackImageModel(id)
+    const base = preset ?? (id === GPT_IMAGE_2_5_LEGACY_MODEL_ID
+      ? { ...fallback, capabilities: GPT_IMAGE_2_5_CAPABILITIES }
+      : fallback)
+    return {
+      ...base,
+      id,
+      name: id,
+      api: protocols.get(id) ?? base.api,
+      requestModels: Object.fromEntries(base.capabilities.resolutions.map((tier) => [tier, id])) as ImageModelDefinition['requestModels'],
+      capabilities: { ...base.capabilities },
+      defaults: { ...base.defaults },
     }
-    consume(built)
-    catalog.push(built)
-  }
-
-  // ② 补齐注册表未收录、但分组确实提供的生图模型
-  const extras = new Set<string>()
-  for (const modelId of availableIds) {
-    if (consumed.has(modelId)) continue
-    if (!isImageModelId(modelId)) continue
-
-    const baseId = getBaseModelId(modelId)
-    // 分辨率变体已在①里并进基础模型；这里只收基础模型本身
-    if (baseId !== modelId) {
-      consumed.add(modelId)
-      continue
-    }
-    extras.add(modelId)
-  }
-
-  for (const modelId of Array.from(extras).sort()) {
-    catalog.push(createFallbackImageModel(modelId))
-  }
-
-  return catalog
+  })
 }
 
 export function getImageModel(modelId: string, catalog?: readonly ImageModelDefinition[]) {
@@ -517,7 +413,7 @@ export function getImageModel(modelId: string, catalog?: readonly ImageModelDefi
 }
 
 export function migrateLegacyImageModelId(modelId: string) {
-  return modelId.trim() === GPT_IMAGE_2_5_LEGACY_MODEL_ID ? GPT_IMAGE_2_5_FLARE_MODEL_ID : modelId.trim()
+  return modelId.trim()
 }
 
 export function getModelResolution(_model: ImageModelDefinition | null, size: string, resolution?: ImageResolutionTier): ImageResolutionTier {

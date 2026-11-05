@@ -14,8 +14,12 @@ export function normalizeParamsForSettings(params: TaskParams, settings: AppSett
   const resolution = capabilities?.resolutions.includes(requestedResolution)
     ? requestedResolution
     : model?.defaults.resolution ?? requestedResolution
-  const size = capabilities?.customSize
-    && resolution !== 'auto'
+  const supportsGeometry = capabilities?.customSize
+    || capabilities?.resolutions.some((tier) => tier !== 'auto')
+    || (capabilities?.aspectRatios.length ?? 0) > 1
+  const size = capabilities && !supportsGeometry
+    ? 'auto'
+    : resolution !== 'auto' && (capabilities?.customSize || model?.api === 'openai')
     ? calculateImageSize(resolution, params.size === 'auto' ? model?.defaults.aspectRatio ?? '1:1' : params.size, { minPixels })
       ?? calculateImageSize(resolution, model?.defaults.aspectRatio ?? '1:1', { minPixels })
       ?? normalizedSize

@@ -171,8 +171,9 @@ func ProvideImageStudioHandler(
 	settingService *service.SettingService,
 	groupService *service.GroupService,
 	pricingService *service.ImageStudioPricingService,
+	gatewayService *service.GatewayService,
 ) *ImageStudioHandler {
-	return NewImageStudioHandler(apiKeyService, settingService, groupService, pricingService)
+	return NewImageStudioHandler(apiKeyService, settingService, groupService, pricingService, gatewayService)
 }
 
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService

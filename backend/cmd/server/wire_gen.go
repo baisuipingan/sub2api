@@ -332,7 +332,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	batchImageHandler := handler.ProvideBatchImageHandler(batchImagePublicService, batchImageDownloadService, batchImageCleanupService, openAIGatewayHandler)
 	groupService := service.NewGroupService(groupRepository, apiKeyAuthCacheInvalidator)
 	imageStudioPricingService := service.NewImageStudioPricingService(billingService, modelPricingResolver, userGroupRateRepository)
-	imageStudioHandler := handler.ProvideImageStudioHandler(apiKeyService, settingService, groupService, imageStudioPricingService)
+	imageStudioHandler := handler.ProvideImageStudioHandler(apiKeyService, settingService, groupService, imageStudioPricingService, gatewayService)
 	idempotencyCleanupService := service.ProvideIdempotencyCleanupService(idempotencyRepository, configConfig)
 	openAIQuotaAutoResetService := service.ProvideOpenAIQuotaAutoResetService(accountRepository, openAIQuotaService, rateLimitService, idempotencyCoordinator, auditLogService, settingService, leaderLockCache)
 	handlers := handler.ProvideHandlers(authHandler, userHandler, apiKeyHandler, usageHandler, redeemHandler, subscriptionHandler, announcementHandler, ticketHandler, channelMonitorUserHandler, channelMonitorV2Handler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, passkeyHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, modelPlazaHandler, asyncImageHandler, batchImageHandler, imageStudioHandler, idempotencyCoordinator, idempotencyCleanupService, openAIQuotaAutoResetService)

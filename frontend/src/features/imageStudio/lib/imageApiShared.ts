@@ -1,5 +1,6 @@
 import { libT } from './i18nMessage'
 import type { AppSettings, ImageApiKind, ImageApiResponse, TaskParams } from '../types'
+import type { ImageModelCapabilities } from './modelRegistry'
 import { blobToDataUrl } from './dataUrl'
 
 export const MIME_MAP: Record<string, string> = {
@@ -15,6 +16,7 @@ export interface CallApiOptions {
   settings: AppSettings
   modelId?: string
   apiKind?: ImageApiKind
+  modelCapabilities?: ImageModelCapabilities
   prompt: string
   params: TaskParams
   inputImageDataUrls: string[]

@@ -4,6 +4,8 @@ import {
   getRequestModelId,
   IMAGE_MODEL_REGISTRY,
   parseImageModelCatalog,
+  filterGeminiImageModelsByNativeModelList,
+  migrateLegacyImageModelId,
   type ImageModelDefinition,
   type ImageResolutionTier,
 } from '../modelRegistry'
@@ -87,9 +89,10 @@ describe('createImageModelCatalogFromModelList', () => {
   it('列出分组里的全部生图模型', () => {
     expect(ids).toEqual([
       'gpt-image-2',
+      'gpt-image-2-4K',
+      'gpt-image-2.5',
       'gpt-image-2.5-flare',
       'gpt-image-2.5-sunburst',
-      'gpt-image-2.5',
       'grok-imagine-image',
       'grok-imagine-image-2.0',
     ])
@@ -102,8 +105,11 @@ describe('createImageModelCatalogFromModelList', () => {
     expect(ids).not.toContain('grok-4.6')
   })
 
-  it('不把 -4K 变体当成独立模型，而是并入基础模型', () => {
-    expect(ids).not.toContain('gpt-image-2-4K')
+  it('保留接口明确返回的尺寸后缀，不把实际型号合并或改名', () => {
+    expect(ids).toContain('gpt-image-2-4K')
+    const variant = catalog.find((model) => model.id === 'gpt-image-2-4K')!
+    expect(variant.name).toBe('gpt-image-2-4K')
+    expect(getRequestModelId(variant, 'auto')).toBe('gpt-image-2-4K')
 
     const base = catalog.find((m) => m.id === 'gpt-image-2')!
     // 客户端通过 size 表达档位，公开模型名保持一致。
@@ -135,14 +141,17 @@ describe('createImageModelCatalogFromModelList', () => {
     expect(fallback.capabilities.imageCount.max).toBe(1)
     expect(fallback.capabilities.referenceImages).toBe(0)
     expect(fallback.capabilities.mask).toBe(false)
-    // 名称要做成可读形式，不能直接回显 id
-    expect(fallback.name).toBe('Grok Imagine Image')
+    expect(fallback.name).toBe('grok-imagine-image')
+    expect(fallback.capabilities.qualities).toEqual([])
+    expect(fallback.capabilities.outputFormats).toEqual([])
   })
 
-  it('gpt-image-2.5 这类未收录模型仍按 openai 兼容接口调用', () => {
+  it('gpt-image-2.5 保留原始型号与 GPT 参数，不改成 flare', () => {
     const model = catalog.find((m) => m.id === 'gpt-image-2.5')!
     expect(model.api).toBe('openai')
-    expect(model.name).toBe('GPT Image 2.5')
+    expect(model.name).toBe('gpt-image-2.5')
+    expect(model.capabilities.resolutions).toContain('4K')
+    expect(migrateLegacyImageModelId('gpt-image-2.5')).toBe('gpt-image-2.5')
   })
 
   it('分组没有生图模型时返回空列表', () => {
@@ -153,5 +162,59 @@ describe('createImageModelCatalogFromModelList', () => {
     const alt = { models: [{ name: 'models/gpt-image-2' }] }
     const result = createImageModelCatalogFromModelList(alt)
     expect(result.map((m) => m.id)).toContain('gpt-image-2')
+  })
+})
+
+
+describe('server model IDs and protocol metadata', () => {
+  it('仅两个公开型号时不补入任何预定义型号', () => {
+    const models = createImageModelCatalogFromModelList(payloadOf(['gpt-image-2', 'gpt-image-2.5']))
+    expect(models.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'gpt-image-2', name: 'gpt-image-2' },
+      { id: 'gpt-image-2.5', name: 'gpt-image-2.5' },
+    ])
+  })
+
+  it('保留 preview 实际名称，不替换成注册表基础名称', () => {
+    const [model] = createImageModelCatalogFromModelList(payloadOf(['gemini-3-pro-image-preview']))
+    expect(model.id).toBe('gemini-3-pro-image-preview')
+    expect(model.name).toBe(model.id)
+    expect(getRequestModelId(model, 'auto', '2K')).toBe(model.id)
+  })
+
+  it('显式协议元数据允许公开别名，并保留兼容 Images 协议', () => {
+    const models = createImageModelCatalogFromModelList({ models: [
+      { id: 'public-banana', api: 'gemini' },
+      { id: 'gemini-3.1-flash-image', api: 'openai' },
+    ] })
+    expect(models.map(({ id, name, api }) => ({ id, name, api }))).toEqual([
+      { id: 'public-banana', name: 'public-banana', api: 'gemini' },
+      { id: 'gemini-3.1-flash-image', name: 'gemini-3.1-flash-image', api: 'openai' },
+    ])
+  })
+
+  it('原生探测只确认精确名称，未命中的 Gemini 保留并走兼容 Images', () => {
+    const models = createImageModelCatalogFromModelList(payloadOf(['gemini-3-pro-image', 'gemini-3-pro-image-preview']))
+    const resolved = filterGeminiImageModelsByNativeModelList(models, { models: [{ name: 'models/gemini-3-pro-image-preview' }] })
+    expect(resolved.map(({ id, api }) => ({ id, api }))).toEqual([
+      { id: 'gemini-3-pro-image', api: 'openai' },
+      { id: 'gemini-3-pro-image-preview', api: 'gemini' },
+    ])
+    expect(getRequestModelId(resolved[0], 'auto')).toBe('gemini-3-pro-image')
+  })
+
+  it('详细目录也直接使用原始 id 展示', () => {
+    const model = IMAGE_MODEL_REGISTRY.find(({ id }) => id === 'gpt-image-2')!
+    const [parsed] = parseImageModelCatalog({ version: 1, data: [{ ...model, name: 'Predefined marketing name' }] })
+    expect(parsed.name).toBe('gpt-image-2')
+  })
+
+  it('公开 id 的 models/ 前缀保持原样，仅 Gemini name 资源字段移除资源前缀', () => {
+    const [publicModel] = createImageModelCatalogFromModelList({ models: [{ id: 'models/custom-image', api: 'openai' }] })
+    expect(publicModel.id).toBe('models/custom-image')
+    expect(publicModel.name).toBe('models/custom-image')
+    expect(getRequestModelId(publicModel, 'auto')).toBe('models/custom-image')
+    const [nativeModel] = createImageModelCatalogFromModelList({ models: [{ name: 'models/gemini-3-pro-image' }] })
+    expect(nativeModel.id).toBe('gemini-3-pro-image')
   })
 })

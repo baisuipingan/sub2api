@@ -21,6 +21,7 @@ type ImageStudioHandler struct {
 	settingService *service.SettingService
 	groupService   *service.GroupService
 	pricingService *service.ImageStudioPricingService
+	gatewayService *service.GatewayService
 }
 
 // NewImageStudioHandler 构造生图工作台 handler。
@@ -29,13 +30,35 @@ func NewImageStudioHandler(
 	settingService *service.SettingService,
 	groupService *service.GroupService,
 	pricingService *service.ImageStudioPricingService,
+	gatewayService *service.GatewayService,
 ) *ImageStudioHandler {
 	return &ImageStudioHandler{
 		apiKeyService:  apiKeyService,
 		settingService: settingService,
 		groupService:   groupService,
 		pricingService: pricingService,
+		gatewayService: gatewayService,
 	}
+}
+
+// GetModels lists public image models backed by an enabled account in the studio group.
+// GET /api/v1/image-studio/models
+func (h *ImageStudioHandler) GetModels(c *gin.Context) {
+	if _, ok := middleware.GetAuthSubjectFromContext(c); !ok {
+		response.Error(c, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	group, ok := h.resolveStudioGroup(c)
+	if !ok {
+		return
+	}
+	models, err := h.gatewayService.ListImageStudioModels(c.Request.Context(), group)
+	if err != nil {
+		response.Error(c, http.StatusServiceUnavailable, "failed to load image models")
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	response.Success(c, gin.H{"models": models})
 }
 
 // GetKey 返回当前用户的生图工作台专用密钥（不存在则创建）。
@@ -154,7 +177,7 @@ func (h *ImageStudioHandler) resolveStudioGroup(c *gin.Context) (*service.Group,
 
 	// 分组必须存在，否则请求会在网关阶段失败
 	group, err := h.groupService.GetByID(c.Request.Context(), settings.ImageStudioGroupID)
-	if err != nil || group == nil {
+	if err != nil || group == nil || group.Status != service.StatusActive {
 		response.Error(c, http.StatusServiceUnavailable, "configured image studio group is not available")
 		return nil, false
 	}

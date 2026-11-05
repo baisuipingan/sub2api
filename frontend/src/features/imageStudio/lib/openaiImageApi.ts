@@ -16,6 +16,7 @@ import {
   type ImageGenerateResult,
 } from './imageApiShared'
 import { MILO_ROUTER_BASE_URL } from './miloRouterConfig'
+import { getImageModel } from './modelRegistry'
 
 function buildUrl(path: string) {
   return `${MILO_ROUTER_BASE_URL}/v1/${path}`
@@ -26,13 +27,23 @@ function appendFormValue(form: FormData, key: string, value: string | number | b
   form.append(key, String(value))
 }
 
-function appendParams(form: FormData, params: TaskParams) {
-  appendFormValue(form, 'size', params.size === 'auto' ? undefined : params.size)
-  appendFormValue(form, 'quality', params.quality)
-  appendFormValue(form, 'output_format', params.output_format)
-  appendFormValue(form, 'output_compression', params.output_compression)
-  appendFormValue(form, 'moderation', params.moderation)
-  appendFormValue(form, 'n', params.n)
+function imageRequestParams(opts: CallApiOptions, modelId: string) {
+  const { params } = opts
+  const capabilities = opts.modelCapabilities ?? getImageModel(modelId)?.capabilities
+  const supportsGeometry = !capabilities || capabilities.customSize
+    || capabilities.resolutions.some((tier) => tier !== 'auto') || capabilities.aspectRatios.length > 1
+  return {
+    ...(supportsGeometry && params.size !== 'auto' ? { size: params.size } : {}),
+    ...(capabilities?.qualities.includes(params.quality) ? { quality: params.quality } : {}),
+    ...(capabilities?.outputFormats.includes(params.output_format) ? { output_format: params.output_format } : {}),
+    ...(capabilities?.outputCompression && params.output_compression != null ? { output_compression: params.output_compression } : {}),
+    ...(capabilities?.moderation.includes(params.moderation) ? { moderation: params.moderation } : {}),
+    n: params.n,
+  }
+}
+
+function appendParams(form: FormData, opts: CallApiOptions, modelId: string) {
+  for (const [key, value] of Object.entries(imageRequestParams(opts, modelId))) appendFormValue(form, key, value)
 }
 
 function appendStreamingParams(form: FormData, params: TaskParams, stream: boolean) {
@@ -49,17 +60,13 @@ function appendBackgroundParam(form: FormData, params: TaskParams, nativeTranspa
   if (shouldRequestTransparentBackground(params, nativeTransparentOutput, hasMask)) appendFormValue(form, 'background', 'transparent')
 }
 
-function buildJsonBody(modelId: string, prompt: string, params: TaskParams, nativeTransparentOutput: boolean, stream: boolean) {
+function buildJsonBody(modelId: string, opts: CallApiOptions, stream: boolean) {
+  const { params } = opts
   return {
     model: modelId,
-    prompt,
-    ...(params.size !== 'auto' ? { size: params.size } : {}),
-    quality: params.quality,
-    output_format: params.output_format,
-    ...(params.output_compression != null ? { output_compression: params.output_compression } : {}),
-    moderation: params.moderation,
-    n: params.n,
-    ...(nativeTransparentOutput && params.transparent_output ? { background: 'transparent' } : {}),
+    prompt: opts.prompt,
+    ...imageRequestParams(opts, modelId),
+    ...(opts.nativeTransparentOutput && params.transparent_output ? { background: 'transparent' } : {}),
     ...(stream ? { stream: true, partial_images: params.partial_images } : {}),
   }
 }
@@ -216,7 +223,7 @@ export async function callOpenAIImageApi(opts: CallApiOptions): Promise<ImageGen
       const form = new FormData()
       appendFormValue(form, 'model', modelId)
       appendFormValue(form, 'prompt', opts.prompt)
-      appendParams(form, opts.params)
+      appendParams(form, opts, modelId)
       appendBackgroundParam(form, opts.params, opts.nativeTransparentOutput === true, Boolean(opts.maskDataUrl))
       appendStreamingParams(form, opts.params, stream)
 
@@ -230,7 +237,7 @@ export async function callOpenAIImageApi(opts: CallApiOptions): Promise<ImageGen
       body = form
     } else {
       headers = { ...headers, 'Content-Type': 'application/json' }
-      body = JSON.stringify(buildJsonBody(modelId, opts.prompt, opts.params, opts.nativeTransparentOutput === true, stream))
+      body = JSON.stringify(buildJsonBody(modelId, opts, stream))
     }
 
     const response = await fetch(buildUrl(isEdit ? 'images/edits' : 'images/generations'), {

@@ -175,6 +175,8 @@ imageStudio: {
   },
   modelSelect: {
     ariaLabel: '模型，{name}',
+    refresh: '刷新模型列表',
+    refreshing: '正在刷新模型列表…',
     searchPlaceholder: '搜索可用模型',
     listAria: '可用模型',
     noMatch: '没有匹配的模型',

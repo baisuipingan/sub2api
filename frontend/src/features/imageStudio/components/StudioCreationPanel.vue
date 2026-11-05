@@ -29,7 +29,10 @@
           :selected-model-id="state.settings.selectedModelId"
           :disabled="state.catalogStatus !== 'ready' || !state.modelCatalog.length"
           :placeholder="modelPlaceholder"
+          :refreshing="state.catalogStatus === 'loading'"
+          :refresh-disabled="!state.settings.miloRouter.apiKey.trim()"
           @change="state.selectModel"
+          @refresh="state.refreshImageModelCatalog()"
         />
       </div>
 
