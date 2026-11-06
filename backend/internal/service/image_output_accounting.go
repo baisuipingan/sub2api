@@ -9,18 +9,23 @@ import (
 )
 
 type openAIImageOutputCounter struct {
-	seen         map[string]struct{}
-	seenSizes    map[string]string
+	seen         map[string]openAIImageOutput
 	seenOrder    []string
-	dataSizes    []string
+	dataOutputs  []openAIImageOutput
 	count        int
 	maxDataCount int
 }
 
+type openAIImageOutput struct {
+	key        string
+	payloadKey string
+	size       string
+	sizeRank   uint8
+}
+
 func newOpenAIImageOutputCounter() *openAIImageOutputCounter {
 	return &openAIImageOutputCounter{
-		seen:      make(map[string]struct{}),
-		seenSizes: make(map[string]string),
+		seen: make(map[string]openAIImageOutput),
 	}
 }
 
@@ -38,14 +43,35 @@ func (c *openAIImageOutputCounter) Sizes() []string {
 	if c == nil {
 		return nil
 	}
-	sizes := make([]string, 0, len(c.seenOrder)+len(c.dataSizes))
+	sizes := make([]string, 0, c.Count())
+	matched := make([]bool, len(c.dataOutputs))
 	for _, key := range c.seenOrder {
-		if size := strings.TrimSpace(c.seenSizes[key]); size != "" {
-			sizes = append(sizes, size)
+		output := c.seen[key]
+		for index, dataOutput := range c.dataOutputs {
+			if !matched[index] && sameOpenAIImageOutput(output, dataOutput) {
+				matched[index] = true
+				output = mergeOpenAIImageOutputSize(output, dataOutput)
+				break
+			}
+		}
+		if output.size != "" {
+			sizes = append(sizes, output.size)
 		}
 	}
-	if len(sizes) == 0 && len(c.dataSizes) > 0 {
-		sizes = append(sizes, c.dataSizes...)
+	// data and output may repeat images in different orders. Merge only proven
+	// identities; preserve the existing max-count rule for any extra slots.
+	remaining := c.Count() - len(c.seenOrder)
+	for index, output := range c.dataOutputs {
+		if remaining == 0 {
+			break
+		}
+		if matched[index] {
+			continue
+		}
+		remaining--
+		if output.size != "" {
+			sizes = append(sizes, output.size)
+		}
 	}
 	if len(sizes) == 0 {
 		return nil
@@ -57,9 +83,9 @@ func (c *openAIImageOutputCounter) AddJSONResponse(body []byte) {
 	if c == nil || len(body) == 0 || !gjson.ValidBytes(body) {
 		return
 	}
-	c.addDataArray(gjson.GetBytes(body, "data"))
-	c.addOutputArray(gjson.GetBytes(body, "output"))
-	c.addOutputArray(gjson.GetBytes(body, "response.output"))
+	c.addDataArray(gjson.GetBytes(body, "data"), gjson.GetBytes(body, "size").String())
+	c.addOutputArray(gjson.GetBytes(body, "output"), gjson.GetBytes(body, "size").String())
+	c.addOutputArray(gjson.GetBytes(body, "response.output"), gjson.GetBytes(body, "response.size").String())
 }
 
 func (c *openAIImageOutputCounter) AddSSEData(data []byte) {
@@ -67,23 +93,23 @@ func (c *openAIImageOutputCounter) AddSSEData(data []byte) {
 		return
 	}
 	root := gjson.ParseBytes(data)
-	c.addDataArray(root.Get("data"))
+	c.addDataArray(root.Get("data"), root.Get("size").String())
 	eventType := strings.TrimSpace(root.Get("type").String())
 	switch eventType {
 	case "response.output_item.done":
-		c.addImageOutputItem(root.Get("item"))
+		c.addImageOutputItem(root.Get("item"), root.Get("size").String())
 	case "response.completed", "response.done":
-		c.addOutputArray(root.Get("response.output"))
+		c.addOutputArray(root.Get("response.output"), root.Get("response.size").String())
 	case "image_generation.completed", "image_edit.completed":
 		if item := root.Get("item"); item.Exists() {
-			c.addImageOutputItem(item)
+			c.addImageOutputItem(item, root.Get("size").String())
 			return
 		}
 		if output := root.Get("output"); output.Exists() {
-			c.addImageOutputItem(output)
+			c.addImageOutputItem(output, root.Get("size").String())
 			return
 		}
-		c.addImageOutputItem(root)
+		c.addImageOutputItem(root, "")
 	}
 }
 
@@ -94,13 +120,13 @@ func (c *openAIImageOutputCounter) AddSSEBody(body string) {
 	forEachOpenAISSEDataPayload(body, c.AddSSEData)
 }
 
-func (c *openAIImageOutputCounter) addDataArray(data gjson.Result) {
+func (c *openAIImageOutputCounter) addDataArray(data gjson.Result, fallbackSize string) {
 	if !data.IsArray() {
 		return
 	}
 	items := data.Array()
-	imageCount := 0
-	sizes := make([]string, 0, len(items))
+	outputs := make([]openAIImageOutput, 0, len(items))
+	matched := make([]bool, len(c.dataOutputs))
 	for _, item := range items {
 		if !item.IsObject() {
 			continue
@@ -110,30 +136,58 @@ func (c *openAIImageOutputCounter) addDataArray(data gjson.Result) {
 		if !hasImageOutput {
 			continue
 		}
-		imageCount++
-		if size := strings.TrimSpace(item.Get("size").String()); size != "" {
-			sizes = append(sizes, size)
+		output := newOpenAIImageOutput(item, fallbackSize)
+		for index, previous := range c.dataOutputs {
+			if !matched[index] && sameOpenAIImageOutput(previous, output) {
+				matched[index] = true
+				output = mergeOpenAIImageOutputSize(output, previous)
+				c.dataOutputs[index] = output
+				break
+			}
 		}
+		outputs = append(outputs, output)
 	}
-	if imageCount > c.maxDataCount {
-		c.maxDataCount = imageCount
+	if len(outputs) >= len(c.dataOutputs) {
+		c.dataOutputs = outputs
 	}
-	if len(sizes) > 0 {
-		c.dataSizes = sizes
+	if len(outputs) > c.maxDataCount {
+		c.maxDataCount = len(outputs)
 	}
 }
 
-func (c *openAIImageOutputCounter) addOutputArray(output gjson.Result) {
+// The image bytes are authoritative. Fall back to per-image metadata, then to
+// response-level metadata only when that size is a recognized billing tier.
+// detectOpenAIImageResultSize decodes at most a bounded prefix of the image.
+func openAIImageOutputSize(item gjson.Result, fallbackSize string) (string, uint8) {
+	for _, field := range []string{"b64_json", "result"} {
+		encoded := item.Get(field).String()
+		if encoded == "" {
+			continue
+		}
+		if actual := detectOpenAIImageResultSize(encoded); actual != "" {
+			return actual, 3
+		}
+	}
+	for index, size := range []string{item.Get("size").String(), fallbackSize} {
+		size = strings.TrimSpace(size)
+		if _, ok := ClassifyImageBillingTier(size); ok {
+			return size, uint8(2 - index)
+		}
+	}
+	return "", 0
+}
+
+func (c *openAIImageOutputCounter) addOutputArray(output gjson.Result, fallbackSize string) {
 	if !output.IsArray() {
 		return
 	}
 	output.ForEach(func(_, item gjson.Result) bool {
-		c.addImageOutputItem(item)
+		c.addImageOutputItem(item, fallbackSize)
 		return true
 	})
 }
 
-func (c *openAIImageOutputCounter) addImageOutputItem(item gjson.Result) {
+func (c *openAIImageOutputCounter) addImageOutputItem(item gjson.Result, fallbackSize string) {
 	if !item.Exists() || !item.IsObject() {
 		return
 	}
@@ -141,9 +195,23 @@ func (c *openAIImageOutputCounter) addImageOutputItem(item gjson.Result) {
 	if itemType != "" && itemType != "image_generation_call" && itemType != "image_generation.completed" && itemType != "image_edit.completed" {
 		return
 	}
-	if strings.Contains(strings.ToLower(item.Raw), "partial_image") {
+	if item.Get("partial_image_b64").Exists() {
 		return
 	}
+	output := newOpenAIImageOutput(item, fallbackSize)
+	if output.key == "" {
+		return
+	}
+	if previous, exists := c.seen[output.key]; exists {
+		c.seen[output.key] = mergeOpenAIImageOutputSize(previous, output)
+		return
+	}
+	c.seen[output.key] = output
+	c.seenOrder = append(c.seenOrder, output.key)
+	c.count++
+}
+
+func newOpenAIImageOutput(item gjson.Result, fallbackSize string) openAIImageOutput {
 	result := strings.TrimSpace(item.Get("result").String())
 	if result == "" {
 		result = strings.TrimSpace(item.Get("b64_json").String())
@@ -152,31 +220,37 @@ func (c *openAIImageOutputCounter) addImageOutputItem(item gjson.Result) {
 		result = strings.TrimSpace(item.Get("url").String())
 	}
 	if result == "" {
-		return
+		return openAIImageOutput{}
 	}
 	key := strings.TrimSpace(item.Get("id").String())
 	if key == "" {
 		key = strings.TrimSpace(item.Get("call_id").String())
 	}
+	payloadKey := hashOpenAIImageOutputResult(result)
 	if key == "" {
-		key = hashOpenAIImageOutputResult(result)
+		key = "payload:" + payloadKey
+	} else {
+		key = "id:" + key
 	}
-	if key == "" {
-		return
+	size, rank := openAIImageOutputSize(item, fallbackSize)
+	return openAIImageOutput{key: key, payloadKey: payloadKey, size: size, sizeRank: rank}
+}
+
+func sameOpenAIImageOutput(a, b openAIImageOutput) bool {
+	if a.key == b.key {
+		return true
 	}
-	size := strings.TrimSpace(item.Get("size").String())
-	if _, exists := c.seen[key]; exists {
-		if size != "" && strings.TrimSpace(c.seenSizes[key]) == "" {
-			c.seenSizes[key] = size
-		}
-		return
+	if strings.HasPrefix(a.key, "id:") && strings.HasPrefix(b.key, "id:") {
+		return false
 	}
-	c.seen[key] = struct{}{}
-	c.seenOrder = append(c.seenOrder, key)
-	if size != "" {
-		c.seenSizes[key] = size
+	return a.payloadKey != "" && a.payloadKey == b.payloadKey
+}
+
+func mergeOpenAIImageOutputSize(output, candidate openAIImageOutput) openAIImageOutput {
+	if candidate.sizeRank > output.sizeRank {
+		output.size, output.sizeRank = candidate.size, candidate.sizeRank
 	}
-	c.count++
+	return output
 }
 
 func hashOpenAIImageOutputResult(result string) string {

@@ -16,7 +16,7 @@ const maxOpenAIImageDimensionProbeBytes int64 = 1 << 20
 
 func detectOpenAIImageResultSize(encoded string) string {
 	payload := strings.TrimSpace(encoded)
-	if strings.HasPrefix(strings.ToLower(payload), "data:") {
+	if len(payload) >= 5 && strings.EqualFold(payload[:5], "data:") {
 		comma := strings.IndexByte(payload, ',')
 		if comma < 0 || comma+1 >= len(payload) {
 			return ""
