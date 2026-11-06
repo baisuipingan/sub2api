@@ -1,25 +1,37 @@
 import { libT } from './i18nMessage'
 import type { StoredImage, StoredImageThumbnail, TaskRecord } from '../types'
 
-const DB_NAME = 'milorouter-ai-image'
-const DB_VERSION = 1
+const LEGACY_DB_NAME = 'milorouter-ai-image'
+const DB_VERSION = 2
+let dbName = LEGACY_DB_NAME + '-unassigned'
 const STORE_TASKS = 'tasks'
 const STORE_IMAGES = 'images'
 const STORE_THUMBNAILS = 'thumbnails'
+const STORE_SYNC = 'pending-sync'
 const THUMBNAIL_MAX_SIZE = 720
 const THUMBNAIL_QUALITY = 0.9
 const THUMBNAIL_VERSION = 2
 
 export const CURRENT_THUMBNAIL_VERSION = THUMBNAIL_VERSION
 
-function openDB(): Promise<IDBDatabase> {
+/** The pre-gallery database has no owner and is opened only for explicit import. */
+export function setImageStudioUserScope(userId: number | null) {
+  dbName = userId && Number.isSafeInteger(userId) && userId > 0
+    ? LEGACY_DB_NAME + '-user-' + userId
+    : LEGACY_DB_NAME + '-unassigned'
+}
+
+export function getImageStudioDbScope() { return dbName }
+
+function openDB(name = dbName): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(name, name === LEGACY_DB_NAME ? 1 : DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
       if (!db.objectStoreNames.contains(STORE_TASKS)) db.createObjectStore(STORE_TASKS, { keyPath: 'id' })
       if (!db.objectStoreNames.contains(STORE_IMAGES)) db.createObjectStore(STORE_IMAGES, { keyPath: 'id' })
       if (!db.objectStoreNames.contains(STORE_THUMBNAILS)) db.createObjectStore(STORE_THUMBNAILS, { keyPath: 'id' })
+      if (name !== LEGACY_DB_NAME && !db.objectStoreNames.contains(STORE_SYNC)) db.createObjectStore(STORE_SYNC)
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
@@ -30,8 +42,9 @@ function requestTransaction<T>(
   stores: string | string[],
   mode: IDBTransactionMode,
   run: (transaction: IDBTransaction) => IDBRequest<T>,
+  name = dbName,
 ) {
-  return openDB().then((db) => new Promise<T>((resolve, reject) => {
+  return openDB(name).then((db) => new Promise<T>((resolve, reject) => {
     const transaction = db.transaction(stores, mode)
     const request = run(transaction)
     request.onsuccess = () => resolve(request.result)
@@ -42,20 +55,63 @@ function requestTransaction<T>(
   }))
 }
 
-export function getAllTasks() {
-  return requestTransaction<TaskRecord[]>(STORE_TASKS, 'readonly', (transaction) => transaction.objectStore(STORE_TASKS).getAll())
+export function getAllTasks(scope = dbName) {
+  return requestTransaction<TaskRecord[]>(STORE_TASKS, 'readonly', (transaction) => transaction.objectStore(STORE_TASKS).getAll(), scope)
 }
 
-export function putTask(task: TaskRecord) {
-  return requestTransaction<IDBValidKey>(STORE_TASKS, 'readwrite', (transaction) => transaction.objectStore(STORE_TASKS).put(task))
+export function getLegacyTasks() {
+  return requestTransaction<TaskRecord[]>(STORE_TASKS, 'readonly', (transaction) => transaction.objectStore(STORE_TASKS).getAll(), LEGACY_DB_NAME)
+}
+
+export function getLegacyImage(id: string) {
+  return requestTransaction<StoredImage | undefined>(STORE_IMAGES, 'readonly', (transaction) => transaction.objectStore(STORE_IMAGES).get(id), LEGACY_DB_NAME)
+}
+
+export function markTaskPendingSync(id: string) {
+  return requestTransaction<IDBValidKey>(STORE_SYNC, 'readwrite', (transaction) => transaction.objectStore(STORE_SYNC).put(true, id))
+}
+
+export function putTaskWithPendingSync(task: TaskRecord, scope = dbName) {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([STORE_TASKS, STORE_SYNC], 'readwrite')
+    transaction.objectStore(STORE_TASKS).put(task)
+    transaction.objectStore(STORE_SYNC).put(true, task.id)
+    transaction.oncomplete = () => { db.close(); resolve() }
+    transaction.onerror = () => reject(transaction.error)
+    transaction.onabort = () => reject(transaction.error)
+  }))
+}
+
+export function clearTaskPendingSync(id: string, scope = dbName) {
+  return requestTransaction<undefined>(STORE_SYNC, 'readwrite', (transaction) => transaction.objectStore(STORE_SYNC).delete(id), scope)
+}
+
+/** A server tombstone rejects re-uploads; remove the local task and retry marker atomically. */
+export function discardGoneTask(id: string, scope = dbName) {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([STORE_TASKS, STORE_SYNC], 'readwrite')
+    transaction.objectStore(STORE_TASKS).delete(id)
+    transaction.objectStore(STORE_SYNC).delete(id)
+    transaction.oncomplete = () => { db.close(); resolve() }
+    transaction.onerror = () => reject(transaction.error)
+    transaction.onabort = () => reject(transaction.error)
+  }))
+}
+
+export function getPendingSyncTaskIds(scope = dbName) {
+  return requestTransaction<IDBValidKey[]>(STORE_SYNC, 'readonly', (transaction) => transaction.objectStore(STORE_SYNC).getAllKeys(), scope).then((ids) => ids.map(String))
+}
+
+export function putTask(task: TaskRecord, scope = dbName) {
+  return requestTransaction<IDBValidKey>(STORE_TASKS, 'readwrite', (transaction) => transaction.objectStore(STORE_TASKS).put(task), scope)
 }
 
 export function deleteTask(id: string) {
   return requestTransaction<undefined>(STORE_TASKS, 'readwrite', (transaction) => transaction.objectStore(STORE_TASKS).delete(id))
 }
 
-export function commitTaskDeletion(deletedTaskIds: string[], updatedTasks: TaskRecord[]) {
-  return openDB().then((db) => new Promise<void>((resolve, reject) => {
+export function commitTaskDeletion(deletedTaskIds: string[], updatedTasks: TaskRecord[], scope = dbName) {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(STORE_TASKS, 'readwrite')
     const store = transaction.objectStore(STORE_TASKS)
     for (const id of deletedTaskIds) store.delete(id)
@@ -69,36 +125,36 @@ export function commitTaskDeletion(deletedTaskIds: string[], updatedTasks: TaskR
   }))
 }
 
-export function clearTasks() {
-  return requestTransaction<undefined>(STORE_TASKS, 'readwrite', (transaction) => transaction.objectStore(STORE_TASKS).clear())
+export function clearTasks(scope = dbName) {
+  return requestTransaction<undefined>(STORE_TASKS, 'readwrite', (transaction) => transaction.objectStore(STORE_TASKS).clear(), scope)
 }
 
-export function getImage(id: string) {
-  return requestTransaction<StoredImage | undefined>(STORE_IMAGES, 'readonly', (transaction) => transaction.objectStore(STORE_IMAGES).get(id))
+export function getImage(id: string, scope = dbName) {
+  return requestTransaction<StoredImage | undefined>(STORE_IMAGES, 'readonly', (transaction) => transaction.objectStore(STORE_IMAGES).get(id), scope)
 }
 
-export function getStoredImageThumbnail(id: string) {
-  return requestTransaction<StoredImageThumbnail | undefined>(STORE_THUMBNAILS, 'readonly', (transaction) => transaction.objectStore(STORE_THUMBNAILS).get(id))
+export function getStoredImageThumbnail(id: string, scope = dbName) {
+  return requestTransaction<StoredImageThumbnail | undefined>(STORE_THUMBNAILS, 'readonly', (transaction) => transaction.objectStore(STORE_THUMBNAILS).get(id), scope)
 }
 
-export async function getStoredFreshImageThumbnail(id: string) {
-  const thumbnail = await getStoredImageThumbnail(id)
+export async function getStoredFreshImageThumbnail(id: string, scope = dbName) {
+  const thumbnail = await getStoredImageThumbnail(id, scope)
   return thumbnail?.thumbnailVersion === THUMBNAIL_VERSION ? thumbnail : undefined
 }
 
-export function putImage(image: StoredImage) {
-  return requestTransaction<IDBValidKey>(STORE_IMAGES, 'readwrite', (transaction) => transaction.objectStore(STORE_IMAGES).put(image))
+export function putImage(image: StoredImage, scope = dbName) {
+  return requestTransaction<IDBValidKey>(STORE_IMAGES, 'readwrite', (transaction) => transaction.objectStore(STORE_IMAGES).put(image), scope)
 }
 
-export function putImageThumbnail(thumbnail: StoredImageThumbnail) {
-  return requestTransaction<IDBValidKey>(STORE_THUMBNAILS, 'readwrite', (transaction) => transaction.objectStore(STORE_THUMBNAILS).put(thumbnail))
+export function putImageThumbnail(thumbnail: StoredImageThumbnail, scope = dbName) {
+  return requestTransaction<IDBValidKey>(STORE_THUMBNAILS, 'readwrite', (transaction) => transaction.objectStore(STORE_THUMBNAILS).put(thumbnail), scope)
 }
 
-export async function getImageThumbnail(id: string) {
-  const stored = await getStoredImageThumbnail(id)
+export async function getImageThumbnail(id: string, scope = dbName) {
+  const stored = await getStoredImageThumbnail(id, scope)
   if (stored?.thumbnailVersion === THUMBNAIL_VERSION) return stored
 
-  const image = await getImage(id)
+  const image = await getImage(id, scope)
   if (!image) return undefined
   const thumbnail = await createImageThumbnail(image.dataUrl)
   const record: StoredImageThumbnail = {
@@ -108,9 +164,9 @@ export async function getImageThumbnail(id: string) {
     height: thumbnail.height,
     thumbnailVersion: THUMBNAIL_VERSION,
   }
-  await putImageThumbnail(record)
+  await putImageThumbnail(record, scope)
   if (thumbnail.width && thumbnail.height && (!image.width || !image.height)) {
-    await putImage({ ...image, width: thumbnail.width, height: thumbnail.height })
+    await putImage({ ...image, width: thumbnail.width, height: thumbnail.height }, scope)
   }
   return record
 }
@@ -124,8 +180,8 @@ export function getAllImageIds() {
     .then((keys) => keys.map(String))
 }
 
-export function deleteImage(id: string) {
-  return openDB().then((db) => new Promise<void>((resolve, reject) => {
+export function deleteImage(id: string, scope = dbName) {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([STORE_IMAGES, STORE_THUMBNAILS], 'readwrite')
     transaction.objectStore(STORE_IMAGES).delete(id)
     transaction.objectStore(STORE_THUMBNAILS).delete(id)
@@ -138,8 +194,8 @@ export function deleteImage(id: string) {
   }))
 }
 
-export function clearImages() {
-  return openDB().then((db) => new Promise<void>((resolve, reject) => {
+export function clearImages(scope = dbName) {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([STORE_IMAGES, STORE_THUMBNAILS], 'readwrite')
     transaction.objectStore(STORE_IMAGES).clear()
     transaction.objectStore(STORE_THUMBNAILS).clear()
@@ -152,13 +208,13 @@ export function clearImages() {
   }))
 }
 
-export async function storeImage(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload') {
-  return (await storeImageWithSize(dataUrl, source)).id
+export async function storeImage(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload', scope = dbName) {
+  return (await storeImageWithSize(dataUrl, source, scope)).id
 }
 
-export async function storeImageWithSize(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload') {
+export async function storeImageWithSize(dataUrl: string, source: NonNullable<StoredImage['source']> = 'upload', scope = dbName) {
   const id = await hashDataUrl(dataUrl)
-  const existing = await getImage(id)
+  const existing = await getImage(id, scope)
   if (existing) return { id, width: existing.width, height: existing.height }
 
   const thumbnail = await safeCreateImageThumbnail(dataUrl)
@@ -169,7 +225,7 @@ export async function storeImageWithSize(dataUrl: string, source: NonNullable<St
     source,
     width: thumbnail.width,
     height: thumbnail.height,
-  })
+  }, scope)
   if (thumbnail.thumbnailDataUrl) {
     await putImageThumbnail({
       id,
@@ -177,7 +233,7 @@ export async function storeImageWithSize(dataUrl: string, source: NonNullable<St
       width: thumbnail.width,
       height: thumbnail.height,
       thumbnailVersion: THUMBNAIL_VERSION,
-    })
+    }, scope)
   }
   return { id, width: thumbnail.width, height: thumbnail.height }
 }

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -27,8 +28,9 @@ type ImageStorageFactory func(ctx context.Context, cfg *config.ImageStorageConfi
 // ReuseBackupS3 为真时不保存自己的凭证，直接借用数据库备份已配置的 S3 端点与密钥，
 // 只用自己的 Bucket/Prefix 区分对象；这样"数据走 backups/、图片走 images/"无需重复配置。
 type ImageStorageSettings struct {
-	Enabled       bool `json:"enabled"`
-	ReuseBackupS3 bool `json:"reuse_backup_s3"`
+	Enabled              bool `json:"enabled"`
+	StudioGalleryEnabled bool `json:"studio_gallery_enabled"`
+	ReuseBackupS3        bool `json:"reuse_backup_s3"`
 
 	Bucket           string `json:"bucket"` // 留空且复用备份时，沿用备份桶
 	Prefix           string `json:"prefix"`
@@ -50,6 +52,7 @@ type ImageStorageSettings struct {
 // Invalidate 清缓存，下一次请求即重建客户端——这是"后台开关立即生效、无需重启"的实现。
 type ImageStorageSettingService struct {
 	settingRepo SettingRepository
+	galleryRepo GalleryRepository
 	encryptor   SecretEncryptor
 	backup      *BackupService
 	factory     ImageStorageFactory
@@ -62,6 +65,18 @@ type ImageStorageSettingService struct {
 	resolved bool
 	uploader *ImageResultUploader
 	enabled  bool
+}
+
+func (s *ImageStorageSettingService) SetGalleryRepository(repo GalleryRepository) {
+	s.galleryRepo = repo
+}
+
+var ErrGalleryStorageTargetInUse = infraerrors.Conflict("GALLERY_STORAGE_TARGET_IN_USE", "gallery contains assets; migrate or delete them before changing the S3 target")
+var ErrGalleryPublicStorage = infraerrors.BadRequest("GALLERY_PUBLIC_STORAGE", "cloud gallery requires a private object-storage target; clear public_base_url and verify the bucket is not public")
+
+func sameGalleryStorageTarget(a, b *config.ImageStorageConfig) bool {
+	return a != nil && b != nil && a.Endpoint == b.Endpoint && a.Region == b.Region &&
+		a.Bucket == b.Bucket && a.ForcePathStyle == b.ForcePathStyle
 }
 
 func NewImageStorageSettingService(
@@ -166,6 +181,44 @@ func (s *ImageStorageSettingService) SecretConfigured(ctx context.Context) bool 
 // Update 保存设置并立即生效。SecretAccessKey 留空表示沿用已保存的值。
 func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorageSettings) (*ImageStorageSettings, error) {
 	normalizeImageStorageSettings(&in)
+	if in.StudioGalleryEnabled && in.PublicBaseURL != "" {
+		return nil, ErrGalleryPublicStorage
+	}
+	if s.galleryRepo != nil {
+		release, err := s.galleryRepo.LockTarget(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		hasAssets, err := s.galleryRepo.HasAssets(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if hasAssets {
+			if in.PublicBaseURL != "" {
+				return nil, ErrGalleryPublicStorage
+			}
+			previous, err := s.effectiveConfig(ctx)
+			if err != nil {
+				return nil, err
+			}
+			// Compare target fields only; rotating credentials is allowed.
+			next := &config.ImageStorageConfig{Endpoint: in.Endpoint, Region: in.Region, Bucket: in.Bucket, ForcePathStyle: in.ForcePathStyle}
+			if in.ReuseBackupS3 {
+				backupCfg, err := s.backupCredentials(ctx)
+				if err != nil || backupCfg == nil {
+					return nil, ErrGalleryStorageTargetInUse
+				}
+				next.Endpoint, next.Region, next.ForcePathStyle = backupCfg.Endpoint, backupCfg.Region, backupCfg.ForcePathStyle
+				if next.Bucket == "" {
+					next.Bucket = backupCfg.Bucket
+				}
+			}
+			if !sameGalleryStorageTarget(previous, next) {
+				return nil, ErrGalleryStorageTargetInUse
+			}
+		}
+	}
 
 	if in.ReuseBackupS3 {
 		// 复用备份凭证时不落自己的密钥，避免同一份密钥在库里存两份。
@@ -201,7 +254,7 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 	return &in, nil
 }
 
-// TestConnection 用给定设置试建一次客户端，用于后台的"测试连接"按钮。
+// TestConnection 用给定设置验证后台的"测试连接"按钮。
 // 与 Update 一样支持留空 SecretAccessKey 表示沿用已保存的值。
 func (s *ImageStorageSettingService) TestConnection(ctx context.Context, in ImageStorageSettings) error {
 	normalizeImageStorageSettings(&in)
@@ -218,8 +271,19 @@ func (s *ImageStorageSettingService) TestConnection(ctx context.Context, in Imag
 	if !cfg.IsConfigured() {
 		return ErrImageStorageIncomplete
 	}
-	if _, err := s.factory(ctx, cfg); err != nil {
+	if in.StudioGalleryEnabled && cfg.PublicBaseURL != "" {
+		return ErrGalleryPublicStorage
+	}
+	storage, err := s.factory(ctx, cfg)
+	if err != nil {
 		return err
+	}
+	if in.StudioGalleryEnabled {
+		prober, ok := storage.(interface{ ProbeReadWriteDelete(context.Context) error })
+		if !ok {
+			return fmt.Errorf("gallery storage connection probe is unavailable")
+		}
+		return prober.ProbeReadWriteDelete(ctx)
 	}
 	return nil
 }
@@ -235,6 +299,28 @@ func (s *ImageStorageSettingService) effectiveConfig(ctx context.Context) (*conf
 		return &fallback, nil
 	}
 	return s.toImageStorageConfig(ctx, settings)
+}
+
+// StudioGalleryConfig resolves the shared S3 credentials without coupling the
+// gallery to the async image task enablement flag. Reads and cleanup remain
+// possible after the gallery's write switch is turned off.
+func (s *ImageStorageSettingService) StudioGalleryConfig(ctx context.Context) (*config.ImageStorageConfig, bool, error) {
+	settings, err := s.load(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if settings == nil {
+		return nil, false, nil
+	}
+	cfg, err := s.toImageStorageConfig(ctx, settings)
+	if err != nil {
+		return nil, false, err
+	}
+	if settings.StudioGalleryEnabled && cfg.PublicBaseURL != "" {
+		return nil, false, ErrGalleryPublicStorage
+	}
+	cfg.PublicBaseURL = "" // gallery objects are always private
+	return cfg, settings.StudioGalleryEnabled && cfg.IsConfigured(), nil
 }
 
 func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {

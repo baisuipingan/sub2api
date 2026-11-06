@@ -3,8 +3,8 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import StudioSquarePreview from '../StudioSquarePreview.vue'
 import type { TaskRecord } from '../../types'
 
-const { ensureImageCached, getCachedImage, setLightboxImageId } = vi.hoisted(() => ({ ensureImageCached: vi.fn(), getCachedImage: vi.fn(), setLightboxImageId: vi.fn() }))
-vi.mock('../../lib/imageCache', () => ({ ensureImageCached, getCachedImage }))
+const { ensureImagePreviewUrl, getCachedPreviewUrl, setLightboxImageId } = vi.hoisted(() => ({ ensureImagePreviewUrl: vi.fn(), getCachedPreviewUrl: vi.fn(), setLightboxImageId: vi.fn() }))
+vi.mock('../../lib/imageCache', () => ({ ensureImagePreviewUrl, getCachedPreviewUrl }))
 vi.mock('../../stores/store', () => ({ storeState: { streamPreviews: {}, setLightboxImageId } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
@@ -13,8 +13,8 @@ const images = ['image-1', 'image-2', 'image-3', 'image-4', 'image-5']
 const task = { id: 'batch-task', status: 'done', outputImages: images } as TaskRecord
 beforeEach(() => {
   vi.clearAllMocks()
-  getCachedImage.mockReturnValue(undefined)
-  ensureImageCached.mockResolvedValue('data:image/png;base64,aW1hZ2U=')
+  getCachedPreviewUrl.mockReturnValue(undefined)
+  ensureImagePreviewUrl.mockResolvedValue('data:image/png;base64,aW1hZ2U=')
 })
 
 describe('StudioSquarePreview batch navigation', () => {
@@ -40,9 +40,9 @@ describe('StudioSquarePreview batch navigation', () => {
     expect(setLightboxImageId).toHaveBeenCalledWith(images[3], images)
   })
 
-  it('never lets an older asynchronous original-image read overwrite the selected image', async () => {
+  it('never lets an older asynchronous preview read overwrite the selected image', async () => {
     const reads = new Map<string, (source: string) => void>()
-    ensureImageCached.mockImplementation((id: string) => new Promise<string>((resolve) => reads.set(id, resolve)))
+    ensureImagePreviewUrl.mockImplementation((id: string) => new Promise<string>((resolve) => reads.set(id, resolve)))
     const wrapper = mount(StudioSquarePreview, { props: { task, imageId: images[0] } })
     await wrapper.setProps({ imageId: images[1] })
     reads.get(images[1])!('data:image/png;base64,newer')

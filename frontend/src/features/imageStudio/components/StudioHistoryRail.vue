@@ -50,6 +50,7 @@
       data-testid="studio-history-items"
       class="flex min-w-0 gap-2 overflow-x-auto overscroll-contain px-3 py-2 [scrollbar-width:thin] lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-1.5 lg:overflow-x-hidden lg:overflow-y-auto lg:px-1.5"
       :class="{ 'lg:hidden': collapsed }"
+      @scroll.passive="onScroll"
     >
       <p v-if="!items.length" class="px-1 py-6 text-center text-[11px] leading-5 text-gray-400">
         {{ t('imageStudio.history.empty') }}
@@ -92,6 +93,13 @@
           {{ item.timeLabel }}
         </span>
       </button>
+      <button
+        v-if="hasMore"
+        type="button"
+        class="btn btn-secondary btn-sm shrink-0 self-center lg:w-full"
+        :disabled="loadingMore"
+        @click="emit('loadMore')"
+      >{{ t('imageStudio.history.loadMore') }}</button>
     </div>
   </aside>
 </template>
@@ -114,6 +122,8 @@ const props = defineProps<{
   tasks: TaskRecord[]
   activeTaskId: string | null
   collapsed: boolean
+  hasMore?: boolean
+  loadingMore?: boolean
 }>()
 
 const { t } = useI18n()
@@ -144,5 +154,14 @@ const items = computed<HistoryItem[]>(() =>
 const emit = defineEmits<{
   select: [taskId: string, imageId: string]
   toggle: []
+  loadMore: []
 }>()
+
+function onScroll(event: Event) {
+  if (!props.hasMore || props.loadingMore) return
+  const element = event.target as HTMLElement
+  const nearRight = element.scrollWidth > element.clientWidth && element.scrollLeft + element.clientWidth >= element.scrollWidth - 80
+  const nearBottom = element.scrollHeight > element.clientHeight && element.scrollTop + element.clientHeight >= element.scrollHeight - 80
+  if (nearRight || nearBottom) emit('loadMore')
+}
 </script>

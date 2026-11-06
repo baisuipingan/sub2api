@@ -56,7 +56,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TaskRecord } from '../types'
 import { storeState as state } from '../stores/store'
-import { ensureImageCached, getCachedImage } from '../lib/imageCache'
+import { ensureImagePreviewUrl, getCachedPreviewUrl } from '../lib/imageCache'
 import StudioIcon from './StudioIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
@@ -73,12 +73,12 @@ const streamPreview = computed(() => state.streamPreviews[props.task.id]?.image)
 watch(() => props.imageId, async (id, _previous, onCleanup) => {
   let active = true
   onCleanup(() => { active = false })
-  source.value = id ? getCachedImage(id) ?? null : null
+  source.value = id ? getCachedPreviewUrl(id) ?? null : null
   failed.value = false
   loading.value = Boolean(id && !source.value)
   if (!id || source.value) return
   try {
-    const value = await ensureImageCached(id)
+    const value = await ensureImagePreviewUrl(id)
     if (!active) return
     source.value = value ?? null
     failed.value = !value

@@ -33,6 +33,14 @@ func RegisterUserRoutes(
 		authenticated.GET("/image-studio/models", h.ImageStudio.GetModels)
 		// 预估各模型单张实际成本（含倍率），供工作台展示
 		authenticated.POST("/image-studio/pricing", h.ImageStudio.EstimatePricing)
+		gallery := authenticated.Group("/image-studio/gallery")
+		gallery.GET("/status", h.ImageStudioGallery.Status)
+		gallery.PUT("/assets/:image_id", h.ImageStudioGallery.PutAsset)
+		gallery.GET("/assets/:image_id/url", h.ImageStudioGallery.AssetURL)
+		gallery.POST("/tasks", h.ImageStudioGallery.SaveTask)
+		gallery.GET("/tasks", h.ImageStudioGallery.ListTasks)
+		gallery.GET("/tasks/:id", h.ImageStudioGallery.GetTask)
+		gallery.DELETE("/tasks/:id", h.ImageStudioGallery.DeleteTask)
 
 		// 用户接口
 		user := authenticated.Group("/user")

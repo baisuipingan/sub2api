@@ -1,25 +1,34 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { state, clearData, exportData, importData, requestPermission } = vi.hoisted(() => ({
+const { state, clearData, exportData, importData, importLegacyHistory, getLegacyTasks, requestPermission } = vi.hoisted(() => ({
   state: {
     showSettings: true,
+    galleryUserId: null as number | null,
+    galleryEnabled: false,
     settings: {
       clearInputAfterSubmit: false,
       enterSubmit: true,
       taskCompletionNotification: false,
     },
     setShowSettings: vi.fn(),
+    setConfirmDialog: vi.fn(),
     setSettings: vi.fn(),
     showToast: vi.fn(),
   },
   clearData: vi.fn(),
   exportData: vi.fn(),
   importData: vi.fn(),
+  importLegacyHistory: vi.fn(),
+  getLegacyTasks: vi.fn(),
   requestPermission: vi.fn(),
 }))
 
-vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData }))
+vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData, importLegacyHistory }))
+vi.mock('../../lib/db', async () => ({
+  ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
+  getLegacyTasks,
+}))
 vi.mock('../../lib/browserNotification', () => ({
   getBrowserNotificationSession: () => 'user:100',
   requestBrowserNotificationPermission: requestPermission,
@@ -41,6 +50,10 @@ function mountModal() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  state.galleryUserId = null
+  state.galleryEnabled = false
+  getLegacyTasks.mockResolvedValue([])
   requestPermission.mockReset().mockResolvedValue({ ok: true })
   state.settings.taskCompletionNotification = false
 })
@@ -126,6 +139,24 @@ describe('StudioSettingsModal', () => {
     await flushPromises()
 
     expect(importData).toHaveBeenCalledWith(file, { importConfig: true, importTasks: true })
+  })
+
+  it('does not import legacy history into a different account after confirmation', async () => {
+    localStorage.setItem('auth_token', 'token-a')
+    localStorage.setItem('auth_user', JSON.stringify({ id: 101 }))
+    state.galleryUserId = 101
+    state.galleryEnabled = true
+    const wrapper = mountModal()
+    await wrapper.findAll('button').find((button) => button.text().includes('imageStudio.settings.importLegacyHistory'))!.trigger('click')
+    await flushPromises()
+    const confirmation = state.setConfirmDialog.mock.lastCall?.[0] as { action: () => Promise<void> | undefined }
+    expect(confirmation).toBeDefined()
+
+    localStorage.setItem('auth_token', 'token-b')
+    localStorage.setItem('auth_user', JSON.stringify({ id: 202 }))
+    state.galleryUserId = 202
+    await confirmation.action()
+    expect(importLegacyHistory).not.toHaveBeenCalled()
   })
 
   it('uses common dialog close controls without submitting preference changes', async () => {

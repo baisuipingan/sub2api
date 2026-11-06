@@ -54,8 +54,8 @@
         </div>
       </div>
 
-      <!-- Async image object storage -->
-      <div class="card p-6">
+      <!-- Image object storage: async tasks and Studio gallery have independent switches. -->
+      <div class="card p-6" data-testid="image-storage-settings">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">
@@ -69,6 +69,17 @@
             <input v-model="imageStorageForm.enabled" type="checkbox" />
             <span>{{ t('admin.backup.imageStorage.enabled') }}</span>
           </label>
+        </div>
+
+        <div data-testid="studio-gallery-setting" class="mb-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-dark-700 dark:bg-dark-800/40">
+          <label for="studio-gallery-enabled" class="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
+            <input id="studio-gallery-enabled" v-model="imageStorageForm.studio_gallery_enabled" type="checkbox" class="mt-0.5" aria-describedby="studio-gallery-description studio-gallery-private-warning" />
+            <span>
+              <span class="block font-medium text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.studioGalleryEnabled') }}</span>
+              <span id="studio-gallery-description" class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.backup.imageStorage.studioGalleryDescription') }}</span>
+            </span>
+          </label>
+          <p id="studio-gallery-private-warning" role="note" class="mt-3 text-xs leading-5 text-amber-700 dark:text-amber-300">{{ t('admin.backup.imageStorage.studioGalleryPrivateBucketWarning') }}</p>
         </div>
 
         <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -459,10 +470,11 @@ const s3SecretConfigured = ref(false)
 const savingS3 = ref(false)
 const testingS3 = ref(false)
 
-// Async image object storage. Shares the S3 client with backups, so the default is
-// to reuse the credentials configured above and only differ by prefix.
+// Async image tasks and the Studio gallery share object storage credentials,
+// but each feature has its own enable switch. The gallery remains off by default.
 const imageStorageForm = ref<ImageStorageConfig>({
   enabled: false,
+  studio_gallery_enabled: false,
   reuse_backup_s3: true,
   bucket: '',
   prefix: 'images/',
@@ -693,6 +705,7 @@ async function loadImageStorageConfig() {
     const { config, secret_configured } = await adminAPI.backup.getImageStorageConfig()
     imageStorageForm.value = {
       ...config,
+      studio_gallery_enabled: config.studio_gallery_enabled === true,
       prefix: config.prefix || 'images/',
       region: config.region || 'auto',
       secret_access_key: '',

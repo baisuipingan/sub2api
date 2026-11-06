@@ -696,6 +696,7 @@ func ProvideAPIKeyAuthCacheInvalidator(apiKeyService *APIKeyService) APIKeyAuthC
 // 使升级前已通过配置文件开启该功能的部署不被打断。
 func ProvideImageStorageSettingService(
 	settingRepo SettingRepository,
+	galleryRepo GalleryRepository,
 	encryptor SecretEncryptor,
 	backup *BackupService,
 	factory ImageStorageFactory,
@@ -707,7 +708,9 @@ func ProvideImageStorageSettingService(
 		logger.L().Warn("image_storage.enabled is true in config but object storage is not fully configured; configure it in the admin UI or complete the config file",
 			zap.Strings("missing_keys", cfg.ImageStorage.MissingCredentialKeys()))
 	}
-	return NewImageStorageSettingService(settingRepo, encryptor, backup, factory, cfg.ImageStorage)
+	svc := NewImageStorageSettingService(settingRepo, encryptor, backup, factory, cfg.ImageStorage)
+	svc.SetGalleryRepository(galleryRepo)
+	return svc
 }
 
 // ProvideImageTaskService 构造异步图片任务服务。
@@ -722,6 +725,7 @@ func ProvideImageTaskService(store ImageTaskStore, settings *ImageStorageSetting
 // ProvideBackupService creates and starts BackupService
 func ProvideBackupService(
 	settingRepo SettingRepository,
+	galleryRepo GalleryRepository,
 	cfg *config.Config,
 	encryptor SecretEncryptor,
 	storeFactory BackupObjectStoreFactory,
@@ -730,6 +734,7 @@ func ProvideBackupService(
 	db *sql.DB,
 ) *BackupService {
 	svc := NewBackupService(settingRepo, cfg, encryptor, storeFactory, dumper)
+	svc.SetGalleryRepository(galleryRepo)
 	svc.SetLeaderLock(lockCache, db)
 	svc.Start()
 	return svc
@@ -891,6 +896,7 @@ var ProviderSet = wire.NewSet(
 	NewOpenAIGatewayService,
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
+	ProvideImageStudioGalleryService,
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,
 	NewBatchImageDownloadService,

@@ -47,6 +47,17 @@ describe('StudioConfirmDialog shared confirmation', () => {
     expect(setConfirmDialog).toHaveBeenCalledWith(null)
   })
 
+  it('does not close a newer confirmation when an older action settles', async () => {
+    let finish!: () => void
+    action.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    const wrapper = mountDialog()
+    await wrapper.findAll('button').find((button) => button.text() === 'Remove')!.trigger('click')
+    state.confirmDialog = { title: 'New request', message: 'Keep this open', action: vi.fn() }
+    finish()
+    await flushPromises()
+    expect(setConfirmDialog).not.toHaveBeenCalled()
+  })
+
   it('keeps Escape under the studio modal stack and cancels without running the action', () => {
     mountDialog()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))

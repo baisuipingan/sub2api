@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import { DEFAULT_PARAMS, type TaskRecord } from '../../types'
 
-const { commitTaskDeletion, deleteImage, deleteImageCacheEntry, putTask, storeImageWithSize, callImageApi } = vi.hoisted(() => ({
+const { commitTaskDeletion, clearTaskPendingSync, deleteImage, deleteImageCacheEntry, putTask, storeImageWithSize, callImageApi } = vi.hoisted(() => ({
   commitTaskDeletion: vi.fn(),
+  clearTaskPendingSync: vi.fn(),
   deleteImage: vi.fn(),
   deleteImageCacheEntry: vi.fn(),
   putTask: vi.fn(),
@@ -12,7 +13,7 @@ const { commitTaskDeletion, deleteImage, deleteImageCacheEntry, putTask, storeIm
 }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
-  commitTaskDeletion, deleteImage, putTask, storeImageWithSize,
+  commitTaskDeletion, clearTaskPendingSync, deleteImage, putTask, putTaskWithPendingSync: putTask, storeImageWithSize,
 }))
 vi.mock('../../lib/imageCache', async () => ({
   ...await vi.importActual<typeof import('../../lib/imageCache')>('../../lib/imageCache'),
@@ -20,6 +21,10 @@ vi.mock('../../lib/imageCache', async () => ({
 }))
 vi.mock('../../lib/api', () => ({ callImageApi }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
+vi.mock('../../lib/studioKeySession', async () => ({
+  ...await vi.importActual<typeof import('../../lib/studioKeySession')>('../../lib/studioKeySession'),
+  isCurrentStudioApiKey: () => true,
+}))
 
 import { createImageModelCatalogFromModelList } from '../../lib/modelRegistry'
 import { deleteImageIfUnreferenced, removeMultipleTasks, removeTask, storeState as state, submitTask, useStore } from '../store'
@@ -41,6 +46,7 @@ function deferred() {
 beforeEach(() => {
   vi.clearAllMocks()
   commitTaskDeletion.mockReset().mockResolvedValue(undefined)
+  clearTaskPendingSync.mockReset().mockResolvedValue(undefined)
   deleteImage.mockReset().mockResolvedValue(undefined)
   putTask.mockReset().mockResolvedValue(undefined)
   storeImageWithSize.mockReset().mockResolvedValue({ id: 'generated', width: 1024, height: 1024 })
@@ -83,7 +89,7 @@ describe('task removal', () => {
     await generation
     await removeTask(finished)
     expect(state.tasks).toHaveLength(0)
-    expect(commitTaskDeletion).toHaveBeenCalledWith([finished.id], [])
+    expect(commitTaskDeletion).toHaveBeenCalledWith([finished.id], [], expect.any(String))
   })
 
   it('keeps the UI and image caches intact until the task transaction commits', async () => {
@@ -103,7 +109,7 @@ describe('task removal', () => {
     expect(state.tasks).toEqual([])
     expect(state.detailTaskId).toBeNull()
     expect(state.detailImageId).toBeNull()
-    expect(deleteImage).toHaveBeenCalledWith(removed.outputImages[0])
+    expect(deleteImage).toHaveBeenCalledWith(removed.outputImages[0], expect.any(String))
   })
 
   it('preserves the task and open views when persistence fails', async () => {

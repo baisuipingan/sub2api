@@ -12,6 +12,7 @@ vi.mock('../../lib/api', () => ({ callImageApi }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
   putTask,
+  putTaskWithPendingSync: putTask,
   storeImageWithSize,
 }))
 vi.mock('../../lib/browserNotification', async () => ({
@@ -19,6 +20,14 @@ vi.mock('../../lib/browserNotification', async () => ({
   showBrowserNotification: showNotification,
 }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
+vi.mock('../../lib/studioKeySession', async () => ({
+  ...await vi.importActual<typeof import('../../lib/studioKeySession')>('../../lib/studioKeySession'),
+  isCurrentStudioApiKey: () => true,
+}))
+vi.mock('../../lib/galleryApi', async () => ({
+  ...await vi.importActual<typeof import('../../lib/galleryApi')>('../../lib/galleryApi'),
+  ensureGalleryIdentity: vi.fn().mockResolvedValue(undefined),
+}))
 
 import { storeState as state, submitTask, useStore } from '../store'
 import { createImageModelCatalogFromModelList } from '../../lib/modelRegistry'
@@ -111,8 +120,12 @@ describe('generation completion feedback', () => {
 
   it('retains notifications across token refreshes for the same user', async () => {
     state.setSettings({ taskCompletionNotification: true })
+    const tokenFor = (generation: number) => [
+      btoa('{}'), btoa(JSON.stringify({ user_id: 100, sid: 'one-login', generation })), 'signature',
+    ].join('.')
+    localStorage.setItem('auth_token', tokenFor(1))
     callImageApi.mockImplementationOnce(async () => {
-      localStorage.setItem('auth_token', 'session-refreshed')
+      localStorage.setItem('auth_token', tokenFor(2))
       return { images: ['data:image/png;base64,output'] }
     })
     await submitTask()

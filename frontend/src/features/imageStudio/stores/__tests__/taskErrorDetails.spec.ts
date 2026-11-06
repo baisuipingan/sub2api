@@ -6,8 +6,13 @@ const { putTask } = vi.hoisted(() => ({ putTask: vi.fn() }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
   putTask,
+  putTaskWithPendingSync: putTask,
 }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
+vi.mock('../../lib/studioKeySession', async () => ({
+  ...await vi.importActual<typeof import('../../lib/studioKeySession')>('../../lib/studioKeySession'),
+  isCurrentStudioApiKey: () => true,
+}))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key }),
@@ -56,7 +61,7 @@ describe('image provider error persistence and display', () => {
     expect(failed.error).toContain(`HTTP ${status} [${code}]`)
     expect(failed.error).toContain(message)
     for (const secret of ['hidden-authorization', 'hidden-key', 'sk-example-private-key']) expect(failed.error).not.toContain(secret)
-    expect(putTask).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'error', error: failed.error }))
+    expect(putTask).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'error', error: failed.error }), expect.any(String))
 
     const result = mount(StudioResultPanel, {
       global: { stubs: { StudioSquarePreview: true, StudioHistoryRail: true, StudioIcon: true } },

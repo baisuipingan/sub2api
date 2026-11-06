@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import StudioCreationPanel from '@/features/imageStudio/components/StudioCreationPanel.vue'
 import StudioResultPanel from '@/features/imageStudio/components/StudioResultPanel.vue'
@@ -37,9 +37,19 @@ import StudioSettingsModal from '@/features/imageStudio/components/StudioSetting
 import StudioConfirmDialog from '@/features/imageStudio/components/StudioConfirmDialog.vue'
 import StudioImageContextMenu from '@/features/imageStudio/components/StudioImageContextMenu.vue'
 import StudioToast from '@/features/imageStudio/components/StudioToast.vue'
-import { storeState as state, initStore } from '@/features/imageStudio/stores/store'
+import { storeState as state, initStore, retryPendingGalleryTasks } from '@/features/imageStudio/stores/store'
 import { loadImagePricing, collectBillingModels } from '@/features/imageStudio/lib/studioPricing'
 import { ensureStudioApiKey } from '@/features/imageStudio/lib/studioAuth'
+import { captureStudioIdentity, isStudioIdentityCurrent } from '@/features/imageStudio/lib/studioKeySession'
+import { ensureGalleryIdentity } from '@/features/imageStudio/lib/galleryApi'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+
+function retryGalleryOnReconnect() {
+  const identity = captureStudioIdentity()
+  if (identity.token && identity.userId) void retryPendingGalleryTasks()
+}
 
 /**
  * 生图工作台主视图。
@@ -48,9 +58,34 @@ import { ensureStudioApiKey } from '@/features/imageStudio/lib/studioAuth'
  * 「生图工作台专用」密钥并注入 store；用户无感，计费仍走原有网关链路。
  */
 onMounted(async () => {
+  // Clear prior-account state synchronously before a new key request can fail.
+  void initStore()
+  window.addEventListener('online', retryGalleryOnReconnect)
+  window.addEventListener('focus', retryGalleryOnReconnect)
   await ensureStudioApiKey()
-  initStore()
 })
+
+onUnmounted(() => {
+  window.removeEventListener('online', retryGalleryOnReconnect)
+  window.removeEventListener('focus', retryGalleryOnReconnect)
+})
+
+/** A refreshed JWT needs fresh gallery verification and a key bound to that JWT. */
+watch(
+  () => [authStore.token, authStore.user?.id] as const,
+  async ([token, userId], [previousToken, previousUserId], onCleanup) => {
+    if (token === previousToken && userId === previousUserId) return
+    let cancelled = false
+    onCleanup(() => { cancelled = true })
+    if (userId !== previousUserId) void initStore()
+    if (!token || !userId) return
+    const identity = captureStudioIdentity()
+    if (identity.token !== token || identity.userId !== userId) return
+    void ensureStudioApiKey()
+    try { await ensureGalleryIdentity(token) } catch { return }
+    if (!cancelled && isStudioIdentityCurrent(identity)) void retryPendingGalleryTasks()
+  },
+)
 
 /**
  * 模型目录就绪后拉取单价表。
@@ -59,10 +94,16 @@ onMounted(async () => {
  * 需要按新的模型集合重新取价。价格只影响显示，失败也不影响出图。
  */
 watch(
-  () => [state.catalogStatus, state.modelCatalog.length] as const,
-  async ([status, count]) => {
-    if (status !== 'ready' || count === 0) return
-    const pricing = await loadImagePricing(collectBillingModels(state.modelCatalog))
+  () => [state.catalogStatus, state.modelCatalog, state.settings.miloRouter.apiKey] as const,
+  async ([status, catalog, studioKey], _previous, onCleanup) => {
+    if (status !== 'ready' || catalog.length === 0 || !studioKey) return
+    const session = captureStudioIdentity()
+    let cancelled = false
+    onCleanup(() => { cancelled = true })
+    const pricing = await loadImagePricing(collectBillingModels(catalog))
+    if (cancelled || !isStudioIdentityCurrent(session)
+      || state.catalogStatus !== 'ready' || state.modelCatalog !== catalog
+      || state.settings.miloRouter.apiKey !== studioKey) return
     if (Object.keys(pricing).length) state.setImagePricing(pricing)
   },
   { immediate: true },

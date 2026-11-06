@@ -156,6 +156,7 @@ type BackupDownloadResponse struct {
 // BackupService 数据库备份恢复服务
 type BackupService struct {
 	settingRepo SettingRepository
+	galleryRepo GalleryRepository
 	dbCfg       *config.DatabaseConfig
 	encryptor   SecretEncryptor
 	// encryptionKeyConfigured mirrors cfg.Totp.EncryptionKeyConfigured: false
@@ -194,6 +195,8 @@ type BackupService struct {
 	bgCancel      context.CancelFunc // 取消所有活跃后台操作
 	partSizeBytes int64              // 分卷阈值；生产使用 4 GiB，测试可注入更小值
 }
+
+func (s *BackupService) SetGalleryRepository(repo GalleryRepository) { s.galleryRepo = repo }
 
 func NewBackupService(
 	settingRepo SettingRepository,
@@ -392,6 +395,40 @@ func (s *BackupService) GetS3Config(ctx context.Context) (*BackupS3Config, error
 }
 
 func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) (*BackupS3Config, error) {
+	if s.galleryRepo != nil {
+		release, err := s.galleryRepo.LockTarget(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		hasAssets, err := s.galleryRepo.HasAssets(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if hasAssets {
+			raw, err := s.settingRepo.GetValue(ctx, settingKeyImageStorageConfig)
+			if err != nil && !errors.Is(err, ErrSettingNotFound) {
+				return nil, err
+			}
+			var imageSettings ImageStorageSettings
+			if raw != "" && json.Unmarshal([]byte(raw), &imageSettings) != nil {
+				return nil, ErrGalleryStorageTargetInUse
+			}
+			if imageSettings.ReuseBackupS3 {
+				old, err := s.loadS3Config(ctx)
+				if err != nil || old == nil {
+					return nil, ErrGalleryStorageTargetInUse
+				}
+				oldBucket, newBucket := old.Bucket, cfg.Bucket
+				if imageSettings.Bucket != "" {
+					oldBucket, newBucket = imageSettings.Bucket, imageSettings.Bucket
+				}
+				if old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || oldBucket != newBucket || old.ForcePathStyle != cfg.ForcePathStyle {
+					return nil, ErrGalleryStorageTargetInUse
+				}
+			}
+		}
+	}
 	// 如果没提供 secret，保留原有值。loadS3Config 会解密，所以这里拿到的是明文，
 	// 和调用方新填的 secret 一样，都必须走下面的加密再落库。
 	if cfg.SecretAccessKey == "" {

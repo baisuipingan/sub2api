@@ -4,6 +4,7 @@ import type {
   InputImage,
   MaskDraft,
   MiloRouterConfig,
+  StoredImage,
   StoredImageThumbnail,
   TaskParams,
   TaskRecord,
@@ -21,16 +22,29 @@ import {
   clearTasks as dbClearTasks,
   commitTaskDeletion,
   deleteImage as dbDeleteImage,
-  getAllImages,
+  getAllImageIds,
   getAllTasks,
+  getImage,
+  getImageStudioDbScope,
   getImageThumbnail,
+  getLegacyImage,
+  getLegacyTasks,
+  getPendingSyncTaskIds,
+  clearTaskPendingSync,
+  discardGoneTask,
   putImage,
   putTask as dbPutTask,
+  putTaskWithPendingSync,
+  setImageStudioUserScope,
   clearImages as dbClearImages,
   storeImage,
   storeImageWithSize,
 } from '../lib/db'
-import { cacheImage, clearImageCaches, deleteImageCacheEntry, ensureImageCached } from '../lib/imageCache'
+import { cacheImage, clearImageCaches, deleteImageCacheEntry, ensureImageCached, registerCloudAssetIds } from '../lib/imageCache'
+import { deleteGalleryTask, ensureGalleryIdentity, fetchGalleryAssetDataUrl, getGalleryAssetUrl, getGalleryStatus, listGalleryTasks, GalleryApiError } from '../lib/galleryApi'
+import { taskAssetIds, uploadGalleryTask } from '../lib/gallerySync'
+import { captureGallerySession, isGallerySessionCurrent, isVerifiedGalleryAuth, verifyGalleryIdentity } from '../lib/gallerySession'
+import { captureStudioIdentity, isCurrentStudioApiKey, isSameStudioLogin, isStudioIdentityCurrent, studioTokenUserId } from '../lib/studioKeySession'
 import { blobToDataUrl, fileToDataUrl, imageSourceToBlob } from '../lib/dataUrl'
 import { createTransparentOutputMeta, getTransparentRequestParams, removeKeyedBackgroundFromDataUrl } from '../lib/transparentImage'
 import { createMaskConstrainedPrompt, orderInputImagesForMask } from '../lib/mask'
@@ -54,6 +68,8 @@ const DEFAULT_API_TIMEOUT = 600
 const ERROR_TOAST_MAX_LENGTH = 80
 const taskControllers = new Map<string, AbortController>()
 const stoppedTaskIds = new Set<string>()
+let cacheClearInProgress = false
+let submitInProgress = 0
 
 export type ToastType = 'info' | 'success' | 'error'
 
@@ -133,6 +149,13 @@ interface AppState {
   setParams: (patch: Partial<TaskParams>) => void
 
   tasks: TaskRecord[]
+  galleryEnabled: boolean
+  galleryInitialized: boolean
+  galleryUserId: number | null
+  galleryNextCursor: string | null
+  galleryHasMore: boolean
+  galleryLoading: boolean
+  gallerySyncStatus: Record<string, 'pending' | 'synced' | 'error'>
   streamPreviews: Record<string, { image: string; partialIndex: number; requestIndex?: number }>
   latestSubmittedTaskId: string | null
   setTasks: (tasks: TaskRecord[]) => void
@@ -204,7 +227,7 @@ const buildStore: StoreBuilder = (set, get) => {
                 error: keyChanged ? undefined : next.error,
               },
             },
-            ...(keyChanged ? { modelCatalog: [], catalogStatus: 'idle' as const, catalogError: undefined } : {}),
+            ...(keyChanged ? { modelCatalog: [], imagePricing: {}, catalogStatus: 'idle' as const, catalogError: undefined } : {}),
           }
         }),
         selectModel: (modelId) => set((state) => {
@@ -220,11 +243,12 @@ const buildStore: StoreBuilder = (set, get) => {
         refreshImageModelCatalog: async () => {
           const apiKey = get().settings.miloRouter.apiKey.trim()
           if (!apiKey) return false
+          const identity = captureStudioIdentity()
           const request = ++catalogRequest
           set({ catalogStatus: 'loading', catalogError: undefined })
           try {
             const modelCatalog = await fetchMiloRouterImageModels(apiKey)
-            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey) return false
+            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey || !isStudioIdentityCurrent(identity)) return false
             set((state) => {
               const selectedModelId = modelCatalog.some((model) => model.id === state.settings.selectedModelId)
                 ? state.settings.selectedModelId
@@ -241,7 +265,7 @@ const buildStore: StoreBuilder = (set, get) => {
             })
             return true
           } catch (error) {
-            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey) return false
+            if (request !== catalogRequest || get().settings.miloRouter.apiKey.trim() !== apiKey || !isStudioIdentityCurrent(identity)) return false
             // 不能一律显示「加载失败，请稍后重试」：
             // 余额不足、Key 无效、超时都长这样，用户根本不知道该干嘛。
             // 这里按错误类型给出具体原因，认不出来才退回通用文案。
@@ -372,6 +396,13 @@ const buildStore: StoreBuilder = (set, get) => {
         })),
 
         tasks: [],
+        galleryEnabled: false,
+        galleryInitialized: false,
+        galleryUserId: null,
+        galleryNextCursor: null,
+        galleryHasMore: false,
+        galleryLoading: false,
+        gallerySyncStatus: {},
         streamPreviews: {},
         latestSubmittedTaskId: null,
         setTasks: (tasks) => set({ tasks }),
@@ -458,15 +489,212 @@ Object.assign(storeState, createImageStudioStore())
  * 用户不需要也不应该手动配置。
  */
 let initPromise: Promise<void> | null = null
+let initSession: string | null = null
+const syncingGalleryTasks = new Map<string, Promise<void>>()
+const deletingGalleryTasks = new Set<string>()
+
+function authSessionKey() {
+  return (localStorage.getItem('auth_token') ?? '') + '|' + (cachedUserId() ?? '')
+}
+
+function cachedUserId(): number | null {
+  try {
+    const value = JSON.parse(localStorage.getItem('auth_user') ?? 'null') as { id?: unknown } | null
+    const id = Number(value?.id)
+    return Number.isSafeInteger(id) && id > 0 ? id : null
+  } catch {
+    return null
+  }
+}
+
+export async function loadNextGalleryPage() {
+  const state = useStore.getState()
+  if (!state.galleryHasMore || state.galleryLoading || !state.galleryUserId) return
+  const session = captureGallerySession()
+  if (!session.token) return
+  try { await ensureGalleryIdentity(session.token) } catch { return }
+  if (!isGallerySessionCurrent(session)) return
+  const userId = state.galleryUserId
+  useStore.setState({ galleryLoading: true })
+  try {
+    const page = await listGalleryTasks(state.galleryNextCursor)
+    if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+    const pending = new Set(await getPendingSyncTaskIds(session.scope))
+    if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+    const merged = new Map(useStore.getState().tasks.map((task) => [task.id, task]))
+    for (const item of page.items) {
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+      const task = normalizeTask(item)
+      if (!task || pending.has(task.id)) continue
+      merged.set(task.id, task)
+      await dbPutTask(task, session.scope)
+    }
+    if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+    for (const task of merged.values()) if (!pending.has(task.id)) registerCloudAssetIds(taskAssetIds(task))
+    useStore.setState({
+      tasks: [...merged.values()],
+      galleryNextCursor: page.next_cursor,
+      galleryHasMore: Boolean(page.next_cursor),
+    })
+  } catch {
+    // Local history remains available while the cloud is offline.
+  } finally {
+    if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId) useStore.setState({ galleryLoading: false })
+  }
+}
+
+export async function syncGalleryTask(taskId: string) {
+  const state = useStore.getState()
+  const authToken = localStorage.getItem('auth_token')
+  if (!authToken) return
+  try { await ensureGalleryIdentity(authToken) } catch { return }
+  if (authToken !== localStorage.getItem('auth_token')) return
+  if (!state.galleryEnabled || !state.galleryUserId) return
+  const task = state.tasks.find((item) => item.id === taskId)
+  if (!task || task.status === 'running') return
+  const session = captureGallerySession()
+  const userId = state.galleryUserId
+  const key = session.scope + ':' + taskId
+  if (deletingGalleryTasks.has(key)) return
+  const existing = syncingGalleryTasks.get(key)
+  if (existing) return existing
+  const job = (async () => {
+    useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'pending' } }))
+    try {
+      await uploadGalleryTask(task, () => isGallerySessionCurrent(session) && !deletingGalleryTasks.has(key), session.scope)
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
+      await clearTaskPendingSync(taskId, session.scope)
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
+      registerCloudAssetIds(taskAssetIds(task))
+      useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'synced' } }))
+    } catch (error) {
+      if (error instanceof GalleryApiError && error.status === 410 && error.code === 'GALLERY_GONE') {
+        const discarded = await discardGoneTask(taskId, session.scope).then(() => true, () => false)
+        if (discarded) {
+          if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId) {
+            useStore.setState((current) => {
+              const { [taskId]: _, ...gallerySyncStatus } = current.gallerySyncStatus
+              return { tasks: current.tasks.filter((item) => item.id !== taskId), gallerySyncStatus }
+            })
+          }
+          return
+        }
+      }
+      if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId && !deletingGalleryTasks.has(key)) {
+        useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'error' } }))
+      }
+    }
+  })()
+  syncingGalleryTasks.set(key, job)
+  try { await job } finally { syncingGalleryTasks.delete(key) }
+}
+
+export async function retryPendingGalleryTasks() {
+  const session = captureGallerySession()
+  if (!session.token || !session.userId || session.scope !== 'milorouter-ai-image-user-' + session.userId) return
+  if (!useStore.getState().galleryEnabled) {
+    const status = await getGalleryStatus().catch(() => null)
+    if (!status || !status.enabled || status.user_id !== session.userId || !isGallerySessionCurrent(session)) return
+    verifyGalleryIdentity(status.user_id, session.token)
+    useStore.setState({ galleryEnabled: true })
+  }
+  const ids = await getPendingSyncTaskIds(session.scope).catch(() => [])
+  if (!isGallerySessionCurrent(session)) return
+  for (const id of ids) {
+    if (!isGallerySessionCurrent(session)) return
+    await syncGalleryTask(id)
+  }
+}
+
+/** Legacy data has no owner; copying it into this user is always an explicit action. */
+export async function importLegacyHistory() {
+  const state = useStore.getState()
+  if (!state.galleryInitialized || !state.galleryUserId) {
+    state.showToast(st('imageStudio.gallery.importFailed'), 'error')
+    return
+  }
+  const session = captureGallerySession()
+  const userId = state.galleryUserId
+  try {
+    const legacy = await getLegacyTasks()
+    if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+    const known = new Set(state.tasks.map((task) => task.id))
+    const imported: TaskRecord[] = []
+    for (const raw of legacy) {
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+      const task = normalizeTask(raw)
+      if (!task || known.has(task.id)) continue
+      if (task.status === 'running') Object.assign(task, createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()))
+      const images = await Promise.all(taskAssetIds(task).map(getLegacyImage))
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+      if (images.some((image) => !image?.dataUrl)) continue
+      const collisions = await Promise.all(images.map((image) => image ? getImage(image.id, session.scope) : undefined))
+      if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+      if (collisions.some((current, index) => current && current.dataUrl !== images[index]?.dataUrl)) continue
+      for (const image of images) {
+        if (!isGallerySessionCurrent(session)) return
+        if (image) await putImage(image, session.scope)
+      }
+      if (!isGallerySessionCurrent(session)) return
+      await putTaskWithPendingSync(task, session.scope)
+      imported.push(task)
+      known.add(task.id)
+    }
+    if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
+    useStore.setState((current) => ({
+      tasks: [...current.tasks, ...imported],
+      gallerySyncStatus: Object.fromEntries([
+        ...Object.entries(current.gallerySyncStatus),
+        ...imported.map((task) => [task.id, 'pending' as const]),
+      ]),
+    }))
+    state.showToast(st('imageStudio.gallery.importDone'), 'success')
+    if (state.galleryEnabled) void retryPendingGalleryTasks()
+  } catch {
+    state.showToast(st('imageStudio.gallery.importFailed'), 'error')
+  }
+}
 
 export function initStore(): Promise<void> {
-  if (initPromise) return initPromise
+  const session = authSessionKey()
+  const authToken = localStorage.getItem('auth_token')
+  const localUserId = cachedUserId()
+  const tokenUserId = studioTokenUserId(authToken)
+  const scopedUserId = authToken && tokenUserId === localUserId ? localUserId : null
+  if (initPromise && initSession === session) return initPromise
+  if (initSession !== session) {
+    // Isolate storage before the first await; the old user's DB must not remain active.
+    setImageStudioUserScope(scopedUserId)
+    clearImageCaches()
+    useStore.setState({ tasks: [], inputImages: [], gallerySyncStatus: {}, galleryUserId: null, galleryEnabled: false, galleryInitialized: false, galleryLoading: false, galleryHasMore: false, galleryNextCursor: null, confirmDialog: null })
+    if (initSession !== null) {
+      // A failed key fetch for the new user must never leave the previous user's
+      // connected key, catalog or prices available in this shared store.
+      useStore.getState().setMiloRouterConfig({ apiKey: '', connectionStatus: 'idle' })
+      useStore.setState({ modelCatalog: [], imagePricing: {}, catalogStatus: 'idle', catalogError: undefined })
+    }
+  }
+  initSession = session
 
   initPromise = (async () => {
     try {
+      const status = await getGalleryStatus().catch(() => null)
+      if (session !== authSessionKey()) return
+      if (status && status.user_id !== cachedUserId()) return
+      if (status && tokenUserId && status.user_id !== tokenUserId) return
+      const userId = status?.user_id ?? scopedUserId
+      setImageStudioUserScope(userId)
+      if (status && authToken && userId && cachedUserId() === userId) verifyGalleryIdentity(userId, authToken)
+      useStore.setState({
+        galleryUserId: userId,
+        galleryEnabled: status?.enabled === true,
+        galleryNextCursor: null,
+        galleryHasMore: Boolean(status && userId),
+      })
       const loadedTasks = (await getAllTasks())
         .map(normalizeTask)
         .filter((task): task is TaskRecord => Boolean(task))
+      if (session !== authSessionKey()) return
 
       const current = useStore.getState()
 
@@ -485,11 +713,15 @@ export function initStore(): Promise<void> {
           ? { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()) }
           : task,
       )
-      await Promise.all(
-        interrupted
-          .filter((task) => task.status === 'error')
-          .map((task) => dbPutTask(task)),
-      )
+      const taskScope = getImageStudioDbScope()
+      await Promise.all(interrupted.map((task, index) => {
+        if (task.status !== 'error') return Promise.resolve()
+        // A task interrupted before its first successful upload still needs an outbox marker.
+        return cleanedTasks[index].status === 'running' && userId
+          ? putTaskWithPendingSync(task, taskScope)
+          : dbPutTask(task, taskScope)
+      }))
+      if (session !== authSessionKey()) return
 
       // 参考图只存了元数据，需要把 dataUrl 从缓存补回来
       const inputImages = await Promise.all(
@@ -499,9 +731,14 @@ export function initStore(): Promise<void> {
         })),
       )
       const usableInputImages = inputImages.filter((image) => image.dataUrl)
+      if (session !== authSessionKey()) return
+      const pendingIds = await getPendingSyncTaskIds().catch(() => [])
+      if (session !== authSessionKey()) return
 
       useStore.setState({
         tasks: interrupted,
+        galleryInitialized: true,
+        gallerySyncStatus: Object.fromEntries(pendingIds.map((id) => [id, 'pending' as const])),
         prompt: remapImageMentionsForOrder(
           current.prompt,
           current.inputImages,
@@ -510,30 +747,63 @@ export function initStore(): Promise<void> {
         inputImages: usableInputImages,
         params: normalizeParamsForSettings(current.params, current.settings, current.modelCatalog),
       })
+      if (session !== authSessionKey()) return
+      if (status && userId) await loadNextGalleryPage()
+      if (status?.enabled) void retryPendingGalleryTasks()
     } catch (error) {
+      if (session !== authSessionKey()) return
       console.warn('初始化本地数据失败', error)
       useStore.getState().showToast(st('imageStudio.store.localLoadFailed'), 'error')
+      useStore.setState({ galleryInitialized: true })
     }
   })()
 
   return initPromise
 }
 
+async function isGenerationSessionCurrent(session: ReturnType<typeof captureGallerySession>): Promise<boolean> {
+  if (isGallerySessionCurrent(session)) return true
+  const refreshed = captureGallerySession()
+  if (!refreshed.token || !session.userId || refreshed.userId !== session.userId || refreshed.scope !== session.scope) return false
+  if (isSameStudioLogin(session.token, refreshed.token)) return true
+  try { await ensureGalleryIdentity(refreshed.token) } catch { return false }
+  const current = captureGallerySession()
+  return current.token === refreshed.token && current.userId === session.userId && current.scope === session.scope
+}
+
 export async function submitTask() {
+  if (cacheClearInProgress) {
+    useStore.getState().showToast(st('imageStudio.gallery.cacheClearing'), 'info')
+    return
+  }
+  submitInProgress += 1
+  try { await submitTaskInternal() } finally { submitInProgress -= 1 }
+}
+
+async function submitTaskInternal() {
   const state = useStore.getState()
-  const notificationSession = getBrowserNotificationSession()
+  const submittedIdentity = captureStudioIdentity()
   const prompt = state.prompt.trim()
   if (!prompt) {
     state.showToast(st('imageStudio.store.promptRequired'), 'error')
     return
   }
+  if (state.settings.miloRouter.apiKey && !isCurrentStudioApiKey(state.settings.miloRouter.apiKey.trim())) {
+    const { ensureStudioApiKey } = await import('../lib/studioAuth')
+    await ensureStudioApiKey()
+    if (!isStudioIdentityCurrent(submittedIdentity)) return
+  }
   const apiKey = state.settings.miloRouter.apiKey.trim()
-  if (!apiKey || state.settings.miloRouter.connectionStatus !== 'connected') {
+  if (!apiKey || state.settings.miloRouter.connectionStatus !== 'connected' || !isCurrentStudioApiKey(apiKey)) {
     // 密钥由系统下发，用户无法也不该手填；这里只提示去哪恢复。
     state.showToast(st('imageStudio.store.keyNotReady'), 'error')
     state.setShowSettings(true)
     return
   }
+  const generationSession = captureGallerySession()
+  const generationScope = getImageStudioDbScope()
+  const generationSettings = { ...state.settings, miloRouter: { ...state.settings.miloRouter } }
+  const notificationSession = getBrowserNotificationSession()
   if (state.catalogStatus !== 'ready') {
     state.showToast(state.catalogError ?? st('imageStudio.store.catalogLoading'), 'error')
     return
@@ -576,6 +846,7 @@ export async function submitTask() {
     ? orderInputImagesForMask(inputImages, maskDraft.targetImageId)
     : inputImages
   const inputImageDataUrls = await Promise.all(orderedInputImages.map(async (image) => image.dataUrl || await ensureImageCached(image.id) || ''))
+  if (!await isGenerationSessionCurrent(generationSession)) return
   if (inputImageDataUrls.some((url) => !url)) {
     state.showToast(st('imageStudio.store.referenceReadFailed'), 'error')
     return
@@ -586,7 +857,9 @@ export async function submitTask() {
   if (maskDraft) {
     try {
       await validateMaskMatchesImage(maskDraft.maskDataUrl, inputImageDataUrls[0])
+      if (!await isGenerationSessionCurrent(generationSession)) return
       const sourceImage = await loadImage(inputImageDataUrls[0])
+      if (!await isGenerationSessionCurrent(generationSession)) return
       maskTargetSize = model.capabilities.customSize
         ? normalizeImageSize(`${sourceImage.naturalWidth}x${sourceImage.naturalHeight}`, { minPixels: GPT_IMAGE_MIN_PIXELS })
         : null
@@ -594,9 +867,12 @@ export async function submitTask() {
         await createMaskedInputImage(inputImageDataUrls[0], maskDraft.maskDataUrl),
         ...inputImageDataUrls.slice(1),
       ]
-      maskImageId = await storeImage(maskDraft.maskDataUrl, 'mask')
+      if (!await isGenerationSessionCurrent(generationSession)) return
+      maskImageId = await storeImage(maskDraft.maskDataUrl, 'mask', generationScope)
+      if (!await isGenerationSessionCurrent(generationSession)) return
       cacheImage(maskImageId, maskDraft.maskDataUrl)
     } catch (error) {
+      if (!await isGenerationSessionCurrent(generationSession)) return
       state.showToast(error instanceof Error ? error.message : st('imageStudio.store.maskInvalid'), 'error')
       return
     }
@@ -632,14 +908,19 @@ export async function submitTask() {
     finishedAt: null,
     elapsed: null,
   }
+  if (!await isGenerationSessionCurrent(generationSession)) return
   useStore.setState((current) => ({ tasks: [...current.tasks, task], latestSubmittedTaskId: task.id }))
-  await dbPutTask(task)
+  await dbPutTask(task, generationScope)
+  if (!await isGenerationSessionCurrent(generationSession)) {
+    await dbPutTask({ ...task, ...createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()) }, generationScope)
+    return
+  }
 
   const controller = new AbortController()
   taskControllers.set(task.id, controller)
   try {
     const result = await callImageApi({
-      settings: state.settings,
+      settings: generationSettings,
       modelId: requestModelId,
       apiKind: model.api,
       modelCapabilities: model.capabilities,
@@ -656,7 +937,8 @@ export async function submitTask() {
       streamingEdit: model.capabilities.streamingEdit,
       onPartialImage: (partial) => useStore.setState((current) => {
         const active = current.tasks.some((item) => item.id === task.id && item.status === 'running')
-        return active ? { streamPreviews: { ...current.streamPreviews, [task.id]: partial } } : current
+        return active && isGallerySessionCurrent(generationSession)
+          ? { streamPreviews: { ...current.streamPreviews, [task.id]: partial } } : current
       }),
     })
     if (stoppedTaskIds.has(task.id)) return
@@ -668,7 +950,7 @@ export async function submitTask() {
     for (const [index, image] of result.images.entries()) {
       const actual = actualParamsList[index]
       if (transparent && !nativeTransparent) {
-        const original = await storeImageWithSize(image, 'generated')
+        const original = await storeImageWithSize(image, 'generated', generationScope)
         originalImages.push(original.id)
         const processed = await removeKeyedBackgroundFromDataUrl(
           image,
@@ -676,7 +958,7 @@ export async function submitTask() {
           requestParams.output_format === 'webp' ? 'webp' : 'png',
           requestParams.output_compression,
         )
-        const output = await storeImageWithSize(processed, 'generated')
+        const output = await storeImageWithSize(processed, 'generated', generationScope)
         outputImages.push(output.id)
         if (actual) actualParamsByImage[output.id] = actual
       } else {
@@ -689,7 +971,7 @@ export async function submitTask() {
               requestParams.output_compression,
             )
           : image
-        const output = await storeImageWithSize(finalImage, 'generated')
+        const output = await storeImageWithSize(finalImage, 'generated', generationScope)
         outputImages.push(output.id)
         const paramsWithActualSize = addImageSizeParam(actual, output)
         if (paramsWithActualSize) actualParamsByImage[output.id] = paramsWithActualSize
@@ -708,37 +990,47 @@ export async function submitTask() {
         : {}),
       ...(result.revisedPrompts ? { revisedPromptByImage: mapRevisedPromptsByImage(outputImages, result.revisedPrompts) } : {}),
     }
-    const taskList = useStore.getState().tasks.map((item) => item.id === task.id ? finished : item)
-    useStore.setState((current) => {
-      const { [task.id]: _, ...streamPreviews } = current.streamPreviews
-      return { tasks: taskList, streamPreviews }
-    })
-    await dbPutTask(finished)
+    if (await isGenerationSessionCurrent(generationSession)) {
+      useStore.setState((current) => {
+        const { [task.id]: _, ...streamPreviews } = current.streamPreviews
+        return { tasks: current.tasks.map((item) => item.id === task.id ? finished : item), streamPreviews }
+      })
+    }
+    await putTaskWithPendingSync(finished, generationScope)
+    if (!await isGenerationSessionCurrent(generationSession)) return
+    void syncGalleryTask(task.id)
     const current = useStore.getState()
     if (current.settings.taskCompletionNotification && notificationSession !== null &&
       getBrowserNotificationSession() === notificationSession && current.settings.miloRouter.apiKey.trim() === apiKey &&
       isBrowserNotificationBackground()) {
       showBrowserNotification(st('imageStudio.store.notificationTitle'), { body: prompt })
     }
-    if (state.settings.clearInputAfterSubmit) {
+    if (generationSettings.clearInputAfterSubmit) {
       useStore.setState({ prompt: '', inputImages: [], maskDraft: null })
     }
   } catch (error) {
     if (stoppedTaskIds.has(task.id)) return
     const message = getUserFacingApiErrorMessage(error)
     const failed = { ...task, ...createTaskErrorPatch(task, message, Date.now()) }
-    useStore.setState((current) => {
-      const { [task.id]: _, ...streamPreviews } = current.streamPreviews
-      return { tasks: current.tasks.map((item) => item.id === task.id ? failed : item), streamPreviews }
-    })
-    await dbPutTask(failed)
-    state.showToast(message, 'error')
+    if (await isGenerationSessionCurrent(generationSession)) {
+      useStore.setState((current) => {
+        const { [task.id]: _, ...streamPreviews } = current.streamPreviews
+        return { tasks: current.tasks.map((item) => item.id === task.id ? failed : item), streamPreviews }
+      })
+    }
+    await putTaskWithPendingSync(failed, generationScope)
+    if (await isGenerationSessionCurrent(generationSession)) {
+      void syncGalleryTask(task.id)
+      state.showToast(message, 'error')
+    }
   } finally {
-    useStore.setState((current) => {
-      if (!current.streamPreviews[task.id]) return current
-      const { [task.id]: _, ...streamPreviews } = current.streamPreviews
-      return { streamPreviews }
-    })
+    if (await isGenerationSessionCurrent(generationSession)) {
+      useStore.setState((current) => {
+        if (!current.streamPreviews[task.id]) return current
+        const { [task.id]: _, ...streamPreviews } = current.streamPreviews
+        return { streamPreviews }
+      })
+    }
     taskControllers.delete(task.id)
     stoppedTaskIds.delete(task.id)
   }
@@ -761,10 +1053,12 @@ export function stopTaskGeneration(taskId: string) {
 
 export async function reuseConfig(task: TaskRecord) {
   const state = useStore.getState()
+  const session = captureGallerySession()
   const images = await Promise.all(task.inputImageIds.map(async (id) => ({
     id,
     dataUrl: await ensureImageCached(id) ?? '',
   })))
+  if (!isGallerySessionCurrent(session)) return
   const modelId = task.modelId ?? getImageModel(task.apiModel ?? '')?.id
   const modelAvailable = Boolean(modelId && state.modelCatalog.some((model) => model.id === modelId))
   const settings = modelAvailable ? { ...state.settings, selectedModelId: modelId! } : state.settings
@@ -798,6 +1092,7 @@ function isUsableImageDataUrl(value: unknown): value is string {
 
 export async function editOutputs(task: TaskRecord, imageIds = task.outputImages) {
   const state = useStore.getState()
+  const session = captureGallerySession()
   const model = getImageModel(state.settings.selectedModelId, state.modelCatalog)
   const limit = Math.min(MAX_INPUT_IMAGES, model?.capabilities.referenceImages ?? 0)
   if (state.catalogStatus !== 'ready' || !limit) {
@@ -824,6 +1119,7 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
         return { id, dataUrl }
       }),
   ).then((list) => list.filter((item): item is { id: string; dataUrl: string } => item !== null))
+  if (!isGallerySessionCurrent(session)) return
   // 图片读取期间切换模型或修改草稿时，不覆盖用户的新输入。
   const latest = useStore.getState()
   if (latest.settings !== state.settings || latest.modelCatalog !== state.modelCatalog || latest.catalogStatus !== 'ready' || latest.inputImages !== state.inputImages || latest.prompt !== state.prompt || latest.params !== state.params || latest.maskDraft !== state.maskDraft || latest.maskEditorImageId !== state.maskEditorImageId) return
@@ -855,6 +1151,7 @@ export async function editOutputs(task: TaskRecord, imageIds = task.outputImages
 
 export async function editOutputMask(task: TaskRecord, imageId: string) {
   const state = useStore.getState()
+  const session = captureGallerySession()
   const model = getImageModel(state.settings.selectedModelId, state.modelCatalog)
   const limit = Math.min(MAX_INPUT_IMAGES, model?.capabilities.referenceImages ?? 0)
   if (!task.outputImages.includes(imageId) || state.catalogStatus !== 'ready' || !model || (!model.capabilities.mask && !model.capabilities.transparentOutput) || !limit) {
@@ -866,6 +1163,7 @@ export async function editOutputMask(task: TaskRecord, imageId: string) {
     return
   }
   const dataUrl = await ensureImageCached(imageId).catch(() => undefined)
+  if (!isGallerySessionCurrent(session)) return
   const latest = useStore.getState()
   if (latest.settings !== state.settings || latest.modelCatalog !== state.modelCatalog || latest.catalogStatus !== 'ready' || latest.inputImages !== state.inputImages || latest.prompt !== state.prompt || latest.params !== state.params || latest.maskDraft !== state.maskDraft || latest.imageEditSession !== state.imageEditSession) return
   if (!dataUrl) {
@@ -890,6 +1188,7 @@ export async function editOutputMask(task: TaskRecord, imageId: string) {
 
 export async function retryTask(task: TaskRecord) {
   const state = useStore.getState()
+  const session = captureGallerySession()
   if (state.tasks.some((item) => item.status === 'running')) {
     state.showToast(st('imageStudio.store.waitOrStop'), 'info')
     return
@@ -904,6 +1203,7 @@ export async function retryTask(task: TaskRecord) {
     return
   }
   await reuseConfig(task)
+  if (!isGallerySessionCurrent(session)) return
   await submitTask()
 }
 
@@ -913,6 +1213,7 @@ export async function removeTask(task: TaskRecord) {
 
 export async function removeMultipleTasks(taskIds: string[]) {
   const state = useStore.getState()
+  const session = captureGallerySession()
   const ids = new Set(taskIds)
   const removed = state.tasks.filter((task) => ids.has(task.id))
   if (!removed.length) return
@@ -921,8 +1222,27 @@ export async function removeMultipleTasks(taskIds: string[]) {
     return
   }
   const deletedIds = new Set(removed.map((task) => task.id))
-  // A failed transaction must leave the visible history and image caches intact.
-  await commitTaskDeletion([...deletedIds], [])
+  const keys = [...deletedIds].map((id) => session.scope + ':' + id)
+  keys.forEach((key) => deletingGalleryTasks.add(key))
+  try {
+    // An already-started upload must finish or stop before DELETE, or its POST can resurrect the task.
+    await Promise.all(keys.map((key) => syncingGalleryTasks.get(key)).filter((job): job is Promise<void> => Boolean(job)))
+    if (!isGallerySessionCurrent(session)) return
+    if (state.galleryInitialized && state.galleryUserId) {
+      for (const task of removed) {
+        if (!isGallerySessionCurrent(session)) return
+        try {
+          await deleteGalleryTask(task.id)
+        } catch (error) {
+          if (!(error instanceof GalleryApiError && error.status === 404)) throw error
+        }
+      }
+    }
+    if (!isGallerySessionCurrent(session)) return
+    // A failed transaction must leave the visible history and image caches intact.
+    await commitTaskDeletion([...deletedIds], [], session.scope)
+    await Promise.all([...deletedIds].map((id) => clearTaskPendingSync(id, session.scope)))
+    if (!isGallerySessionCurrent(session)) return
   useStore.setState((current) => {
     const tasks = current.tasks.filter((task) => !deletedIds.has(task.id))
     const referenced = collectReferencedImageIds(tasks, current.inputImages, current)
@@ -941,29 +1261,50 @@ export async function removeMultipleTasks(taskIds: string[]) {
     }
   })
   const candidates = new Set(removed.flatMap(collectTaskImageIds))
-  await Promise.all([...candidates].map(deleteImageIfUnreferenced))
+  await Promise.all([...candidates].map((id) => deleteImageIfUnreferenced(id, session)))
+  } finally {
+    keys.forEach((key) => deletingGalleryTasks.delete(key))
+  }
 }
 
 export async function clearFailedTasks(taskIds: string[]) {
   await removeMultipleTasks(taskIds.filter((id) => useStore.getState().tasks.find((task) => task.id === id)?.status === 'error'))
 }
 
+function canWriteStudioImage(session: ReturnType<typeof captureGallerySession>): boolean {
+  if (!session.token) return true
+  return Boolean(useStore.getState().galleryInitialized && session.userId
+    && captureStudioIdentity().userId === session.userId
+    && session.scope === 'milorouter-ai-image-user-' + session.userId)
+}
+
 export async function addImageFromFile(file: File) {
+  const session = captureGallerySession()
+  if (!canWriteStudioImage(session)) return
   if (!file.type.startsWith('image/')) throw new Error(st('imageStudio.store.pickImageFile'))
   const dataUrl = await fileToDataUrl(file)
-  const image = await storeImageWithSize(dataUrl, 'upload')
+  if (!isGallerySessionCurrent(session)) return
+  const image = await storeImageWithSize(dataUrl, 'upload', session.scope)
+  if (!isGallerySessionCurrent(session)) return
   useStore.getState().addInputImage({ id: image.id, dataUrl })
 }
 
 export async function createInputImageFromFile(file: File) {
+  const session = captureGallerySession()
+  if (!canWriteStudioImage(session)) return null
   if (!file.type.startsWith('image/')) return null
   const dataUrl = await fileToDataUrl(file)
-  const image = await storeImageWithSize(dataUrl, 'upload')
+  if (!isGallerySessionCurrent(session)) return null
+  const image = await storeImageWithSize(dataUrl, 'upload', session.scope)
+  if (!isGallerySessionCurrent(session)) return null
   return { id: image.id, dataUrl }
 }
 
 export async function addImageFromUrl(url: string) {
+  const session = captureGallerySession()
+  if (!canWriteStudioImage(session)) return
   const dataUrl = await blobToDataUrl(await imageSourceToBlob(url), 'image/png')
+  if (!isGallerySessionCurrent(session)) return
   // A successful HTTP response can still contain HTML or invalid image bytes.
   // Decode before persistence so neither the draft nor its saved copy gets a broken image.
   const decoded = await loadImage(dataUrl).catch(() => {
@@ -972,55 +1313,89 @@ export async function addImageFromUrl(url: string) {
   if (!decoded.naturalWidth || !decoded.naturalHeight) {
     throw new Error(st('imageStudio.store.imageReadFailed'))
   }
-  const image = await storeImageWithSize(dataUrl, 'upload')
+  if (!isGallerySessionCurrent(session)) return
+  const image = await storeImageWithSize(dataUrl, 'upload', session.scope)
+  if (!isGallerySessionCurrent(session)) return
   useStore.getState().addInputImage({ id: image.id, dataUrl })
 }
 
-export async function deleteImageIfUnreferenced(id: string) {
+export async function deleteImageIfUnreferenced(id: string, session = captureGallerySession()) {
+  if (!isGallerySessionCurrent(session)) return
   const state = useStore.getState()
   if (collectReferencedImageIds(state.tasks, state.inputImages, state).has(id)) return
-  await dbDeleteImage(id)
+  await dbDeleteImage(id, session.scope)
+  if (!isGallerySessionCurrent(session)) return
   deleteImageCacheEntry(id)
 }
 
 export async function clearData(options: { clearConfig?: boolean; clearTasks?: boolean }) {
   const state = useStore.getState()
-  if (hasActiveDataOperations(state.tasks)) {
+  const session = captureGallerySession()
+  if (options.clearTasks && (!state.galleryInitialized || !state.galleryUserId
+    || !isVerifiedGalleryAuth(localStorage.getItem('auth_token') ?? ''))) {
+    state.showToast(st('imageStudio.gallery.cacheClearBlocked'), 'info')
+    return
+  }
+  if (submitInProgress > 0 || hasActiveDataOperations(state.tasks)) {
     state.showToast(st('imageStudio.store.waitGeneration'), 'info')
     return
   }
-  if (options.clearTasks) {
-    await dbClearTasks()
-    await dbClearImages()
-    clearImageCaches()
-    useStore.setState({
-      tasks: [],
-      streamPreviews: {},
-      prompt: remapImageMentionsForOrder(state.prompt, state.inputImages, []),
-      inputImages: [],
-      maskDraft: null,
-      maskEditorImageId: null,
-      imageEditSession: null,
-      detailTaskId: null,
-      detailImageId: null,
-      lightboxImageId: null,
-      lightboxImageList: [],
-    })
+  if (options.clearTasks && cacheClearInProgress) return
+  if (options.clearTasks) cacheClearInProgress = true
+  try {
+    if (options.clearTasks) {
+      if (state.galleryInitialized && state.galleryUserId) {
+        const pending = await getPendingSyncTaskIds(session.scope)
+        if (!isGallerySessionCurrent(session)) return
+        const syncing = [...syncingGalleryTasks.keys()].some((key) => key.startsWith(session.scope + ':'))
+        if (pending.length || syncing || submitInProgress > 0 || hasActiveDataOperations(state.tasks)
+          || state.inputImages.length || state.maskDraft || state.imageEditSession) {
+          state.showToast(st('imageStudio.gallery.cacheClearBlocked'), 'info')
+          return
+        }
+        await dbClearTasks(session.scope)
+        await dbClearImages(session.scope)
+        if (!isGallerySessionCurrent(session)) return
+        clearImageCaches()
+        state.showToast(st('imageStudio.store.dataCleared'), 'success')
+        return
+      }
+      await dbClearTasks(session.scope)
+      await dbClearImages(session.scope)
+      if (!isGallerySessionCurrent(session)) return
+      clearImageCaches()
+      useStore.setState({
+        tasks: [],
+        streamPreviews: {},
+        prompt: remapImageMentionsForOrder(state.prompt, state.inputImages, []),
+        inputImages: [],
+        maskDraft: null,
+        maskEditorImageId: null,
+        imageEditSession: null,
+        detailTaskId: null,
+        detailImageId: null,
+        lightboxImageId: null,
+        lightboxImageList: [],
+      })
+    }
+    if (options.clearConfig) {
+      if (!isGallerySessionCurrent(session)) return
+      saveMiloRouterApiKey('', false)
+      useStore.setState({
+        settings: defaultSettings(),
+        prompt: '',
+        params: { ...DEFAULT_PARAMS },
+        modelCatalog: [],
+        catalogStatus: 'idle',
+        catalogError: undefined,
+        maskEditorImageId: null,
+        imageEditSession: null,
+      })
+    }
+    state.showToast(st('imageStudio.store.dataCleared'), 'success')
+  } finally {
+    if (options.clearTasks) cacheClearInProgress = false
   }
-  if (options.clearConfig) {
-    saveMiloRouterApiKey('', false)
-    useStore.setState({
-      settings: defaultSettings(),
-      prompt: '',
-      params: { ...DEFAULT_PARAMS },
-      modelCatalog: [],
-      catalogStatus: 'idle',
-      catalogError: undefined,
-      maskEditorImageId: null,
-      imageEditSession: null,
-    })
-  }
-  state.showToast(st('imageStudio.store.dataCleared'), 'success')
 }
 
 export async function exportData(options: { exportConfig?: boolean; exportTasks?: boolean }) {
@@ -1029,52 +1404,137 @@ export async function exportData(options: { exportConfig?: boolean; exportTasks?
     state.showToast(st('imageStudio.store.waitBeforeBackup'), 'info')
     return
   }
-  const images = options.exportTasks ? await getAllImages() : []
-  const thumbnails = new Map<string, StoredImageThumbnail>()
-  await Promise.all(images.map(async (image) => {
-    const thumbnail = await getImageThumbnail(image.id)
-    if (thumbnail) thumbnails.set(image.id, thumbnail)
-  }))
-  const params = {
-    options,
-    exportedAt: Date.now(),
-    settings: stripApiKeysFromSettings(state.settings),
-    tasks: options.exportTasks ? state.tasks : [],
+  const userId = state.galleryUserId
+  const exportSession = getBrowserNotificationSession()
+  const exportToken = localStorage.getItem('auth_token')
+  const assertExportSession = () => {
+    if (useStore.getState().galleryUserId !== userId || getBrowserNotificationSession() !== exportSession
+      || localStorage.getItem('auth_token') !== exportToken) {
+      throw new Error('账号已切换，请重新导出')
+    }
   }
-  const plan = getExportZipPlan(params, images.map((image) => ({
-    id: image.id,
-    bytes: getExportImageEstimatedBytes(image, thumbnails.get(image.id)),
-  })))
-  for (const [index, part] of plan.entries()) {
-    const result = await buildExportZip({
-      ...params,
-      tasks: part.tasks,
-      images: images.filter((image) => part.imageIds.includes(image.id)),
-      thumbnailsByImageId: thumbnails,
-      includeManifestData: part.includeBaseData,
-      backupPart: plan.length > 1 ? { id: String(params.exportedAt), index: index + 1, total: plan.length } : undefined,
-    })
-    const url = URL.createObjectURL(createExportBlob(result.bytes))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `milorouter-backup-${index + 1}.zip`
-    link.click()
-    URL.revokeObjectURL(url)
+  try {
+    const tasksById = new Map((options.exportTasks ? state.tasks : []).map((task) => [task.id, task]))
+    if (options.exportTasks && userId) {
+      let cursor: string | null = null
+      const seenCursors = new Set<string>()
+      do {
+        assertExportSession()
+        const page = await listGalleryTasks(cursor, 100)
+        assertExportSession()
+        for (const item of page.items) {
+          const task = normalizeTask(item)
+          if (task) tasksById.set(task.id, task)
+        }
+        cursor = page.next_cursor
+        if (cursor && seenCursors.has(cursor)) throw new Error('云端历史分页异常，请稍后重试')
+        if (cursor) seenCursors.add(cursor)
+      } while (cursor)
+    }
+
+    const tasks = [...tasksById.values()].sort((a, b) => b.createdAt - a.createdAt)
+    assertExportSession()
+    const localIds = options.exportTasks ? await getAllImageIds() : []
+    assertExportSession()
+    const imageIds = [...new Set([...localIds, ...tasks.flatMap(collectTaskImageIds)])]
+    const remoteMeta = new Map<string, { bytes: number; width: number; height: number }>()
+    const sizes: Array<{ id: string; bytes: number }> = []
+    for (let index = 0; index < imageIds.length; index += 8) {
+      assertExportSession()
+      const batch = await Promise.all(imageIds.slice(index, index + 8).map(async (id) => {
+        assertExportSession()
+        const local = await getImage(id)
+        assertExportSession()
+        if (local) {
+          const thumbnail = await getImageThumbnail(id)
+          assertExportSession()
+          return { id, bytes: getExportImageEstimatedBytes(local, thumbnail) }
+        }
+        const meta = await getGalleryAssetUrl(id, 'original')
+        assertExportSession()
+        remoteMeta.set(id, meta)
+        return { id, bytes: meta.bytes + 1024 }
+      }))
+      assertExportSession()
+      sizes.push(...batch)
+    }
+
+    const params = {
+      options,
+      exportedAt: Date.now(),
+      settings: stripApiKeysFromSettings(state.settings),
+      tasks,
+    }
+    const plan = getExportZipPlan(params, sizes, { partBytes: 64 * 1024 * 1024 })
+    for (const [index, part] of plan.entries()) {
+      assertExportSession()
+      const images: StoredImage[] = []
+      const thumbnails = new Map<string, StoredImageThumbnail>()
+      for (const id of part.imageIds) {
+        assertExportSession()
+        const local = await getImage(id)
+        assertExportSession()
+        if (local) {
+          images.push(local)
+          const thumbnail = await getImageThumbnail(id)
+          assertExportSession()
+          if (thumbnail) thumbnails.set(id, thumbnail)
+          continue
+        }
+        const meta = remoteMeta.get(id)
+        const dataUrl = await fetchGalleryAssetDataUrl(id, 'original')
+        assertExportSession()
+        images.push({ id, dataUrl, width: meta?.width, height: meta?.height })
+      }
+      const result = await buildExportZip({
+        ...params,
+        tasks: part.tasks,
+        images,
+        thumbnailsByImageId: thumbnails,
+        includeManifestData: part.includeBaseData,
+        backupPart: plan.length > 1 ? { id: String(params.exportedAt), index: index + 1, total: plan.length } : undefined,
+      })
+      assertExportSession()
+      const url = URL.createObjectURL(createExportBlob(result.bytes))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'milorouter-backup-' + (index + 1) + '.zip'
+      link.click()
+      URL.revokeObjectURL(url)
+    }
+    state.showToast(st('imageStudio.store.backupExported'), 'success')
+  } catch (error) {
+    if (useStore.getState().galleryUserId !== userId || getBrowserNotificationSession() !== exportSession
+      || localStorage.getItem('auth_token') !== exportToken) return
+    state.showToast(getUserFacingApiErrorMessage(error), 'error')
   }
-  state.showToast(st('imageStudio.store.backupExported'), 'success')
 }
 
 export async function importData(file: File, options: { importConfig?: boolean; importTasks?: boolean }) {
   const state = useStore.getState()
+  if (options.importTasks && (!state.galleryInitialized || !state.galleryUserId
+    || !isVerifiedGalleryAuth(localStorage.getItem('auth_token') ?? ''))) {
+    state.showToast(st('imageStudio.gallery.importFailed'), 'error')
+    return
+  }
   if (hasActiveDataOperations(state.tasks)) {
     state.showToast(st('imageStudio.store.waitBeforeRestore'), 'info')
     return
   }
+  const importSession = captureGallerySession()
+  const importUserId = state.galleryUserId
+  const assertImportSession = () => {
+    if (!isGallerySessionCurrent(importSession) || useStore.getState().galleryUserId !== importUserId) {
+      throw new Error('账号已切换，请重新导入')
+    }
+  }
   try {
     const contents = await readExportZip(new Uint8Array(await file.arrayBuffer()))
+    assertImportSession()
     const manifest = contents.manifest
     if (options.importConfig && manifest.settings) {
       const imported = normalizeSettings(manifest.settings)
+      assertImportSession()
       useStore.setState((current) => ({
         settings: {
           ...imported,
@@ -1087,18 +1547,34 @@ export async function importData(file: File, options: { importConfig?: boolean; 
         },
       }))
     }
-    if (options.importTasks && manifest.tasks) {
+    if (options.importTasks) {
       for (const [id, info] of Object.entries(manifest.imageFiles ?? {})) {
+        assertImportSession()
         const dataUrl = readExportZipFileAsDataUrl(contents.files, info.path)
-        if (dataUrl) await putImage({ id, dataUrl, createdAt: info.createdAt, source: info.source, width: info.width, height: info.height })
+        if (!dataUrl) continue
+        const existing = await getImage(id, importSession.scope)
+        assertImportSession()
+        if (existing && existing.dataUrl !== dataUrl) throw new Error('备份图片与当前账号已有图片冲突')
+        if (!existing) await putImage({ id, dataUrl, createdAt: info.createdAt, source: info.source, width: info.width, height: info.height }, importSession.scope)
       }
-      const importedTasks = manifest.tasks.map(normalizeTask).filter((task): task is TaskRecord => Boolean(task))
-      await Promise.all(importedTasks.map((task) => dbPutTask(task)))
-      const mergedTasks = [...state.tasks.filter((task) => !importedTasks.some((item) => item.id === task.id)), ...importedTasks]
-      useStore.setState({ tasks: mergedTasks })
+      const importedTasks = (manifest.tasks ?? []).map(normalizeTask).filter((task): task is TaskRecord => Boolean(task))
+      for (const task of importedTasks) {
+        assertImportSession()
+        if (importUserId) await putTaskWithPendingSync(task, importSession.scope)
+        else await dbPutTask(task, importSession.scope)
+      }
+      assertImportSession()
+      useStore.setState((current) => ({
+        tasks: [...current.tasks.filter((task) => !importedTasks.some((item) => item.id === task.id)), ...importedTasks],
+        gallerySyncStatus: importUserId
+          ? { ...current.gallerySyncStatus, ...Object.fromEntries(importedTasks.map((task) => [task.id, 'pending' as const])) }
+          : current.gallerySyncStatus,
+      }))
+      if (useStore.getState().galleryEnabled) void retryPendingGalleryTasks()
     }
     state.showToast(st('imageStudio.store.backupRestored'), 'success')
   } catch (error) {
+    if (!isGallerySessionCurrent(importSession)) return
     console.error(error)
     state.showToast(st('imageStudio.store.backupInvalid'), 'error')
   }

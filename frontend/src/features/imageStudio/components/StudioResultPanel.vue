@@ -201,8 +201,11 @@
       :tasks="filteredTasks"
       :active-task-id="activeTaskId"
       :collapsed="railCollapsed"
+      :has-more="state.galleryHasMore"
+      :loading-more="state.galleryLoading"
       @select="onSelectHistory"
       @toggle="toggleRail"
+      @load-more="loadNextGalleryPage"
     />
   </section>
 </template>
@@ -219,6 +222,7 @@ import StudioBatchFilmstrip from './StudioBatchFilmstrip.vue'
 import StudioHistoryRail from './StudioHistoryRail.vue'
 import {
   editOutputs,
+  loadNextGalleryPage,
   retryTask,
   reuseConfig,
   storeState as state,

@@ -395,6 +395,7 @@ const isBalanceIssue = computed(() => {
 })
 
 const buttonDisabled = computed(() => {
+  if (state.galleryInitialized === false) return true
   if (isGenerating.value) return false
   if (checking.value) return true
   // 余额不足时禁用主按钮：点它只会再次失败，正确动作是去充值

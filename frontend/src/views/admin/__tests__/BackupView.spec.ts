@@ -6,6 +6,7 @@ import BackupView from '../BackupView.vue'
 const {
   getS3Config,
   getImageStorageConfig,
+  updateImageStorageConfig,
   getSchedule,
   updateSchedule,
   deleteBackup,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   getS3Config: vi.fn(),
   getImageStorageConfig: vi.fn(),
+  updateImageStorageConfig: vi.fn(),
   getSchedule: vi.fn(),
   updateSchedule: vi.fn(),
   deleteBackup: vi.fn(),
@@ -28,7 +30,7 @@ vi.mock('@/api', () => ({
       updateS3Config: vi.fn(),
       testS3Connection: vi.fn(),
       getImageStorageConfig,
-      updateImageStorageConfig: vi.fn(),
+      updateImageStorageConfig,
       testImageStorageConnection: vi.fn(),
       getSchedule,
       updateSchedule,
@@ -94,6 +96,7 @@ describe('admin BackupView', () => {
   beforeEach(() => {
     getS3Config.mockResolvedValue({})
     getImageStorageConfig.mockResolvedValue({ config: {}, secret_configured: false })
+    updateImageStorageConfig.mockReset().mockResolvedValue({})
     getSchedule.mockResolvedValue({ enabled: false, cron_expr: '', retain_days: 14, retain_count: 10 })
     updateSchedule.mockReset().mockResolvedValue({})
     deleteBackup.mockReset().mockResolvedValue(undefined)
@@ -195,6 +198,38 @@ describe('admin BackupView', () => {
     await wrapper.get('[data-testid="backup-schedule"] .btn-primary').trigger('click')
     await flushPromises()
     expect(updateSchedule).toHaveBeenCalledWith(expect.objectContaining({ retain_days: 0, retain_count: 0, monthly_archive: expect.objectContaining({ enabled: false }) }))
+  })
+
+  it('旧图片存储配置缺少图库字段时默认关闭，并显示私有桶提醒', async () => {
+    getImageStorageConfig.mockResolvedValue({ config: { enabled: true, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
+    const wrapper = mountBackupView()
+    await flushPromises()
+
+    expect((wrapper.get('#studio-gallery-enabled').element as HTMLInputElement).checked).toBe(false)
+    expect((wrapper.get('[data-testid="image-storage-settings"] > .mb-4 input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.get('#studio-gallery-private-warning').text()).toBe('admin.backup.imageStorage.studioGalleryPrivateBucketWarning')
+  })
+
+  it('图库开关保存时不改变异步生图开关', async () => {
+    getImageStorageConfig.mockResolvedValue({ config: { enabled: false, studio_gallery_enabled: false, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
+    const wrapper = mountBackupView()
+    await flushPromises()
+
+    await wrapper.get('#studio-gallery-enabled').setValue(true)
+    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
+    await flushPromises()
+    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, studio_gallery_enabled: true }))
+  })
+
+  it('异步生图开关保存时不改变已开启的图库', async () => {
+    getImageStorageConfig.mockResolvedValue({ config: { enabled: true, studio_gallery_enabled: true, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
+    const wrapper = mountBackupView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="image-storage-settings"] > .mb-4 input[type="checkbox"]').setValue(false)
+    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
+    await flushPromises()
+    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, studio_gallery_enabled: true }))
   })
 
   it('多选日期，手填份数；永久保留隐藏数量并在取消后恢复', async () => {

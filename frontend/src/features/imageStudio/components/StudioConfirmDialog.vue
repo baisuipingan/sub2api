@@ -28,6 +28,9 @@ function close() {
   state.setConfirmDialog(null)
 }
 function confirm() {
-  void Promise.resolve(state.confirmDialog?.action?.()).finally(close)
+  const dialog = state.confirmDialog
+  void Promise.resolve(dialog?.action?.()).finally(() => {
+    if (state.confirmDialog === dialog) close()
+  })
 }
 </script>

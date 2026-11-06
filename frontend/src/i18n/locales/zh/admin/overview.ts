@@ -104,9 +104,12 @@ export default {
         saved: 'S3 配置已保存'
       },
       imageStorage: {
-        title: '异步生图对象存储',
-        description: '开启后，异步生图接口可用，生成结果转存到对象存储，只把短链接写入 Redis。与备份共用同一套 S3 客户端，保存后立即生效，无需重启。',
-        enabled: '启用异步生图',
+        title: '图片对象存储',
+        description: '异步生图和工作台云端图库共用下方图片存储配置，可选择复用备份的 S3/R2 连接；两个功能由独立开关控制，保存后生效。',
+        enabled: '启用异步生图接口',
+        studioGalleryEnabled: '启用工作台云端图库',
+        studioGalleryDescription: '开启后，生图工作台的新生成图片保存到当前用户的云端图库，可跨设备查看；已有浏览器本地历史不会自动上传。此开关不影响异步生图接口。',
+        studioGalleryPrivateBucketWarning: '启用图库前，请清空下方“公开访问域名”，确认 S3/R2 存储桶为私有，并配置桶 CORS 允许本站读取图片；否则跨设备编辑和导出可能失败。图库对象使用 studio/v1/ 前缀和预签名临时链接。',
         reuseBackupS3: '复用上方备份的 S3 配置（只用不同的存储桶/前缀）',
         bucket: '存储桶',
         bucketInherited: '留空则沿用备份存储桶',
@@ -114,7 +117,7 @@ export default {
         publicBaseUrl: '公开访问域名',
         publicBaseUrlPlaceholder: '留空则返回预签名临时链接',
         presignExpiryHours: '预签名链接有效期（小时）',
-        saved: '异步生图对象存储配置已保存'
+        saved: '图片对象存储配置已保存'
       },
       schedule: {
         title: '定时备份',

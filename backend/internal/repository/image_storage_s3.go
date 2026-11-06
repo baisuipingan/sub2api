@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/google/uuid"
 )
 
 // S3ImageStorage 用 S3 兼容对象存储实现 service.ImageStorage。
@@ -77,4 +79,35 @@ func (s *S3ImageStorage) Save(ctx context.Context, key, contentType string, data
 		return "", fmt.Errorf("presign url: %w", err)
 	}
 	return result.URL, nil
+}
+
+// ProbeReadWriteDelete checks the permissions the private Studio gallery needs.
+// Constructing an S3 client alone does not contact the bucket.
+func (s *S3ImageStorage) ProbeReadWriteDelete(ctx context.Context) (probeErr error) {
+	key := "studio/v1/_connection-test/" + uuid.NewString()
+	data := []byte("gallery-storage-probe")
+	contentType := "text/plain"
+	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &s.bucket, Key: &key, Body: bytes.NewReader(data), ContentType: &contentType,
+	}); err != nil {
+		return fmt.Errorf("gallery storage probe put: %w", err)
+	}
+	defer func() {
+		if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &s.bucket, Key: &key}); err != nil && probeErr == nil {
+			probeErr = fmt.Errorf("gallery storage probe delete: %w", err)
+		}
+	}()
+	object, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &key})
+	if err != nil {
+		return fmt.Errorf("gallery storage probe get: %w", err)
+	}
+	defer func() { _ = object.Body.Close() }()
+	got, err := io.ReadAll(io.LimitReader(object.Body, int64(len(data)+1)))
+	if err != nil {
+		return fmt.Errorf("gallery storage probe read: %w", err)
+	}
+	if !bytes.Equal(got, data) {
+		return fmt.Errorf("gallery storage probe returned unexpected content")
+	}
+	return nil
 }

@@ -2,15 +2,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PARAMS, type TaskRecord } from '../../types'
 import { createImageModelCatalogFromModelList } from '../../lib/modelRegistry'
 
-const { getAllTasks, callImageApi } = vi.hoisted(() => ({ getAllTasks: vi.fn(), callImageApi: vi.fn() }))
+const { getAllTasks, callImageApi, putTask } = vi.hoisted(() => ({ getAllTasks: vi.fn(), callImageApi: vi.fn(), putTask: vi.fn() }))
 vi.mock('../../lib/api', () => ({ callImageApi }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
   getAllTasks,
-  putTask: vi.fn(),
+  putTask,
+  putTaskWithPendingSync: putTask,
   storeImageWithSize: vi.fn(async () => ({ id: 'generated-image', width: 2048, height: 2048 })),
 }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
+vi.mock('../../lib/studioKeySession', async () => ({
+  ...await vi.importActual<typeof import('../../lib/studioKeySession')>('../../lib/studioKeySession'),
+  isCurrentStudioApiKey: () => true,
+}))
 
 beforeEach(() => {
   vi.resetModules()

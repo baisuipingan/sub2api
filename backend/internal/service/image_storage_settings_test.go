@@ -61,11 +61,40 @@ func (reversibleEncryptor) Decrypt(ciphertext string) (string, error) {
 	return rest, nil
 }
 
-type recordingStorage struct{ saved []string }
+type recordingStorage struct {
+	saved      []string
+	probeCalls int
+	probeErr   error
+}
 
 func (s *recordingStorage) Save(_ context.Context, key, _ string, _ []byte) (string, error) {
 	s.saved = append(s.saved, key)
 	return "https://cdn.example.com/" + key, nil
+}
+
+func (s *recordingStorage) ProbeReadWriteDelete(context.Context) error {
+	s.probeCalls++
+	return s.probeErr
+}
+
+func TestImageStorageGalleryConnectionProbe(t *testing.T) {
+	repo := newStubSettingRepo()
+	backup := NewBackupService(repo, &config.Config{Totp: config.TotpConfig{EncryptionKeyConfigured: true}}, reversibleEncryptor{}, nil, nil)
+	storage := &recordingStorage{}
+	settings := NewImageStorageSettingService(repo, reversibleEncryptor{}, backup,
+		func(context.Context, *config.ImageStorageConfig) (ImageStorage, error) { return storage, nil },
+		config.ImageStorageConfig{})
+	in := ImageStorageSettings{StudioGalleryEnabled: true, Bucket: "gallery", Endpoint: "https://s3.test", Region: "auto", AccessKeyID: "ak", SecretAccessKey: "enc:secret"}
+	require.NoError(t, settings.TestConnection(context.Background(), in))
+	require.Equal(t, 1, storage.probeCalls)
+	storage.probeErr = errors.New("read permission denied")
+	require.ErrorContains(t, settings.TestConnection(context.Background(), in), "read permission denied")
+	in.StudioGalleryEnabled = false
+	require.NoError(t, settings.TestConnection(context.Background(), in))
+	require.Equal(t, 2, storage.probeCalls)
+	in.StudioGalleryEnabled = true
+	in.PublicBaseURL = "https://public.example"
+	require.ErrorIs(t, settings.TestConnection(context.Background(), in), ErrGalleryPublicStorage)
 }
 
 func newImageStorageFixture(t *testing.T, fallback config.ImageStorageConfig) (*ImageStorageSettingService, *stubSettingRepo, *[]config.ImageStorageConfig) {

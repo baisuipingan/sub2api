@@ -29,6 +29,7 @@ vi.mock('../../lib/taskDeletion', () => ({ confirmTaskDeletion }))
 vi.mock('../../stores/store', async () => ({
   storeState: (await import('vue')).reactive(rawState),
   editOutputs,
+  loadNextGalleryPage: vi.fn(),
   retryTask: vi.fn(),
   reuseConfig: vi.fn(),
   taskMatchesFilterStatus: () => true,

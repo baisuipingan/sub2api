@@ -46,7 +46,7 @@ import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { storeState as state } from '../stores/store'
-import { deleteCachedImage, ensureImageCached } from '../lib/imageCache'
+import { deleteCachedImage, ensureImagePreviewUrl } from '../lib/imageCache'
 
 /**
  * 结果大图。负责三件事：读缓存、加载失败可重试、点击放大到灯箱。
@@ -66,25 +66,25 @@ const source = ref<string | null>(null)
 const failed = ref(false)
 const attempt = ref(0)
 
-let cancelled = false
+let imageRequest = 0
 
 async function load() {
-  cancelled = false
+  const request = ++imageRequest
   source.value = null
   failed.value = false
   try {
-    const value = await ensureImageCached(props.imageId)
-    if (cancelled) return
+    const value = await ensureImagePreviewUrl(props.imageId)
+    if (request !== imageRequest) return
     source.value = value ?? null
     failed.value = !value
   } catch {
-    if (!cancelled) failed.value = true
+    if (request === imageRequest) failed.value = true
   }
 }
 
 watch(() => [props.imageId, attempt.value], load, { immediate: true })
 onUnmounted(() => {
-  cancelled = true
+  imageRequest += 1
 })
 
 function reload() {

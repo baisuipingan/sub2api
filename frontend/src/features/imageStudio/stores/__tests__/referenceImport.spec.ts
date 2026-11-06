@@ -16,6 +16,7 @@ vi.mock('../../lib/db', async () => ({
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
 import { addImageFromUrl, storeState as state, useStore } from '../store'
+import { setImageStudioUserScope } from '../../lib/db'
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -36,7 +37,7 @@ describe('reference image imports', () => {
     await addImageFromUrl(image)
     expect(fetch).not.toHaveBeenCalled()
     expect(loadImage).toHaveBeenCalledWith(image)
-    expect(storeImageWithSize).toHaveBeenCalledWith(image, 'upload')
+    expect(storeImageWithSize).toHaveBeenCalledWith(image, 'upload', expect.any(String))
     expect(state.inputImages).toEqual([{ id: 'reference-image', dataUrl: image }])
   })
 
@@ -58,6 +59,19 @@ describe('reference image imports', () => {
     await expect(addImageFromUrl('/image-studio')).rejects.toThrow('imageStudio.store.imageReadFailed')
     expect(storeImageWithSize).not.toHaveBeenCalled()
     expect(state.inputImages).toEqual([])
+  })
+
+  it('does not persist a reference during an account switch before scope is ready', async () => {
+    const token = [btoa('{}'), btoa(JSON.stringify({ user_id: 202, sid: 'new-user' })), 'signature'].join('.')
+    localStorage.setItem('auth_token', token)
+    localStorage.setItem('auth_user', JSON.stringify({ id: 101 }))
+    setImageStudioUserScope(null)
+    useStore.setState({ galleryInitialized: false })
+    await addImageFromUrl(image)
+    expect(storeImageWithSize).not.toHaveBeenCalled()
+    expect(state.inputImages).toEqual([])
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
   })
 
   it('does not persist corrupt bytes labelled as an image', async () => {

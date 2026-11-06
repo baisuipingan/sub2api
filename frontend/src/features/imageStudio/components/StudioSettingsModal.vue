@@ -64,8 +64,14 @@
             class="btn btn-danger btn-sm"
             @click="clearData({ clearConfig: false, clearTasks: true })"
           >
-            {{ t('imageStudio.settings.clearHistory') }}
+            {{ state.galleryUserId ? t('imageStudio.settings.clearLocalCache') : t('imageStudio.settings.clearHistory') }}
           </button>
+          <button
+            v-if="state.galleryEnabled && state.galleryUserId"
+            type="button"
+            class="btn btn-secondary btn-sm"
+            @click="confirmLegacyImport"
+          >{{ t('imageStudio.settings.importLegacyHistory') }}</button>
         </div>
         <input
           ref="fileRef"
@@ -89,7 +95,9 @@ import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import { storeState as state, clearData, exportData, importData } from '../stores/store'
+import { storeState as state, clearData, exportData, importData, importLegacyHistory } from '../stores/store'
+import { getLegacyTasks } from '../lib/db'
+import { captureGallerySession, isGallerySessionCurrent } from '../lib/gallerySession'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
 import { getBrowserNotificationSession, requestBrowserNotificationPermission } from '../lib/browserNotification'
 
@@ -154,5 +162,31 @@ async function handleImport(event: Event) {
   } finally {
     importing.value = false
   }
+}
+
+async function confirmLegacyImport() {
+  if (!state.galleryUserId) return
+  const session = captureGallerySession()
+  const userId = state.galleryUserId
+  let count = 0
+  try {
+    count = (await getLegacyTasks()).length
+  } catch {
+    if (isGallerySessionCurrent(session) && state.galleryUserId === userId) {
+      state.showToast(t('imageStudio.gallery.importFailed'), 'error')
+    }
+    return
+  }
+  if (!isGallerySessionCurrent(session) || state.galleryUserId !== userId) return
+  state.setShowSettings(false)
+  state.setConfirmDialog({
+    title: t('imageStudio.settings.importLegacyHistory'),
+    message: t('imageStudio.settings.importLegacyHint', { count, userId }),
+    confirmText: t('imageStudio.settings.importLegacyHistory'),
+    cancelText: t('imageStudio.common.cancel'),
+    action: () => isGallerySessionCurrent(session) && state.galleryUserId === userId
+      ? importLegacyHistory()
+      : undefined,
+  })
 }
 </script>
