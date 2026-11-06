@@ -36,6 +36,13 @@ function mountRail(collapsed: boolean) {
 }
 
 describe('StudioHistoryRail', () => {
+  it('keeps failed tasks without images visible for history deletion', () => {
+    const wrapper = mountRail(false)
+    void wrapper.setProps({ tasks: [task('failed', [], 'error')] })
+    return wrapper.vm.$nextTick().then(() => {
+      expect(wrapper.get('[data-studio-history-task-id="failed"]').attributes('aria-label')).toBe('failed')
+    })
+  })
   it('keeps one selected history item per task when another image in the batch is shown', async () => {
     const wrapper = mountRail(false)
     const entries = wrapper.findAll('[data-testid="studio-history-items"] > button')

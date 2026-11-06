@@ -914,24 +914,34 @@ export async function removeTask(task: TaskRecord) {
 export async function removeMultipleTasks(taskIds: string[]) {
   const state = useStore.getState()
   const ids = new Set(taskIds)
-  const remaining = state.tasks.filter((task) => !ids.has(task.id))
   const removed = state.tasks.filter((task) => ids.has(task.id))
-  const referenced = collectReferencedImageIds(remaining)
-  const deleteIds = new Set<string>()
-  for (const task of removed) {
-    for (const id of collectTaskImageIds(task)) if (!referenced.has(id)) deleteIds.add(id)
+  if (!removed.length) return
+  if (removed.some((task) => task.status === 'running' || taskControllers.has(task.id))) {
+    state.showToast(st('imageStudio.store.waitGeneration'), 'info')
+    return
   }
-  useStore.setState({
-    tasks: remaining,
-    streamPreviews: Object.fromEntries(Object.entries(state.streamPreviews).filter(([taskId]) => !ids.has(taskId))),
-    detailTaskId: state.detailTaskId && ids.has(state.detailTaskId) ? null : state.detailTaskId,
-    detailImageId: state.detailTaskId && ids.has(state.detailTaskId) ? null : state.detailImageId,
+  const deletedIds = new Set(removed.map((task) => task.id))
+  // A failed transaction must leave the visible history and image caches intact.
+  await commitTaskDeletion([...deletedIds], [])
+  useStore.setState((current) => {
+    const tasks = current.tasks.filter((task) => !deletedIds.has(task.id))
+    const referenced = collectReferencedImageIds(tasks, current.inputImages, current)
+    const detailTask = tasks.find((task) => task.id === current.detailTaskId)
+    const lightboxImageId = current.lightboxImageId && referenced.has(current.lightboxImageId)
+      ? current.lightboxImageId
+      : null
+    return {
+      tasks,
+      streamPreviews: Object.fromEntries(Object.entries(current.streamPreviews).filter(([taskId]) => !deletedIds.has(taskId))),
+      latestSubmittedTaskId: current.latestSubmittedTaskId && deletedIds.has(current.latestSubmittedTaskId) ? null : current.latestSubmittedTaskId,
+      detailTaskId: detailTask?.id ?? null,
+      detailImageId: detailTask && current.detailImageId && collectTaskImageIds(detailTask).includes(current.detailImageId) ? current.detailImageId : null,
+      lightboxImageId,
+      lightboxImageList: lightboxImageId ? current.lightboxImageList.filter((id) => referenced.has(id)) : [],
+    }
   })
-  await commitTaskDeletion([...ids], [])
-  await Promise.all([...deleteIds].map(async (id) => {
-    await dbDeleteImage(id)
-    deleteImageCacheEntry(id)
-  }))
+  const candidates = new Set(removed.flatMap(collectTaskImageIds))
+  await Promise.all([...candidates].map(deleteImageIfUnreferenced))
 }
 
 export async function clearFailedTasks(taskIds: string[]) {
@@ -968,7 +978,7 @@ export async function addImageFromUrl(url: string) {
 
 export async function deleteImageIfUnreferenced(id: string) {
   const state = useStore.getState()
-  if (collectReferencedImageIds(state.tasks, state.inputImages).has(id)) return
+  if (collectReferencedImageIds(state.tasks, state.inputImages, state).has(id)) return
   await dbDeleteImage(id)
   deleteImageCacheEntry(id)
 }
@@ -1225,16 +1235,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function collectTaskImageIds(task: TaskRecord) {
   return [
     ...task.inputImageIds,
+    ...(task.maskTargetImageId ? [task.maskTargetImageId] : []),
     ...(task.maskImageId ? [task.maskImageId] : []),
     ...task.outputImages,
     ...(task.transparentOriginalImages ?? []),
   ]
 }
 
-function collectReferencedImageIds(tasks: TaskRecord[], inputImages: InputImage[] = []) {
+function collectReferencedImageIds(
+  tasks: TaskRecord[],
+  inputImages: InputImage[] = [],
+  draft?: Pick<AppState, 'maskDraft' | 'maskEditorImageId' | 'imageEditSession'>,
+) {
   return new Set([
     ...inputImages.map((image) => image.id),
     ...tasks.flatMap(collectTaskImageIds),
+    ...(draft?.maskDraft ? [draft.maskDraft.targetImageId] : []),
+    ...(draft?.maskEditorImageId ? [draft.maskEditorImageId] : []),
+    ...(draft?.imageEditSession ? [
+      draft.imageEditSession.targetImageId,
+      ...draft.imageEditSession.inputImages.map((image) => image.id),
+      ...(draft.imageEditSession.maskDraft ? [draft.imageEditSession.maskDraft.targetImageId] : []),
+    ] : []),
   ])
 }
 

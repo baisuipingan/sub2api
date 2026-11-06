@@ -62,7 +62,7 @@ imageStudio: {
     noMatchTask: '没有找到匹配的任务',
     noStatusTask: '暂无{status}任务',
     deleteTitle: '删除任务',
-    deleteMessage: '确定要删除这个任务吗？关联的图片资源也会在没有其他任务引用时清理。',
+    deleteMessage: '确定要删除这个任务及其全部生成图片吗？其他任务或当前草稿仍在引用的图片会保留。',
   },
   result: {
     copyImage: '复制图片',
@@ -305,6 +305,7 @@ imageStudio: {
     replaceFailed: '参考图替换失败',
   },
   contextMenu: {
+    aria: '图片与任务操作',
     copy: '复制',
     download: '下载',
     edit: '编辑',
@@ -420,6 +421,8 @@ imageStudio: {
     pickImageFile: '请选择图片文件',
     imageReadFailed: '图片读取失败',
     waitGeneration: '请等待生成任务完成',
+    deleteFailed: '任务删除失败，请重试',
+    imageCleanupFailed: '任务已删除，但部分本地图片未能清理',
     dataCleared: '本地数据已清理',
     waitBeforeBackup: '请等待生成任务完成后再备份',
     backupExported: '备份已导出',

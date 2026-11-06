@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import type { TaskRecord } from '../../types'
 
-const { rawState, downloadImageSource, ensureImageCached, editOutputs, copyImageSourceToClipboard } = vi.hoisted(() => ({
+const { rawState, downloadImageSource, ensureImageCached, editOutputs, copyImageSourceToClipboard, confirmTaskDeletion } = vi.hoisted(() => ({
   rawState: {
     tasks: [] as TaskRecord[],
     searchQuery: '',
@@ -22,7 +22,9 @@ const { rawState, downloadImageSource, ensureImageCached, editOutputs, copyImage
   ensureImageCached: vi.fn(),
   editOutputs: vi.fn(),
   copyImageSourceToClipboard: vi.fn(),
+  confirmTaskDeletion: vi.fn(),
 }))
+vi.mock('../../lib/taskDeletion', () => ({ confirmTaskDeletion }))
 
 vi.mock('../../stores/store', async () => ({
   storeState: (await import('vue')).reactive(rawState),
@@ -80,6 +82,35 @@ beforeEach(() => {
 })
 
 describe('StudioResultPanel download', () => {
+  it('deletes the whole displayed task through the shared confirmation', async () => {
+    const wrapper = mountPanel()
+    wrapper.getComponent(StudioBatchFilmstrip).vm.$emit('selectImage', 1)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('[data-testid="delete-result-task"]').trigger('click')
+    expect(confirmTaskDeletion).toHaveBeenCalledWith('task-download')
+  })
+
+  it('disables deleting a running task', async () => {
+    state.tasks = [task({ status: 'running', outputImages: [] })]
+    const wrapper = mountPanel()
+    const remove = wrapper.get('[data-testid="delete-result-task"]')
+    expect(remove.attributes('disabled')).toBeDefined()
+    await remove.trigger('click')
+    expect(confirmTaskDeletion).not.toHaveBeenCalled()
+  })
+
+  it('selects another remaining task after the displayed task is deleted', async () => {
+    state.tasks = [task(), task({ id: 'remaining', outputImages: ['remaining-image'], createdAt: Date.now() - 1000 })]
+    const wrapper = mountPanel()
+    state.tasks = state.tasks.filter((item) => item.id !== 'task-download')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.getComponent(StudioSquarePreview).props('imageId')).toBe('remaining-image')
+    state.tasks = []
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findComponent(StudioSquarePreview).exists()).toBe(false)
+    expect(wrapper.find('[data-testid="delete-result-task"]').exists()).toBe(false)
+  })
+
   it('offers a download button and downloads the original selected result image', async () => {
     const wrapper = mountPanel()
     const button = wrapper.get('[data-testid="download-result-image"]')

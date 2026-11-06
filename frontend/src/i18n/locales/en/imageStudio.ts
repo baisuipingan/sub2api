@@ -62,7 +62,7 @@ imageStudio: {
     noMatchTask: 'No matching tasks',
     noStatusTask: 'No {status} tasks',
     deleteTitle: 'Delete task',
-    deleteMessage: 'Delete this task? Associated images are cleaned up when no other task references them.',
+    deleteMessage: 'Delete this task and all its generated images? Images still referenced by other tasks or the current draft are kept.',
   },
   result: {
     copyImage: 'Copy image',
@@ -305,6 +305,7 @@ imageStudio: {
     replaceFailed: 'Failed to replace reference image',
   },
   contextMenu: {
+    aria: 'Image and task actions',
     copy: 'Copy',
     download: 'Download',
     edit: 'Edit',
@@ -420,6 +421,8 @@ imageStudio: {
     pickImageFile: 'Please choose an image file',
     imageReadFailed: 'Failed to read the image',
     waitGeneration: 'Please wait for generation to finish',
+    deleteFailed: 'Could not delete the task. Try again.',
+    imageCleanupFailed: 'The task was deleted, but some local images could not be removed.',
     dataCleared: 'Local data cleared',
     waitBeforeBackup: 'Wait for generation to finish before backing up',
     backupExported: 'Backup exported',

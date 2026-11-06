@@ -58,6 +58,7 @@
       <button
         v-for="item in items"
         :key="item.task.id"
+        :data-studio-history-task-id="item.task.id"
         type="button"
         class="group relative block w-16 shrink-0 overflow-hidden rounded-lg ring-1 ring-inset transition lg:w-full"
         :class="
@@ -127,7 +128,7 @@ interface HistoryItem {
 /** 每个任务取第一张图作为代表；同一任务多图时也只占一格 */
 const items = computed<HistoryItem[]>(() =>
   props.tasks
-    .filter((task) => task.outputImages.length > 0 || task.status === 'running')
+    .filter((task) => task.outputImages.length > 0 || task.status === 'running' || task.status === 'error')
     .map((task) => ({
       task,
       imageId: task.outputImages[0] ?? '',

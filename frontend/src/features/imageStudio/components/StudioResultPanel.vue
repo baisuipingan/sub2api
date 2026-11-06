@@ -153,6 +153,17 @@
                   <StudioIcon name="RefreshIcon" class="h-3.5 w-3.5" />
                   {{ activeTask.status === 'error' ? t('imageStudio.task.retry') : t('imageStudio.result.regenerate') }}
                 </button>
+                <button
+                  type="button"
+                  data-testid="delete-result-task"
+                  class="btn btn-secondary btn-sm gap-1.5 !text-red-600 hover:!bg-red-50 dark:!text-red-400 dark:hover:!bg-red-500/10"
+                  :disabled="activeTask.status === 'running'"
+                  :title="activeTask.status === 'running' ? t('imageStudio.store.waitGeneration') : undefined"
+                  @click="confirmTaskDeletion(activeTask.id)"
+                >
+                  <StudioIcon name="TrashIcon" class="h-3.5 w-3.5" />
+                  {{ t('imageStudio.task.delete') }}
+                </button>
               </div>
 
               <p class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
@@ -223,6 +234,7 @@ import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { copyImageSourceToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { ensureImageCached } from '../lib/imageCache'
 import { downloadImageSource } from '../lib/downloadImage'
+import { confirmTaskDeletion } from '../lib/taskDeletion'
 
 const { t } = useI18n()
 
