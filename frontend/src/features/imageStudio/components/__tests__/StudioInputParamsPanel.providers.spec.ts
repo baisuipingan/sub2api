@@ -47,6 +47,27 @@ async function clickText(wrapper: Panel, text: string) {
 }
 
 describe('StudioInputParamsPanel provider controls', () => {
+  it.each([
+    { id: 'gpt-image-2.5-flare', api: 'openai', size: '2048x2048' },
+    { id: 'gemini-3.1-flash-image', api: 'gemini', size: 'auto' },
+    { id: 'grok-imagine-image-2.0', api: 'openai', size: 'auto' },
+  ])('starts $id at explicit 2K without automatic size or ratio controls', ({ id, api, size }) => {
+    const wrapper = mountPanel(model(id, { api }))
+    expect(wrapper.props('params')).toMatchObject({ resolution: '2K', size })
+    const twoK = wrapper.findAll('button').find((button) => button.text() === '2K')!
+    expect(twoK.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('button').filter((button) => ['imageStudio.params.auto', 'imageStudio.params.default'].includes(button.text()))).toHaveLength(0)
+    expect(wrapper.findAll('button').find((button) => button.text() === '1:1')!.attributes('aria-pressed')).toBe('true')
+  })
+
+  it('keeps an explicit tier when choosing a ratio and changing the resolution', async () => {
+    const wrapper = mountPanel(model('gpt-image-2'))
+    await clickText(wrapper, '16:9')
+    expect(wrapper.props('params')).toMatchObject({ resolution: '2K', size: '2048x1152' })
+    await clickText(wrapper, '4K')
+    expect(wrapper.props('params')).toMatchObject({ resolution: '4K', size: '3840x2160' })
+  })
+
   it('greys out 4K when account routing only admits 1K and 2K, and blocks clicks', async () => {
     const current = model('gpt-image-2.6-sunburst', { api: 'openai', available_size_tiers: ['1K', '2K'] })
     const wrapper = mountPanel(current)
@@ -54,7 +75,7 @@ describe('StudioInputParamsPanel provider controls', () => {
     expect(fourK.attributes('disabled')).toBeDefined()
     expect(fourK.attributes('title')).toBe('imageStudio.params.channelSizeUnavailable')
     await fourK.trigger('click')
-    expect(wrapper.props('params').resolution).toBe('auto')
+    expect(wrapper.props('params').resolution).toBe('2K')
     await clickText(wrapper, '2K')
     expect(wrapper.props('params').resolution).toBe('2K')
     expect(wrapper.find('[role="status"]').text()).toBe('imageStudio.params.availableSizes')
@@ -177,7 +198,7 @@ describe('StudioInputParamsPanel provider controls', () => {
     const returned = normalizeParamsForSettings(fromGemini, settings(gpt.id), [gpt])
     await wrapper.setProps({ model: gpt, params: returned })
     expect(wrapper.props('params').aspect_ratio).toBeUndefined()
-    expect(wrapper.props('params').resolution).toBe('auto')
+    expect(wrapper.props('params').resolution).toBe('2K')
     expect(wrapper.find('[data-testid="image-complexity"]').exists()).toBe(true)
   })
 })

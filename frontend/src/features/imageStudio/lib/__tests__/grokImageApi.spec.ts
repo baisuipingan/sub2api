@@ -51,7 +51,7 @@ describe('Grok image API adapter', () => {
   })
 
   it('sends the documented 1k default for auto while leaving the aspect ratio automatic', () => {
-    const body = buildGrokImageRequest(options())
+    const body = buildGrokImageRequest(options({ params: { ...DEFAULT_PARAMS, resolution: 'auto' } }))
     expect(body.resolution).toBe('1k')
     expect(body).not.toHaveProperty('aspect_ratio')
   })

@@ -14,7 +14,7 @@
     </div>
 
     <!-- 清晰度 -->
-    <div v-if="capabilities.resolutions.length > 1">
+    <div v-if="explicitResolutions.length">
       <div class="mb-2 flex items-center justify-between">
         <span class="text-xs font-medium text-gray-500 dark:text-dark-400">
           {{ t('imageStudio.params.resolution') }}
@@ -22,10 +22,10 @@
       </div>
       <div
         class="grid gap-2"
-        :style="{ gridTemplateColumns: `repeat(${capabilities.resolutions.length}, minmax(0, 1fr))` }"
+        :style="{ gridTemplateColumns: `repeat(${explicitResolutions.length}, minmax(0, 1fr))` }"
       >
         <button
-          v-for="resolution in capabilities.resolutions"
+          v-for="resolution in explicitResolutions"
           :key="resolution"
           type="button"
           class="btn btn-sm border px-2 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-40"
@@ -39,7 +39,7 @@
           :title="!isResolutionAvailable(model, resolution) ? t('imageStudio.params.channelSizeUnavailable', { resolution: RESOLUTION_LABELS[resolution] }) : undefined"
           @click="setResolution(resolution)"
         >
-          {{ capabilities.customSize && resolution === 'auto' ? t('imageStudio.params.default') : RESOLUTION_LABELS[resolution] }}
+          {{ RESOLUTION_LABELS[resolution] }}
         </button>
       </div>
       <p v-if="model.availableSizeTiers && capabilities.resolutions.some((tier) => !isResolutionAvailable(model, tier))" class="mt-2 text-xs leading-5 text-gray-500" role="status">
@@ -53,19 +53,6 @@
         {{ t('imageStudio.params.aspectRatio') }}
       </span>
       <div role="group" :aria-label="t('imageStudio.params.aspectRatio')" class="flex flex-wrap gap-2">
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost rounded-lg border px-2.5 py-1.5 text-sm transition"
-          :class="
-            ratioIsAuto
-              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300'
-              : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/[0.1] dark:text-dark-300'
-          "
-          :aria-pressed="ratioIsAuto"
-          @click="setAutoRatio"
-        >
-          {{ t('imageStudio.params.auto') }}
-        </button>
         <button
           v-for="ratio in quickRatios"
           :key="ratio"
@@ -272,7 +259,7 @@ import Toggle from '@/components/common/Toggle.vue'
 import type { TaskParams } from '../types'
 import type { ImageModelDefinition, ImageResolutionTier } from '../lib/modelRegistry'
 import { getModelResolution } from '../lib/modelRegistry'
-import { MAX_OUTPUT_IMAGES, parameterImageSize, usesNativeGeometry, isResolutionAvailable } from '../lib/paramCompatibility'
+import { MAX_OUTPUT_IMAGES, parameterImageSize, preferredResolution, usesNativeGeometry, isResolutionAvailable } from '../lib/paramCompatibility'
 import { parseRatio } from '../lib/size'
 
 const props = defineProps<{
@@ -287,6 +274,7 @@ const advanced = ref(false)
 const showRatioPicker = ref(false)
 
 const capabilities = computed(() => props.model?.capabilities)
+const explicitResolutions = computed(() => capabilities.value?.resolutions.filter((tier) => tier !== 'auto') ?? [])
 
 const RESOLUTION_LABELS: Record<ImageResolutionTier, string> = {
   auto: t('imageStudio.params.default'),
@@ -402,23 +390,12 @@ function setResolution(resolution: ImageResolutionTier) {
     setParams({ resolution })
     return
   }
-
-  if (props.params.size === 'auto') {
-    const size =
-      cap.customSize && resolution !== 'auto'
-        ? parameterImageSize(model, resolution, model.defaults.aspectRatio)
-        : null
-    setParams(size ? { resolution, size } : { resolution })
+  if (resolution === 'auto') {
+    setParams({ resolution: 'auto', size: 'auto' })
     return
   }
 
-  const sizeTier =
-    resolution === 'auto'
-      ? model.defaults.resolution === 'auto'
-        ? '1K'
-        : model.defaults.resolution
-      : resolution
-  const size = parameterImageSize(model, sizeTier, exactRatio.value)
+  const size = parameterImageSize(model, resolution, props.params.size === 'auto' ? model.defaults.aspectRatio : exactRatio.value)
   if (size) setParams({ resolution, size })
 }
 
@@ -432,16 +409,10 @@ function setRatio(ratio: string) {
 
   const tier =
     currentResolution.value === 'auto'
-      ? model.defaults.resolution === 'auto'
-        ? '1K'
-        : model.defaults.resolution
+      ? preferredResolution(model)
       : currentResolution.value
   const size = parameterImageSize(model, tier, ratio)
-  if (size) setParams({ size })
-}
-
-function setAutoRatio() {
-  setParams({ size: 'auto', ...(usesNativeGeometry(props.model) ? { aspect_ratio: 'auto' } : {}) })
+  if (size) setParams({ resolution: tier, size })
 }
 
 function onCountChange(value: string) {

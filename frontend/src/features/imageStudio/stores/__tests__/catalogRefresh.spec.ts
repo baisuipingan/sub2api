@@ -45,6 +45,26 @@ beforeEach(() => {
 })
 
 describe('Image Studio catalog refresh', () => {
+  it('turns the initial 2K choice into concrete GPT dimensions after the catalog loads', async () => {
+    useStore.setState({ modelCatalog: [], catalogStatus: 'idle' })
+    fetchModels.mockResolvedValueOnce(catalog('gpt-image-2'))
+    await state.refreshImageModelCatalog()
+    expect(state.params).toMatchObject({ resolution: '2K', size: '2048x2048' })
+  })
+
+  it('selects an explicit available fallback when the refreshed channel does not offer 2K', async () => {
+    fetchModels.mockResolvedValueOnce(createImageModelCatalogFromModelList({ models: [{ id: 'gpt-image-2', available_size_tiers: ['4K'] }] }))
+    await state.refreshImageModelCatalog()
+    expect(state.params).toMatchObject({ resolution: '4K', size: '2880x2880' })
+  })
+
+  it('resolves an older auto draft to an explicit tier through catalog refresh', async () => {
+    useStore.setState({ params: { ...DEFAULT_PARAMS, resolution: 'auto' } })
+    fetchModels.mockResolvedValueOnce(catalog('gpt-image-2'))
+    await state.refreshImageModelCatalog()
+    expect(state.params).toMatchObject({ resolution: '2K', size: '2048x2048' })
+  })
+
   it('replaces stale models and selects the first returned model when flare was removed', async () => {
     useStore.setState({
       modelCatalog: catalog('gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'),

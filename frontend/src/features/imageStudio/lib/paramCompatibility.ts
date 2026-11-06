@@ -12,6 +12,15 @@ export function isResolutionAvailable(model: ImageModelDefinition | null, resolu
   return model.availableSizeTiers.includes(resolution === '0.5K' ? '1K' : resolution)
 }
 
+/** Prefer a concrete tier supported by both the model and the serving channel. */
+export function preferredResolution(model: ImageModelDefinition | null): TaskParams['resolution'] {
+  if (!model) return DEFAULT_PARAMS.resolution
+  const resolutions = model.capabilities.resolutions
+  if (resolutions.includes(DEFAULT_PARAMS.resolution) && isResolutionAvailable(model, DEFAULT_PARAMS.resolution)) return DEFAULT_PARAMS.resolution
+  // A 1K-only channel may also advertise 0.5K; prefer 1K over 512 output.
+  return (['1K', '4K', '0.5K'] as const).find((tier) => resolutions.includes(tier) && isResolutionAvailable(model, tier)) ?? 'auto'
+}
+
 /** Account tier routing classifies the actual requested pixels by longest edge. */
 export function isRequestedImageSizeAvailable(model: ImageModelDefinition, params: TaskParams) {
   if (!model.availableSizeTiers) return true
@@ -50,17 +59,21 @@ export function normalizeParamsForSettings(params: TaskParams, settings: AppSett
   const minPixels = capabilities?.customSize ? GPT_IMAGE_MIN_PIXELS : undefined
   const normalizedSize = normalizeImageSize(params.size, { minPixels }) || DEFAULT_PARAMS.size
   const requestedResolution = getModelResolution(model, normalizedSize, params.resolution)
-  const resolution = capabilities?.resolutions.includes(requestedResolution)
+  const resolution = requestedResolution !== 'auto' && capabilities?.resolutions.includes(requestedResolution)
     ? requestedResolution
-    : model?.defaults.resolution ?? requestedResolution
+    : model ? preferredResolution(model) : requestedResolution
   const supportsGeometry = capabilities?.customSize
     || capabilities?.resolutions.some((tier) => tier !== 'auto')
     || (capabilities?.aspectRatios.length ?? 0) > 1
   const nativeGeometry = usesNativeGeometry(model)
+  const defaultAspectRatio = model && capabilities?.resolutions.some((tier) => tier !== 'auto')
+    ? capabilities.aspectRatios.includes(model.defaults.aspectRatio) ? model.defaults.aspectRatio : capabilities.aspectRatios[0] ?? 'auto'
+    : 'auto'
   const aspectRatio = nativeGeometry
-    ? capabilities?.aspectRatios.includes(params.aspect_ratio ?? '') ? params.aspect_ratio : params.aspect_ratio === 'auto' ? 'auto' : closestSupportedRatio(params.size, capabilities?.aspectRatios ?? []) ?? 'auto'
+    ? capabilities?.aspectRatios.includes(params.aspect_ratio ?? '') ? params.aspect_ratio : closestSupportedRatio(params.size, capabilities?.aspectRatios ?? []) ?? defaultAspectRatio
     : undefined
-  let size = normalizedSize
+  // Native Gemini/Grok adapters send a resolution tier and aspect ratio, not GPT pixel dimensions.
+  let size = nativeGeometry ? 'auto' : normalizedSize
   if (!nativeGeometry) {
     if (capabilities && !supportsGeometry) size = 'auto'
     else if (model && (resolution !== 'auto' || capabilities?.fixedSizes?.length) && (capabilities?.customSize || model.api === 'openai')) {
@@ -93,8 +106,8 @@ export function normalizeParamsForSettings(params: TaskParams, settings: AppSett
 
   if (next.output_format === 'png') next.output_compression = null
   if (next.output_format === 'jpeg') next.transparent_output = false
-  if (model && !isRequestedImageSizeAvailable(model, next)) {
-    next.resolution = capabilities?.resolutions.find((tier) => isResolutionAvailable(model, tier)) ?? 'auto'
+  if (model && next.resolution !== 'auto' && !isRequestedImageSizeAvailable(model, next)) {
+    next.resolution = preferredResolution(model)
     next.size = nativeGeometry || next.resolution === 'auto'
       ? 'auto'
       : parameterImageSize(model, next.resolution, model.defaults.aspectRatio) ?? 'auto'

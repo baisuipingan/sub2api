@@ -50,6 +50,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('provider profile to image request routing', () => {
+  it.each([
+    { id: 'gpt-image-2', api: 'openai' as const, provider: 'openai' as const, profile: 'gpt-image-2', fields: { size: '2048x2048' } },
+    { id: 'gemini-3.1-flash-image', api: 'gemini' as const, provider: 'google' as const, profile: 'gemini-3.1-flash-image', fields: { generationConfig: { imageConfig: { imageSize: '2K' } } } },
+    { id: 'grok-imagine-image-2.0', api: 'openai' as const, provider: 'xai' as const, profile: 'grok-imagine-image-2.0', fields: { resolution: '2k' } },
+  ])('sends the initial explicit 2K tier through the $id adapter', async ({ id, api, provider, profile, fields }) => {
+    const model = catalogModel(id, api, [{ provider, profile }])
+    await callImageApi(requestOptions(model))
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toMatchObject(fields)
+  })
+
+  it.each([
+    { id: 'gpt-image-2', api: 'openai' as const, provider: 'openai' as const, profile: 'gpt-image-2', fields: { size: '2048x2048' } },
+    { id: 'gemini-3.1-flash-image', api: 'gemini' as const, provider: 'google' as const, profile: 'gemini-3.1-flash-image', fields: { generationConfig: { imageConfig: { imageSize: '2K', aspectRatio: '1:1' } } } },
+  ])('sends a resolved explicit tier when the $id studio draft previously used auto', async ({ id, api, provider, profile, fields }) => {
+    const model = catalogModel(id, api, [{ provider, profile }])
+    await callImageApi(requestOptions(model, { resolution: 'auto' }))
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toMatchObject(fields)
+  })
+
   it('keeps an arbitrary xAI public alias and sends n=10 in one Grok request', async () => {
     const model = catalogModel('my-painter', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
     const opts = requestOptions(model, { n: 10, resolution: '2K', aspect_ratio: '21:9', quality: 'medium' })

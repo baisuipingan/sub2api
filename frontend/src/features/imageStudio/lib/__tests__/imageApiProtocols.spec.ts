@@ -72,7 +72,7 @@ describe('Image Studio protocol adapters', () => {
 
   it('Gemini auto preserves automatic resolution while retaining a selected aspect ratio', () => {
     expect(mapGeminiImageConfig('2048x1152', 'auto')).toEqual({ aspectRatio: '16:9' })
-    expect(buildGeminiImageRequest('Draw', { ...DEFAULT_PARAMS })).toEqual({
+    expect(buildGeminiImageRequest('Draw', { ...DEFAULT_PARAMS, resolution: 'auto' })).toEqual({
       contents: [{ role: 'user', parts: [{ text: 'Draw' }] }],
       generationConfig: { responseModalities: ['IMAGE'] },
     })
@@ -97,7 +97,8 @@ describe('Image Studio protocol adapters', () => {
     const native = normalizeParamsForSettings(params, { ...SETTINGS, selectedModelId: template.id }, [template])
     const compatible = normalizeParamsForSettings(params, { ...SETTINGS, selectedModelId: template.id }, [{ ...template, api: 'openai' }])
 
-    expect(mapGeminiImageConfig(native.size, native.resolution)).toEqual({ aspectRatio: '16:9', imageSize: '4K' })
+    expect(native).toMatchObject({ size: 'auto', resolution: '4K', aspect_ratio: '16:9' })
+    expect(mapGeminiImageConfig(native.size, native.resolution, native.aspect_ratio, template.capabilities)).toEqual({ aspectRatio: '16:9', imageSize: '4K' })
     expect(compatible.size).toBe('3840x2160')
   })
 

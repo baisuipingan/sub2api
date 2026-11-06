@@ -21,7 +21,7 @@ describe('Image Studio documented provider capabilities', () => {
     expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' })).toBe(false)
     expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS, resolution: '2K', size: '2560x1440' })).toBe(false)
     const normalized = normalizeParamsForSettings({ ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' }, settings(current.id), [current])
-    expect(normalized).toMatchObject({ resolution: 'auto', size: 'auto' })
+    expect(normalized).toMatchObject({ resolution: '2K', size: '2048x2048' })
     expect(normalizeParamsForSettings({ ...DEFAULT_PARAMS, resolution: '2K' }, settings(current.id), [current])).toMatchObject({ resolution: '2K', size: '2048x2048' })
   })
 
@@ -35,10 +35,11 @@ describe('Image Studio documented provider capabilities', () => {
   it('treats the Grok auto request as its actual 1K default on an Images account restricted to 2K', () => {
     const current = model('grok-imagine-image-2.0', { api: 'openai', available_size_tiers: ['2K'] })
     expect(isResolutionAvailable(current, 'auto')).toBe(false)
-    expect(isRequestedImageSizeAvailable(current, { ...DEFAULT_PARAMS })).toBe(false)
-    const params = normalizeParamsForSettings({ ...DEFAULT_PARAMS }, settings(current.id), [current])
-    expect(params).toMatchObject({ resolution: '2K', size: 'auto' })
-    expect(isRequestedImageSizeAvailable(current, params)).toBe(true)
+    const params = { ...DEFAULT_PARAMS, resolution: 'auto' as const }
+    expect(isRequestedImageSizeAvailable(current, params)).toBe(false)
+    const normalized = normalizeParamsForSettings(params, settings(current.id), [current])
+    expect(normalized).toMatchObject({ resolution: '2K', size: 'auto' })
+    expect(isRequestedImageSizeAvailable(current, normalized)).toBe(true)
   })
   it.each(['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst', 'gpt-image-2.6-flare-2026-11-01', 'gpt-image-2.6-flare-4K'])('offers current OpenAI controls for %s without changing its public name', (id) => {
     const current = model(id)
@@ -110,7 +111,7 @@ describe('Image Studio documented provider capabilities', () => {
   it('clears parameters from the previous provider when switching models', () => {
     const current = model('grok-imagine-image-2.0')
     const params = normalizeParamsForSettings({ ...DEFAULT_PARAMS, resolution: '4K', quality: 'high', complexity: 'high', output_format: 'webp', output_compression: 50, transparent_output: true, partial_images: 3, aspect_ratio: '1:8' }, settings(current.id), [current])
-    expect(params).toMatchObject({ resolution: 'auto', quality: 'auto', complexity: undefined, output_compression: null, transparent_output: false, partial_images: 0, aspect_ratio: 'auto' })
+    expect(params).toMatchObject({ resolution: '2K', quality: 'auto', complexity: undefined, output_compression: null, transparent_output: false, partial_images: 0, aspect_ratio: '1:1' })
     expect(current.capabilities.imageCount.max).toBe(10)
     expect(current.capabilities.referenceImages).toBe(5)
     const gpt = model('gpt-image-2')

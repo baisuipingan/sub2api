@@ -508,7 +508,7 @@ export function initStore(): Promise<void> {
           usableInputImages,
         ),
         inputImages: usableInputImages,
-        params: normalizeParamsForSettings(current.params, current.settings),
+        params: normalizeParamsForSettings(current.params, current.settings, current.modelCatalog),
       })
     } catch (error) {
       console.warn('初始化本地数据失败', error)
@@ -549,11 +549,11 @@ export async function submitTask() {
     state.showToast(st('imageStudio.store.modelInvalid'), 'error')
     return
   }
-  if (!isRequestedImageSizeAvailable(model, state.params)) {
+  const params = normalizeParamsForSettings(state.params, state.settings, state.modelCatalog)
+  if (!isRequestedImageSizeAvailable(model, state.params.resolution === 'auto' ? params : state.params)) {
     state.showToast(st('imageStudio.store.channelSizeUnavailable'), 'error')
     return
   }
-  const params = normalizeParamsForSettings(state.params, state.settings, state.modelCatalog)
   const capabilities = getImageModelCapabilities(modelId, state.modelCatalog)
   const requestModelId = getRequestModelId(model, params.size, params.resolution)
   if (!requestModelId) {

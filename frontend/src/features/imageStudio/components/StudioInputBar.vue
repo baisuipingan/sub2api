@@ -281,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watchPostEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import StudioDragUploadOverlay from './StudioDragUploadOverlay.vue'
@@ -323,8 +323,6 @@ const { t } = useI18n()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const editorRef = ref<HTMLDivElement | null>(null)
-/** 标记这次 prompt 变化来自用户输入，避免回写编辑器导致光标跳动 */
-const isUserInput = ref(false)
 
 const isDragging = ref(false)
 const cursorPosition = ref(0)
@@ -503,7 +501,6 @@ function handleSubmit() {
 function syncPromptFromEditor() {
   const editor = editorRef.value
   if (!editor) return
-  isUserInput.value = true
   const selection = getContentEditableSelection(editor)
   cursorPosition.value = selection.start
   syncMentionTagSelection(editor)
@@ -519,7 +516,7 @@ function onEditorInput() {
 function insertTextAtSelection(text: string) {
   const editor = editorRef.value
   if (editor && !text.includes('\n')) {
-    editor.focus()
+    if (document.activeElement !== editor) editor.focus()
     if (insertContentEditableText(editor, text)) {
       syncPromptFromEditor()
       return
@@ -531,17 +528,20 @@ function insertTextAtSelection(text: string) {
     : { start: visiblePrompt.value.length, end: visiblePrompt.value.length }
   const promptStart = getPromptIndexFromVisibleIndex(prompt.value, selection.start)
   const promptEnd = getPromptIndexFromVisibleIndex(prompt.value, selection.end)
-  state.setPrompt(
-    `${prompt.value.slice(0, promptStart)}${text}${prompt.value.slice(promptEnd)}`,
-  )
+  const nextPrompt = `${prompt.value.slice(0, promptStart)}${text}${prompt.value.slice(promptEnd)}`
+  const focusedElement = document.activeElement
+  state.setPrompt(nextPrompt)
 
   const nextCursor = selection.start + text.length
   cursorPosition.value = nextCursor
-  window.setTimeout(() => {
-    if (!editorRef.value) return
-    editorRef.value.focus()
-    setContentEditableSelection(editorRef.value, nextCursor, nextCursor)
-  }, 0)
+  // 回填 DOM 后在同一轮微任务恢复选区，避免下一次输入先落到重建后的开头。
+  void nextTick(() => {
+    if (
+      !editor || editorRef.value !== editor || prompt.value !== nextPrompt ||
+      document.activeElement !== focusedElement
+    ) return
+    setContentEditableSelection(editor, nextCursor, nextCursor)
+  })
 }
 
 function selectMention(imageIndex: number) {
@@ -695,38 +695,40 @@ function onEditorClick(event: MouseEvent) {
 
 /* ── 把 prompt 渲染进 contentEditable ────────────────── */
 
-watch(
-  [() => state.inputImages, () => state.prompt],
-  async () => {
-    const editor = editorRef.value
-    if (!editor) return
+let renderedInputImages: typeof state.inputImages | null = null
 
-    // 用户刚输入的内容不要回写，否则光标会跳
-    if (isUserInput.value) {
-      isUserInput.value = false
-      return
-    }
+// 首次挂载和状态变化都在模板 ref 就绪后同步，无需依赖下一次 prompt 变化。
+watchPostEffect(() => {
+  const editor = editorRef.value
+  const currentPrompt = state.prompt
+  const currentInputImages = state.inputImages
+  if (!editor) return
 
-    await nextTick()
-    const nodes: Node[] = getPromptMentionParts(prompt.value, inputImages.value).map((part) => {
-      if (part.type === 'text') return document.createTextNode(part.text)
-      const mention = document.createElement('span')
-      mention.contentEditable = 'false'
-      mention.className = 'mention-tag'
-      mention.dataset.mentionText = getSelectedImageMentionLabel(part.imageIndex)
-      mention.textContent = part.text
-      return mention
-    })
+  // 普通输入已在 DOM 中，保留文本节点与光标；外部更新和引用变化仍需回填。
+  if (
+    currentInputImages === renderedInputImages &&
+    getContentEditablePlainText(editor) === currentPrompt
+  ) return
 
-    // 末尾换行需要占位 br，否则看不见最后一行
-    if (prompt.value.endsWith('\n')) {
-      const sentinel = document.createElement('br')
-      sentinel.dataset.sentinelBr = 'true'
-      nodes.push(sentinel)
-    }
-    editor.replaceChildren(...nodes)
-  },
-)
+  const nodes: Node[] = getPromptMentionParts(currentPrompt, currentInputImages).map((part) => {
+    if (part.type === 'text') return document.createTextNode(part.text)
+    const mention = document.createElement('span')
+    mention.contentEditable = 'false'
+    mention.className = 'mention-tag'
+    mention.dataset.mentionText = getSelectedImageMentionLabel(part.imageIndex)
+    mention.textContent = part.text
+    return mention
+  })
+
+  // 末尾换行需要占位 br，否则看不见最后一行。
+  if (currentPrompt.endsWith('\n')) {
+    const sentinel = document.createElement('br')
+    sentinel.dataset.sentinelBr = 'true'
+    nodes.push(sentinel)
+  }
+  editor.replaceChildren(...nodes)
+  renderedInputImages = currentInputImages
+})
 
 /** 跟踪光标位置，用于 @ 菜单定位 */
 function onSelectionChange() {
