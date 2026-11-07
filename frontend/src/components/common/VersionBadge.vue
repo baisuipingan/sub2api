@@ -1,7 +1,8 @@
 <template>
   <div class="relative">
+    <ForkVersionPanel v-if="isAdmin && buildType === 'fork'" :version="version" />
     <!-- Admin: Full version badge with dropdown -->
-    <template v-if="isAdmin">
+    <template v-else-if="isAdmin">
       <button
         @click="toggleDropdown"
         class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
@@ -650,6 +651,7 @@ import {
 } from '@/api/admin/system'
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
+import ForkVersionPanel from './ForkVersionPanel.vue'
 
 const GITHUB_REPO = 'Wei-Shaw/sub2api'
 // Docker Hub image published by CI (tags carry no "v" prefix, e.g. weishaw/sub2api:0.1.146)

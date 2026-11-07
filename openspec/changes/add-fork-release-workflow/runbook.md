@@ -29,7 +29,7 @@ https://github.com/Wei-Shaw/sub2api/releases/latest
 ./scripts/fork-release.sh prepare v0.2.19
 ```
 
-脚本会创建 `sync/v0.2.19` 分支并执行：
+脚本会从当前分支创建 `sync/0.2.19` 分支并执行：
 
 ```bash
 git merge --no-ff v0.2.19

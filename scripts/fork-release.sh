@@ -39,7 +39,7 @@ Examples:
   ./scripts/fork-release.sh publish v0.2.18
   ./scripts/fork-release.sh publish v0.2.18 --push
 
-prepare creates sync/<official-tag> and merges the official tag with --no-ff.
+prepare creates sync/<official-version> and merges the official tag with --no-ff.
 publish creates fork-v<official-tag>-<sequence> locally. Only --push writes to
 origin. Resolve merge conflicts manually; this command never resolves them.
 USAGE_EOF

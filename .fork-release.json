@@ -2,6 +2,6 @@
   "schema_epoch": 1,
   "database": {
     "rollback": "image-only",
-    "reason": "dsapi_001 and dsapi_002 are additive or dual-write compatible; dsapi_003 only adds isolated Image Studio gallery tables. The previous application can run on the expanded schema."
+    "reason": "dsapi_001 and dsapi_002 are additive or dual-write compatible; dsapi_003 adds isolated Image Studio gallery tables; upstream 0.2.20 adds isolated MCP OAuth tables in 249_mcp_oauth.sql. The previous application can run on the expanded schema."
   }
 }
