@@ -67,7 +67,7 @@
             {{ state.galleryUserId ? t('imageStudio.settings.clearLocalCache') : t('imageStudio.settings.clearHistory') }}
           </button>
           <button
-            v-if="state.galleryEnabled && state.galleryUserId"
+            v-if="state.galleryInitialized && state.galleryUserId"
             type="button"
             class="btn btn-secondary btn-sm"
             @click="confirmLegacyImport"
@@ -165,7 +165,7 @@ async function handleImport(event: Event) {
 }
 
 async function confirmLegacyImport() {
-  if (!state.galleryUserId) return
+  if (!state.galleryInitialized || !state.galleryUserId) return
   const session = captureGallerySession()
   const userId = state.galleryUserId
   let count = 0

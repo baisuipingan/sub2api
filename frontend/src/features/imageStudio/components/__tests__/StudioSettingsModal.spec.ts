@@ -1,11 +1,12 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { state, clearData, exportData, importData, importLegacyHistory, getLegacyTasks, requestPermission } = vi.hoisted(() => ({
+const { state, clearData, exportData, importData, importLegacyHistory, getLegacyTasks, requestPermission, translate } = vi.hoisted(() => ({
   state: {
     showSettings: true,
     galleryUserId: null as number | null,
     galleryEnabled: false,
+    galleryInitialized: false,
     settings: {
       clearInputAfterSubmit: false,
       enterSubmit: true,
@@ -22,6 +23,7 @@ const { state, clearData, exportData, importData, importLegacyHistory, getLegacy
   importLegacyHistory: vi.fn(),
   getLegacyTasks: vi.fn(),
   requestPermission: vi.fn(),
+  translate: vi.fn((key: string) => key),
 }))
 
 vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData, importLegacyHistory }))
@@ -35,7 +37,7 @@ vi.mock('../../lib/browserNotification', () => ({
 }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: translate }),
 }))
 
 import StudioSettingsModal from '../StudioSettingsModal.vue'
@@ -53,6 +55,7 @@ beforeEach(() => {
   localStorage.clear()
   state.galleryUserId = null
   state.galleryEnabled = false
+  state.galleryInitialized = false
   getLegacyTasks.mockResolvedValue([])
   requestPermission.mockReset().mockResolvedValue({ ok: true })
   state.settings.taskCompletionNotification = false
@@ -141,11 +144,47 @@ describe('StudioSettingsModal', () => {
     expect(importData).toHaveBeenCalledWith(file, { importConfig: true, importTasks: true })
   })
 
-  it('does not import legacy history into a different account after confirmation', async () => {
+  it('confirms local legacy import for the initialized account while the gallery is disabled', async () => {
     localStorage.setItem('auth_token', 'token-a')
     localStorage.setItem('auth_user', JSON.stringify({ id: 101 }))
     state.galleryUserId = 101
-    state.galleryEnabled = true
+    state.galleryInitialized = true
+    getLegacyTasks.mockResolvedValueOnce([{ id: 'legacy-one' }, { id: 'legacy-two' }])
+    const wrapper = mountModal()
+    const importButton = wrapper.findAll('button').find((button) => button.text().includes('imageStudio.settings.importLegacyHistory'))
+    expect(importButton).toBeDefined()
+    expect(importLegacyHistory).not.toHaveBeenCalled()
+
+    await importButton!.trigger('click')
+    await flushPromises()
+
+    expect(translate).toHaveBeenCalledWith('imageStudio.settings.importLegacyHint', { count: 2, userId: 101 })
+    expect(state.setShowSettings).toHaveBeenCalledWith(false)
+    const confirmation = state.setConfirmDialog.mock.lastCall?.[0] as { action: () => Promise<void> | undefined }
+    expect(confirmation).toEqual(expect.objectContaining({
+      title: 'imageStudio.settings.importLegacyHistory',
+      message: 'imageStudio.settings.importLegacyHint',
+      confirmText: 'imageStudio.settings.importLegacyHistory',
+      cancelText: 'imageStudio.common.cancel',
+    }))
+    expect(importLegacyHistory).not.toHaveBeenCalled()
+
+    await confirmation.action()
+    expect(importLegacyHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer legacy import before the account is initialized', () => {
+    state.galleryUserId = 101
+    const wrapper = mountModal()
+    expect(wrapper.text()).not.toContain('imageStudio.settings.importLegacyHistory')
+  })
+
+  it.each([false, true])('does not import legacy history into a different account after confirmation when gallery enabled is %s', async (galleryEnabled) => {
+    localStorage.setItem('auth_token', 'token-a')
+    localStorage.setItem('auth_user', JSON.stringify({ id: 101 }))
+    state.galleryUserId = 101
+    state.galleryEnabled = galleryEnabled
+    state.galleryInitialized = true
     const wrapper = mountModal()
     await wrapper.findAll('button').find((button) => button.text().includes('imageStudio.settings.importLegacyHistory'))!.trigger('click')
     await flushPromises()
