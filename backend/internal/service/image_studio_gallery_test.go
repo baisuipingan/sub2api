@@ -12,7 +12,10 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -95,11 +98,15 @@ func (r *galleryTestRepo) LockCleanup(context.Context, int64) (func(), error)   
 type galleryTestStore struct {
 	objects   map[string][]byte
 	puts      int
+	putErr    error
 	deleteErr error
 }
 
 func (s *galleryTestStore) Put(_ context.Context, key, _ string, data []byte) error {
 	s.puts++
+	if s.putErr != nil {
+		return s.putErr
+	}
 	s.objects[key] = append([]byte(nil), data...)
 	return nil
 }
@@ -144,6 +151,33 @@ func galleryTestService(t *testing.T) (*ImageStudioGalleryService, *galleryTestR
 	store := &galleryTestStore{objects: map[string][]byte{}}
 	svc := NewImageStudioGalleryService(repo, settings, func(context.Context, *config.ImageStorageConfig) (GalleryObjectStore, error) { return store, nil })
 	return svc, repo, store, settings
+}
+
+func TestStudioArchiveUsesDurableURLAfterObjectStoreRecovery(t *testing.T) {
+	gallery, assets, objects, _ := galleryTestService(t)
+	data := galleryPNG(t, 16, 12)
+	var downloads atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		downloads.Add(1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(data)
+	}))
+	defer upstream.Close()
+	response, err := json.Marshal(map[string]any{"data": []any{map[string]string{"url": upstream.URL + "/expires.png"}}})
+	require.NoError(t, err)
+	claim := StudioJobClaim{StudioJob: StudioJob{UserID: 17, TaskID: "paid-url", Spec: StudioJobSpec{Protocol: "openai", Postprocess: "none"}}}
+	s := &StudioJobService{spoolDir: t.TempDir(), gallery: gallery}
+	require.NoError(t, s.cacheStudioURLImages(context.Background(), claim, response, NewImageResultUploader(nil, "", GalleryMaxImageBytes, upstream.Client())))
+	objects.putErr = errors.New("R2 temporarily unavailable")
+	_, _, err = s.archiveStudioImages(context.Background(), claim, response)
+	require.ErrorIs(t, err, ErrGalleryUnavailable)
+	upstream.Close()
+	objects.putErr = nil
+	outputs, _, err := s.archiveStudioImages(context.Background(), claim, response)
+	require.NoError(t, err)
+	require.Equal(t, []string{studioOutputID(claim, 0, "out")}, outputs)
+	require.Equal(t, data, objects.objects[assets.assets[outputs[0]].OriginalKey])
+	require.Equal(t, int32(1), downloads.Load(), "R2 retries must never need the expired upstream link")
 }
 
 func TestImageStudioGalleryAssetVariantsAndIdempotency(t *testing.T) {

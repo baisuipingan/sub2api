@@ -222,9 +222,9 @@ func studioCreateImagePart(form *multipart.Writer, field, filename, mime string)
 	return form.CreatePart(header)
 }
 
-func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim StudioJobClaim, response []byte) ([]string, []string, error) {
+func studioResponseImages(protocol string, response []byte) ([]map[string]json.RawMessage, error) {
 	var images []map[string]json.RawMessage
-	if claim.Spec.Protocol == "gemini" {
+	if protocol == "gemini" {
 		var payload struct {
 			Candidates []struct {
 				Content struct {
@@ -239,7 +239,7 @@ func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim Studio
 			} `json:"candidates"`
 		}
 		if json.Unmarshal(response, &payload) != nil {
-			return nil, nil, ErrGalleryInvalid
+			return nil, ErrGalleryInvalid
 		}
 		for _, candidate := range payload.Candidates {
 			for _, part := range candidate.Content.Parts {
@@ -255,17 +255,24 @@ func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim Studio
 			Data []map[string]json.RawMessage `json:"data"`
 		}
 		if json.Unmarshal(response, &payload) != nil {
-			return nil, nil, ErrGalleryInvalid
+			return nil, ErrGalleryInvalid
 		}
 		images = payload.Data
 	}
 	if len(images) == 0 || len(images) > 10 {
-		return nil, nil, ErrGalleryInvalid
+		return nil, ErrGalleryInvalid
+	}
+	return images, nil
+}
+
+func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim StudioJobClaim, response []byte) ([]string, []string, error) {
+	images, err := studioResponseImages(claim.Spec.Protocol, response)
+	if err != nil {
+		return nil, nil, err
 	}
 	uploader := NewImageResultUploader(nil, "", GalleryMaxImageBytes, nil)
 	outputs, raws := make([]string, 0, len(images)), []string{}
 	var source, mask []byte
-	var err error
 	if claim.Spec.Postprocess == "mask" {
 		source, _, err = s.gallery.ReadAsset(ctx, claim.UserID, claim.Spec.MaskTargetImageID)
 		if err != nil {
@@ -277,7 +284,7 @@ func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim Studio
 		}
 	}
 	for index, item := range images {
-		data, mime, err := uploader.fetchImageBytes(ctx, item)
+		data, mime, err := s.studioImageBytes(ctx, claim, index, item, uploader)
 		if err != nil {
 			return nil, nil, err
 		}

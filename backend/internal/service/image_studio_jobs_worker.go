@@ -54,7 +54,7 @@ func (s *StudioJobService) Start(router http.Handler, dir string) error {
 		if err != nil {
 			return err
 		}
-		if strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") {
+		if strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), ".tmp") || strings.Contains(entry.Name(), ".json.image-") {
 			used += info.Size()
 		}
 	}
@@ -220,7 +220,7 @@ func (s *StudioJobService) executeStudioClaim(parent context.Context, claim Stud
 		s.failStudioClaim(claim, "SPOOL_FULL", "Studio temporary storage is full")
 		return
 	}
-	defer s.releaseStudioReservation()
+	defer s.releaseStudioReservation(claim)
 	file, err := os.OpenFile(path+".tmp", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		slog.Error("Studio spool create failed", "task_id", claim.TaskID, "error", err)
@@ -367,7 +367,8 @@ func (s *StudioJobService) studioSpoolPath(claim StudioJobClaim) string {
 func (s *StudioJobService) reserveStudioSpool(claim StudioJobClaim) error {
 	s.spoolMu.Lock()
 	defer s.spoolMu.Unlock()
-	if s.spoolUsed+s.spoolReserved+studioJobMaxResponseBytes > studioJobMaxSpoolBytes {
+	reservation := studioSpoolReservationBytes(claim)
+	if s.spoolUsed+s.spoolReserved+reservation > studioJobMaxSpoolBytes {
 		return errors.New("studio spool capacity exhausted")
 	}
 	entries, err := os.ReadDir(s.spoolDir)
@@ -386,15 +387,26 @@ func (s *StudioJobService) reserveStudioSpool(claim StudioJobClaim) error {
 		}
 		taskBytes += info.Size()
 	}
-	if taskBytes+studioJobMaxResponseBytes > studioJobMaxTaskSpoolBytes {
+	if taskBytes+reservation > studioJobMaxTaskSpoolBytes {
 		return errors.New("studio task spool capacity exhausted")
 	}
-	s.spoolReserved += studioJobMaxResponseBytes
+	s.spoolReserved += reservation
 	return nil
 }
-func (s *StudioJobService) releaseStudioReservation() {
+
+func studioSpoolReservationBytes(claim StudioJobClaim) int64 {
+	count := 1
+	if claim.Spec.Protocol == "grok" {
+		count = max(1, min(10, claim.Spec.ImageCount))
+	}
+	// Leave room for a bounded gateway response and all possible URL originals
+	// before making a paid call, even if a supplier returns native n=10.
+	return studioJobMaxResponseBytes + int64(count)*GalleryMaxImageBytes
+}
+
+func (s *StudioJobService) releaseStudioReservation(claim StudioJobClaim) {
 	s.spoolMu.Lock()
-	s.spoolReserved -= studioJobMaxResponseBytes
+	s.spoolReserved -= studioSpoolReservationBytes(claim)
 	s.spoolMu.Unlock()
 }
 func (s *StudioJobService) removeStudioSpool(path string) {
@@ -445,11 +457,11 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 	}
 	current, err := s.repo.Get(ctx, claim.UserID, claim.TaskID)
 	if err == nil && current.DeletedAt != nil {
-		s.removeStudioSpool(path)
+		s.removeStudioResponse(path)
 		return
 	}
 	if errors.Is(err, ErrStudioJobNotFound) {
-		s.removeStudioSpool(path)
+		s.removeStudioResponse(path)
 		return
 	}
 	if err != nil {
@@ -459,6 +471,14 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) == 0 || int64(len(data)) > studioJobMaxResponseBytes {
 		s.markStudioSavingLost(claim, false)
+		return
+	}
+	if err := s.cacheStudioURLImages(ctx, claim, data, NewImageResultUploader(nil, "", GalleryMaxImageBytes, nil)); err != nil {
+		if errors.Is(err, ErrGalleryInvalid) {
+			s.failStudioClaim(claim, "INVALID_IMAGE_RESULT", "upstream returned an invalid image result")
+		} else {
+			s.retryStudioSaving(claim, "IMAGE_DOWNLOAD_RETRY")
+		}
 		return
 	}
 	cfg, err := s.StorageTarget(ctx)
@@ -486,7 +506,7 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 	if err := s.repo.CompleteCall(ctx, claim, outputs, raws, billingState); err != nil {
 		if errors.Is(err, ErrStudioJobNotFound) {
 			if latest, getErr := s.repo.Get(ctx, claim.UserID, claim.TaskID); getErr == nil && latest.DeletedAt != nil {
-				s.removeStudioSpool(path)
+				s.removeStudioResponse(path)
 				return
 			}
 		}
@@ -494,7 +514,7 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 		slog.Error("Studio call completion write failed", "task_id", claim.TaskID, "error", err)
 		return
 	}
-	s.removeStudioSpool(path)
+	s.removeStudioResponse(path)
 }
 
 func (s *StudioJobService) retryStudioSaving(claim StudioJobClaim, code string) {
@@ -557,10 +577,17 @@ func (s *StudioJobService) cleanupStudioSpool(ctx context.Context) {
 			}
 			continue
 		}
-		if !strings.HasSuffix(name, ".json") || time.Since(info.ModTime()) < time.Hour {
+		responseName := name
+		if offset := strings.Index(name, ".json.image-"); offset >= 0 {
+			if index, err := strconv.Atoi(name[offset+len(".json.image-"):]); err != nil || index < 0 || index >= 10 {
+				continue
+			}
+			responseName = name[:offset+len(".json")]
+		}
+		if !strings.HasSuffix(responseName, ".json") || time.Since(info.ModTime()) < time.Hour {
 			continue
 		}
-		stem := strings.TrimSuffix(name, ".json")
+		stem := strings.TrimSuffix(responseName, ".json")
 		first, last := strings.Index(stem, "__"), strings.LastIndex(stem, "__")
 		if first < 2 || last <= first || stem[0] != 'u' {
 			continue
