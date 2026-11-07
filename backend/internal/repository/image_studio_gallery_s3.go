@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -37,6 +38,28 @@ func (s *s3ImageStudioGalleryStore) Put(ctx context.Context, key, contentType st
 		return fmt.Errorf("gallery PutObject: %w", err)
 	}
 	return nil
+}
+
+func (s *s3ImageStudioGalleryStore) Get(ctx context.Context, key string, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 || maxBytes > service.GalleryMaxImageBytes {
+		return nil, service.ErrGalleryInvalid
+	}
+	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &key})
+	if err != nil {
+		return nil, fmt.Errorf("gallery GetObject: %w", err)
+	}
+	defer result.Body.Close()
+	if result.ContentLength != nil && *result.ContentLength > maxBytes {
+		return nil, service.ErrGalleryInvalid
+	}
+	data, err := io.ReadAll(io.LimitReader(result.Body, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read gallery object: %w", err)
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, service.ErrGalleryInvalid
+	}
+	return data, nil
 }
 
 func (s *s3ImageStudioGalleryStore) Delete(ctx context.Context, key string) error {

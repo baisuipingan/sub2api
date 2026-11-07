@@ -16,6 +16,25 @@ export interface GalleryAssetUrl {
   height: number
 }
 
+export interface GalleryStats {
+  tasks: number
+  done_tasks: number
+  failed_tasks: number
+  output_images: number
+  assets: number
+  used_bytes: number
+  max_tasks: number
+  max_assets: number
+  max_bytes: number
+}
+
+export interface GalleryStatus {
+  enabled: boolean
+  user_id: number
+  stats: GalleryStats
+  jobs_enabled?: boolean
+}
+
 export class GalleryApiError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message)
@@ -53,7 +72,7 @@ async function request<T>(path: string, init: RequestInit = {}, authToken = toke
 /** Revalidate a refreshed JWT before any cloud asset or task operation. */
 export async function ensureGalleryIdentity(authToken = token()) {
   if (isVerifiedGalleryAuth(authToken)) return
-  const status = await request<{ enabled: boolean; user_id: number }>('/status', {}, authToken)
+  const status = await request<GalleryStatus>('/status', {}, authToken)
   if (localStorage.getItem('auth_token') !== authToken || currentGalleryUserId() !== status.user_id) {
     throw new GalleryApiError('Gallery identity changed', 401)
   }
@@ -62,16 +81,18 @@ export async function ensureGalleryIdentity(authToken = token()) {
 }
 
 export function getGalleryStatus() {
-  return request<{ enabled: boolean; user_id: number }>('/status')
+  return request<GalleryStatus>('/status')
 }
 
-export async function putGalleryAsset(imageId: string, dataUrl: string) {
-  const authToken = token()
+export async function putGalleryAsset(imageId: string, dataUrl: string, authToken = token()) {
   const source = await imageSourceToBlob(dataUrl)
   // Preserve legacy uploads locally; archive a decodable unsupported format as PNG.
   const blob = ['image/png', 'image/jpeg', 'image/webp'].includes(source.type)
     ? source
     : await imageDataUrlToPngBlob(dataUrl)
+  if (localStorage.getItem('auth_token') !== authToken) {
+    throw new GalleryApiError('Gallery login changed', 401)
+  }
   const data = await request<{ id: string }>('/assets/' + encodeURIComponent(imageId), {
     method: 'PUT',
     headers: { 'Content-Type': blob.type },

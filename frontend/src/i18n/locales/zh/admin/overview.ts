@@ -109,6 +109,8 @@ export default {
         enabled: '启用异步生图接口',
         studioGalleryEnabled: '启用工作台云端图库',
         studioGalleryDescription: '开启后，生图工作台的新生成图片保存到当前用户的云端图库，可跨设备查看；已有浏览器本地历史不会自动上传。此开关不影响异步生图接口。',
+        studioJobsEnabled: '由服务器执行工作台生图任务',
+        studioJobsDescription: '需要先启用云端图库。开启后新任务由服务器执行，关页仍可继续；关闭只停止接收新任务，已接任务会继续完成。',
         studioGalleryPrivateBucketWarning: '启用图库前，请清空下方“公开访问域名”，确认 S3/R2 存储桶为私有，并配置桶 CORS 允许本站读取图片；否则跨设备编辑和导出可能失败。图库对象使用 studio/v1/ 前缀和预签名临时链接。',
         reuseBackupS3: '复用上方备份的 S3 配置（只用不同的存储桶/前缀）',
         bucket: '存储桶',

@@ -31,6 +31,10 @@ type galleryTestRepo struct {
 	finalized      int
 }
 
+func (r *galleryTestRepo) Stats(context.Context, int64) (GalleryStats, error) {
+	return GalleryStats{MaxTasks: 1000, MaxAssets: 500, MaxBytes: 1 << 30}, nil
+}
+
 func (r *galleryTestRepo) ReserveAsset(_ context.Context, a GalleryAsset) (*GalleryAsset, error) {
 	if r.reserveEntered != nil {
 		r.reserveEntered <- struct{}{}
@@ -59,6 +63,9 @@ func (r *galleryTestRepo) GetAsset(_ context.Context, _ int64, id string) (*Gall
 }
 func (r *galleryTestRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []GalleryTaskLink) (json.RawMessage, error) {
 	return task, nil
+}
+func (r *galleryTestRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error) {
+	return r.SaveTask(ctx, userID, taskID, digest, task, links)
 }
 func (r *galleryTestRepo) GetTask(context.Context, int64, string) (json.RawMessage, error) {
 	return nil, ErrGalleryNotFound

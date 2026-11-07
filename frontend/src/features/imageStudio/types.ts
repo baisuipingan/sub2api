@@ -70,10 +70,16 @@ export interface MaskDraft {
 }
 
 export type TaskStatus = 'running' | 'done' | 'error'
+export type StudioJobStatus = 'queued' | 'generating' | 'saving' | 'completed' | 'partial' | 'failed' | 'unknown' | 'cancelled'
 export type ImageApiKind = 'openai' | 'gemini'
 
 export interface TaskRecord {
   id: string
+  /** Cloud tasks can be recovered after a tab closes; legacy local requests cannot. */
+  execution?: 'cloud'
+  cloudJobStatus?: StudioJobStatus
+  /** Persisted stop intent: a late POST admission must be cancelled after reload. */
+  cloudCancelRequested?: boolean
   prompt: string
   params: TaskParams
   apiKind?: ImageApiKind

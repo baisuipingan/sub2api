@@ -41,6 +41,13 @@ func RegisterUserRoutes(
 		gallery.GET("/tasks", h.ImageStudioGallery.ListTasks)
 		gallery.GET("/tasks/:id", h.ImageStudioGallery.GetTask)
 		gallery.DELETE("/tasks/:id", h.ImageStudioGallery.DeleteTask)
+		if h.ImageStudioJobs != nil {
+			jobs := authenticated.Group("/image-studio/jobs")
+			jobs.POST("", h.ImageStudioJobs.Submit)
+			jobs.GET("", h.ImageStudioJobs.List)
+			jobs.GET("/:id", h.ImageStudioJobs.Get)
+			jobs.DELETE("/:id", h.ImageStudioJobs.Delete)
+		}
 
 		// 用户接口
 		user := authenticated.Group("/user")

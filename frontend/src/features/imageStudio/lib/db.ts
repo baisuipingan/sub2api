@@ -12,6 +12,29 @@ const THUMBNAIL_MAX_SIZE = 720
 const THUMBNAIL_QUALITY = 0.9
 const THUMBNAIL_VERSION = 2
 
+export interface GallerySyncRecord {
+  status: 'pending' | 'syncing' | 'error'
+  attempts: number
+  nextRetryAt: number
+  retryable: boolean
+  errorCode?: string
+}
+
+const NEW_SYNC: GallerySyncRecord = { status: 'pending', attempts: 0, nextRetryAt: 0, retryable: true }
+
+/** Legacy outbox values were boolean true. An interrupted upload is safe to re-upload. */
+export function normalizeGallerySyncRecord(value: unknown): GallerySyncRecord {
+  if (!value || typeof value !== 'object') return { ...NEW_SYNC }
+  const raw = value as Partial<GallerySyncRecord>
+  return {
+    status: raw.status === 'error' ? 'error' : 'pending',
+    attempts: Number.isSafeInteger(raw.attempts) && Number(raw.attempts) >= 0 ? Number(raw.attempts) : 0,
+    nextRetryAt: Number.isFinite(raw.nextRetryAt) && Number(raw.nextRetryAt) > 0 ? Number(raw.nextRetryAt) : 0,
+    retryable: raw.retryable !== false,
+    ...(typeof raw.errorCode === 'string' ? { errorCode: raw.errorCode.slice(0, 64) } : {}),
+  }
+}
+
 export const CURRENT_THUMBNAIL_VERSION = THUMBNAIL_VERSION
 
 /** The pre-gallery database has no owner and is opened only for explicit import. */
@@ -50,8 +73,19 @@ function requestTransaction<T>(
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
     transaction.oncomplete = () => db.close()
-    transaction.onerror = () => reject(transaction.error)
-    transaction.onabort = () => reject(transaction.error)
+    transaction.onerror = () => { db.close(); reject(transaction.error) }
+    transaction.onabort = () => { db.close(); reject(transaction.error) }
+  }))
+}
+
+function writeSyncRecord(id: string, record: GallerySyncRecord | null, scope: string): Promise<void> {
+  return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_SYNC, 'readwrite')
+    if (record) transaction.objectStore(STORE_SYNC).put(record, id)
+    else transaction.objectStore(STORE_SYNC).delete(id)
+    transaction.oncomplete = () => { db.close(); resolve() }
+    transaction.onerror = () => { db.close(); reject(transaction.error) }
+    transaction.onabort = () => { db.close(); reject(transaction.error) }
   }))
 }
 
@@ -67,23 +101,32 @@ export function getLegacyImage(id: string) {
   return requestTransaction<StoredImage | undefined>(STORE_IMAGES, 'readonly', (transaction) => transaction.objectStore(STORE_IMAGES).get(id), LEGACY_DB_NAME)
 }
 
-export function markTaskPendingSync(id: string) {
-  return requestTransaction<IDBValidKey>(STORE_SYNC, 'readwrite', (transaction) => transaction.objectStore(STORE_SYNC).put(true, id))
+export function markTaskPendingSync(id: string, scope = dbName) {
+  return writeSyncRecord(id, { ...NEW_SYNC }, scope)
+}
+
+export function setTaskSyncRecord(id: string, record: GallerySyncRecord, scope = dbName) {
+  return writeSyncRecord(id, record, scope)
+}
+
+export async function getTaskSyncRecord(id: string, scope = dbName): Promise<GallerySyncRecord | null> {
+  const value = await requestTransaction<unknown>(STORE_SYNC, 'readonly', (transaction) => transaction.objectStore(STORE_SYNC).get(id), scope)
+  return value === undefined ? null : normalizeGallerySyncRecord(value)
 }
 
 export function putTaskWithPendingSync(task: TaskRecord, scope = dbName) {
   return openDB(scope).then((db) => new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([STORE_TASKS, STORE_SYNC], 'readwrite')
     transaction.objectStore(STORE_TASKS).put(task)
-    transaction.objectStore(STORE_SYNC).put(true, task.id)
+    transaction.objectStore(STORE_SYNC).put({ ...NEW_SYNC }, task.id)
     transaction.oncomplete = () => { db.close(); resolve() }
-    transaction.onerror = () => reject(transaction.error)
-    transaction.onabort = () => reject(transaction.error)
+    transaction.onerror = () => { db.close(); reject(transaction.error) }
+    transaction.onabort = () => { db.close(); reject(transaction.error) }
   }))
 }
 
 export function clearTaskPendingSync(id: string, scope = dbName) {
-  return requestTransaction<undefined>(STORE_SYNC, 'readwrite', (transaction) => transaction.objectStore(STORE_SYNC).delete(id), scope)
+  return writeSyncRecord(id, null, scope)
 }
 
 /** A server tombstone rejects re-uploads; remove the local task and retry marker atomically. */
@@ -93,13 +136,30 @@ export function discardGoneTask(id: string, scope = dbName) {
     transaction.objectStore(STORE_TASKS).delete(id)
     transaction.objectStore(STORE_SYNC).delete(id)
     transaction.oncomplete = () => { db.close(); resolve() }
-    transaction.onerror = () => reject(transaction.error)
-    transaction.onabort = () => reject(transaction.error)
+    transaction.onerror = () => { db.close(); reject(transaction.error) }
+    transaction.onabort = () => { db.close(); reject(transaction.error) }
   }))
 }
 
 export function getPendingSyncTaskIds(scope = dbName) {
   return requestTransaction<IDBValidKey[]>(STORE_SYNC, 'readonly', (transaction) => transaction.objectStore(STORE_SYNC).getAllKeys(), scope).then((ids) => ids.map(String))
+}
+
+export function getPendingSyncRecords(scope = dbName): Promise<Array<{ id: string; record: GallerySyncRecord }>> {
+  return openDB(scope).then((db) => new Promise((resolve, reject) => {
+    const result: Array<{ id: string; record: GallerySyncRecord }> = []
+    const transaction = db.transaction(STORE_SYNC, 'readonly')
+    const cursor = transaction.objectStore(STORE_SYNC).openCursor()
+    cursor.onsuccess = () => {
+      const item = cursor.result
+      if (!item) return
+      result.push({ id: String(item.key), record: normalizeGallerySyncRecord(item.value) })
+      item.continue()
+    }
+    transaction.oncomplete = () => { db.close(); resolve(result) }
+    transaction.onerror = () => { db.close(); reject(transaction.error) }
+    transaction.onabort = () => { db.close(); reject(transaction.error) }
+  }))
 }
 
 export function putTask(task: TaskRecord, scope = dbName) {

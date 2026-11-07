@@ -84,6 +84,7 @@ describe('Image Studio default resolution state', () => {
     useStore.setState({
       modelCatalog: createImageModelCatalogFromModelList({ models: [{ id: 'grok-imagine-image-2.0', available_size_tiers: ['2K'] }] }),
       catalogStatus: 'ready',
+      galleryInitialized: true, galleryStatusKnown: true, galleryEnabled: false, studioJobsEnabled: false,
       settings: {
         ...state.settings, selectedModelId: 'grok-imagine-image-2.0',
         miloRouter: { ...state.settings.miloRouter, apiKey: 'test-key', connectionStatus: 'connected' },
@@ -103,6 +104,7 @@ describe('Image Studio default resolution state', () => {
     useStore.setState({
       modelCatalog: createImageModelCatalogFromModelList({ models: [{ id: 'gpt-image-2', available_size_tiers: ['2K'] }] }),
       catalogStatus: 'ready',
+      galleryInitialized: true, galleryStatusKnown: true, galleryEnabled: false, studioJobsEnabled: false,
       settings: {
         ...state.settings, selectedModelId: 'gpt-image-2',
         miloRouter: { ...state.settings.miloRouter, apiKey: 'test-key', connectionStatus: 'connected' },

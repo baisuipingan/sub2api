@@ -51,6 +51,7 @@ beforeEach(() => {
     },
     modelCatalog: createImageModelCatalogFromModelList({ models: [{ id: 'gpt-image-2', api: 'openai' }] }),
     catalogStatus: 'ready',
+    galleryInitialized: true, galleryStatusKnown: true, galleryEnabled: false, studioJobsEnabled: false,
     prompt: 'A landscape', params: { ...DEFAULT_PARAMS },
     inputImages: [], maskDraft: null, tasks: [], streamPreviews: {}, showToast,
   })

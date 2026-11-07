@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getGalleryStatus, listGalleryTasks, getAllTasks, getPendingSyncTaskIds, putTaskWithPendingSync } = vi.hoisted(() => ({
-  getGalleryStatus: vi.fn(), listGalleryTasks: vi.fn(), getAllTasks: vi.fn(), getPendingSyncTaskIds: vi.fn(), putTaskWithPendingSync: vi.fn(),
+const { getGalleryStatus, listGalleryTasks, getAllTasks, getPendingSyncTaskIds, getPendingSyncRecords, putTaskWithPendingSync } = vi.hoisted(() => ({
+  getGalleryStatus: vi.fn(), listGalleryTasks: vi.fn(), getAllTasks: vi.fn(), getPendingSyncTaskIds: vi.fn(), getPendingSyncRecords: vi.fn(), putTaskWithPendingSync: vi.fn(),
 }))
 vi.mock('../../lib/galleryApi', async () => ({
   ...await vi.importActual<typeof import('../../lib/galleryApi')>('../../lib/galleryApi'),
@@ -9,7 +9,7 @@ vi.mock('../../lib/galleryApi', async () => ({
 }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
-  getAllTasks, getPendingSyncTaskIds, putTaskWithPendingSync,
+  getAllTasks, getPendingSyncTaskIds, getPendingSyncRecords, putTaskWithPendingSync,
 }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
@@ -27,6 +27,7 @@ beforeEach(() => {
   listGalleryTasks.mockReset().mockResolvedValue({ items: [], next_cursor: null })
   getAllTasks.mockReset().mockResolvedValue([])
   getPendingSyncTaskIds.mockReset().mockResolvedValue([])
+  getPendingSyncRecords.mockReset().mockResolvedValue([])
   putTaskWithPendingSync.mockReset().mockResolvedValue(undefined)
 })
 

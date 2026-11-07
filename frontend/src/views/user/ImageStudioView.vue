@@ -37,7 +37,7 @@ import StudioSettingsModal from '@/features/imageStudio/components/StudioSetting
 import StudioConfirmDialog from '@/features/imageStudio/components/StudioConfirmDialog.vue'
 import StudioImageContextMenu from '@/features/imageStudio/components/StudioImageContextMenu.vue'
 import StudioToast from '@/features/imageStudio/components/StudioToast.vue'
-import { storeState as state, initStore, retryPendingGalleryTasks } from '@/features/imageStudio/stores/store'
+import { storeState as state, initStore, retryPendingGalleryTasks, resumeStudioJobsForCurrentUser } from '@/features/imageStudio/stores/store'
 import { loadImagePricing, collectBillingModels } from '@/features/imageStudio/lib/studioPricing'
 import { ensureStudioApiKey } from '@/features/imageStudio/lib/studioAuth'
 import { captureStudioIdentity, isStudioIdentityCurrent } from '@/features/imageStudio/lib/studioKeySession'
@@ -48,7 +48,10 @@ const authStore = useAuthStore()
 
 function retryGalleryOnReconnect() {
   const identity = captureStudioIdentity()
-  if (identity.token && identity.userId) void retryPendingGalleryTasks()
+  if (identity.token && identity.userId) {
+    void retryPendingGalleryTasks()
+    void resumeStudioJobsForCurrentUser()
+  }
 }
 
 /**
@@ -83,7 +86,10 @@ watch(
     if (identity.token !== token || identity.userId !== userId) return
     void ensureStudioApiKey()
     try { await ensureGalleryIdentity(token) } catch { return }
-    if (!cancelled && isStudioIdentityCurrent(identity)) void retryPendingGalleryTasks()
+    if (!cancelled && isStudioIdentityCurrent(identity)) {
+      void retryPendingGalleryTasks()
+      void resumeStudioJobsForCurrentUser()
+    }
   },
 )
 

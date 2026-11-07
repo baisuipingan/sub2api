@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-const { state, authState, initStore, retryPendingGalleryTasks, ensureStudioApiKey, ensureGalleryIdentity, loadImagePricing, collectBillingModels } = vi.hoisted(() => ({
+const { state, authState, initStore, retryPendingGalleryTasks, resumeStudioJobsForCurrentUser, ensureStudioApiKey, ensureGalleryIdentity, loadImagePricing, collectBillingModels } = vi.hoisted(() => ({
   state: {
     catalogStatus: 'idle',
     modelCatalog: [] as Array<{ id: string }>,
@@ -12,6 +12,7 @@ const { state, authState, initStore, retryPendingGalleryTasks, ensureStudioApiKe
   authState: { token: null as string | null, user: null as { id: number } | null },
   initStore: vi.fn(),
   retryPendingGalleryTasks: vi.fn(),
+  resumeStudioJobsForCurrentUser: vi.fn(),
   ensureStudioApiKey: vi.fn().mockResolvedValue('key'),
   ensureGalleryIdentity: vi.fn().mockResolvedValue(undefined),
   loadImagePricing: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/features/imageStudio/stores/store', async () => ({
   storeState: (await import('vue')).reactive(state),
   initStore,
   retryPendingGalleryTasks,
+  resumeStudioJobsForCurrentUser,
 }))
 vi.mock('@/features/imageStudio/lib/studioAuth', () => ({ ensureStudioApiKey }))
 vi.mock('@/features/imageStudio/lib/studioPricing', () => ({ loadImagePricing, collectBillingModels }))
@@ -47,6 +49,7 @@ beforeEach(() => {
   state.setImagePricing.mockClear()
   initStore.mockReset()
   retryPendingGalleryTasks.mockReset()
+  resumeStudioJobsForCurrentUser.mockReset()
   ensureStudioApiKey.mockReset().mockResolvedValue('key')
   ensureGalleryIdentity.mockReset().mockResolvedValue(undefined)
   loadImagePricing.mockReset()

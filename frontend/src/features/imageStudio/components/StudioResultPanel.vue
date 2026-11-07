@@ -87,6 +87,9 @@
                 <span class="shrink-0 tabular-nums">{{ sizeLabel }}</span>
                 <span v-if="ratioLabel" class="shrink-0 tabular-nums">{{ ratioLabel }}</span>
                 <span class="shrink-0 tabular-nums">{{ elapsedLabel }}</span>
+                <span v-if="activeTask.execution === 'cloud' && activeTask.status === 'running'" class="shrink-0 text-primary-600 dark:text-primary-400">
+                  {{ cloudStageLabel }}
+                </span>
               </p>
 
               <div class="flex flex-wrap items-center justify-center gap-1.5">
@@ -166,9 +169,15 @@
                 </button>
               </div>
 
-              <p class="flex items-center justify-center gap-2 text-[11px] text-gray-400">
+              <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400">
                 <span class="max-w-[14rem] truncate">{{ modelName }}</span>
                 <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
+                <span v-if="showGallerySyncStatus" :title="syncReason" :class="activeSyncStatus === 'error' ? 'text-red-500' : ''">
+                  {{ t('imageStudio.gallery.' + gallerySyncLabelKey(activeSyncStatus)) }}
+                </span>
+                <button v-if="showGallerySyncStatus && activeSyncStatus === 'error'" type="button" class="btn btn-ghost btn-sm text-primary-600" :disabled="retryingSync" @click="onRetrySync">
+                  {{ t('imageStudio.gallery.retrySync') }}
+                </button>
               </p>
             </div>
           </div>
@@ -223,6 +232,7 @@ import StudioHistoryRail from './StudioHistoryRail.vue'
 import {
   editOutputs,
   loadNextGalleryPage,
+  retryGalleryTask,
   retryTask,
   reuseConfig,
   storeState as state,
@@ -239,6 +249,7 @@ import { copyImageSourceToClipboard, getClipboardFailureMessage } from '../lib/c
 import { ensureImageCached } from '../lib/imageCache'
 import { downloadImageSource } from '../lib/downloadImage'
 import { confirmTaskDeletion } from '../lib/taskDeletion'
+import { galleryTaskSyncStatus, gallerySyncLabelKey, gallerySyncReasonKey } from '../lib/gallerySyncDisplay'
 
 const { t } = useI18n()
 
@@ -248,6 +259,21 @@ const activeTaskId = ref<string | null>(null)
 const activeImageId = ref<string | null>(null)
 const railCollapsed = ref(readRailCollapsed())
 const retrying = ref(false)
+const retryingSync = ref(false)
+const activeSyncStatus = computed(() => activeTask.value
+  ? galleryTaskSyncStatus(state.galleryUserId, state.gallerySyncStatus, activeTask.value.id)
+  : 'local')
+const showGallerySyncStatus = computed(() => Boolean(activeTask.value && state.galleryUserId && activeTask.value.status !== 'running'
+  && (activeTask.value.execution !== 'cloud' || activeTask.value.cloudJobStatus === 'completed' || activeTask.value.cloudJobStatus === 'partial')))
+const syncReason = computed(() => activeTask.value && activeSyncStatus.value === 'error'
+  ? t('imageStudio.gallery.' + gallerySyncReasonKey(state.gallerySyncErrorCode?.[activeTask.value.id]))
+  : '')
+
+async function onRetrySync() {
+  if (!activeTask.value) return
+  retryingSync.value = true
+  try { await retryGalleryTask(activeTask.value.id) } finally { retryingSync.value = false }
+}
 
 const statuses = ['all', 'done', 'running', 'error'] as const
 
@@ -261,6 +287,12 @@ const filteredTasks = computed(() => {
 const activeTask = computed(
   () => state.tasks.find((task) => task.id === activeTaskId.value) ?? null,
 )
+const cloudStageLabel = computed(() => {
+  const status = activeTask.value ? state.studioJobStatus[activeTask.value.id] : undefined
+  return t(status === 'saving' ? 'imageStudio.store.cloudSaving'
+    : status === 'generating' ? 'imageStudio.store.cloudGenerating'
+      : 'imageStudio.store.cloudQueued')
+})
 
 /** 当前要显示的图：优先用用户选的，没有则用第一张 */
 const currentImageId = computed(() => {

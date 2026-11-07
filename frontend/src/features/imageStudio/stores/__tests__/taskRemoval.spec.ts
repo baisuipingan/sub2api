@@ -55,7 +55,8 @@ beforeEach(() => {
     settings: { ...state.settings, selectedModelId: 'gpt-image-2', clearInputAfterSubmit: false, taskCompletionNotification: false,
       miloRouter: { ...state.settings.miloRouter, apiKey: 'test-key', connectionStatus: 'connected' } },
     modelCatalog: createImageModelCatalogFromModelList({ models: [{ id: 'gpt-image-2', api: 'openai' }] }),
-    catalogStatus: 'ready', prompt: 'A landscape', params: { ...DEFAULT_PARAMS },
+    catalogStatus: 'ready', galleryInitialized: true, galleryStatusKnown: true, galleryEnabled: false, studioJobsEnabled: false,
+    prompt: 'A landscape', params: { ...DEFAULT_PARAMS },
     tasks: [], streamPreviews: {}, inputImages: [], maskDraft: null, maskEditorImageId: null, imageEditSession: null,
     detailTaskId: null, detailImageId: null, lightboxImageId: null, lightboxImageList: [], latestSubmittedTaskId: null, toast: null,
   })

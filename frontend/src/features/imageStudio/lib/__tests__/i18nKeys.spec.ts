@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import i18n, { loadLocaleMessages } from '@/i18n'
+import { gallerySyncLabelKey, gallerySyncReasonKey, type GalleryTaskSyncStatus } from '../gallerySyncDisplay'
 
 /**
  * 防止「i18n key 写错 / 文案没被加载」这类静默问题。
@@ -34,8 +35,8 @@ function collectUsedKeys(): Set<string> {
   for (const file of walk(FEATURE_ROOT)) {
     const source = fs.readFileSync(file, 'utf8')
     for (const match of source.matchAll(pattern)) {
-      // 动态拼接（含 ${）的 key 无法静态校验，跳过
-      if (match[1].includes('${')) continue
+      // Literal prefix followed by concatenation is not a complete key.
+      if (/^\s*\+/.test(source.slice((match.index ?? 0) + match[0].length))) continue
       keys.add(match[1])
     }
   }
@@ -68,6 +69,19 @@ describe('imageStudio i18n 完整性', () => {
   it('运行时可解析（英文）', () => {
     const missing = [...used].filter((key) => !i18nGlobal.te(key, 'en'))
     expect(missing).toEqual([])
+  })
+
+  it('图像同步状态的动态 key 在中英文运行时均可解析', () => {
+    const statuses: GalleryTaskSyncStatus[] = ['local', 'pending', 'syncing', 'synced', 'error']
+    const errorCodes = [undefined, 'GALLERY_QUOTA_EXCEEDED', 'GALLERY_DISABLED', 'GALLERY_CONFLICT',
+      'GALLERY_INVALID', 'GALLERY_PUBLIC_STORAGE', 'GALLERY_NOT_FOUND', 'AUTH', 'NETWORK']
+    const keys = [
+      ...statuses.map((status) => gallerySyncLabelKey(status)),
+      ...errorCodes.map((code) => gallerySyncReasonKey(code)),
+    ]
+    for (const locale of ['zh', 'en']) {
+      expect(keys.filter((key) => !i18nGlobal.te('imageStudio.gallery.' + key, locale))).toEqual([])
+    }
   })
 
   it('te() 的判定是有意义的（不存在的 key 必须为 false）', () => {

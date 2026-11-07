@@ -1,12 +1,16 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { state, clearData, exportData, importData, importLegacyHistory, getLegacyTasks, requestPermission, translate } = vi.hoisted(() => ({
+const { state, clearData, exportData, importData, importLegacyHistory, refreshGalleryStats, retryFailedGalleryTasks, setGallerySyncPaused, getLegacyTasks, requestPermission, translate } = vi.hoisted(() => ({
   state: {
     showSettings: true,
     galleryUserId: null as number | null,
     galleryEnabled: false,
     galleryInitialized: false,
+    galleryStats: null as null | { tasks: number; done_tasks: number; failed_tasks: number; output_images: number; assets: number; used_bytes: number; max_tasks: number; max_assets: number; max_bytes: number },
+    gallerySyncPaused: false,
+    gallerySyncStatus: {} as Record<string, string>,
+    galleryImportProgress: null as null | { total: number; processed: number; imported: number; skipped: number },
     settings: {
       clearInputAfterSubmit: false,
       enterSubmit: true,
@@ -21,12 +25,13 @@ const { state, clearData, exportData, importData, importLegacyHistory, getLegacy
   exportData: vi.fn(),
   importData: vi.fn(),
   importLegacyHistory: vi.fn(),
+  refreshGalleryStats: vi.fn(), retryFailedGalleryTasks: vi.fn(), setGallerySyncPaused: vi.fn(),
   getLegacyTasks: vi.fn(),
   requestPermission: vi.fn(),
   translate: vi.fn((key: string) => key),
 }))
 
-vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData, importLegacyHistory }))
+vi.mock('../../stores/store', () => ({ storeState: state, clearData, exportData, importData, importLegacyHistory, refreshGalleryStats, retryFailedGalleryTasks, setGallerySyncPaused }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
   getLegacyTasks,
@@ -56,12 +61,33 @@ beforeEach(() => {
   state.galleryUserId = null
   state.galleryEnabled = false
   state.galleryInitialized = false
+  state.galleryStats = null
+  state.gallerySyncPaused = false
+  state.gallerySyncStatus = {}
+  state.galleryImportProgress = null
   getLegacyTasks.mockResolvedValue([])
   requestPermission.mockReset().mockResolvedValue({ ok: true })
   state.settings.taskCompletionNotification = false
 })
 
 describe('StudioSettingsModal', () => {
+  it('uses server totals and existing settings space for cloud progress and retry', async () => {
+    state.galleryUserId = 7
+    state.galleryInitialized = true
+    state.galleryStats = { tasks: 11, done_tasks: 10, failed_tasks: 1, output_images: 12, assets: 15, used_bytes: 1024, max_tasks: 1000, max_assets: 500, max_bytes: 1 << 30 }
+    state.gallerySyncStatus = { pending: 'pending', failed: 'error' }
+    state.galleryImportProgress = { total: 11, processed: 11, imported: 10, skipped: 1 }
+    const wrapper = mountModal()
+    const section = wrapper.get('[data-testid="studio-cloud-gallery-settings"]')
+    expect(translate).toHaveBeenCalledWith('imageStudio.gallery.taskCount', { count: 11, limit: 1000 })
+    expect(section.text()).toContain('imageStudio.gallery.statusSummary')
+    expect(section.text()).toContain('imageStudio.gallery.importProgress')
+    await section.findAll('button').find((button) => button.text().includes('imageStudio.gallery.retryAll'))!.trigger('click')
+    expect(retryFailedGalleryTasks).toHaveBeenCalledTimes(1)
+    await section.findAll('button').find((button) => button.text().includes('imageStudio.gallery.pauseSync'))!.trigger('click')
+    expect(setGallerySyncPaused).toHaveBeenCalledWith(true)
+  })
+
   it('only offers useful creation preferences and local data controls', () => {
     const wrapper = mountModal()
 

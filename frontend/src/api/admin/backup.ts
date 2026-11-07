@@ -101,6 +101,7 @@ export async function testS3Connection(config: BackupS3Config): Promise<TestS3Re
 export interface ImageStorageConfig {
   enabled: boolean
   studio_gallery_enabled: boolean
+  studio_jobs_enabled: boolean
   reuse_backup_s3: boolean
   bucket: string
   prefix: string

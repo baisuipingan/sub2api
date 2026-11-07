@@ -15,7 +15,20 @@
         <span class="whitespace-nowrap text-xs font-semibold text-gray-900 dark:text-white">
           {{ t('imageStudio.history.shortTitle') }}
         </span>
+        <button
+          v-if="state.galleryUserId"
+          type="button"
+          data-testid="studio-history-sync-summary"
+          class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-gray-500 dark:bg-white/[0.08] dark:text-dark-400"
+          :title="historySummary"
+          :aria-label="historySummary"
+          @click="state.setShowSettings(true)"
+        >
+          {{ items.length }}
+          <span v-if="syncCounts.failed || syncCounts.pending || syncCounts.syncing" class="ml-0.5 inline-block h-1.5 w-1.5 rounded-full" :class="syncCounts.failed ? 'bg-red-500' : 'bg-amber-500'" />
+        </button>
         <span
+          v-else
           class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-gray-500 dark:bg-white/[0.08] dark:text-dark-400"
         >
           {{ items.length }}
@@ -86,6 +99,14 @@
           class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white/80 dark:ring-black/50"
         />
 
+        <span
+          v-if="taskSyncStatus(item.task.id) !== 'synced' && taskSyncStatus(item.task.id) !== 'local' && item.task.status !== 'running'"
+          class="absolute bottom-1 right-1 z-10 h-2 w-2 rounded-full ring-2 ring-white/80 dark:ring-black/50"
+          :class="taskSyncStatus(item.task.id) === 'error' ? 'bg-red-500' : 'bg-amber-500'"
+          :title="taskSyncTitle(item.task.id)"
+          :aria-label="taskSyncTitle(item.task.id)"
+        />
+
         <!-- 悬停显示时间，平时不打扰 -->
         <span
           class="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[10px] text-white opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100"
@@ -117,6 +138,8 @@ import type { TaskRecord } from '../types'
 import StudioIcon from './StudioIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import StudioImageThumbnail from './StudioImageThumbnail.vue'
+import { storeState as state } from '../stores/store'
+import { galleryTaskSyncStatus, gallerySyncLabelKey } from '../lib/gallerySyncDisplay'
 
 const props = defineProps<{
   tasks: TaskRecord[]
@@ -150,6 +173,19 @@ const items = computed<HistoryItem[]>(() =>
       }),
     })),
 )
+
+const syncCounts = computed(() => ({
+  pending: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'pending').length,
+  syncing: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'syncing').length,
+  failed: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'error').length,
+}))
+const syncSummary = computed(() => t('imageStudio.gallery.statusSummary', syncCounts.value))
+const historySummary = computed(() => t('imageStudio.gallery.historyLoadedCount', {
+  loaded: items.value.length,
+  cloud: state.galleryStats?.tasks ?? '--',
+}) + ' · ' + syncSummary.value)
+function taskSyncStatus(id: string) { return galleryTaskSyncStatus(state.galleryUserId, state.gallerySyncStatus, id) }
+function taskSyncTitle(id: string) { return t('imageStudio.gallery.' + gallerySyncLabelKey(taskSyncStatus(id))) }
 
 const emit = defineEmits<{
   select: [taskId: string, imageId: string]

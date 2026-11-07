@@ -35,6 +35,7 @@ beforeEach(() => {
     settings: { ...state.settings, selectedModelId: 'gpt-image-2' },
     modelCatalog: createImageModelCatalogFromModelList({ models: [{ id: 'gpt-image-2', api: 'openai' }] }),
     catalogStatus: 'ready',
+    galleryInitialized: true, galleryStatusKnown: true, galleryEnabled: false, studioJobsEnabled: false,
     prompt: 'A landscape',
     params: { ...DEFAULT_PARAMS, resolution: '4K', size: '2880x2880' },
     inputImages: [], maskDraft: null, tasks: [], streamPreviews: {}, imagePricing: {},

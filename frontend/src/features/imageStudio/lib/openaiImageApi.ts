@@ -27,7 +27,7 @@ function appendFormValue(form: FormData, key: string, value: string | number | b
   form.append(key, String(value))
 }
 
-function imageRequestParams(opts: CallApiOptions, modelId: string) {
+export function imageRequestParams(opts: CallApiOptions, modelId: string) {
   const { params } = opts
   const capabilities = opts.modelCapabilities ?? getImageModel(modelId)?.capabilities
   const supportsGeometry = !capabilities || capabilities.customSize

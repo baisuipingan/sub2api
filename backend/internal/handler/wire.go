@@ -224,6 +224,7 @@ func ProvideHandlers(
 	batchImageHandler *BatchImageHandler,
 	imageStudioHandler *ImageStudioHandler,
 	imageStudioGalleryHandler *ImageStudioGalleryHandler,
+	studioJobHandler *StudioJobHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -254,6 +255,7 @@ func ProvideHandlers(
 		BatchImage:         batchImageHandler,
 		ImageStudio:        imageStudioHandler,
 		ImageStudioGallery: imageStudioGalleryHandler,
+		ImageStudioJobs:    studioJobHandler,
 	}
 }
 
@@ -283,7 +285,8 @@ var ProviderSet = wire.NewSet(
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 	ProvideImageStudioHandler,
-	NewImageStudioGalleryHandler,
+	ProvideImageStudioGalleryHandler,
+	NewStudioJobHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

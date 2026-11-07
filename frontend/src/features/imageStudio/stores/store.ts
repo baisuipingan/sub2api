@@ -13,6 +13,8 @@ import type {
 import { DEFAULT_PARAMS } from '../types'
 import i18n from '@/i18n'
 import { callImageApi } from '../lib/api'
+import { buildStudioJobSpec } from '../lib/studioJobSpec'
+import { createStudioJob, deleteStudioJob, getStudioJob, listStudioJobs, type StudioJob, type StudioJobStatus } from '../lib/studioJobsApi'
 import { fetchMiloRouterImageModels } from '../lib/miloRouterApi'
 import { createMiloRouterConfig, readStoredMiloRouterConfig, saveMiloRouterApiKey, stripApiKeysFromSettings } from '../lib/miloRouterConfig'
 import { getImageModel, getModelResolution, getRequestModelId, GPT_IMAGE_2_MODEL_ID, migrateLegacyImageModelId, type ImageModelDefinition } from '../lib/modelRegistry'
@@ -30,6 +32,9 @@ import {
   getLegacyImage,
   getLegacyTasks,
   getPendingSyncTaskIds,
+  getPendingSyncRecords,
+  getTaskSyncRecord,
+  setTaskSyncRecord,
   clearTaskPendingSync,
   discardGoneTask,
   putImage,
@@ -39,9 +44,10 @@ import {
   clearImages as dbClearImages,
   storeImage,
   storeImageWithSize,
+  type GallerySyncRecord,
 } from '../lib/db'
 import { cacheImage, clearImageCaches, deleteImageCacheEntry, ensureImageCached, registerCloudAssetIds } from '../lib/imageCache'
-import { deleteGalleryTask, ensureGalleryIdentity, fetchGalleryAssetDataUrl, getGalleryAssetUrl, getGalleryStatus, listGalleryTasks, GalleryApiError } from '../lib/galleryApi'
+import { deleteGalleryTask, ensureGalleryIdentity, fetchGalleryAssetDataUrl, getGalleryAssetUrl, getGalleryStatus, listGalleryTasks, putGalleryAsset, GalleryApiError, type GalleryStats } from '../lib/galleryApi'
 import { taskAssetIds, uploadGalleryTask } from '../lib/gallerySync'
 import { captureGallerySession, isGallerySessionCurrent, isVerifiedGalleryAuth, verifyGalleryIdentity } from '../lib/gallerySession'
 import { captureStudioIdentity, isCurrentStudioApiKey, isSameStudioLogin, isStudioIdentityCurrent, studioTokenUserId } from '../lib/studioKeySession'
@@ -155,7 +161,15 @@ interface AppState {
   galleryNextCursor: string | null
   galleryHasMore: boolean
   galleryLoading: boolean
-  gallerySyncStatus: Record<string, 'pending' | 'synced' | 'error'>
+  galleryStats: GalleryStats | null
+  galleryStatusKnown: boolean
+  studioJobsSupported: boolean
+  studioJobsEnabled: boolean
+  studioJobStatus: Record<string, StudioJobStatus>
+  gallerySyncPaused: boolean
+  gallerySyncStatus: Record<string, 'pending' | 'syncing' | 'synced' | 'error'>
+  gallerySyncErrorCode: Record<string, string>
+  galleryImportProgress: { total: number; processed: number; imported: number; skipped: number } | null
   streamPreviews: Record<string, { image: string; partialIndex: number; requestIndex?: number }>
   latestSubmittedTaskId: string | null
   setTasks: (tasks: TaskRecord[]) => void
@@ -402,7 +416,15 @@ const buildStore: StoreBuilder = (set, get) => {
         galleryNextCursor: null,
         galleryHasMore: false,
         galleryLoading: false,
+        galleryStats: null,
+        galleryStatusKnown: false,
+        studioJobsSupported: false,
+        studioJobsEnabled: false,
+        studioJobStatus: {},
+        gallerySyncPaused: false,
         gallerySyncStatus: {},
+        gallerySyncErrorCode: {},
+        galleryImportProgress: null,
         streamPreviews: {},
         latestSubmittedTaskId: null,
         setTasks: (tasks) => set({ tasks }),
@@ -492,6 +514,95 @@ let initPromise: Promise<void> | null = null
 let initSession: string | null = null
 const syncingGalleryTasks = new Map<string, Promise<void>>()
 const deletingGalleryTasks = new Set<string>()
+const studioJobPollers = new Map<string, { timer: ReturnType<typeof setTimeout> | null; controller: AbortController; session: ReturnType<typeof captureGallerySession>; misses: number }>()
+const applyingStudioJobs = new Map<string, Promise<void>>()
+const cloudCancellationRequested = new Set<string>()
+const cloudStopWrites = new Map<string, Promise<unknown>>()
+const cloudNotificationSessions = new Map<string, string | null>()
+let galleryRetryTimer: ReturnType<typeof setTimeout> | null = null
+let galleryRetryDueAt = 0
+let galleryOnlineListenerInstalled = false
+
+function galleryPauseKey(userId: number) { return 'milorouter-image-gallery-sync-paused-' + userId }
+
+function clearGalleryRetryTimer() {
+  if (galleryRetryTimer) clearTimeout(galleryRetryTimer)
+  galleryRetryTimer = null
+  galleryRetryDueAt = 0
+}
+
+function clearStudioJobPollers() {
+  for (const poller of studioJobPollers.values()) {
+    if (poller.timer) clearTimeout(poller.timer)
+    poller.controller.abort()
+  }
+  studioJobPollers.clear()
+  cloudCancellationRequested.clear()
+  cloudStopWrites.clear()
+  cloudNotificationSessions.clear()
+}
+
+function stopStudioJobPoller(taskId: string, session: ReturnType<typeof captureGallerySession>) {
+  const key = session.scope + ':' + taskId
+  const poller = studioJobPollers.get(key)
+  if (!poller) return
+  if (poller.timer) clearTimeout(poller.timer)
+  poller.controller.abort()
+  studioJobPollers.delete(key)
+}
+
+function scheduleGalleryRetry(scope: string, dueAt: number) {
+  if (useStore.getState().gallerySyncPaused || !dueAt || galleryRetryDueAt && galleryRetryDueAt <= dueAt) return
+  clearGalleryRetryTimer()
+  galleryRetryDueAt = dueAt
+  galleryRetryTimer = setTimeout(() => {
+    clearGalleryRetryTimer()
+    if (captureGallerySession().scope === scope) void retryPendingGalleryTasks()
+  }, Math.max(0, dueAt - Date.now()))
+}
+
+function gallerySyncError(error: unknown): { code: string; retryable: boolean } {
+  if (!(error instanceof GalleryApiError)) return { code: 'NETWORK', retryable: true }
+  const code = error.code && /^[A-Z_]{2,64}$/.test(error.code) ? error.code : ''
+  if (code === 'GALLERY_QUOTA_EXCEEDED' || code === 'GALLERY_DISABLED' || code === 'GALLERY_CONFLICT'
+    || code === 'GALLERY_INVALID' || code === 'GALLERY_PUBLIC_STORAGE' || code === 'GALLERY_NOT_FOUND') {
+    return { code, retryable: false }
+  }
+  if (error.status === 401 || error.status === 403) return { code: 'AUTH', retryable: false }
+  if (error.status === 0) return { code: 'NETWORK', retryable: true }
+  if (error.status >= 500 || error.status === 429) return { code: code || 'UNAVAILABLE', retryable: true }
+  return { code: code || 'UNKNOWN', retryable: false }
+}
+
+function galleryRetryDelay(attempts: number) {
+  return Math.min(5 * 60_000, 5000 * 2 ** Math.min(6, Math.max(0, attempts - 1)))
+}
+
+export function setGallerySyncPaused(paused: boolean) {
+  const userId = useStore.getState().galleryUserId
+  if (!userId) return
+  localStorage.setItem(galleryPauseKey(userId), paused ? '1' : '0')
+  useStore.setState({ gallerySyncPaused: paused })
+  if (paused) clearGalleryRetryTimer()
+  else void retryPendingGalleryTasks()
+}
+
+export async function refreshGalleryStats() {
+  const session = captureGallerySession()
+  if (!session.token || !session.userId) return false
+  let status
+  try { status = await getGalleryStatus() } catch (error) {
+    if (isGallerySessionCurrent(session)) {
+      const legacyServer = error instanceof GalleryApiError && error.status === 404
+      useStore.setState({ galleryStatusKnown: legacyServer, ...(legacyServer ? { galleryEnabled: false, studioJobsSupported: false, studioJobsEnabled: false } : {}) })
+    }
+    return false
+  }
+  if (status.user_id !== session.userId || !isGallerySessionCurrent(session)) return false
+  verifyGalleryIdentity(status.user_id, session.token)
+  useStore.setState({ galleryEnabled: status.enabled, galleryStats: status.stats ?? null, galleryStatusKnown: true, studioJobsSupported: 'jobs_enabled' in status, studioJobsEnabled: status.jobs_enabled === true })
+  return true
+}
 
 function authSessionKey() {
   return (localStorage.getItem('auth_token') ?? '') + '|' + (cachedUserId() ?? '')
@@ -526,6 +637,8 @@ export async function loadNextGalleryPage() {
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
       const task = normalizeTask(item)
       if (!task || pending.has(task.id)) continue
+      const local = merged.get(task.id)
+      if (local?.cloudCancelRequested || local?.cloudJobStatus === 'cancelled') continue
       merged.set(task.id, task)
       await dbPutTask(task, session.scope)
     }
@@ -543,13 +656,13 @@ export async function loadNextGalleryPage() {
   }
 }
 
-export async function syncGalleryTask(taskId: string) {
+export async function syncGalleryTask(taskId: string, force = false) {
   const state = useStore.getState()
   const authToken = localStorage.getItem('auth_token')
   if (!authToken) return
   try { await ensureGalleryIdentity(authToken) } catch { return }
   if (authToken !== localStorage.getItem('auth_token')) return
-  if (!state.galleryEnabled || !state.galleryUserId) return
+  if (!state.galleryUserId) return
   const task = state.tasks.find((item) => item.id === taskId)
   if (!task || task.status === 'running') return
   const session = captureGallerySession()
@@ -559,14 +672,34 @@ export async function syncGalleryTask(taskId: string) {
   const existing = syncingGalleryTasks.get(key)
   if (existing) return existing
   const job = (async () => {
-    useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'pending' } }))
+    const previous = await getTaskSyncRecord(taskId, session.scope)
+    if (!previous || !isGallerySessionCurrent(session)) return
+    if (!force && (state.gallerySyncPaused || !previous.retryable || previous.nextRetryAt > Date.now())) {
+      useStore.setState((current) => ({
+        gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: previous.status },
+        gallerySyncErrorCode: previous.errorCode
+          ? { ...current.gallerySyncErrorCode, [taskId]: previous.errorCode }
+          : current.gallerySyncErrorCode,
+      }))
+      if (previous.retryable) scheduleGalleryRetry(session.scope, previous.nextRetryAt)
+      return
+    }
+    if (!state.galleryEnabled) return
+    const attempts = previous.attempts + 1
+    await setTaskSyncRecord(taskId, { status: 'syncing', attempts, nextRetryAt: 0, retryable: true }, session.scope)
+    if (!isGallerySessionCurrent(session)) return
+    useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'syncing' } }))
     try {
       await uploadGalleryTask(task, () => isGallerySessionCurrent(session) && !deletingGalleryTasks.has(key), session.scope)
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
       await clearTaskPendingSync(taskId, session.scope)
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
       registerCloudAssetIds(taskAssetIds(task))
-      useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'synced' } }))
+      useStore.setState((current) => {
+        const { [taskId]: _, ...gallerySyncErrorCode } = current.gallerySyncErrorCode
+        return { gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'synced' }, gallerySyncErrorCode }
+      })
+      void refreshGalleryStats()
     } catch (error) {
       if (error instanceof GalleryApiError && error.status === 410 && error.code === 'GALLERY_GONE') {
         const discarded = await discardGoneTask(taskId, session.scope).then(() => true, () => false)
@@ -574,34 +707,82 @@ export async function syncGalleryTask(taskId: string) {
           if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId) {
             useStore.setState((current) => {
               const { [taskId]: _, ...gallerySyncStatus } = current.gallerySyncStatus
-              return { tasks: current.tasks.filter((item) => item.id !== taskId), gallerySyncStatus }
+              const { [taskId]: _error, ...gallerySyncErrorCode } = current.gallerySyncErrorCode
+              return { tasks: current.tasks.filter((item) => item.id !== taskId), gallerySyncStatus, gallerySyncErrorCode }
             })
           }
+          void refreshGalleryStats()
           return
         }
       }
       if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId && !deletingGalleryTasks.has(key)) {
-        useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'error' } }))
+        const failure = gallerySyncError(error)
+        const nextRetryAt = failure.retryable ? Date.now() + galleryRetryDelay(attempts) : 0
+        const record: GallerySyncRecord = { status: 'error', attempts, nextRetryAt, retryable: failure.retryable, errorCode: failure.code }
+        await setTaskSyncRecord(taskId, record, session.scope)
+        if (!isGallerySessionCurrent(session)) return
+        useStore.setState((current) => ({
+          gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'error' },
+          gallerySyncErrorCode: { ...current.gallerySyncErrorCode, [taskId]: failure.code },
+        }))
+        if (failure.retryable) scheduleGalleryRetry(session.scope, nextRetryAt)
       }
     }
   })()
   syncingGalleryTasks.set(key, job)
-  try { await job } finally { syncingGalleryTasks.delete(key) }
+  try { await job } finally {
+    syncingGalleryTasks.delete(key)
+    const refreshed = captureGallerySession()
+    if (refreshed.token && refreshed.token !== session.token && refreshed.userId === userId && refreshed.scope === session.scope) {
+      void ensureGalleryIdentity(refreshed.token).then(() => retryPendingGalleryTasks()).catch(() => undefined)
+    }
+  }
+}
+
+export async function retryGalleryTask(taskId: string) {
+  await refreshGalleryStats()
+  if (!useStore.getState().galleryEnabled) {
+    useStore.getState().showToast(st('imageStudio.gallery.disabled'), 'info')
+    return
+  }
+  await syncGalleryTask(taskId, true)
+}
+
+export async function retryFailedGalleryTasks() {
+  await refreshGalleryStats()
+  if (!useStore.getState().galleryEnabled) {
+    useStore.getState().showToast(st('imageStudio.gallery.disabled'), 'info')
+    return
+  }
+  const session = captureGallerySession()
+  const ids = Object.entries(useStore.getState().gallerySyncStatus)
+    .filter(([, status]) => status === 'error')
+    .map(([id]) => id)
+  for (const id of ids) {
+    if (!isGallerySessionCurrent(session)) return
+    await syncGalleryTask(id, true)
+  }
 }
 
 export async function retryPendingGalleryTasks() {
   const session = captureGallerySession()
   if (!session.token || !session.userId || session.scope !== 'milorouter-ai-image-user-' + session.userId) return
+  if (useStore.getState().gallerySyncPaused) return
   if (!useStore.getState().galleryEnabled) {
     const status = await getGalleryStatus().catch(() => null)
     if (!status || !status.enabled || status.user_id !== session.userId || !isGallerySessionCurrent(session)) return
     verifyGalleryIdentity(status.user_id, session.token)
-    useStore.setState({ galleryEnabled: true })
+    useStore.setState({ galleryEnabled: true, galleryStats: status.stats ?? null })
   }
-  const ids = await getPendingSyncTaskIds(session.scope).catch(() => [])
+  const entries = await getPendingSyncRecords(session.scope).catch(() => [])
   if (!isGallerySessionCurrent(session)) return
-  for (const id of ids) {
+  for (const { id, record } of entries) {
     if (!isGallerySessionCurrent(session)) return
+    if (!record.retryable) continue
+    if (record.nextRetryAt > Date.now()) {
+      scheduleGalleryRetry(session.scope, record.nextRetryAt)
+      continue
+    }
     await syncGalleryTask(id)
   }
 }
@@ -620,17 +801,27 @@ export async function importLegacyHistory() {
     if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
     const known = new Set(state.tasks.map((task) => task.id))
     const imported: TaskRecord[] = []
+    let processed = 0
+    let skipped = 0
+    useStore.setState({ galleryImportProgress: { total: legacy.length, processed: 0, imported: 0, skipped: 0 } })
+    const advance = (didImport: boolean) => {
+      processed += 1
+      if (!didImport) skipped += 1
+      if (isGallerySessionCurrent(session) && userId === useStore.getState().galleryUserId) {
+        useStore.setState({ galleryImportProgress: { total: legacy.length, processed, imported: imported.length, skipped } })
+      }
+    }
     for (const raw of legacy) {
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
       const task = normalizeTask(raw)
-      if (!task || known.has(task.id)) continue
+      if (!task || known.has(task.id)) { advance(false); continue }
       if (task.status === 'running') Object.assign(task, createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()))
       const images = await Promise.all(taskAssetIds(task).map(getLegacyImage))
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
-      if (images.some((image) => !image?.dataUrl)) continue
+      if (images.some((image) => !image?.dataUrl)) { advance(false); continue }
       const collisions = await Promise.all(images.map((image) => image ? getImage(image.id, session.scope) : undefined))
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
-      if (collisions.some((current, index) => current && current.dataUrl !== images[index]?.dataUrl)) continue
+      if (collisions.some((current, index) => current && current.dataUrl !== images[index]?.dataUrl)) { advance(false); continue }
       for (const image of images) {
         if (!isGallerySessionCurrent(session)) return
         if (image) await putImage(image, session.scope)
@@ -639,6 +830,7 @@ export async function importLegacyHistory() {
       await putTaskWithPendingSync(task, session.scope)
       imported.push(task)
       known.add(task.id)
+      advance(true)
     }
     if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId) return
     useStore.setState((current) => ({
@@ -648,7 +840,7 @@ export async function importLegacyHistory() {
         ...imported.map((task) => [task.id, 'pending' as const]),
       ]),
     }))
-    state.showToast(st('imageStudio.gallery.importDone'), 'success')
+    state.showToast(st('imageStudio.gallery.importLocalDone', { count: imported.length, skipped }), imported.length ? 'success' : 'info')
     if (state.galleryEnabled) void retryPendingGalleryTasks()
   } catch {
     state.showToast(st('imageStudio.gallery.importFailed'), 'error')
@@ -656,6 +848,10 @@ export async function importLegacyHistory() {
 }
 
 export function initStore(): Promise<void> {
+  if (!galleryOnlineListenerInstalled && typeof window !== 'undefined') {
+    window.addEventListener('online', () => { void retryPendingGalleryTasks() })
+    galleryOnlineListenerInstalled = true
+  }
   const session = authSessionKey()
   const authToken = localStorage.getItem('auth_token')
   const localUserId = cachedUserId()
@@ -664,9 +860,11 @@ export function initStore(): Promise<void> {
   if (initPromise && initSession === session) return initPromise
   if (initSession !== session) {
     // Isolate storage before the first await; the old user's DB must not remain active.
+    clearGalleryRetryTimer()
+    clearStudioJobPollers()
     setImageStudioUserScope(scopedUserId)
     clearImageCaches()
-    useStore.setState({ tasks: [], inputImages: [], gallerySyncStatus: {}, galleryUserId: null, galleryEnabled: false, galleryInitialized: false, galleryLoading: false, galleryHasMore: false, galleryNextCursor: null, confirmDialog: null })
+    useStore.setState({ tasks: [], inputImages: [], gallerySyncStatus: {}, gallerySyncErrorCode: {}, galleryImportProgress: null, galleryStats: null, galleryStatusKnown: false, studioJobsSupported: false, studioJobsEnabled: false, studioJobStatus: {}, gallerySyncPaused: false, galleryUserId: null, galleryEnabled: false, galleryInitialized: false, galleryLoading: false, galleryHasMore: false, galleryNextCursor: null, confirmDialog: null })
     if (initSession !== null) {
       // A failed key fetch for the new user must never leave the previous user's
       // connected key, catalog or prices available in this shared store.
@@ -678,7 +876,15 @@ export function initStore(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      const status = await getGalleryStatus().catch(() => null)
+      let status
+      let statusKnown = false
+      try {
+        status = await getGalleryStatus()
+        statusKnown = true
+      } catch (error) {
+        status = null
+        statusKnown = error instanceof GalleryApiError && error.status === 404
+      }
       if (session !== authSessionKey()) return
       if (status && status.user_id !== cachedUserId()) return
       if (status && tokenUserId && status.user_id !== tokenUserId) return
@@ -688,6 +894,11 @@ export function initStore(): Promise<void> {
       useStore.setState({
         galleryUserId: userId,
         galleryEnabled: status?.enabled === true,
+        galleryStats: status?.stats ?? null,
+        galleryStatusKnown: statusKnown,
+        studioJobsSupported: Boolean(status && 'jobs_enabled' in status),
+        studioJobsEnabled: status?.jobs_enabled === true,
+        gallerySyncPaused: userId ? localStorage.getItem(galleryPauseKey(userId)) === '1' : false,
         galleryNextCursor: null,
         galleryHasMore: Boolean(status && userId),
       })
@@ -709,7 +920,7 @@ export function initStore(): Promise<void> {
 
       // 上次退出时仍在生成的任务 → 标记为中断
       const interrupted = cleanedTasks.map((task) =>
-        task.status === 'running'
+        task.status === 'running' && task.execution !== 'cloud'
           ? { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.interrupted'), Date.now()) }
           : task,
       )
@@ -717,7 +928,7 @@ export function initStore(): Promise<void> {
       await Promise.all(interrupted.map((task, index) => {
         if (task.status !== 'error') return Promise.resolve()
         // A task interrupted before its first successful upload still needs an outbox marker.
-        return cleanedTasks[index].status === 'running' && userId
+        return cleanedTasks[index].status === 'running' && cleanedTasks[index].execution !== 'cloud' && userId
           ? putTaskWithPendingSync(task, taskScope)
           : dbPutTask(task, taskScope)
       }))
@@ -732,13 +943,14 @@ export function initStore(): Promise<void> {
       )
       const usableInputImages = inputImages.filter((image) => image.dataUrl)
       if (session !== authSessionKey()) return
-      const pendingIds = await getPendingSyncTaskIds().catch(() => [])
+      const pendingEntries = await getPendingSyncRecords().catch(() => [])
       if (session !== authSessionKey()) return
 
       useStore.setState({
         tasks: interrupted,
         galleryInitialized: true,
-        gallerySyncStatus: Object.fromEntries(pendingIds.map((id) => [id, 'pending' as const])),
+        gallerySyncStatus: Object.fromEntries(pendingEntries.map(({ id, record }) => [id, record.status])),
+        gallerySyncErrorCode: Object.fromEntries(pendingEntries.filter(({ record }) => record.errorCode).map(({ id, record }) => [id, record.errorCode!])),
         prompt: remapImageMentionsForOrder(
           current.prompt,
           current.inputImages,
@@ -749,7 +961,8 @@ export function initStore(): Promise<void> {
       })
       if (session !== authSessionKey()) return
       if (status && userId) await loadNextGalleryPage()
-      if (status?.enabled) void retryPendingGalleryTasks()
+      if (status && 'jobs_enabled' in status && userId && authToken) void restoreStudioJobs(authToken)
+      if (status?.enabled && !useStore.getState().gallerySyncPaused) void retryPendingGalleryTasks()
     } catch (error) {
       if (session !== authSessionKey()) return
       console.warn('初始化本地数据失败', error)
@@ -771,13 +984,223 @@ async function isGenerationSessionCurrent(session: ReturnType<typeof captureGall
   return current.token === refreshed.token && current.userId === session.userId && current.scope === session.scope
 }
 
+async function currentCloudSession(original: ReturnType<typeof captureGallerySession>) {
+  if (isGallerySessionCurrent(original)) return original
+  const refreshed = captureGallerySession()
+  if (!refreshed.token || refreshed.userId !== original.userId || refreshed.scope !== original.scope) return null
+  try { await ensureGalleryIdentity(refreshed.token) } catch { return null }
+  return isGallerySessionCurrent(refreshed) ? refreshed : null
+}
+
+function studioJobIsActive(status: StudioJobStatus) {
+  return status === 'queued' || status === 'generating' || status === 'saving'
+}
+
+function wantsCloudCancellation(taskId: string) {
+  return cloudCancellationRequested.has(taskId)
+    || useStore.getState().tasks.some((task) => task.id === taskId && task.cloudCancelRequested === true)
+}
+
+async function finishCloudCancellation(taskId: string, session: ReturnType<typeof captureGallerySession>) {
+  cloudCancellationRequested.delete(taskId)
+  if (!taskControllers.has(taskId)) stoppedTaskIds.delete(taskId)
+  stopStudioJobPoller(taskId, session)
+  if (!isGallerySessionCurrent(session)) return
+  await cloudStopWrites.get(taskId)?.catch(() => undefined)
+  cloudStopWrites.delete(taskId)
+  const task = useStore.getState().tasks.find((item) => item.id === taskId)
+  if (!task?.cloudCancelRequested) return
+  const { cloudCancelRequested: _requested, ...rest } = task
+  const cancelled: TaskRecord = { ...rest, cloudJobStatus: 'cancelled' }
+  useStore.setState((current) => ({
+    tasks: current.tasks.map((item) => item.id === taskId ? cancelled : item),
+    studioJobStatus: { ...current.studioJobStatus, [taskId]: 'cancelled' },
+  }))
+  await dbPutTask(cancelled, session.scope)
+}
+
+async function applyStudioJob(job: StudioJob, session: ReturnType<typeof captureGallerySession>) {
+  const key = session.scope + ':' + job.task_id
+  const previous = applyingStudioJobs.get(key) ?? Promise.resolve()
+  const operation = previous.catch(() => undefined).then(() => applyStudioJobNow(job, session))
+  applyingStudioJobs.set(key, operation)
+  try { await operation } finally {
+    if (applyingStudioJobs.get(key) === operation) applyingStudioJobs.delete(key)
+  }
+}
+
+async function applyStudioJobNow(job: StudioJob, session: ReturnType<typeof captureGallerySession>) {
+  if (!isGallerySessionCurrent(session) || session.userId !== useStore.getState().galleryUserId) return
+  if (deletingGalleryTasks.has(session.scope + ':' + job.task_id)) return
+  if (wantsCloudCancellation(job.task_id)) return
+  if (useStore.getState().tasks.some((task) => task.id === job.task_id && task.cloudJobStatus === 'cancelled')) return
+  const knownStatus = useStore.getState().studioJobStatus[job.task_id]
+  if (knownStatus && !studioJobIsActive(knownStatus) && studioJobIsActive(job.status)) return
+  const normalized = normalizeTask(job.task)
+  if (!normalized || normalized.id !== job.task_id) return
+  const active = studioJobIsActive(job.status)
+  const done = (job.status === 'completed' || job.status === 'partial') && normalized.outputImages.length > 0
+  const notifySession = !active ? cloudNotificationSessions.get(job.task_id) : undefined
+  if (!active) cloudNotificationSessions.delete(job.task_id)
+  const task: TaskRecord = {
+    ...normalized,
+    execution: 'cloud',
+    cloudJobStatus: job.status,
+    status: active ? 'running' : done ? 'done' : 'error',
+    error: active || done ? null : job.status === 'unknown'
+      ? st('imageStudio.store.cloudResultUnknown')
+      : job.status === 'cancelled'
+        ? st('imageStudio.store.stopped')
+        : normalized.error || st('imageStudio.store.cloudGenerationFailed'),
+    finishedAt: active ? null : normalized.finishedAt ?? Date.now(),
+  }
+  useStore.setState((current) => ({
+    tasks: current.tasks.some((item) => item.id === task.id)
+      ? current.tasks.map((item) => item.id === task.id ? task : item)
+      : [...current.tasks, task],
+    studioJobStatus: { ...current.studioJobStatus, [task.id]: job.status },
+    ...(done ? { gallerySyncStatus: { ...current.gallerySyncStatus, [task.id]: 'synced' as const } } : {}),
+  }))
+  await dbPutTask(task, session.scope)
+  if (!isGallerySessionCurrent(session)) return
+  if (deletingGalleryTasks.has(session.scope + ':' + job.task_id)) return
+  if (done) {
+    registerCloudAssetIds(taskAssetIds(task))
+    void refreshGalleryStats()
+    const current = useStore.getState()
+    if (notifySession && current.settings.taskCompletionNotification && getBrowserNotificationSession() === notifySession
+      && isBrowserNotificationBackground()) {
+      showBrowserNotification(st('imageStudio.store.notificationTitle'), { body: task.prompt })
+    }
+  }
+}
+
+function pollStudioJob(taskId: string, session: ReturnType<typeof captureGallerySession>) {
+  const authToken = session.token
+  if (!authToken || !session.userId || !isGallerySessionCurrent(session)) return
+  const key = session.scope + ':' + taskId
+  if (studioJobPollers.has(key)) return
+  const poller = { timer: null as ReturnType<typeof setTimeout> | null, controller: new AbortController(), session, misses: 0 }
+  studioJobPollers.set(key, poller)
+  const stop = () => {
+    if (poller.timer) clearTimeout(poller.timer)
+    poller.controller.abort()
+    studioJobPollers.delete(key)
+  }
+  const rebindAfterRefresh = () => {
+    stop()
+    const refreshed = captureGallerySession()
+    if (!refreshed.token || refreshed.token === session.token || refreshed.userId !== session.userId || refreshed.scope !== session.scope) return
+    void ensureGalleryIdentity(refreshed.token).then(() => {
+      if (isGallerySessionCurrent(refreshed)) pollStudioJob(taskId, refreshed)
+    }).catch(() => undefined)
+  }
+  const next = (delay: number) => {
+    if (!isGallerySessionCurrent(session)) { rebindAfterRefresh(); return }
+    poller.timer = setTimeout(() => { void tick() }, delay)
+  }
+  const tick = async () => {
+    if (!isGallerySessionCurrent(session)) { rebindAfterRefresh(); return }
+    if (!studioJobPollers.has(key)) return
+    try {
+      const { job } = await getStudioJob(taskId, authToken, poller.controller.signal)
+      if (!isGallerySessionCurrent(session)) { rebindAfterRefresh(); return }
+      if (!studioJobPollers.has(key)) return
+      if (wantsCloudCancellation(taskId)) {
+        if (job.status === 'cancelled') {
+          cloudNotificationSessions.delete(taskId)
+          await finishCloudCancellation(taskId, session)
+          return
+        }
+        try {
+          await deleteStudioJob(taskId, authToken)
+          cloudNotificationSessions.delete(taskId)
+          await finishCloudCancellation(taskId, session)
+        } catch (error) {
+          next(error instanceof GalleryApiError && error.status === 404 ? 3000 : 10000)
+        }
+        return
+      }
+      poller.misses = 0
+      await applyStudioJob(job, session)
+      if (studioJobIsActive(job.status)) next(3000)
+      else stop()
+    } catch (error) {
+      if (!isGallerySessionCurrent(session)) { rebindAfterRefresh(); return }
+      if (!studioJobPollers.has(key)) return
+      if (error instanceof GalleryApiError && (error.status === 401 || error.status === 403)) { stop(); return }
+      if (error instanceof GalleryApiError && error.status === 404) {
+        poller.misses += 1
+        if (poller.misses >= 3) {
+          const current = useStore.getState().tasks.find((item) => item.id === taskId)
+          if (current?.status === 'running' && current.execution === 'cloud') {
+            const failed: TaskRecord = { ...current, cloudJobStatus: 'unknown', ...createTaskErrorPatch(current,
+              st('imageStudio.store.cloudSubmitUnconfirmed'), Date.now()) }
+            useStore.setState((state) => ({ tasks: state.tasks.map((item) => item.id === taskId ? failed : item) }))
+            // Admission is still ambiguous: never upload this ID into the gallery.
+            await dbPutTask(failed, session.scope).catch(() => undefined)
+          }
+          cloudNotificationSessions.delete(taskId)
+          stop()
+          return
+        }
+      }
+      next(error instanceof GalleryApiError && error.status === 404 ? 3000 : 10000)
+    }
+  }
+  void tick()
+}
+
+/** Reconnects accepted jobs using only safe GET requests; it never calls a model. */
+export async function resumeStudioJobsForCurrentUser() {
+  const state = useStore.getState()
+  const session = captureGallerySession()
+  if (!state.galleryInitialized || !state.studioJobsSupported || !session.token || !session.userId || session.userId !== state.galleryUserId) return
+  try { await ensureGalleryIdentity(session.token) } catch { return }
+  if (!isGallerySessionCurrent(session)) return
+  await restoreStudioJobs(session.token)
+}
+
+async function restoreStudioJobs(authToken: string) {
+  const session = captureGallerySession()
+  if (!session.userId || session.token !== authToken || !isGallerySessionCurrent(session)) return
+  for (const task of useStore.getState().tasks) {
+    if (task.execution === 'cloud' && (task.status === 'running' || task.cloudCancelRequested)) pollStudioJob(task.id, session)
+  }
+  let cursor: string | null = null
+  for (let pageNumber = 0; pageNumber < 11; pageNumber += 1) {
+    if (!isGallerySessionCurrent(session)) return
+    let page
+    try { page = await listStudioJobs(cursor, 100, authToken, undefined, true) } catch { return }
+    if (!isGallerySessionCurrent(session)) return
+    for (const job of page.items) {
+      if (!isGallerySessionCurrent(session)) return
+      if (wantsCloudCancellation(job.task_id)) { pollStudioJob(job.task_id, session); continue }
+      await applyStudioJob(job, session)
+      const currentStatus = useStore.getState().studioJobStatus[job.task_id]
+      if (studioJobIsActive(job.status) && (!currentStatus || studioJobIsActive(currentStatus))) pollStudioJob(job.task_id, session)
+    }
+    cursor = page.next_cursor
+    if (!cursor) break
+  }
+}
+
 export async function submitTask() {
   if (cacheClearInProgress) {
     useStore.getState().showToast(st('imageStudio.gallery.cacheClearing'), 'info')
     return
   }
-  submitInProgress += 1
-  try { await submitTaskInternal() } finally { submitInProgress -= 1 }
+  if (submitInProgress > 0) return
+  submitInProgress = 1
+  try {
+    if (!useStore.getState().galleryInitialized) await initStore()
+    if (!useStore.getState().galleryStatusKnown) await refreshGalleryStats()
+    if (!useStore.getState().galleryStatusKnown) {
+      useStore.getState().showToast(st('imageStudio.store.cloudStatusUnavailable'), 'error')
+      return
+    }
+    await submitTaskInternal()
+  } finally { submitInProgress = 0 }
 }
 
 async function submitTaskInternal() {
@@ -830,6 +1253,11 @@ async function submitTaskInternal() {
     state.showToast(st('imageStudio.store.resolutionUnavailable'), 'error')
     return
   }
+  // A server job is selected only when the backend advertises a ready worker.
+  // Partial-image SSE remains on the existing browser path until a resumable
+  // preview channel exists; silently dropping that preview would be a regression.
+  const useCloudJob = Boolean(state.galleryEnabled && state.studioJobsEnabled && generationSession.token
+    && generationSession.userId && params.partial_images === 0)
   const inputImages = state.inputImages
   if (inputImages.length > model.capabilities.referenceImages) {
     state.showToast(`当前模型最多支持 ${model.capabilities.referenceImages} 张参考图`, 'error')
@@ -889,6 +1317,7 @@ async function submitTaskInternal() {
   const now = Date.now()
   const task: TaskRecord = {
     id: createId(),
+    ...(useCloudJob ? { execution: 'cloud' as const } : {}),
     prompt,
     params,
     apiKind: model.api,
@@ -908,6 +1337,7 @@ async function submitTaskInternal() {
     finishedAt: null,
     elapsed: null,
   }
+  if (useCloudJob) cloudNotificationSessions.set(task.id, notificationSession)
   if (!await isGenerationSessionCurrent(generationSession)) return
   useStore.setState((current) => ({ tasks: [...current.tasks, task], latestSubmittedTaskId: task.id }))
   await dbPutTask(task, generationScope)
@@ -919,6 +1349,89 @@ async function submitTaskInternal() {
   const controller = new AbortController()
   taskControllers.set(task.id, controller)
   try {
+    if (useCloudJob) {
+      const authToken = generationSession.token!
+      const requestInputImageIds = [...task.inputImageIds]
+      if (maskDraft) {
+        const prepared = await storeImageWithSize(requestInputImageDataUrls[0], 'mask', generationScope)
+        requestInputImageIds[0] = prepared.id
+        cacheImage(prepared.id, requestInputImageDataUrls[0])
+      }
+      const assets = new Map<string, string>()
+      task.inputImageIds.forEach((id, index) => assets.set(id, inputImageDataUrls[index]))
+      if (maskDraft && maskImageId) {
+        assets.set(maskImageId, maskDraft.maskDataUrl)
+        assets.set(requestInputImageIds[0], requestInputImageDataUrls[0])
+      }
+      for (const [id, dataUrl] of assets) {
+        if (controller.signal.aborted || stoppedTaskIds.has(task.id)) return
+        if (!await isGenerationSessionCurrent(generationSession)) return
+        await putGalleryAsset(id, dataUrl, authToken)
+      }
+      if (controller.signal.aborted || stoppedTaskIds.has(task.id)) return
+      if (!await isGenerationSessionCurrent(generationSession)) return
+      const effectivePrompt = maskDraft
+        ? createMaskConstrainedPrompt(replaceImageMentionsForApi(prompt, orderedInputImages.length))
+        : replaceImageMentionsForApi(transparentMeta?.effectivePrompt ?? prompt, orderedInputImages.length)
+      const spec = buildStudioJobSpec({
+        settings: generationSettings,
+        modelId: requestModelId,
+        apiKind: model.api,
+        modelCapabilities: model.capabilities,
+        modelProvider: model.provider,
+        prompt: effectivePrompt,
+        params: requestParams,
+        inputImageDataUrls: requestInputImageDataUrls,
+        maskDataUrl: maskDraft?.maskDataUrl,
+        nativeTransparentOutput: nativeTransparent,
+      }, {
+        inputImageIds: task.inputImageIds,
+        requestInputImageIds,
+        maskImageId: maskImageId ?? undefined,
+        maskTargetImageId: maskDraft?.targetImageId,
+        providerProfile: model.profiles?.length === 1 ? model.profiles[0].profile : undefined,
+        postprocess: maskDraft ? 'mask' : transparent && !nativeTransparent ? 'keyed' : 'none',
+      })
+      try {
+        let job: StudioJob
+        try {
+          job = (await createStudioJob(task, spec, authToken)).job
+        } catch (error) {
+          if (!(error instanceof GalleryApiError && error.code === 'STUDIO_LOGIN_CHANGED_BEFORE_SEND')) throw error
+          const refreshed = await currentCloudSession(generationSession)
+          if (!refreshed?.token) return
+          job = (await createStudioJob(task, spec, refreshed.token)).job
+        }
+        const activeSession = await currentCloudSession(generationSession)
+        if (!activeSession?.token) return
+        if (stoppedTaskIds.has(task.id) && !wantsCloudCancellation(task.id)) return
+        if (wantsCloudCancellation(task.id)) {
+          try {
+            await deleteStudioJob(task.id, activeSession.token)
+            await finishCloudCancellation(task.id, activeSession)
+          } catch {
+            pollStudioJob(task.id, activeSession)
+          }
+          return
+        }
+        await applyStudioJob(job, activeSession)
+        pollStudioJob(task.id, activeSession)
+        if (generationSettings.clearInputAfterSubmit && isGallerySessionCurrent(activeSession)) useStore.setState({ prompt: '', inputImages: [], maskDraft: null })
+        return
+      } catch (error) {
+        // The POST may have committed before a network failure. Query the same
+        // task ID; never re-issue a paid model request to resolve ambiguity.
+        const activeSession = await currentCloudSession(generationSession)
+        if (!activeSession) return
+        if (error instanceof GalleryApiError && error.status >= 400 && error.status < 500
+          && error.status !== 401 && error.status !== 408 && error.status !== 429) {
+          if (wantsCloudCancellation(task.id)) await finishCloudCancellation(task.id, activeSession)
+          throw error
+        }
+        pollStudioJob(task.id, activeSession)
+        return
+      }
+    }
     const result = await callImageApi({
       settings: generationSettings,
       modelId: requestModelId,
@@ -998,6 +1511,7 @@ async function submitTaskInternal() {
     }
     await putTaskWithPendingSync(finished, generationScope)
     if (!await isGenerationSessionCurrent(generationSession)) return
+    useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [task.id]: 'pending' } }))
     void syncGalleryTask(task.id)
     const current = useStore.getState()
     if (current.settings.taskCompletionNotification && notificationSession !== null &&
@@ -1010,6 +1524,7 @@ async function submitTaskInternal() {
     }
   } catch (error) {
     if (stoppedTaskIds.has(task.id)) return
+    cloudNotificationSessions.delete(task.id)
     const message = getUserFacingApiErrorMessage(error)
     const failed = { ...task, ...createTaskErrorPatch(task, message, Date.now()) }
     if (await isGenerationSessionCurrent(generationSession)) {
@@ -1020,6 +1535,7 @@ async function submitTaskInternal() {
     }
     await putTaskWithPendingSync(failed, generationScope)
     if (await isGenerationSessionCurrent(generationSession)) {
+      useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [task.id]: 'pending' } }))
       void syncGalleryTask(task.id)
       state.showToast(message, 'error')
     }
@@ -1037,11 +1553,38 @@ async function submitTaskInternal() {
 }
 
 export function stopTaskGeneration(taskId: string) {
+  const task = useStore.getState().tasks.find((item) => item.id === taskId)
+  if (task?.execution === 'cloud') {
+    const session = captureGallerySession()
+    const controller = taskControllers.get(taskId)
+    cloudCancellationRequested.add(taskId)
+    cloudNotificationSessions.delete(taskId)
+    stoppedTaskIds.add(taskId)
+    controller?.abort()
+    const stopped: TaskRecord = { ...task, cloudCancelRequested: true, ...createTaskErrorPatch(task, st('imageStudio.store.stopped'), Date.now()) }
+    useStore.setState((state) => ({ tasks: state.tasks.map((item) => item.id === taskId ? stopped : item) }))
+    const stopWrite = dbPutTask(stopped, session.scope)
+    cloudStopWrites.set(taskId, stopWrite)
+    void stopWrite.then(
+      () => { if (cloudStopWrites.get(taskId) === stopWrite) cloudStopWrites.delete(taskId) },
+      () => { if (cloudStopWrites.get(taskId) === stopWrite) cloudStopWrites.delete(taskId) },
+    )
+    if (session.token && isGallerySessionCurrent(session)) {
+      void deleteStudioJob(taskId, session.token).then(() => {
+        if (!isGallerySessionCurrent(session)) return
+        void finishCloudCancellation(taskId, session).catch(() => undefined)
+      }, () => {
+        if (!isGallerySessionCurrent(session)) return
+        // 404 can precede a slow POST commit; retain the persisted stop intent.
+        pollStudioJob(taskId, session)
+      })
+    }
+    return
+  }
   const controller = taskControllers.get(taskId)
   if (!controller) return
   stoppedTaskIds.add(taskId)
   controller.abort()
-  const task = useStore.getState().tasks.find((item) => item.id === taskId)
   if (!task) return
   const stopped = { ...task, ...createTaskErrorPatch(task, st('imageStudio.store.stopped'), Date.now()) }
   useStore.setState((state) => {
@@ -1202,9 +1745,23 @@ export async function retryTask(task: TaskRecord) {
     state.showToast(st('imageStudio.store.modelUnavailableReuse'), 'error')
     return
   }
-  await reuseConfig(task)
-  if (!isGallerySessionCurrent(session)) return
-  await submitTask()
+  const retry = async () => {
+    if (!isGallerySessionCurrent(session)) return
+    await reuseConfig(task)
+    if (!isGallerySessionCurrent(session)) return
+    await submitTask()
+  }
+  if (task.execution === 'cloud' && (state.studioJobStatus[task.id] === 'unknown' || task.cloudJobStatus === 'unknown')) {
+    state.setConfirmDialog({
+      title: st('imageStudio.store.unknownRetryTitle'),
+      message: st('imageStudio.store.unknownRetryMessage'),
+      tone: 'warning',
+      confirmText: st('imageStudio.store.unknownRetryConfirm'),
+      action: retry,
+    })
+    return
+  }
+  await retry()
 }
 
 export async function removeTask(task: TaskRecord) {
@@ -1225,6 +1782,8 @@ export async function removeMultipleTasks(taskIds: string[]) {
   const keys = [...deletedIds].map((id) => session.scope + ':' + id)
   keys.forEach((key) => deletingGalleryTasks.add(key))
   try {
+    for (const task of removed) stopStudioJobPoller(task.id, session)
+    await Promise.all(keys.map((key) => applyingStudioJobs.get(key)).filter((job): job is Promise<void> => Boolean(job)))
     // An already-started upload must finish or stop before DELETE, or its POST can resurrect the task.
     await Promise.all(keys.map((key) => syncingGalleryTasks.get(key)).filter((job): job is Promise<void> => Boolean(job)))
     if (!isGallerySessionCurrent(session)) return
@@ -1232,7 +1791,17 @@ export async function removeMultipleTasks(taskIds: string[]) {
       for (const task of removed) {
         if (!isGallerySessionCurrent(session)) return
         try {
-          await deleteGalleryTask(task.id)
+          if (task.execution === 'cloud' && session.token) {
+            try {
+              await deleteStudioJob(task.id, session.token)
+            } catch (error) {
+              if (!(error instanceof GalleryApiError && error.status === 404)) throw error
+              // An older archived task can outlive its execution record.
+              await deleteGalleryTask(task.id)
+            }
+            stopStudioJobPoller(task.id, session)
+            cloudCancellationRequested.delete(task.id)
+          } else await deleteGalleryTask(task.id)
         } catch (error) {
           if (!(error instanceof GalleryApiError && error.status === 404)) throw error
         }
@@ -1252,6 +1821,9 @@ export async function removeMultipleTasks(taskIds: string[]) {
       : null
     return {
       tasks,
+      gallerySyncStatus: Object.fromEntries(Object.entries(current.gallerySyncStatus).filter(([id]) => !deletedIds.has(id))),
+      gallerySyncErrorCode: Object.fromEntries(Object.entries(current.gallerySyncErrorCode).filter(([id]) => !deletedIds.has(id))),
+      studioJobStatus: Object.fromEntries(Object.entries(current.studioJobStatus).filter(([id]) => !deletedIds.has(id))),
       streamPreviews: Object.fromEntries(Object.entries(current.streamPreviews).filter(([taskId]) => !deletedIds.has(taskId))),
       latestSubmittedTaskId: current.latestSubmittedTaskId && deletedIds.has(current.latestSubmittedTaskId) ? null : current.latestSubmittedTaskId,
       detailTaskId: detailTask?.id ?? null,
@@ -1262,6 +1834,7 @@ export async function removeMultipleTasks(taskIds: string[]) {
   })
   const candidates = new Set(removed.flatMap(collectTaskImageIds))
   await Promise.all([...candidates].map((id) => deleteImageIfUnreferenced(id, session)))
+  void refreshGalleryStats()
   } finally {
     keys.forEach((key) => deletingGalleryTasks.delete(key))
   }
@@ -1367,6 +1940,7 @@ export async function clearData(options: { clearConfig?: boolean; clearTasks?: b
       useStore.setState({
         tasks: [],
         streamPreviews: {},
+        studioJobStatus: {},
         prompt: remapImageMentionsForOrder(state.prompt, state.inputImages, []),
         inputImages: [],
         maskDraft: null,
@@ -1654,6 +2228,12 @@ function normalizeTask(value: unknown): TaskRecord | null {
   const apiModel = migrateLegacyImageModelId(rawApiModel)
   return {
     id: record.id,
+    execution: record.execution === 'cloud' ? 'cloud' : undefined,
+    cloudCancelRequested: record.cloudCancelRequested === true,
+    cloudJobStatus: record.cloudJobStatus === 'queued' || record.cloudJobStatus === 'generating' || record.cloudJobStatus === 'saving'
+      || record.cloudJobStatus === 'completed' || record.cloudJobStatus === 'partial' || record.cloudJobStatus === 'failed'
+      || record.cloudJobStatus === 'unknown' || record.cloudJobStatus === 'cancelled'
+      ? record.cloudJobStatus : undefined,
     prompt: record.prompt,
     params,
     apiKind: record.apiKind === 'gemini' ? 'gemini' : 'openai',

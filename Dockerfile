@@ -146,6 +146,7 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     su-exec \
+    libwebp-tools \
     libpq \
     zstd-libs \
     lz4-libs \

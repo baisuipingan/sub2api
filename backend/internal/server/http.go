@@ -6,6 +6,8 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -43,6 +45,7 @@ func ProvideRouter(
 	settingService *service.SettingService,
 	compositeResolver *service.CompositeRouteResolver,
 	redisClient *redis.Client,
+	studioJobs *service.StudioJobService,
 ) *gin.Engine {
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -88,7 +91,15 @@ func ProvideRouter(
 		service.SetWebSearchManager(websearch.NewManager(configs, redisClient))
 	})
 
-	return SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
+	r = SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "/app/data"
+	}
+	if err := studioJobs.Start(r, filepath.Join(dataDir, "studio-jobs")); err != nil {
+		log.Printf("Studio jobs unavailable: %v", err)
+	}
+	return r
 }
 
 func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {

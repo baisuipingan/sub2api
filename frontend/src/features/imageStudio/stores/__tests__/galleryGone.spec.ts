@@ -1,16 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TaskRecord } from '../../types'
 
-const { discardGoneTask, ensureGalleryIdentity, uploadGalleryTask } = vi.hoisted(() => ({
+const { discardGoneTask, clearTaskPendingSync, ensureGalleryIdentity, uploadGalleryTask, getTaskSyncRecord, setTaskSyncRecord, getGalleryStatus } = vi.hoisted(() => ({
   discardGoneTask: vi.fn(), ensureGalleryIdentity: vi.fn(), uploadGalleryTask: vi.fn(),
+  getTaskSyncRecord: vi.fn(), setTaskSyncRecord: vi.fn(), getGalleryStatus: vi.fn(), clearTaskPendingSync: vi.fn(),
 }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
-  discardGoneTask,
+  discardGoneTask, clearTaskPendingSync, getTaskSyncRecord, setTaskSyncRecord,
 }))
 vi.mock('../../lib/galleryApi', async () => ({
   ...await vi.importActual<typeof import('../../lib/galleryApi')>('../../lib/galleryApi'),
-  ensureGalleryIdentity,
+  ensureGalleryIdentity, getGalleryStatus,
 }))
 vi.mock('../../lib/gallerySync', async () => ({
   ...await vi.importActual<typeof import('../../lib/gallerySync')>('../../lib/gallerySync'),
@@ -20,9 +21,10 @@ vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
 import { setImageStudioUserScope } from '../../lib/db'
 import { GalleryApiError } from '../../lib/galleryApi'
-import { storeState as state, syncGalleryTask, useStore } from '../store'
+import { storeState as state, syncGalleryTask, retryGalleryTask, setGallerySyncPaused, useStore } from '../store'
 
 const task = { id: 'gone-task', status: 'done', inputImageIds: [], outputImages: ['image'] } as TaskRecord
+let syncRecord = { status: 'pending', attempts: 0, nextRetryAt: 0, retryable: true, errorCode: undefined as string | undefined }
 
 beforeEach(() => {
   localStorage.setItem('auth_token', 'token')
@@ -31,8 +33,14 @@ beforeEach(() => {
   discardGoneTask.mockReset().mockResolvedValue(undefined)
   ensureGalleryIdentity.mockReset().mockResolvedValue(undefined)
   uploadGalleryTask.mockReset()
-  useStore.setState({ tasks: [task], galleryEnabled: true, galleryUserId: 7, gallerySyncStatus: { [task.id]: 'pending' } })
+  syncRecord = { status: 'pending', attempts: 0, nextRetryAt: 0, retryable: true, errorCode: undefined }
+  getTaskSyncRecord.mockReset().mockImplementation(async () => syncRecord)
+  setTaskSyncRecord.mockReset().mockImplementation(async (_id, record) => { syncRecord = record })
+  clearTaskPendingSync.mockReset().mockResolvedValue(undefined)
+  getGalleryStatus.mockReset().mockResolvedValue({ enabled: true, user_id: 7, stats: null })
+  useStore.setState({ tasks: [task], galleryEnabled: true, galleryUserId: 7, gallerySyncPaused: false, gallerySyncStatus: { [task.id]: 'pending' } })
 })
+afterEach(() => setGallerySyncPaused(true))
 
 describe('gallery tombstone retry', () => {
   it('drops the local retry marker and task after GALLERY_GONE', async () => {
@@ -49,5 +57,13 @@ describe('gallery tombstone retry', () => {
     expect(discardGoneTask).not.toHaveBeenCalled()
     expect(state.tasks).toEqual([task])
     expect(state.gallerySyncStatus[task.id]).toBe('error')
+    expect(syncRecord.retryable).toBe(true)
+    expect(syncRecord.nextRetryAt).toBeGreaterThan(Date.now())
+    await syncGalleryTask(task.id)
+    expect(uploadGalleryTask).toHaveBeenCalledTimes(1)
+    uploadGalleryTask.mockResolvedValueOnce(undefined)
+    await retryGalleryTask(task.id)
+    expect(uploadGalleryTask).toHaveBeenCalledTimes(2)
+    expect(clearTaskPendingSync).toHaveBeenCalledWith(task.id, 'milorouter-ai-image-user-7')
   })
 })

@@ -117,6 +117,7 @@ RUN apk add --no-cache \
     tzdata \
     curl \
     su-exec \
+    libwebp-tools \
     && rm -rf /var/cache/apk/*
 
 # Create non-root user

@@ -195,6 +195,14 @@
           {{ createdText }}
         </p>
 
+        <div v-if="showGallerySyncStatus" class="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
+          <span :class="detailSyncStatus === 'error' ? 'text-red-500' : ''">{{ t('imageStudio.gallery.' + gallerySyncLabelKey(detailSyncStatus)) }}</span>
+          <button v-if="detailSyncStatus === 'error'" type="button" class="btn btn-ghost btn-sm text-primary-600" :disabled="retryingSync" @click="handleRetrySync">
+            {{ t('imageStudio.gallery.retrySync') }}
+          </button>
+        </div>
+        <p v-if="showGallerySyncStatus && detailSyncStatus === 'error'" class="mt-1 text-xs text-red-500">{{ detailSyncReason }}</p>
+
         <!-- 操作 -->
         <div
           class="mt-auto grid grid-cols-2 gap-2 border-t border-gray-100 pt-4 dark:border-white/[0.08] sm:grid-cols-3"
@@ -246,6 +254,7 @@ import {
   editOutputs,
   removeTask,
   retryTask,
+  retryGalleryTask,
   reuseConfig,
 } from '../stores/store'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
@@ -257,14 +266,30 @@ import { createMaskPreviewDataUrl } from '../lib/canvasImage'
 import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { formatImageRatio, parseRatio } from '../lib/size'
+import { galleryTaskSyncStatus, gallerySyncLabelKey, gallerySyncReasonKey } from '../lib/gallerySyncDisplay'
 
 const { t } = useI18n()
 
 const imageSources = ref<Record<string, string>>({})
 const maskPreview = ref('')
 const imageIndex = ref(0)
+const retryingSync = ref(false)
 
 const task = computed(() => state.tasks.find((item) => item.id === state.detailTaskId) ?? null)
+const detailSyncStatus = computed(() => task.value
+  ? galleryTaskSyncStatus(state.galleryUserId, state.gallerySyncStatus, task.value.id)
+  : 'local')
+const showGallerySyncStatus = computed(() => Boolean(task.value && state.galleryUserId && task.value.status !== 'running'
+  && (task.value.execution !== 'cloud' || task.value.cloudJobStatus === 'completed' || task.value.cloudJobStatus === 'partial')))
+const detailSyncReason = computed(() => task.value
+  ? t('imageStudio.gallery.' + gallerySyncReasonKey(state.gallerySyncErrorCode?.[task.value.id]))
+  : '')
+
+async function handleRetrySync() {
+  if (!task.value) return
+  retryingSync.value = true
+  try { await retryGalleryTask(task.value.id) } finally { retryingSync.value = false }
+}
 const streamPreview = computed(() =>
   state.detailTaskId ? state.streamPreviews[state.detailTaskId]?.image : undefined,
 )

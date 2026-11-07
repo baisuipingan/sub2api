@@ -225,8 +225,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	backupObjectStoreFactory := repository.NewS3BackupStoreFactory()
 	dbDumper := repository.NewPgDumper(configConfig, db)
 	backupService := service.ProvideBackupService(settingRepository, galleryRepository, configConfig, secretEncryptor, backupObjectStoreFactory, dbDumper, leaderLockCache, db)
+	studioJobRepository := repository.NewStudioJobRepository(db)
 	imageStorageFactory := repository.ProvideImageStorageFactory()
-	imageStorageSettingService := service.ProvideImageStorageSettingService(settingRepository, galleryRepository, secretEncryptor, backupService, imageStorageFactory, configConfig)
+	imageStorageSettingService := service.ProvideImageStorageSettingService(settingRepository, galleryRepository, studioJobRepository, secretEncryptor, backupService, imageStorageFactory, configConfig)
 	backupHandler := admin.NewBackupHandler(backupService, userService, imageStorageSettingService)
 	oAuthHandler := admin.NewOAuthHandler(oAuthService)
 	openAIOAuthHandler := admin.NewOpenAIOAuthHandler(openAIOAuthService, adminService, openAIQuotaService, rateLimitService)
@@ -339,17 +340,19 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	imageStudioHandler := handler.ProvideImageStudioHandler(apiKeyService, settingService, groupService, imageStudioPricingService, gatewayService)
 	galleryObjectStoreFactory := repository.NewImageStudioGalleryObjectStoreFactory()
 	imageStudioGalleryService := service.ProvideImageStudioGalleryService(galleryRepository, imageStorageSettingService, galleryObjectStoreFactory)
-	imageStudioGalleryHandler := handler.NewImageStudioGalleryHandler(imageStudioGalleryService)
+	studioJobService := service.NewStudioJobService(studioJobRepository, imageStudioGalleryService, imageStorageSettingService, apiKeyService, gatewayService)
+	imageStudioGalleryHandler := handler.ProvideImageStudioGalleryHandler(imageStudioGalleryService, studioJobService)
+	studioJobHandler := handler.NewStudioJobHandler(studioJobService, imageStudioHandler)
 	idempotencyCleanupService := service.ProvideIdempotencyCleanupService(idempotencyRepository, configConfig)
 	openAIQuotaAutoResetService := service.ProvideOpenAIQuotaAutoResetService(accountRepository, openAIQuotaService, rateLimitService, idempotencyCoordinator, auditLogService, settingService, leaderLockCache)
-	handlers := handler.ProvideHandlers(authHandler, userHandler, mcpoAuthHandler, apiKeyHandler, usageHandler, redeemHandler, subscriptionHandler, announcementHandler, ticketHandler, channelMonitorUserHandler, channelMonitorV2Handler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, passkeyHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, modelPlazaHandler, asyncImageHandler, batchImageHandler, imageStudioHandler, imageStudioGalleryHandler, idempotencyCoordinator, idempotencyCleanupService, openAIQuotaAutoResetService)
+	handlers := handler.ProvideHandlers(authHandler, userHandler, mcpoAuthHandler, apiKeyHandler, usageHandler, redeemHandler, subscriptionHandler, announcementHandler, ticketHandler, channelMonitorUserHandler, channelMonitorV2Handler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, passkeyHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, modelPlazaHandler, asyncImageHandler, batchImageHandler, imageStudioHandler, imageStudioGalleryHandler, studioJobHandler, idempotencyCoordinator, idempotencyCleanupService, openAIQuotaAutoResetService)
 	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(authService, userService, settingService, auditLogService)
 	optionalJWTAuthMiddleware := middleware.NewOptionalJWTAuthMiddleware(authService, userService, settingService, auditLogService)
 	adminAuthMiddleware := middleware.NewAdminAuthMiddleware(authService, userService, settingService, auditLogService)
 	apiKeyAuthMiddleware := middleware.NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, configConfig)
 	auditLogMiddleware := middleware.NewAuditLogMiddleware(auditLogService)
 	stepUpAuthMiddleware := middleware.NewStepUpAuthMiddleware(totpService, userService, settingService)
-	engine := server.ProvideRouter(configConfig, handlers, jwtAuthMiddleware, optionalJWTAuthMiddleware, adminAuthMiddleware, apiKeyAuthMiddleware, auditLogMiddleware, stepUpAuthMiddleware, apiKeyService, subscriptionService, opsService, settingService, compositeRouteResolver, redisClient)
+	engine := server.ProvideRouter(configConfig, handlers, jwtAuthMiddleware, optionalJWTAuthMiddleware, adminAuthMiddleware, apiKeyAuthMiddleware, auditLogMiddleware, stepUpAuthMiddleware, apiKeyService, subscriptionService, opsService, settingService, compositeRouteResolver, redisClient, studioJobService)
 	httpServer := server.ProvideHTTPServer(configConfig, engine)
 	opsMetricsCollector := service.ProvideOpsMetricsCollector(opsRepository, settingRepository, accountRepository, concurrencyService, db, redisClient, configConfig)
 	opsAggregationService := service.ProvideOpsAggregationService(opsRepository, settingRepository, db, redisClient, configConfig)
@@ -370,7 +373,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService, channelMonitorQuotaFetcher)
 	channelMonitorV2Aggregator := service.ProvideChannelMonitorV2Aggregator(channelMonitorV2Repository, db, settingService)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, geminiCachedContentService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, balanceNotifyService, digestSessionStore, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, imageStudioGalleryService, paymentOrderExpiryService, channelMonitorRunner, channelMonitorV2Aggregator, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, geminiCachedContentService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, balanceNotifyService, digestSessionStore, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, imageStudioGalleryService, studioJobService, paymentOrderExpiryService, channelMonitorRunner, channelMonitorV2Aggregator, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
 	application := &Application{
 		Server:        httpServer,
 		PromptAudit:   promptService,
@@ -450,6 +453,7 @@ func provideCleanup(
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	gallery *service.ImageStudioGalleryService,
+	studioJobs *service.StudioJobService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
@@ -472,6 +476,7 @@ func provideCleanup(
 		}
 
 		parallelSteps := []cleanupStep{
+			{"StudioJobService", func() error { studioJobs.Stop(); return nil }},
 			{"ImageStudioGalleryService", func() error {
 				gallery.StopCleaner()
 				return nil

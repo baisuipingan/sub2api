@@ -48,6 +48,9 @@ type galleryHandlerRepo struct {
 }
 
 func (r *galleryHandlerRepo) LockTarget(context.Context) (func(), error) { return func() {}, nil }
+func (r *galleryHandlerRepo) Stats(context.Context, int64) (service.GalleryStats, error) {
+	return service.GalleryStats{Tasks: 1, DoneTasks: 1, OutputImages: 1, Assets: 1, UsedBytes: 4, MaxTasks: 1000, MaxAssets: 500, MaxBytes: 1 << 30}, nil
+}
 func (r *galleryHandlerRepo) GetAsset(_ context.Context, userID int64, id string) (*service.GalleryAsset, error) {
 	if r.asset == nil || r.asset.UserID != userID || r.asset.ImageID != id {
 		return nil, service.ErrGalleryNotFound
@@ -65,6 +68,9 @@ func (r *galleryHandlerRepo) MarkAssetReady(context.Context, int64, string) erro
 func (r *galleryHandlerRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []service.GalleryTaskLink) (json.RawMessage, error) {
 	r.task = task
 	return task, nil
+}
+func (r *galleryHandlerRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+	return r.SaveTask(ctx, userID, taskID, digest, task, links)
 }
 func (r *galleryHandlerRepo) GetTask(_ context.Context, _ int64, _ string) (json.RawMessage, error) {
 	return r.task, nil
@@ -110,6 +116,9 @@ func TestImageStudioGalleryCanonicalResponseEnvelope(t *testing.T) {
 	require.Equal(t, http.StatusOK, status.Code)
 	require.Equal(t, int64(42), gjson.GetBytes(status.Body.Bytes(), "data.user_id").Int())
 	require.True(t, gjson.GetBytes(status.Body.Bytes(), "data.enabled").Bool())
+	require.False(t, gjson.GetBytes(status.Body.Bytes(), "data.jobs_enabled").Bool())
+	require.Equal(t, int64(1), gjson.GetBytes(status.Body.Bytes(), "data.stats.tasks").Int())
+	require.Equal(t, int64(4), gjson.GetBytes(status.Body.Bytes(), "data.stats.used_bytes").Int())
 
 	var pngBody bytes.Buffer
 	require.NoError(t, png.Encode(&pngBody, image.NewNRGBA(image.Rect(0, 0, 2, 2))))

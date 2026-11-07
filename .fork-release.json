@@ -1,7 +1,7 @@
 {
-  "schema_epoch": 1,
+  "schema_epoch": 2,
   "database": {
-    "rollback": "image-only",
-    "reason": "dsapi_001 and dsapi_002 are additive or dual-write compatible; dsapi_003 adds isolated Image Studio gallery tables; upstream 0.2.20 adds isolated MCP OAuth tables in 249_mcp_oauth.sql. The previous application can run on the expanded schema."
+    "rollback": "backup-required",
+    "reason": "dsapi_004 adds durable Image Studio execution state. An old image cannot resume accepted jobs. Stop new admissions and drain or explicitly classify outstanding jobs before rollback; restore the pre-deploy database backup only after accounting for jobs accepted since that backup."
   }
 }

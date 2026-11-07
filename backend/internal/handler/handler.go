@@ -73,6 +73,7 @@ type Handlers struct {
 	BatchImage         *BatchImageHandler
 	ImageStudio        *ImageStudioHandler
 	ImageStudioGallery *ImageStudioGalleryHandler
+	ImageStudioJobs    *StudioJobHandler
 }
 
 // BuildInfo contains build-time information

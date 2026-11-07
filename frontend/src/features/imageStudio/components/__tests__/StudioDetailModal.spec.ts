@@ -9,6 +9,9 @@ const { rawState } = vi.hoisted(() => ({
     detailImageId: null as string | null,
     modelCatalog: [],
     streamPreviews: {},
+    galleryUserId: 100,
+    gallerySyncStatus: {} as Record<string, 'synced' | 'error'>,
+    gallerySyncErrorCode: {} as Record<string, string>,
     setDetailTaskId: vi.fn(),
     setLightboxImageId: vi.fn(),
     showToast: vi.fn(),
@@ -17,7 +20,7 @@ const { rawState } = vi.hoisted(() => ({
 }))
 vi.mock('../../stores/store', async () => ({
   storeState: (await import('vue')).reactive(rawState),
-  editOutputs: vi.fn(), removeTask: vi.fn(), retryTask: vi.fn(), reuseConfig: vi.fn(),
+  editOutputs: vi.fn(), removeTask: vi.fn(), retryTask: vi.fn(), retryGalleryTask: vi.fn(), reuseConfig: vi.fn(),
 }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
@@ -103,5 +106,13 @@ describe('StudioDetailModal shared dialog', () => {
     expect(wrapper.findComponent(LoadingSpinner).exists()).toBe(true)
     expect(wrapper.text()).toContain('imageStudio.status.running')
     expect(wrapper.find('[data-testid="detail-error-message"]').exists()).toBe(false)
+  })
+
+  it('does not call an uncertain cloud result a synced gallery item', async () => {
+    state.tasks = [{ ...state.tasks[0], execution: 'cloud', cloudJobStatus: 'unknown' }]
+    const wrapper = mountDetails()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('imageStudio.gallery.synced')
+    expect(wrapper.get('[data-testid="detail-error-message"]').exists()).toBe(true)
   })
 })

@@ -157,8 +157,11 @@ type BackupDownloadResponse struct {
 type BackupService struct {
 	settingRepo SettingRepository
 	galleryRepo GalleryRepository
-	dbCfg       *config.DatabaseConfig
-	encryptor   SecretEncryptor
+	// asyncImageSettings is set after construction and serializes backup target
+	// changes with native async image task admission when credentials are reused.
+	asyncImageSettings *ImageStorageSettingService
+	dbCfg              *config.DatabaseConfig
+	encryptor          SecretEncryptor
 	// encryptionKeyConfigured mirrors cfg.Totp.EncryptionKeyConfigured: false
 	// means the secret encryption key was auto-generated and does not survive a
 	// restart. Durable-secret writers must refuse to persist new secrets in that
@@ -197,6 +200,12 @@ type BackupService struct {
 }
 
 func (s *BackupService) SetGalleryRepository(repo GalleryRepository) { s.galleryRepo = repo }
+
+func (s *BackupService) setAsyncImageStorageSettings(settings *ImageStorageSettingService) {
+	if s != nil {
+		s.asyncImageSettings = settings
+	}
+}
 
 func NewBackupService(
 	settingRepo SettingRepository,
@@ -401,31 +410,66 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			return nil, err
 		}
 		defer release()
-		hasAssets, err := s.galleryRepo.HasAssets(ctx)
+	}
+	if s.asyncImageSettings != nil {
+		s.asyncImageSettings.mu.Lock()
+		defer s.asyncImageSettings.mu.Unlock()
+	}
+	hasAssets := false
+	if s.galleryRepo != nil {
+		var err error
+		hasAssets, err = s.galleryRepo.HasAssets(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if hasAssets {
-			raw, err := s.settingRepo.GetValue(ctx, settingKeyImageStorageConfig)
-			if err != nil && !errors.Is(err, ErrSettingNotFound) {
-				return nil, err
-			}
-			var imageSettings ImageStorageSettings
-			if raw != "" && json.Unmarshal([]byte(raw), &imageSettings) != nil {
+	}
+	activeAsync := s.asyncImageSettings != nil && s.asyncImageSettings.activeAsyncTasks > 0
+	activeStudio := false
+	if s.asyncImageSettings != nil && s.asyncImageSettings.studioJobs != nil {
+		var err error
+		activeStudio, err = s.asyncImageSettings.studioJobs.HasActive(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if hasAssets || activeAsync || activeStudio {
+		raw, err := s.settingRepo.GetValue(ctx, settingKeyImageStorageConfig)
+		if err != nil && !errors.Is(err, ErrSettingNotFound) {
+			return nil, err
+		}
+		var imageSettings ImageStorageSettings
+		if raw != "" && json.Unmarshal([]byte(raw), &imageSettings) != nil {
+			if hasAssets {
 				return nil, ErrGalleryStorageTargetInUse
 			}
-			if imageSettings.ReuseBackupS3 {
-				old, err := s.loadS3Config(ctx)
-				if err != nil || old == nil {
+			if activeStudio {
+				return nil, ErrStudioJobStorageTargetInUse
+			}
+			return nil, ErrAsyncImageStorageTargetInUse
+		}
+		if imageSettings.ReuseBackupS3 {
+			old, err := s.loadS3Config(ctx)
+			if err != nil || old == nil {
+				if hasAssets {
 					return nil, ErrGalleryStorageTargetInUse
 				}
-				oldBucket, newBucket := old.Bucket, cfg.Bucket
-				if imageSettings.Bucket != "" {
-					oldBucket, newBucket = imageSettings.Bucket, imageSettings.Bucket
+				if activeStudio {
+					return nil, ErrStudioJobStorageTargetInUse
 				}
-				if old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || oldBucket != newBucket || old.ForcePathStyle != cfg.ForcePathStyle {
+				return nil, ErrAsyncImageStorageTargetInUse
+			}
+			oldBucket, newBucket := old.Bucket, cfg.Bucket
+			if imageSettings.Bucket != "" {
+				oldBucket, newBucket = imageSettings.Bucket, imageSettings.Bucket
+			}
+			if old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || oldBucket != newBucket || old.ForcePathStyle != cfg.ForcePathStyle {
+				if hasAssets {
 					return nil, ErrGalleryStorageTargetInUse
 				}
+				if activeStudio {
+					return nil, ErrStudioJobStorageTargetInUse
+				}
+				return nil, ErrAsyncImageStorageTargetInUse
 			}
 		}
 	}
@@ -461,6 +505,14 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 	}
 	if err := s.settingRepo.Set(ctx, settingKeyBackupS3Config, string(data)); err != nil {
 		return nil, fmt.Errorf("save s3 config: %w", err)
+	}
+	// The image-storage resolver may reuse this S3 target or its credentials.
+	// Keep existing task bindings untouched while making the next admission
+	// rebuild its client from the saved backup configuration.
+	if s.asyncImageSettings != nil {
+		s.asyncImageSettings.resolved = false
+		s.asyncImageSettings.uploader = nil
+		s.asyncImageSettings.enabled = false
 	}
 
 	// 清除缓存的 S3 客户端

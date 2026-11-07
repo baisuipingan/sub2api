@@ -15,11 +15,12 @@ import (
 type imageStudioGalleryRepository struct{ db *sql.DB }
 
 const (
-	galleryMaxUserBytes  int64 = 1 << 30
-	galleryMaxUserAssets       = 500
-	galleryMaxUserTasks        = 1000
-	galleryLockNamespace int64 = 8_000_000_000_000_000
-	galleryTargetLock    int64 = 7_000_000_000_000_000
+	galleryMaxUserBytes             int64 = 1 << 30
+	galleryMaxUserAssets                  = 500
+	galleryMaxUserTasks                   = 1000
+	galleryReservedBytesPerJobAsset int64 = 48 << 20
+	galleryLockNamespace            int64 = 8_000_000_000_000_000
+	galleryTargetLock               int64 = 7_000_000_000_000_000
 )
 
 func (r *imageStudioGalleryRepository) LockTarget(ctx context.Context) (func(), error) {
@@ -69,8 +70,39 @@ func galleryLockUser(ctx context.Context, tx *sql.Tx, userID int64) error {
 	return err
 }
 
+func galleryRequireActiveUser(ctx context.Context, tx *sql.Tx, userID int64) error {
+	var deletedAt sql.NullTime
+	err := tx.QueryRowContext(ctx, `SELECT deleted_at FROM users WHERE id=$1 FOR SHARE`, userID).Scan(&deletedAt)
+	if errors.Is(err, sql.ErrNoRows) || deletedAt.Valid {
+		return service.ErrGalleryGone
+	}
+	return err
+}
+
 func NewImageStudioGalleryRepository(db *sql.DB) service.GalleryRepository {
 	return &imageStudioGalleryRepository{db: db}
+}
+
+func (r *imageStudioGalleryRepository) Stats(ctx context.Context, userID int64) (service.GalleryStats, error) {
+	stats := service.GalleryStats{
+		MaxTasks: galleryMaxUserTasks, MaxAssets: galleryMaxUserAssets, MaxBytes: galleryMaxUserBytes,
+	}
+	err := r.db.QueryRowContext(ctx, `SELECT
+        (SELECT COUNT(*) FROM image_studio_gallery_tasks
+          WHERE user_id=$1 AND deleted_at IS NULL),
+        (SELECT COUNT(*) FROM image_studio_gallery_tasks
+          WHERE user_id=$1 AND deleted_at IS NULL AND task_json->>'status'='done'),
+        (SELECT COUNT(*) FROM image_studio_gallery_tasks
+          WHERE user_id=$1 AND deleted_at IS NULL AND task_json->>'status'='error'),
+        (SELECT COUNT(*) FROM image_studio_gallery_task_assets l
+          JOIN image_studio_gallery_tasks t ON t.user_id=l.user_id AND t.task_id=l.task_id
+          WHERE l.user_id=$1 AND l.role='output' AND t.deleted_at IS NULL),
+        (SELECT COUNT(*) FROM image_studio_gallery_assets
+          WHERE user_id=$1),
+        (SELECT COALESCE(SUM(byte_size+preview_byte_size+thumbnail_byte_size),0)
+          FROM image_studio_gallery_assets WHERE user_id=$1)`, userID).
+		Scan(&stats.Tasks, &stats.DoneTasks, &stats.FailedTasks, &stats.OutputImages, &stats.Assets, &stats.UsedBytes)
+	return stats, err
 }
 
 func (r *imageStudioGalleryRepository) HasAssets(ctx context.Context) (bool, error) {
@@ -88,7 +120,9 @@ func (r *imageStudioGalleryRepository) MarkDeletedUsersForCleanup(ctx context.Co
 	rows, err := r.db.QueryContext(ctx, `SELECT u.id FROM users u WHERE u.deleted_at IS NOT NULL
         AND (EXISTS (SELECT 1 FROM image_studio_gallery_tasks t WHERE t.user_id=u.id)
           OR EXISTS (SELECT 1 FROM image_studio_gallery_assets a
-            WHERE a.user_id=u.id AND a.state<>'deleting')) LIMIT $1`, limit)
+            WHERE a.user_id=u.id AND a.state<>'deleting')
+          OR EXISTS (SELECT 1 FROM image_studio_jobs j
+            WHERE j.user_id=u.id AND j.deleted_at IS NULL)) LIMIT $1`, limit)
 	if err != nil {
 		return err
 	}
@@ -112,6 +146,25 @@ func (r *imageStudioGalleryRepository) MarkDeletedUsersForCleanup(ctx context.Co
 			return err
 		}
 		if err := galleryLockUser(ctx, tx, userID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		// Stop accepted Studio work before releasing job-input FK references.
+		// A late gateway result cannot be archived after the tombstone is set.
+		if _, err := tx.ExecContext(ctx, `UPDATE image_studio_jobs SET status='cancelled',
+            deleted_at=COALESCE(deleted_at,NOW()),updated_at=NOW()
+            WHERE user_id=$1 AND deleted_at IS NULL`, userID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE image_studio_job_calls SET status='cancelled',
+            billing_state=CASE WHEN sent_at IS NULL THEN billing_state ELSE 'unknown' END,
+            lease_token=NULL,lease_until=NULL,updated_at=NOW()
+            WHERE user_id=$1 AND status IN ('queued','generating','saving')`, userID); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM image_studio_job_inputs WHERE user_id=$1`, userID); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -168,6 +221,9 @@ func (r *imageStudioGalleryRepository) ReserveAsset(ctx context.Context, a servi
 	if err := galleryLockUser(ctx, tx, a.UserID); err != nil {
 		return nil, err
 	}
+	if err := galleryRequireActiveUser(ctx, tx, a.UserID); err != nil {
+		return nil, err
+	}
 	previous, err := scanGalleryAsset(tx.QueryRowContext(ctx, `SELECT `+galleryAssetColumns+` FROM image_studio_gallery_assets WHERE user_id=$1 AND image_id=$2`, a.UserID, a.ImageID))
 	if err == nil {
 		return previous, tx.Commit()
@@ -182,7 +238,38 @@ func (r *imageStudioGalleryRepository) ReserveAsset(ctx context.Context, a servi
 	if err != nil {
 		return nil, err
 	}
-	if count >= galleryMaxUserAssets || total+a.Bytes+a.PreviewBytes+a.ThumbnailBytes > galleryMaxUserBytes {
+	var reservedAssets int64
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(SUM((request_json->>'image_count')::bigint *
+        CASE WHEN request_json->>'postprocess'='keyed' THEN 2 ELSE 1 END),0)
+        FROM image_studio_jobs WHERE user_id=$1 AND deleted_at IS NULL
+          AND status IN ('queued','generating','saving')`, a.UserID).Scan(&reservedAssets); err != nil {
+		return nil, err
+	}
+	if a.AcceptedJobTaskID != "" {
+		var ownAssets int64
+		var endpoint, region, bucket string
+		err := tx.QueryRowContext(ctx, `SELECT (request_json->>'image_count')::bigint *
+            CASE WHEN request_json->>'postprocess'='keyed' THEN 2 ELSE 1 END,
+            storage_endpoint,storage_region,storage_bucket FROM image_studio_jobs
+            WHERE user_id=$1 AND task_id=$2 AND deleted_at IS NULL
+              AND status IN ('queued','generating','saving')`, a.UserID, a.AcceptedJobTaskID).
+			Scan(&ownAssets, &endpoint, &region, &bucket)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, service.ErrGalleryGone
+		}
+		if err != nil {
+			return nil, err
+		}
+		if endpoint != a.Endpoint || region != a.Region || bucket != a.Bucket {
+			return nil, service.ErrGalleryUnavailable
+		}
+		reservedAssets -= ownAssets
+	}
+	if reservedAssets < 0 {
+		reservedAssets = 0
+	}
+	if count+reservedAssets+1 > galleryMaxUserAssets ||
+		total+a.Bytes+a.PreviewBytes+a.ThumbnailBytes+reservedAssets*galleryReservedBytesPerJobAsset > galleryMaxUserBytes {
 		return nil, service.ErrGalleryQuota
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO image_studio_gallery_assets (
@@ -220,12 +307,23 @@ func (r *imageStudioGalleryRepository) MarkAssetReady(ctx context.Context, userI
 }
 
 func (r *imageStudioGalleryRepository) SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+	return r.saveTask(ctx, userID, taskID, digest, task, links, false)
+}
+
+func (r *imageStudioGalleryRepository) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+	return r.saveTask(ctx, userID, taskID, digest, task, links, true)
+}
+
+func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink, accepted bool) (json.RawMessage, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := galleryLockUser(ctx, tx, userID); err != nil {
+		return nil, err
+	}
+	if err := galleryRequireActiveUser(ctx, tx, userID); err != nil {
 		return nil, err
 	}
 	var stored []byte
@@ -249,7 +347,24 @@ func (r *imageStudioGalleryRepository) SaveTask(ctx context.Context, userID int6
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM image_studio_gallery_tasks WHERE user_id=$1 AND deleted_at IS NULL`, userID).Scan(&count); err != nil {
 		return nil, err
 	}
-	if count >= galleryMaxUserTasks {
+	var activeJobs int64
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM image_studio_jobs
+        WHERE user_id=$1 AND deleted_at IS NULL AND status IN ('queued','generating','saving')`, userID).Scan(&activeJobs); err != nil {
+		return nil, err
+	}
+	if accepted {
+		var current bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM image_studio_jobs
+            WHERE user_id=$1 AND task_id=$2 AND deleted_at IS NULL
+              AND status IN ('queued','generating','saving'))`, userID, taskID).Scan(&current); err != nil {
+			return nil, err
+		}
+		if !current {
+			return nil, service.ErrGalleryGone
+		}
+		activeJobs--
+	}
+	if count+activeJobs >= galleryMaxUserTasks {
 		return nil, service.ErrGalleryQuota
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO image_studio_gallery_tasks (user_id,task_id,task_json,sha256)
@@ -406,6 +521,8 @@ func (r *imageStudioGalleryRepository) DeleteTask(ctx context.Context, userID in
             SET state='deleting', updated_at=NOW() WHERE user_id=$1 AND image_id=$2
             AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
                 WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
+                WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, userID, id))
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -426,6 +543,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
         WHERE (a.state='deleting' OR a.created_at < NOW()-INTERVAL '24 hours')
           AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
             WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
+          AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
+            WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
         ORDER BY a.created_at LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -463,6 +582,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
             AND (a.state='deleting' OR a.created_at < NOW()-INTERVAL '24 hours')
             AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
               WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
+              WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, next.userID, next.imageID))
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -484,6 +605,8 @@ func (r *imageStudioGalleryRepository) FinalizeAssetDelete(ctx context.Context, 
 	_, err := r.db.ExecContext(ctx, `DELETE FROM image_studio_gallery_assets a
         WHERE a.user_id=$1 AND a.image_id=$2 AND a.state='deleting'
         AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
-          WHERE l.user_id=a.user_id AND l.image_id=a.image_id)`, userID, imageID)
+          WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
+        AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
+          WHERE j.user_id=a.user_id AND j.image_id=a.image_id)`, userID, imageID)
 	return err
 }

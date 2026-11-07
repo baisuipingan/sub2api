@@ -30,6 +30,7 @@ type ImageStorageFactory func(ctx context.Context, cfg *config.ImageStorageConfi
 type ImageStorageSettings struct {
 	Enabled              bool `json:"enabled"`
 	StudioGalleryEnabled bool `json:"studio_gallery_enabled"`
+	StudioJobsEnabled    bool `json:"studio_jobs_enabled"`
 	ReuseBackupS3        bool `json:"reuse_backup_s3"`
 
 	Bucket           string `json:"bucket"` // 留空且复用备份时，沿用备份桶
@@ -53,6 +54,7 @@ type ImageStorageSettings struct {
 type ImageStorageSettingService struct {
 	settingRepo SettingRepository
 	galleryRepo GalleryRepository
+	studioJobs  StudioJobRepository
 	encryptor   SecretEncryptor
 	backup      *BackupService
 	factory     ImageStorageFactory
@@ -65,14 +67,24 @@ type ImageStorageSettingService struct {
 	resolved bool
 	uploader *ImageResultUploader
 	enabled  bool
+	// activeAsyncTasks counts accepted native async requests still using a
+	// pinned uploader. Update holds mu while validating the target, so admission
+	// and a storage-target change cannot cross each other.
+	activeAsyncTasks int
 }
 
 func (s *ImageStorageSettingService) SetGalleryRepository(repo GalleryRepository) {
 	s.galleryRepo = repo
 }
 
+func (s *ImageStorageSettingService) SetStudioJobRepository(repo StudioJobRepository) {
+	s.studioJobs = repo
+}
+
 var ErrGalleryStorageTargetInUse = infraerrors.Conflict("GALLERY_STORAGE_TARGET_IN_USE", "gallery contains assets; migrate or delete them before changing the S3 target")
 var ErrGalleryPublicStorage = infraerrors.BadRequest("GALLERY_PUBLIC_STORAGE", "cloud gallery requires a private object-storage target; clear public_base_url and verify the bucket is not public")
+var ErrAsyncImageStorageTargetInUse = infraerrors.Conflict("ASYNC_IMAGE_STORAGE_TARGET_IN_USE", "accepted async image tasks are still using this object-storage target")
+var ErrStudioJobStorageTargetInUse = infraerrors.Conflict("STUDIO_JOB_STORAGE_TARGET_IN_USE", "accepted Studio jobs are still using this object-storage target")
 
 func sameGalleryStorageTarget(a, b *config.ImageStorageConfig) bool {
 	return a != nil && b != nil && a.Endpoint == b.Endpoint && a.Region == b.Region &&
@@ -86,19 +98,23 @@ func NewImageStorageSettingService(
 	factory ImageStorageFactory,
 	fallback config.ImageStorageConfig,
 ) *ImageStorageSettingService {
-	return &ImageStorageSettingService{
+	s := &ImageStorageSettingService{
 		settingRepo: settingRepo,
 		encryptor:   encryptor,
 		backup:      backup,
 		factory:     factory,
 		fallback:    fallback,
 	}
+	if backup != nil {
+		backup.setAsyncImageStorageSettings(s)
+	}
+	return s
 }
 
 // Resolver 返回可注入 ImageTaskService 的解析函数。
 func (s *ImageStorageSettingService) Resolver() ImageStorageResolver {
-	return func() (*ImageResultUploader, bool) {
-		return s.resolve()
+	return func() (*ImageResultUploader, func(), bool) {
+		return s.acquireAsyncTaskBinding()
 	}
 }
 
@@ -108,6 +124,34 @@ func (s *ImageStorageSettingService) resolve() (*ImageResultUploader, bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.resolveLocked()
+}
+
+func (s *ImageStorageSettingService) acquireAsyncTaskBinding() (*ImageResultUploader, func(), bool) {
+	if s == nil {
+		return nil, nil, false
+	}
+	s.mu.Lock()
+	uploader, enabled := s.resolveLocked()
+	if !enabled || uploader == nil {
+		s.mu.Unlock()
+		return nil, nil, false
+	}
+	s.activeAsyncTasks++
+	s.mu.Unlock()
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			s.mu.Lock()
+			s.activeAsyncTasks--
+			s.mu.Unlock()
+		})
+	}
+	return uploader, release, true
+}
+
+// resolveLocked must only be called with mu held.
+func (s *ImageStorageSettingService) resolveLocked() (*ImageResultUploader, bool) {
 	if s.resolved {
 		return s.uploader, s.enabled
 	}
@@ -180,39 +224,55 @@ func (s *ImageStorageSettingService) SecretConfigured(ctx context.Context) bool 
 
 // Update 保存设置并立即生效。SecretAccessKey 留空表示沿用已保存的值。
 func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorageSettings) (*ImageStorageSettings, error) {
-	normalizeImageStorageSettings(&in)
-	if in.StudioGalleryEnabled && in.PublicBaseURL != "" {
-		return nil, ErrGalleryPublicStorage
-	}
 	if s.galleryRepo != nil {
 		release, err := s.galleryRepo.LockTarget(ctx)
 		if err != nil {
 			return nil, err
 		}
 		defer release()
-		hasAssets, err := s.galleryRepo.HasAssets(ctx)
+	}
+	// Admission takes this same lock before pinning an uploader. A target update
+	// cannot race across that admission boundary while a job is still running.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	normalizeImageStorageSettings(&in)
+	if in.StudioGalleryEnabled && in.PublicBaseURL != "" {
+		return nil, ErrGalleryPublicStorage
+	}
+	hasAssets := false
+	hasStudioJobs := false
+	if s.galleryRepo != nil {
+		var err error
+		hasAssets, err = s.galleryRepo.HasAssets(ctx)
 		if err != nil {
 			return nil, err
+		}
+	}
+	if s.studioJobs != nil {
+		var err error
+		hasStudioJobs, err = s.studioJobs.HasActive(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs {
+		previous, err := s.effectiveConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+		next, err := s.storageTargetForSettings(ctx, &in)
+		if err != nil {
+			return nil, err
+		}
+		if s.activeAsyncTasks > 0 && !sameGalleryStorageTarget(previous, next) {
+			return nil, ErrAsyncImageStorageTargetInUse
+		}
+		if hasStudioJobs && !sameGalleryStorageTarget(previous, next) {
+			return nil, ErrStudioJobStorageTargetInUse
 		}
 		if hasAssets {
 			if in.PublicBaseURL != "" {
 				return nil, ErrGalleryPublicStorage
-			}
-			previous, err := s.effectiveConfig(ctx)
-			if err != nil {
-				return nil, err
-			}
-			// Compare target fields only; rotating credentials is allowed.
-			next := &config.ImageStorageConfig{Endpoint: in.Endpoint, Region: in.Region, Bucket: in.Bucket, ForcePathStyle: in.ForcePathStyle}
-			if in.ReuseBackupS3 {
-				backupCfg, err := s.backupCredentials(ctx)
-				if err != nil || backupCfg == nil {
-					return nil, ErrGalleryStorageTargetInUse
-				}
-				next.Endpoint, next.Region, next.ForcePathStyle = backupCfg.Endpoint, backupCfg.Region, backupCfg.ForcePathStyle
-				if next.Bucket == "" {
-					next.Bucket = backupCfg.Bucket
-				}
 			}
 			if !sameGalleryStorageTarget(previous, next) {
 				return nil, ErrGalleryStorageTargetInUse
@@ -248,10 +308,27 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 	if err := s.settingRepo.Set(ctx, settingKeyImageStorageConfig, string(data)); err != nil {
 		return nil, fmt.Errorf("save image storage settings: %w", err)
 	}
-	s.Invalidate()
+	s.resolved = false
+	s.uploader = nil
+	s.enabled = false
 
 	in.SecretAccessKey = ""
 	return &in, nil
+}
+
+func (s *ImageStorageSettingService) storageTargetForSettings(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {
+	next := &config.ImageStorageConfig{Endpoint: in.Endpoint, Region: in.Region, Bucket: in.Bucket, ForcePathStyle: in.ForcePathStyle}
+	if in.ReuseBackupS3 {
+		backupCfg, err := s.backupCredentials(ctx)
+		if err != nil || backupCfg == nil {
+			return nil, ErrGalleryStorageTargetInUse
+		}
+		next.Endpoint, next.Region, next.ForcePathStyle = backupCfg.Endpoint, backupCfg.Region, backupCfg.ForcePathStyle
+		if next.Bucket == "" {
+			next.Bucket = backupCfg.Bucket
+		}
+	}
+	return next, nil
 }
 
 // TestConnection 用给定设置验证后台的"测试连接"按钮。

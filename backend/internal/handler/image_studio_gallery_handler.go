@@ -16,10 +16,17 @@ import (
 
 type ImageStudioGalleryHandler struct {
 	gallery *service.ImageStudioGalleryService
+	jobs    *service.StudioJobService
 }
 
 func NewImageStudioGalleryHandler(gallery *service.ImageStudioGalleryService) *ImageStudioGalleryHandler {
 	return &ImageStudioGalleryHandler{gallery: gallery}
+}
+
+// ProvideImageStudioGalleryHandler connects the optional durable worker to the
+// status response without changing older gallery-only handler constructors.
+func ProvideImageStudioGalleryHandler(gallery *service.ImageStudioGalleryService, jobs *service.StudioJobService) *ImageStudioGalleryHandler {
+	return &ImageStudioGalleryHandler{gallery: gallery, jobs: jobs}
 }
 
 func (h *ImageStudioGalleryHandler) userID(c *gin.Context) (int64, bool) {
@@ -66,8 +73,13 @@ func (h *ImageStudioGalleryHandler) Status(c *gin.Context) {
 		galleryHTTPError(c, err)
 		return
 	}
+	stats, err := h.gallery.Stats(c.Request.Context(), userID)
+	if err != nil {
+		galleryHTTPError(c, err)
+		return
+	}
 	c.Header("Cache-Control", "no-store")
-	response.Success(c, gin.H{"enabled": enabled, "user_id": userID})
+	response.Success(c, gin.H{"enabled": enabled, "jobs_enabled": enabled && h.jobs != nil && h.jobs.Enabled(c.Request.Context()), "user_id": userID, "stats": stats})
 }
 
 func (h *ImageStudioGalleryHandler) PutAsset(c *gin.Context) {

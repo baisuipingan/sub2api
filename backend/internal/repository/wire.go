@@ -132,6 +132,7 @@ var ProviderSet = wire.NewSet(
 	NewGeminiTokenCache,
 	NewImageTaskStore,
 	NewImageStudioGalleryRepository,
+	NewStudioJobRepository,
 	NewImageStudioGalleryObjectStoreFactory,
 	NewBatchImageQueue,
 	NewBatchImageDownloadLimiter,

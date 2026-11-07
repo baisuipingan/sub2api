@@ -36,6 +36,42 @@
         <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('imageStudio.settings.notificationHint') }}</p>
       </section>
 
+      <section v-if="state.galleryInitialized && state.galleryUserId" data-testid="studio-cloud-gallery-settings">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('imageStudio.gallery.title') }}</h3>
+          <button type="button" class="btn btn-ghost btn-sm" :title="t('imageStudio.gallery.refresh')" :aria-label="t('imageStudio.gallery.refresh')" @click="refreshGalleryStats">
+            <StudioIcon name="RefreshIcon" class="h-4 w-4" />
+          </button>
+        </div>
+        <div class="rounded-xl border border-gray-200 p-4 text-xs dark:border-white/[0.1]">
+          <dl v-if="state.galleryStats" class="grid grid-cols-1 gap-x-4 gap-y-2 text-gray-600 sm:grid-cols-2 dark:text-dark-300">
+            <div>{{ t('imageStudio.gallery.taskCount', { count: state.galleryStats.tasks, limit: state.galleryStats.max_tasks }) }}</div>
+            <div>{{ t('imageStudio.gallery.taskBreakdown', { done: state.galleryStats.done_tasks, failed: state.galleryStats.failed_tasks }) }}</div>
+            <div>{{ t('imageStudio.gallery.outputCount', { count: state.galleryStats.output_images }) }}</div>
+            <div>{{ t('imageStudio.gallery.assetCount', { count: state.galleryStats.assets, limit: state.galleryStats.max_assets }) }}</div>
+            <div class="sm:col-span-2">{{ t('imageStudio.gallery.usedSpace', { used: formatBytes(state.galleryStats.used_bytes, 1), limit: formatBytes(state.galleryStats.max_bytes, 1) }) }}</div>
+          </dl>
+          <p v-else class="text-gray-500 dark:text-dark-400">{{ t('imageStudio.gallery.statsUnavailable') }}</p>
+          <div class="mt-3 border-t border-gray-100 pt-3 dark:border-white/[0.08]">
+            <p class="text-gray-500 dark:text-dark-400">
+              {{ t('imageStudio.gallery.statusSummary', syncCounts) }}
+            </p>
+            <p v-if="state.galleryImportProgress" class="mt-1 text-gray-500 dark:text-dark-400">
+              {{ t('imageStudio.gallery.importProgress', state.galleryImportProgress) }}
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button v-if="syncCounts.failed" type="button" class="btn btn-secondary btn-sm" @click="retryFailedGalleryTasks">
+                {{ t('imageStudio.gallery.retryAll') }}
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" @click="setGallerySyncPaused(!state.gallerySyncPaused)">
+                {{ t(state.gallerySyncPaused ? 'imageStudio.gallery.resumeSync' : 'imageStudio.gallery.pauseSync') }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-500 dark:text-dark-400">{{ t('imageStudio.gallery.pauseHint') }}</p>
+      </section>
+
       <!-- 本地数据 -->
       <section>
         <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
@@ -95,7 +131,8 @@ import { useI18n } from 'vue-i18n'
 import StudioIcon from './StudioIcon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import { storeState as state, clearData, exportData, importData, importLegacyHistory } from '../stores/store'
+import { storeState as state, clearData, exportData, importData, importLegacyHistory, refreshGalleryStats, retryFailedGalleryTasks, setGallerySyncPaused } from '../stores/store'
+import { formatBytes } from '@/utils/format'
 import { getLegacyTasks } from '../lib/db'
 import { captureGallerySession, isGallerySessionCurrent } from '../lib/gallerySession'
 import { useCloseOnEscape } from '../composables/useCloseOnEscape'
@@ -108,6 +145,11 @@ const requestingNotification = ref(false)
 const fileRef = ref<HTMLInputElement | null>(null)
 
 const open = computed(() => state.showSettings)
+const syncCounts = computed(() => ({
+  pending: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'pending').length,
+  syncing: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'syncing').length,
+  failed: Object.values(state.gallerySyncStatus ?? {}).filter((status) => status === 'error').length,
+}))
 
 useCloseOnEscape(() => open.value, () => state.setShowSettings(false))
 

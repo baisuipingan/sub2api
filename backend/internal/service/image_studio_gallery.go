@@ -52,6 +52,7 @@ type GalleryAsset struct {
 	Endpoint, Region, Bucket              string
 	OriginalKey, PreviewKey, ThumbnailKey string
 	State                                 string
+	AcceptedJobTaskID                     string // admission reservation owner; never stored in asset rows
 }
 
 type GalleryTaskLink struct {
@@ -64,11 +65,27 @@ type GalleryTaskPage struct {
 	NextCursor *string           `json:"next_cursor"`
 }
 
+// GalleryStats is derived from the current user's committed gallery records,
+// never from a partially loaded browser page or local sync queue.
+type GalleryStats struct {
+	Tasks        int64 `json:"tasks"`
+	DoneTasks    int64 `json:"done_tasks"`
+	FailedTasks  int64 `json:"failed_tasks"`
+	OutputImages int64 `json:"output_images"`
+	Assets       int64 `json:"assets"`
+	UsedBytes    int64 `json:"used_bytes"`
+	MaxTasks     int64 `json:"max_tasks"`
+	MaxAssets    int64 `json:"max_assets"`
+	MaxBytes     int64 `json:"max_bytes"`
+}
+
 type GalleryRepository interface {
+	Stats(ctx context.Context, userID int64) (GalleryStats, error)
 	ReserveAsset(ctx context.Context, asset GalleryAsset) (*GalleryAsset, error)
 	MarkAssetReady(ctx context.Context, userID int64, imageID string) error
 	GetAsset(ctx context.Context, userID int64, imageID string) (*GalleryAsset, error)
 	SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error)
+	SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error)
 	GetTask(ctx context.Context, userID int64, taskID string) (json.RawMessage, error)
 	ListTasks(ctx context.Context, userID int64, cursor string, limit int) (GalleryTaskPage, error)
 	DeleteTask(ctx context.Context, userID int64, taskID string) ([]GalleryAsset, error)
@@ -84,6 +101,12 @@ type GalleryObjectStore interface {
 	Put(ctx context.Context, key, contentType string, data []byte) error
 	Delete(ctx context.Context, key string) error
 	PresignGet(ctx context.Context, key string, expiry time.Duration) (string, error)
+}
+
+// GalleryObjectReader is implemented only by private server-side stores. It
+// avoids fetching our own presigned URLs over HTTP while executing Studio jobs.
+type GalleryObjectReader interface {
+	Get(ctx context.Context, key string, maxBytes int64) ([]byte, error)
 }
 
 type GalleryObjectStoreFactory func(ctx context.Context, cfg *config.ImageStorageConfig) (GalleryObjectStore, error)
@@ -130,6 +153,13 @@ func (s *ImageStudioGalleryService) Status(ctx context.Context) (bool, error) {
 	}
 	_, enabled, err := s.settings.StudioGalleryConfig(ctx)
 	return enabled, err
+}
+
+func (s *ImageStudioGalleryService) Stats(ctx context.Context, userID int64) (GalleryStats, error) {
+	if s == nil || s.repo == nil || userID <= 0 {
+		return GalleryStats{}, ErrGalleryUnavailable
+	}
+	return s.repo.Stats(ctx, userID)
 }
 
 func (s *ImageStudioGalleryService) storeFor(ctx context.Context, write bool) (GalleryObjectStore, *config.ImageStorageConfig, error) {
@@ -236,6 +266,16 @@ func galleryVariant(src image.Image, maxEdge int) ([]byte, int, int, string, err
 }
 
 func (s *ImageStudioGalleryService) PutAsset(ctx context.Context, userID int64, imageID, contentType string, data []byte) error {
+	return s.putAsset(ctx, userID, "", imageID, contentType, data, true)
+}
+
+// PutAcceptedJobAsset is internal to an already-admitted Studio job. Disabling
+// new cloud gallery writes must not strand a paid image already in flight.
+func (s *ImageStudioGalleryService) PutAcceptedJobAsset(ctx context.Context, userID int64, taskID, imageID, contentType string, data []byte) error {
+	return s.putAsset(ctx, userID, taskID, imageID, contentType, data, false)
+}
+
+func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, acceptedTaskID, imageID, contentType string, data []byte, requireEnabled bool) error {
 	if userID <= 0 || !galleryIDValid(imageID) || len(data) == 0 || len(data) > GalleryMaxImageBytes {
 		return ErrGalleryInvalid
 	}
@@ -252,7 +292,7 @@ func (s *ImageStudioGalleryService) PutAsset(ctx context.Context, userID int64, 
 				return err
 			}
 			defer release()
-			_, cfg, err := s.storeFor(ctx, true)
+			_, cfg, err := s.storeFor(ctx, requireEnabled)
 			if err != nil {
 				return err
 			}
@@ -305,7 +345,7 @@ func (s *ImageStudioGalleryService) PutAsset(ctx context.Context, userID int64, 
 			releaseTarget()
 		}
 	}()
-	storage, cfg, err := s.storeFor(ctx, true)
+	storage, cfg, err := s.storeFor(ctx, requireEnabled)
 	if err != nil {
 		return err
 	}
@@ -333,9 +373,10 @@ func (s *ImageStudioGalleryService) PutAsset(ctx context.Context, userID int64, 
 		PreviewBytes: int64(len(preview)), PreviewWidth: previewWidth, PreviewHeight: previewHeight,
 		ThumbnailBytes: int64(len(thumbnail)), ThumbnailWidth: thumbnailWidth, ThumbnailHeight: thumbnailHeight,
 		Endpoint: cfg.Endpoint, Region: cfg.Region, Bucket: cfg.Bucket,
-		OriginalKey:  base + "original" + galleryImageExtension(mime),
-		PreviewKey:   base + "preview" + galleryImageExtension(previewMIME),
-		ThumbnailKey: base + "thumbnail" + galleryImageExtension(thumbnailMIME), State: "uploading",
+		AcceptedJobTaskID: acceptedTaskID,
+		OriginalKey:       base + "original" + galleryImageExtension(mime),
+		PreviewKey:        base + "preview" + galleryImageExtension(previewMIME),
+		ThumbnailKey:      base + "thumbnail" + galleryImageExtension(thumbnailMIME), State: "uploading",
 	}
 	reserved, err := s.repo.ReserveAsset(ctx, asset)
 	if err != nil {
@@ -379,10 +420,18 @@ type galleryTaskInput struct {
 }
 
 func (s *ImageStudioGalleryService) SaveTask(ctx context.Context, userID int64, raw json.RawMessage) (json.RawMessage, error) {
+	return s.saveTask(ctx, userID, raw, true)
+}
+
+func (s *ImageStudioGalleryService) SaveAcceptedJobTask(ctx context.Context, userID int64, raw json.RawMessage) (json.RawMessage, error) {
+	return s.saveTask(ctx, userID, raw, false)
+}
+
+func (s *ImageStudioGalleryService) saveTask(ctx context.Context, userID int64, raw json.RawMessage, requireEnabled bool) (json.RawMessage, error) {
 	if userID <= 0 || len(raw) == 0 || len(raw) > 256<<10 {
 		return nil, ErrGalleryInvalid
 	}
-	if _, _, err := s.storeFor(ctx, true); err != nil {
+	if _, _, err := s.storeFor(ctx, requireEnabled); err != nil {
 		return nil, err
 	}
 	var input galleryTaskInput
@@ -434,7 +483,10 @@ func (s *ImageStudioGalleryService) SaveTask(ctx context.Context, userID int64, 
 	if len(links) > 64 {
 		return nil, ErrGalleryInvalid
 	}
-	return s.repo.SaveTask(ctx, userID, input.ID, hex.EncodeToString(digest[:]), canonical, links)
+	if requireEnabled {
+		return s.repo.SaveTask(ctx, userID, input.ID, hex.EncodeToString(digest[:]), canonical, links)
+	}
+	return s.repo.SaveAcceptedTask(ctx, userID, input.ID, hex.EncodeToString(digest[:]), canonical, links)
 }
 
 func (s *ImageStudioGalleryService) GetTask(ctx context.Context, userID int64, id string) (json.RawMessage, error) {
@@ -492,6 +544,38 @@ func (s *ImageStudioGalleryService) AssetURL(ctx context.Context, userID int64, 
 		return GalleryAssetURL{}, fmt.Errorf("%w: sign image: %v", ErrGalleryUnavailable, err)
 	}
 	return result, nil
+}
+
+// ReadAsset checks ownership in PostgreSQL and reads the private original
+// directly through the S3 SDK. It never follows an external URL or returns a
+// presigned link to the worker.
+func (s *ImageStudioGalleryService) ReadAsset(ctx context.Context, userID int64, id string) ([]byte, string, error) {
+	if s == nil || s.repo == nil || !galleryIDValid(id) || userID <= 0 {
+		return nil, "", ErrGalleryInvalid
+	}
+	asset, err := s.repo.GetAsset(ctx, userID, id)
+	if err != nil {
+		return nil, "", err
+	}
+	if asset.State != "ready" || asset.Bytes <= 0 || asset.Bytes > GalleryMaxImageBytes {
+		return nil, "", ErrGalleryNotFound
+	}
+	storage, cfg, err := s.storeFor(ctx, false)
+	if err != nil {
+		return nil, "", err
+	}
+	if cfg.Endpoint != asset.Endpoint || cfg.Region != asset.Region || cfg.Bucket != asset.Bucket {
+		return nil, "", ErrGalleryUnavailable
+	}
+	reader, ok := storage.(GalleryObjectReader)
+	if !ok {
+		return nil, "", ErrGalleryUnavailable
+	}
+	data, err := reader.Get(ctx, asset.OriginalKey, GalleryMaxImageBytes)
+	if err != nil || int64(len(data)) != asset.Bytes {
+		return nil, "", ErrGalleryUnavailable
+	}
+	return data, asset.MIME, nil
 }
 
 func (s *ImageStudioGalleryService) DeleteTask(ctx context.Context, userID int64, id string) error {

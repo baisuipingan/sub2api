@@ -701,6 +701,7 @@ func ProvideAPIKeyAuthCacheInvalidator(apiKeyService *APIKeyService) APIKeyAuthC
 func ProvideImageStorageSettingService(
 	settingRepo SettingRepository,
 	galleryRepo GalleryRepository,
+	studioJobs StudioJobRepository,
 	encryptor SecretEncryptor,
 	backup *BackupService,
 	factory ImageStorageFactory,
@@ -714,6 +715,7 @@ func ProvideImageStorageSettingService(
 	}
 	svc := NewImageStorageSettingService(settingRepo, encryptor, backup, factory, cfg.ImageStorage)
 	svc.SetGalleryRepository(galleryRepo)
+	svc.SetStudioJobRepository(studioJobs)
 	return svc
 }
 
@@ -902,6 +904,7 @@ var ProviderSet = wire.NewSet(
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
 	ProvideImageStudioGalleryService,
+	NewStudioJobService,
 	ProvideBatchImageModelPricingResolver,
 	NewBatchImagePublicService,
 	NewBatchImageDownloadService,

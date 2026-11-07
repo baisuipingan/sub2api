@@ -21,10 +21,16 @@ import (
 )
 
 type AsyncImageHandler struct {
-	tasks   *service.ImageTaskService
-	openAI  *OpenAIGatewayHandler
-	execute func(platform string, c *gin.Context)
+	tasks          *service.ImageTaskService
+	openAI         *OpenAIGatewayHandler
+	execute        func(platform string, c *gin.Context)
+	offloadTimeout time.Duration
 }
+
+const (
+	defaultAsyncImageOffloadTimeout = 10 * time.Minute
+	asyncImageFailureWriteTimeout   = 15 * time.Second
+)
 
 func NewAsyncImageHandler(tasks *service.ImageTaskService, openAI *OpenAIGatewayHandler) *AsyncImageHandler {
 	h := &AsyncImageHandler{tasks: tasks, openAI: openAI}
@@ -251,8 +257,12 @@ func (h *AsyncImageHandler) run(taskID, platform string, taskCtx *gin.Context, r
 			h.failTask(taskID, http.StatusBadGateway, imageTaskErrorPayload("api_error", "upstream returned an invalid image response"))
 			return
 		}
-		if err := h.tasks.Complete(context.Background(), taskID, statusCode, json.RawMessage(body)); err != nil {
+		completionCtx, cancelCompletion := context.WithTimeout(context.Background(), h.imageOffloadTimeout())
+		err := h.tasks.Complete(completionCtx, taskID, statusCode, json.RawMessage(body))
+		cancelCompletion()
+		if err != nil {
 			logger.L().Error("image_task.complete_store_failed", zap.String("task_id", taskID), zap.Error(err))
+			h.failTask(taskID, http.StatusServiceUnavailable, imageTaskErrorPayload("api_error", "image result could not be persisted"))
 		}
 		return
 	}
@@ -260,9 +270,18 @@ func (h *AsyncImageHandler) run(taskID, platform string, taskCtx *gin.Context, r
 }
 
 func (h *AsyncImageHandler) failTask(taskID string, statusCode int, taskErr json.RawMessage) {
-	if err := h.tasks.Fail(context.Background(), taskID, statusCode, taskErr); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), asyncImageFailureWriteTimeout)
+	defer cancel()
+	if err := h.tasks.Fail(ctx, taskID, statusCode, taskErr); err != nil {
 		logger.L().Error("image_task.failure_store_failed", zap.String("task_id", taskID), zap.Error(err))
 	}
+}
+
+func (h *AsyncImageHandler) imageOffloadTimeout() time.Duration {
+	if h != nil && h.offloadTimeout > 0 {
+		return h.offloadTimeout
+	}
+	return defaultAsyncImageOffloadTimeout
 }
 
 func newAsyncImageContext(c *gin.Context, body []byte, timeoutDuration time.Duration) (*gin.Context, *httptest.ResponseRecorder, context.CancelFunc, error) {

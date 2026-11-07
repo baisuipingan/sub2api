@@ -155,6 +155,85 @@ func TestImageStorageSettingsToggleTakesEffectWithoutRestart(t *testing.T) {
 	require.Len(t, *built, 1, "the S3 client is built only when the feature is on")
 }
 
+func TestAsyncImageStorageBindingPinsTargetUntilTaskFinishes(t *testing.T) {
+	settings, _, _ := newImageStorageFixture(t, config.ImageStorageConfig{})
+	ctx := context.Background()
+	_, err := settings.Update(ctx, ImageStorageSettings{
+		Enabled: true, Bucket: "original-images", Endpoint: "https://s3.example.test",
+		Region: "auto", AccessKeyID: "ak", SecretAccessKey: "sk",
+	})
+	require.NoError(t, err)
+	uploader, release, enabled := settings.Resolver()()
+	require.True(t, enabled)
+	require.NotNil(t, uploader)
+	require.NotNil(t, release)
+	defer release()
+
+	_, err = settings.Update(ctx, ImageStorageSettings{
+		Enabled: true, Bucket: "different-images", Endpoint: "https://s3.example.test",
+		Region: "auto", AccessKeyID: "ak",
+	})
+	require.ErrorIs(t, err, ErrAsyncImageStorageTargetInUse)
+	_, err = settings.Update(ctx, ImageStorageSettings{
+		Enabled: true, Bucket: "original-images", Endpoint: "https://s3.example.test",
+		Region: "auto", AccessKeyID: "ak", Prefix: "new-prefix/",
+	})
+	require.NoError(t, err, "a pinned job keeps its original prefix; new jobs may use another")
+	_, err = settings.Update(ctx, ImageStorageSettings{
+		Enabled: false, Bucket: "original-images", Endpoint: "https://s3.example.test",
+		Region: "auto", AccessKeyID: "ak", Prefix: "new-prefix/",
+	})
+	require.NoError(t, err, "disabling admissions must not block accepted jobs")
+	_, _, enabled = settings.Resolver()()
+	require.False(t, enabled)
+
+	release()
+	_, err = settings.Update(ctx, ImageStorageSettings{
+		Enabled: true, Bucket: "different-images", Endpoint: "https://s3.example.test",
+		Region: "auto", AccessKeyID: "ak",
+	})
+	require.NoError(t, err, "target can change after accepted tasks finish")
+}
+
+func TestBackupS3TargetChangeRespectsNativeAsyncBinding(t *testing.T) {
+	settings, repo, built := newImageStorageFixture(t, config.ImageStorageConfig{})
+	ctx := context.Background()
+	seedBackupS3(t, repo, BackupS3Config{
+		Endpoint: "https://original-s3.test", Region: "auto", Bucket: "backups",
+		AccessKeyID: "ak", SecretAccessKey: "sk", Prefix: "backups/",
+	})
+	_, err := settings.Update(ctx, ImageStorageSettings{
+		Enabled: true, ReuseBackupS3: true, Bucket: "images", Prefix: "images/",
+	})
+	require.NoError(t, err)
+	_, release, enabled := settings.Resolver()()
+	require.True(t, enabled)
+	defer release()
+	require.Len(t, *built, 1)
+
+	_, err = settings.backup.UpdateS3Config(ctx, BackupS3Config{
+		Endpoint: "https://different-s3.test", Region: "auto", Bucket: "backups",
+		AccessKeyID: "ak", SecretAccessKey: "sk", Prefix: "backups/",
+	})
+	require.ErrorIs(t, err, ErrAsyncImageStorageTargetInUse)
+	_, err = settings.backup.UpdateS3Config(ctx, BackupS3Config{
+		Endpoint: "https://original-s3.test", Region: "auto", Bucket: "backups",
+		AccessKeyID: "ak", SecretAccessKey: "sk", Prefix: "new-backups/",
+	})
+	require.NoError(t, err, "backup prefix may change without moving the image bucket")
+	_, nextRelease, enabled := settings.Resolver()()
+	require.True(t, enabled)
+	nextRelease()
+	require.Len(t, *built, 2, "the new admission must rebuild after backup settings change")
+
+	release()
+	_, err = settings.backup.UpdateS3Config(ctx, BackupS3Config{
+		Endpoint: "https://different-s3.test", Region: "auto", Bucket: "backups",
+		AccessKeyID: "ak", SecretAccessKey: "sk", Prefix: "new-backups/",
+	})
+	require.NoError(t, err, "target can change once all accepted jobs have completed")
+}
+
 func TestImageStorageSettingsReuseBackupCredentials(t *testing.T) {
 	svc, repo, built := newImageStorageFixture(t, config.ImageStorageConfig{})
 	ctx := context.Background()

@@ -109,6 +109,8 @@ export default {
         enabled: 'Enable async image API',
         studioGalleryEnabled: 'Enable Studio cloud gallery',
         studioGalleryDescription: 'New images generated in Image Studio are saved to the current user’s cloud gallery for access across devices. Existing browser-local history is not uploaded automatically. This switch does not affect the async image API.',
+        studioJobsEnabled: 'Run new Studio image tasks on the server',
+        studioJobsDescription: 'Requires the cloud gallery. New tasks keep running after the browser closes. Turning this off stops accepting new jobs without interrupting jobs already accepted.',
         studioGalleryPrivateBucketWarning: 'Before enabling the gallery, clear the Public base URL, verify the S3/R2 bucket is private, and allow this site to read images in the bucket CORS rules; otherwise cross-device editing and export may fail. Gallery objects use the studio/v1/ prefix and temporary presigned links.',
         reuseBackupS3: 'Reuse the backup S3 configuration above (different bucket/prefix only)',
         bucket: 'Bucket',

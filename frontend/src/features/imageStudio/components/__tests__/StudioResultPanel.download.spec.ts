@@ -10,6 +10,10 @@ const { rawState, downloadImageSource, ensureImageCached, editOutputs, copyImage
     catalogStatus: 'ready',
     modelCatalog: [],
     imagePricing: {},
+    galleryUserId: 100,
+    gallerySyncStatus: {} as Record<string, 'synced' | 'error'>,
+    gallerySyncErrorCode: {} as Record<string, string>,
+    studioJobStatus: {} as Record<string, string>,
     settings: { miloRouter: { connectionStatus: 'connected' } },
     latestSubmittedTaskId: null,
     showToast: vi.fn(),
@@ -30,6 +34,7 @@ vi.mock('../../stores/store', async () => ({
   storeState: (await import('vue')).reactive(rawState),
   editOutputs,
   loadNextGalleryPage: vi.fn(),
+  retryGalleryTask: vi.fn(),
   retryTask: vi.fn(),
   reuseConfig: vi.fn(),
   taskMatchesFilterStatus: () => true,
@@ -98,6 +103,12 @@ describe('StudioResultPanel download', () => {
     expect(remove.attributes('disabled')).toBeDefined()
     await remove.trigger('click')
     expect(confirmTaskDeletion).not.toHaveBeenCalled()
+  })
+
+  it('hides synced-gallery wording for an unknown cloud result', async () => {
+    state.tasks = [task({ execution: 'cloud', cloudJobStatus: 'unknown', status: 'error', outputImages: [], error: 'result unknown' })]
+    const wrapper = mountPanel()
+    expect(wrapper.text()).not.toContain('imageStudio.gallery.synced')
   })
 
   it('selects another remaining task after the displayed task is deleted', async () => {

@@ -48,6 +48,19 @@ describe('gallery API contract', () => {
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'PUT', body: png, headers: expect.objectContaining({ 'Content-Type': 'image/png' }) })
   })
 
+  it('does not upload a prepared image after the login changes', async () => {
+    imageSourceToBlob.mockImplementation(async () => {
+      localStorage.setItem('auth_token', 'another-user')
+      return new Blob(['png'], { type: 'image/png' })
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(putGalleryAsset('image-1', 'data:image/png;base64,aW1hZ2U=', 'token'))
+      .rejects.toMatchObject({ status: 401, message: 'Gallery login changed' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('reports cross-origin storage failures as a CORS-readable error', async () => {
     const asset = { url: 'https://storage.test/original', expires_at: 'future', mime: 'image/png', bytes: 3, width: 1, height: 1 }
     const fetchMock = vi.fn().mockResolvedValueOnce(apiResponse(asset)).mockRejectedValueOnce(new TypeError('Failed to fetch'))

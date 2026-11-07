@@ -82,3 +82,7 @@ assert previous["source_commit"] == "fork-source-commit"
 PY
 
 printf 'sub2api-release rollback metadata tests passed\n'
+
+# The release workflow invokes this entry point; include the epoch-2 policy
+# guard so backup-required deployments stay covered in CI.
+bash "$source_root/deploy/tests/sub2api-release-backup-policy-test.sh"
