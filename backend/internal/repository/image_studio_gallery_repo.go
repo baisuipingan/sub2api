@@ -34,18 +34,34 @@ func (r *imageStudioGalleryRepository) lockSession(ctx context.Context, key int6
 	if r.db.Stats().MaxOpenConnections == 1 {
 		return nil, fmt.Errorf("%w: gallery target locking requires at least two PostgreSQL connections", service.ErrGalleryUnavailable)
 	}
-	conn, err := r.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, key); err != nil {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		conn, err := r.db.Conn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		var acquired bool
+		err = conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&acquired)
+		if err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+		if acquired {
+			return func() {
+				_, _ = conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", key)
+				_ = conn.Close()
+			}, nil
+		}
+		// Never hold a pooled connection while waiting; the lock owner needs another
+		// connection to finish the protected database work.
 		_ = conn.Close()
-		return nil, err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
 	}
-	return func() {
-		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, key)
-		_ = conn.Close()
-	}, nil
 }
 
 func galleryLockUser(ctx context.Context, tx *sql.Tx, userID int64) error {

@@ -101,13 +101,38 @@ func TestImageStudioGalleryRepositoryQuotaAndTargetLock(t *testing.T) {
 	_, err = repo.ReserveAsset(ctx, galleryTestAsset(userID, "second"))
 	require.ErrorIs(t, err, service.ErrGalleryQuota)
 
+	previousMaxOpen := integrationDB.Stats().MaxOpenConnections
+	integrationDB.SetMaxOpenConns(2)
+	defer integrationDB.SetMaxOpenConns(previousMaxOpen)
 	release, err := repo.LockTarget(ctx)
 	require.NoError(t, err)
-	defer release()
-	blockedCtx, cancel := context.WithTimeout(ctx, 80*time.Millisecond)
+	released := false
+	defer func() {
+		if !released {
+			release()
+		}
+	}()
+	blockedCtx, cancel := context.WithTimeout(ctx, 350*time.Millisecond)
 	defer cancel()
-	_, err = repo.LockTarget(blockedCtx)
-	require.Error(t, err, "a second target configuration change must wait for the active lock")
+	waiting := make(chan error, 1)
+	go func() {
+		waitRelease, lockErr := repo.LockTarget(blockedCtx)
+		if lockErr == nil {
+			waitRelease()
+		}
+		waiting <- lockErr
+	}()
+	var one int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT 1").Scan(&one))
+	require.Equal(t, 1, one)
+	release()
+	released = true
+	select {
+	case lockErr := <-waiting:
+		require.NoError(t, lockErr)
+	case <-time.After(time.Second):
+		t.Fatal("target-lock waiter did not acquire the lock after it was released")
+	}
 }
 
 func TestImageStudioGalleryRepositoryConcurrentByteQuota(t *testing.T) {
