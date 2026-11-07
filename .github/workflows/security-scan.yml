@@ -41,7 +41,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'pnpm'
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
@@ -53,6 +53,7 @@ jobs:
           pnpm audit --prod --audit-level=high --json > audit.json || true
       - name: Check audit exceptions
         run: |
+          python -m unittest discover -s tools -p 'test_check_pnpm_audit_exceptions.py'
           python tools/check_pnpm_audit_exceptions.py \
             --audit frontend/audit.json \
             --exceptions .github/audit-exceptions.yml

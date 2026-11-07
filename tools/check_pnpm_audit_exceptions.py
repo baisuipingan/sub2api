@@ -148,6 +148,13 @@ def main() -> int:
     with open(args.audit, "r", encoding="utf-8") as handle:
         audit = json.load(handle)
 
+    # Registry/network failures are also JSON. They are not a clean audit result.
+    if not isinstance(audit, dict) or audit.get("error") or not any(
+        isinstance(audit.get(field), dict) for field in ("advisories", "vulnerabilities")
+    ):
+        sys.stderr.write("Audit did not return a supported vulnerability report; retry the registry request.\n")
+        return 1
+
     # 读取异常清单并建立索引，便于快速匹配包名 + advisory。
     exceptions = parse_exceptions(args.exceptions)
     exception_index = {}
