@@ -127,6 +127,14 @@ func seedBackupS3(t *testing.T, repo *stubSettingRepo, cfg BackupS3Config) {
 
 // The admin switch must take effect without a restart: that is the entire point
 // of moving image_storage out of config.yaml (#4542).
+func resolveImageStorageForTest(svc *ImageStorageSettingService) (*ImageResultUploader, bool) {
+	uploader, release, enabled := svc.Resolver()()
+	if release != nil {
+		release()
+	}
+	return uploader, enabled
+}
+
 func TestImageStorageSettingsToggleTakesEffectWithoutRestart(t *testing.T) {
 	svc, repo, built := newImageStorageFixture(t, config.ImageStorageConfig{})
 	ctx := context.Background()
@@ -136,20 +144,20 @@ func TestImageStorageSettingsToggleTakesEffectWithoutRestart(t *testing.T) {
 		Prefix: "backups/",
 	})
 
-	uploader, enabled := svc.resolve()
+	uploader, enabled := resolveImageStorageForTest(svc)
 	require.False(t, enabled, "disabled until an admin turns it on")
 	require.Nil(t, uploader)
 
 	_, err := svc.Update(ctx, ImageStorageSettings{Enabled: true, ReuseBackupS3: true})
 	require.NoError(t, err)
 
-	uploader, enabled = svc.resolve()
+	uploader, enabled = resolveImageStorageForTest(svc)
 	require.True(t, enabled, "saving the setting must enable the feature immediately")
 	require.NotNil(t, uploader)
 
 	_, err = svc.Update(ctx, ImageStorageSettings{Enabled: false, ReuseBackupS3: true})
 	require.NoError(t, err)
-	_, enabled = svc.resolve()
+	_, enabled = resolveImageStorageForTest(svc)
 	require.False(t, enabled, "turning it back off must also apply immediately")
 
 	require.Len(t, *built, 1, "the S3 client is built only when the feature is on")
@@ -245,7 +253,7 @@ func TestImageStorageSettingsReuseBackupCredentials(t *testing.T) {
 
 	_, err := svc.Update(ctx, ImageStorageSettings{Enabled: true, ReuseBackupS3: true, Prefix: "images"})
 	require.NoError(t, err)
-	_, enabled := svc.resolve()
+	_, enabled := resolveImageStorageForTest(svc)
 	require.True(t, enabled)
 
 	require.Len(t, *built, 1)
@@ -287,7 +295,7 @@ func TestImageStorageSettingsOwnCredentialsAreEncryptedAndMasked(t *testing.T) {
 	require.Empty(t, fetched.SecretAccessKey)
 	require.True(t, svc.SecretConfigured(ctx))
 
-	_, enabled := svc.resolve()
+	_, enabled := resolveImageStorageForTest(svc)
 	require.True(t, enabled)
 	require.Equal(t, "super-secret", (*built)[0].SecretAccessKey, "the stored secret must be decrypted before use")
 
@@ -297,7 +305,7 @@ func TestImageStorageSettingsOwnCredentialsAreEncryptedAndMasked(t *testing.T) {
 		Endpoint: "https://acct.r2.cloudflarestorage.com", AccessKeyID: "ak",
 	})
 	require.NoError(t, err)
-	svc.resolve()
+	resolveImageStorageForTest(svc)
 	require.Equal(t, "super-secret", (*built)[1].SecretAccessKey)
 }
 
@@ -336,7 +344,7 @@ func TestImageStorageSettingsIncompleteStaysDisabled(t *testing.T) {
 	_, err := svc.Update(ctx, ImageStorageSettings{Enabled: true, Bucket: "my-images"})
 	require.NoError(t, err)
 
-	_, enabled := svc.resolve()
+	_, enabled := resolveImageStorageForTest(svc)
 	require.False(t, enabled, "missing credentials must not enable the feature")
 	require.Empty(t, *built, "no client is built from an incomplete configuration")
 }
@@ -350,7 +358,7 @@ func TestImageStorageSettingsFallBackToConfigFile(t *testing.T) {
 		Prefix: "images/", MaxDownloadByte: 1024,
 	})
 
-	_, enabled := svc.resolve()
+	_, enabled := resolveImageStorageForTest(svc)
 	require.True(t, enabled, "config.yaml still enables the feature when nothing is stored yet")
 	require.Equal(t, "yaml-bucket", (*built)[0].Bucket)
 
