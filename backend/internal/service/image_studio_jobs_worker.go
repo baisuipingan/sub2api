@@ -312,7 +312,7 @@ func (w *studioSpoolWriter) Write(data []byte) (int, error) {
 		return 0, w.writeErr
 	}
 	if w.written+int64(len(data)) > w.limit {
-		w.writeErr = errors.New("Studio gateway response exceeded spool limit")
+		w.writeErr = errors.New("studio gateway response exceeded spool limit")
 		return 0, w.writeErr
 	}
 	n, err := w.file.Write(data)
@@ -327,7 +327,7 @@ func (w *studioSpoolWriter) Flush() { _ = w.file.Sync() }
 func studioGatewayError(path string, status int) string {
 	file, err := os.Open(path)
 	if err == nil {
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		data, readErr := io.ReadAll(io.LimitReader(file, 8<<10))
 		if readErr != nil {
 			return fmt.Sprintf("gateway returned HTTP %d", status)
@@ -353,8 +353,11 @@ func syncStudioDirectory(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return file.Sync()
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func (s *StudioJobService) studioSpoolPath(claim StudioJobClaim) string {
@@ -365,7 +368,7 @@ func (s *StudioJobService) reserveStudioSpool(claim StudioJobClaim) error {
 	s.spoolMu.Lock()
 	defer s.spoolMu.Unlock()
 	if s.spoolUsed+s.spoolReserved+studioJobMaxResponseBytes > studioJobMaxSpoolBytes {
-		return errors.New("Studio spool capacity exhausted")
+		return errors.New("studio spool capacity exhausted")
 	}
 	entries, err := os.ReadDir(s.spoolDir)
 	if err != nil {
@@ -384,7 +387,7 @@ func (s *StudioJobService) reserveStudioSpool(claim StudioJobClaim) error {
 		taskBytes += info.Size()
 	}
 	if taskBytes+studioJobMaxResponseBytes > studioJobMaxTaskSpoolBytes {
-		return errors.New("Studio task spool capacity exhausted")
+		return errors.New("studio task spool capacity exhausted")
 	}
 	s.spoolReserved += studioJobMaxResponseBytes
 	return nil

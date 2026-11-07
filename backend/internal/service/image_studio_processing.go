@@ -235,9 +235,10 @@ func removeStudioKeyedBackground(img *image.NRGBA) {
 				alpha = math.Round(255 * (1 - transparency))
 			}
 			minimum := 196.0
-			if distance[index] == 1 {
+			switch distance[index] {
+			case 1:
 				minimum = 48
-			} else if distance[index] == 2 {
+			case 2:
 				minimum = 128
 			}
 			alpha = math.Max(alpha, minimum)
@@ -441,7 +442,7 @@ func encodeStudioWebP(ctx context.Context, img *image.NRGBA, quality int) ([]byt
 		return nil, "", err
 	}
 	inputPath := input.Name()
-	defer os.Remove(inputPath)
+	defer func() { _ = os.Remove(inputPath) }()
 	if err := png.Encode(input, img); err != nil {
 		_ = input.Close()
 		return nil, "", err
@@ -454,7 +455,7 @@ func encodeStudioWebP(ctx context.Context, img *image.NRGBA, quality int) ([]byt
 		return nil, "", err
 	}
 	outputPath := output.Name()
-	defer os.Remove(outputPath)
+	defer func() { _ = os.Remove(outputPath) }()
 	if err := output.Close(); err != nil {
 		return nil, "", err
 	}
@@ -462,13 +463,13 @@ func encodeStudioWebP(ctx context.Context, img *image.NRGBA, quality int) ([]byt
 	defer cancel()
 	cmd := exec.CommandContext(encodeCtx, "cwebp", "-quiet", "-q", strconv.Itoa(quality), inputPath, "-o", outputPath)
 	if err := cmd.Run(); err != nil {
-		return nil, "", fmt.Errorf("Studio WebP encoding failed: %w", err)
+		return nil, "", fmt.Errorf("studio WebP encoding failed: %w", err)
 	}
 	file, err := os.Open(outputPath)
 	if err != nil {
 		return nil, "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, GalleryMaxImageBytes+1))
 	if err != nil {
 		return nil, "", err

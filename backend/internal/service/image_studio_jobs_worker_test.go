@@ -29,7 +29,7 @@ func TestStudioSpoolOwnerPersistsAcrossRestart(t *testing.T) {
 func TestStudioSpoolWriterRejectsOversizeWithoutUnboundedWrite(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "response")
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	writer := &studioSpoolWriter{file: file, limit: 4}
 	n, err := writer.Write([]byte("1234"))
 	require.NoError(t, err)

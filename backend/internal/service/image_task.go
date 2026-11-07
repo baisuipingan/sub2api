@@ -231,7 +231,11 @@ func (s *ImageTaskService) Complete(ctx context.Context, id string, statusCode i
 	}
 	var uploader *ImageResultUploader
 	if ok {
-		uploader = bound.(*imageTaskStorageBinding).uploader
+		binding, valid := bound.(*imageTaskStorageBinding)
+		if !valid {
+			return s.failCompletedTask(id, http.StatusBadGateway, "api_error", "image storage binding was invalid")
+		}
+		uploader = binding.uploader
 	}
 	if uploader != nil {
 		rewritten, err := offloadImageTaskResult(ctx, uploader, id, result)
@@ -301,7 +305,11 @@ func (s *ImageTaskService) Fail(ctx context.Context, id string, statusCode int, 
 
 func (s *ImageTaskService) finishBinding(id string) {
 	if bound, ok := s.bindings.LoadAndDelete(id); ok {
-		if release := bound.(*imageTaskStorageBinding).release; release != nil {
+		binding, valid := bound.(*imageTaskStorageBinding)
+		if !valid {
+			return
+		}
+		if release := binding.release; release != nil {
 			release()
 		}
 	}

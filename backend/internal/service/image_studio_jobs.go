@@ -504,7 +504,7 @@ func validateStudioProviderParams(protocol string, raw json.RawMessage, count in
 	if json.Unmarshal(raw, &params) != nil || params == nil {
 		return ErrStudioJobInvalid
 	}
-	allowed := map[string]bool{}
+	var allowed map[string]bool
 	switch protocol {
 	case "openai":
 		allowed = map[string]bool{"size": true, "quality": true, "output_format": true,

@@ -183,7 +183,7 @@ func (r *studioJobRepository) Get(ctx context.Context, userID int64, taskID stri
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var call service.StudioJobCall
 		var outputs, raws []byte

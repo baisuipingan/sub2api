@@ -48,7 +48,7 @@ func (s *s3ImageStudioGalleryStore) Get(ctx context.Context, key string, maxByte
 	if err != nil {
 		return nil, fmt.Errorf("gallery GetObject: %w", err)
 	}
-	defer result.Body.Close()
+	defer func() { _ = result.Body.Close() }()
 	if result.ContentLength != nil && *result.ContentLength > maxBytes {
 		return nil, service.ErrGalleryInvalid
 	}

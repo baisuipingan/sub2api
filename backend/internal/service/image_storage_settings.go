@@ -118,15 +118,6 @@ func (s *ImageStorageSettingService) Resolver() ImageStorageResolver {
 	}
 }
 
-func (s *ImageStorageSettingService) resolve() (*ImageResultUploader, bool) {
-	if s == nil {
-		return nil, false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.resolveLocked()
-}
-
 func (s *ImageStorageSettingService) acquireAsyncTaskBinding() (*ImageResultUploader, func(), bool) {
 	if s == nil {
 		return nil, nil, false

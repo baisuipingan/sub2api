@@ -23,7 +23,9 @@ func studioTestPixel(t *testing.T, data []byte, x, y int) color.NRGBA {
 	t.Helper()
 	decoded, _, err := image.Decode(bytes.NewReader(data))
 	require.NoError(t, err)
-	return color.NRGBAModel.Convert(decoded.At(x, y)).(color.NRGBA)
+	pixel, ok := color.NRGBAModel.Convert(decoded.At(x, y)).(color.NRGBA)
+	require.True(t, ok)
+	return pixel
 }
 
 func TestProcessStudioImagePreservesOriginalWhenNoPostprocess(t *testing.T) {
