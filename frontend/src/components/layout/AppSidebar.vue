@@ -906,6 +906,7 @@ function buildAdminNavItems(area: WorkspaceArea): NavItem[] {
   if (area === 'workbench') return [
     { path: '/admin/workbench', label: t('nav.workbenchOverview'), icon: ChartIcon },
     { path: '/admin/workbench/tasks', label: t('nav.workbenchTasks'), icon: OrderListIcon },
+    { path: '/admin/workbench/gallery', label: t('nav.workbenchGallery'), icon: BatchImageIcon },
     { path: '/admin/workbench/settings', label: t('nav.workbenchSettings'), icon: CogIcon },
   ]
   const baseItems: NavItem[] = [

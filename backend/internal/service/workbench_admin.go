@@ -143,6 +143,7 @@ type WorkbenchAdminService struct {
 	repo     WorkbenchAdminRepository
 	settings *SettingService
 	groups   GroupRepository
+	gallery  *ImageStudioGalleryService
 }
 
 func NewWorkbenchAdminService(repo WorkbenchAdminRepository, settings *SettingService, groups GroupRepository) *WorkbenchAdminService {

@@ -144,6 +144,8 @@ func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp
 	workbench := admin.Group("/workbench")
 	workbench.GET("/overview", limiter.Heavy(), h.Admin.Workbench.Overview)
 	workbench.GET("/tasks", limiter.Heavy(), h.Admin.Workbench.ListTasks)
+	workbench.GET("/gallery", limiter.Heavy(), h.Admin.Workbench.ListGallery)
+	workbench.GET("/gallery/:user_id/tasks/:task_id/images/:image_id/url", limiter.Heavy(), h.Admin.Workbench.GalleryImageURL)
 	workbench.GET("/config", h.Admin.Workbench.GetConfig)
 	workbench.PUT("/config", gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.UpdateConfig)
 }

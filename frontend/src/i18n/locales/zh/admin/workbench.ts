@@ -1,5 +1,18 @@
 export default {
   workbench: {
+    galleryBrowse: '查看图库',
+    galleryBrowseHint: '全站已归档的结果图，包含导入历史；可按用户和任务查看。列表仅加载缩略图，点击后读取预览图。',
+    galleryTaskFilter: '任务 ID',
+    galleryTaskPlaceholder: '精确任务 ID（可选）',
+    galleryViewImage: '查看第 {number} 张图片',
+    galleryImageAlt: '生成结果 {number}',
+    galleryImageRetry: '加载失败，点击重试',
+    galleryPreviewHint: '此处显示预览图，不读取原图。图片使用短期私有访问链接。',
+    galleryResultCount: '{count} 张结果图',
+    galleryEmpty: '暂无符合条件的结果图',
+    galleryEmptyHint: '这里只显示未删除且已归档的云端结果图，包括导入历史；本机未同步的图片不可查看。',
+    galleryViewResults: '查看图片',
+    galleryResults: '结果图',
     overviewTitle: '运行概览',
     tasksTitle: '生成任务',
     scope: '云端执行任务 · 全站',

@@ -31,7 +31,11 @@ func (r *workbenchRouteUsers) GetUserAvatar(context.Context, int64) (*service.Us
 	return nil, nil
 }
 
-type workbenchRouteRepo struct{ calls int }
+type workbenchRouteRepo struct {
+	calls        int
+	galleryCalls int
+	outputCalls  int
+}
 
 func (r *workbenchRouteRepo) Overview(context.Context, time.Time, time.Time) (*service.WorkbenchOverview, error) {
 	r.calls++
@@ -40,6 +44,14 @@ func (r *workbenchRouteRepo) Overview(context.Context, time.Time, time.Time) (*s
 func (r *workbenchRouteRepo) ListTasks(context.Context, service.WorkbenchTaskFilter) (*service.WorkbenchTaskPage, error) {
 	r.calls++
 	return &service.WorkbenchTaskPage{Items: []service.WorkbenchTaskSummary{}}, nil
+}
+func (r *workbenchRouteRepo) ListGalleryTasks(context.Context, service.WorkbenchGalleryFilter) (*service.WorkbenchGalleryPage, error) {
+	r.galleryCalls++
+	return &service.WorkbenchGalleryPage{Items: []service.WorkbenchGalleryTask{}}, nil
+}
+func (r *workbenchRouteRepo) GalleryOutputExists(context.Context, int64, string, string) (bool, error) {
+	r.outputCalls++
+	return false, nil
 }
 
 func TestWorkbenchRoutesRequireActualAdminAuthAndStepUp(t *testing.T) {
@@ -57,7 +69,7 @@ func TestWorkbenchRoutesRequireActualAdminAuthAndStepUp(t *testing.T) {
 		h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(service.NewWorkbenchAdminService(repo, nil, nil))}}
 		step := middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.AbortWithStatus(http.StatusForbidden) })
 		registerWorkbenchRoutes(admin, h, step, nil)
-		for _, path := range []string{"/overview", "/tasks", "/config"} {
+		for _, path := range []string{"/overview", "/tasks", "/config", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url"} {
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/workbench"+path, nil))
 			require.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -95,7 +107,7 @@ func TestWorkbenchRoutesDenyScopedAdminKeyWithoutGlobalCapability(t *testing.T) 
 	admin.Use(gin.HandlerFunc(middleware.NewAdminAuthMiddleware(nil, service.NewUserService(&scopedRouteUsers{}, nil, nil, nil), settings, nil)))
 	h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(service.NewWorkbenchAdminService(repo, nil, nil))}}
 	registerWorkbenchRoutes(admin, h, middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil)
-	for _, path := range []string{"/overview", "/tasks", "/config"} {
+	for _, path := range []string{"/overview", "/tasks", "/config", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/workbench"+path, nil)
 		req.Header.Set("x-api-key", key)
 		rec := httptest.NewRecorder()
@@ -103,4 +115,48 @@ func TestWorkbenchRoutesDenyScopedAdminKeyWithoutGlobalCapability(t *testing.T) 
 		require.Equal(t, http.StatusForbidden, rec.Code)
 	}
 	require.Zero(t, repo.calls)
+	require.Zero(t, repo.galleryCalls)
+	require.Zero(t, repo.outputCalls)
+}
+
+func TestWorkbenchGalleryRoutesAuthorizeBeforeReadingOtherUsersImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, role := range []string{service.RoleUser, service.RoleAdmin} {
+		t.Run(role, func(t *testing.T) {
+			cfg := &config.Config{JWT: config.JWTConfig{Secret: "gallery-route-test-secret", ExpireHour: 1}}
+			auth := service.NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+			users := service.NewUserService(&workbenchRouteUsers{role: role}, nil, nil, nil)
+			token, err := auth.GenerateToken(context.Background(), &service.User{ID: 9, Role: role, Status: service.StatusActive})
+			require.NoError(t, err)
+			repo := &workbenchRouteRepo{}
+			svc := service.ProvideWorkbenchAdminService(repo, nil, nil, &service.ImageStudioGalleryService{})
+			h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(svc)}}
+			router := gin.New()
+			admin := router.Group("/api/v1/admin")
+			admin.Use(gin.HandlerFunc(middleware.NewAdminAuthMiddleware(auth, users, nil, nil)))
+			registerWorkbenchRoutes(admin, h, middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil)
+			for _, path := range []string{"/gallery?user_id=7", "/gallery/7/tasks/task-one/images/image-one/url?variant=thumbnail"} {
+				request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/workbench"+path, nil)
+				request.Header.Set("Authorization", "Bearer "+token)
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, request)
+				if role == service.RoleUser {
+					require.Equal(t, http.StatusForbidden, recorder.Code)
+					require.Zero(t, repo.galleryCalls)
+					require.Zero(t, repo.outputCalls)
+				} else {
+					want := http.StatusOK
+					if path != "/gallery?user_id=7" {
+						want = http.StatusNotFound
+					}
+					require.Equal(t, want, recorder.Code, "only an authorized administrator reaches output association lookup")
+					require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+				}
+			}
+			if role == service.RoleAdmin {
+				require.Equal(t, 1, repo.galleryCalls)
+				require.Equal(t, 1, repo.outputCalls)
+			}
+		})
+	}
 }

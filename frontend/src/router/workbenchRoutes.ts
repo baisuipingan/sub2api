@@ -23,6 +23,11 @@ export const workbenchRoutes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, workspaceArea: 'workbench', workspaceContext: 'admin', title: 'Generation Tasks', titleKey: 'nav.workbenchTasks' },
   },
   {
+    path: '/admin/workbench/gallery', name: 'AdminWorkbenchGallery',
+    component: () => import('@/views/admin/workbench/WorkbenchGalleryView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, workspaceArea: 'workbench', workspaceContext: 'admin', title: 'Cloud Gallery', titleKey: 'nav.workbenchGallery' },
+  },
+  {
     path: '/admin/workbench/settings', name: 'AdminWorkbenchSettings',
     component: () => import('@/views/admin/workbench/WorkbenchSettingsView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true, workspaceArea: 'workbench', workspaceContext: 'admin', title: 'Workbench Settings', titleKey: 'nav.workbenchSettings' },

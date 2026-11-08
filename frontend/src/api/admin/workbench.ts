@@ -99,3 +99,37 @@ export async function updateWorkbenchConfig(config: WorkbenchConfig): Promise<Wo
   const { data } = await apiClient.put<WorkbenchConfig>('/admin/workbench/config', config)
   return data
 }
+
+export interface WorkbenchGalleryTask {
+  user_id: number
+  user_email: string
+  task_id: string
+  model: string
+  created_at: string
+  output_count: number
+  image_ids: string[]
+}
+export interface WorkbenchGalleryPage {
+  items: WorkbenchGalleryTask[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+export interface WorkbenchGalleryImage {
+  url: string
+  expires_at: string
+  bytes: number
+  mime: string
+  width: number
+  height: number
+}
+export async function listWorkbenchGallery(params: { page?: number; page_size?: number; user_id?: number; task_id?: string }, signal?: AbortSignal): Promise<WorkbenchGalleryPage> {
+  const { data } = await apiClient.get<WorkbenchGalleryPage>('/admin/workbench/gallery', { params, signal })
+  return data
+}
+export async function getWorkbenchGalleryImage(task: Pick<WorkbenchGalleryTask, 'user_id' | 'task_id'>, imageId: string, variant: 'thumbnail' | 'preview' = 'thumbnail', signal?: AbortSignal): Promise<WorkbenchGalleryImage> {
+  const path = `/admin/workbench/gallery/${task.user_id}/tasks/${encodeURIComponent(task.task_id)}/images/${encodeURIComponent(imageId)}/url`
+  const { data } = await apiClient.get<WorkbenchGalleryImage>(path, { params: { variant }, signal })
+  return data
+}

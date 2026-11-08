@@ -176,6 +176,7 @@ export default {
     workbenchManagement: 'Workbench Management',
     myCreations: 'My Creations',
     workbenchOverview: 'Overview',
+    workbenchGallery: 'Cloud Gallery',
     workbenchTasks: 'Generation Tasks',
     workbenchSettings: 'Workbench Settings',
     switchAreaLabel: 'Switch console and workbench',

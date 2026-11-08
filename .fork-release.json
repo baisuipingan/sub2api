@@ -2,6 +2,6 @@
   "schema_epoch": 2,
   "database": {
     "rollback": "image-only",
-    "reason": "This release keeps schema epoch 2 and adds no migrations. Semantic image error validation, sanitized Studio error details and immediate task finalization reuse existing job, gallery, billing and configuration fields. Drain active Studio jobs before same-epoch image rollback; epoch 1 images remain incompatible."
+    "reason": "This release keeps schema epoch 2 and adds no migrations. Administrator gallery projections, thumbnail/preview authorization and audit actions reuse existing Studio gallery task and asset records. Same-epoch image rollback remains supported; epoch 1 images remain incompatible."
   }
 }

@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -223,4 +224,56 @@ func TestAuditRecordsEveryMCPOAuthReadWithGrant(t *testing.T) {
 	require.Equal(t, "admin.users.read", logs[0].Action)
 	require.Equal(t, "grant-1", logs[0].Extra["mcp_grant_id"])
 	require.Equal(t, "admin_list_users", logs[0].Extra["mcp_tool"])
+}
+
+func TestWorkbenchGallerySensitiveReadsAreAuditedWithoutImageOrPromptContents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &auditCaptureRepository{}
+	auditService := service.NewAuditLogService(repository, nil)
+	auditService.Start()
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 77})
+		c.Set(string(ContextKeyUserRole), service.RoleAdmin)
+		c.Next()
+	})
+	router.Use(gin.HandlerFunc(NewAuditLogMiddleware(auditService)))
+	// Deliberately include sensitive response canaries: audit records the access,
+	// never a response body or arbitrary handler-supplied image/prompt metadata.
+	respond := func(c *gin.Context) {
+		SetAuditExtra(c, map[string]any{"result": "success", "url": "gallery-signed-url-canary", "prompt": "gallery-prompt-canary"})
+		c.JSON(http.StatusOK, gin.H{"url": "https://private-store.test/gallery-signed-url-canary?signature=gallery-signature-canary", "prompt": "gallery-prompt-canary"})
+	}
+	router.GET("/api/v1/admin/workbench/gallery", respond)
+	router.GET("/api/v1/admin/workbench/gallery/:user_id/tasks/:task_id/images/:image_id/url", respond)
+	for _, path := range []string{
+		"/api/v1/admin/workbench/gallery?user_id=7&task_id=task-one",
+		"/api/v1/admin/workbench/gallery/7/tasks/task-one/images/image-one/url?variant=thumbnail",
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	}
+	auditService.Stop()
+	repository.mu.Lock()
+	logs := append([]*service.AuditLog(nil), repository.logs...)
+	repository.mu.Unlock()
+	require.Len(t, logs, 2)
+	byAction := make(map[string]*service.AuditLog, len(logs))
+	for _, entry := range logs {
+		byAction[entry.Action] = entry
+		require.Empty(t, entry.RequestBody)
+		require.NotNil(t, entry.ActorUserID)
+		require.Equal(t, int64(77), *entry.ActorUserID)
+		require.Equal(t, http.StatusOK, entry.StatusCode)
+		require.NotContains(t, entry.Extra, "url")
+		require.NotContains(t, entry.Extra, "prompt")
+	}
+	require.NotNil(t, byAction["admin.workbench.gallery.list"])
+	require.NotNil(t, byAction["admin.workbench.gallery.image.read"])
+	encoded, err := json.Marshal(logs)
+	require.NoError(t, err)
+	for _, secret := range []string{"gallery-signed-url-canary", "gallery-signature-canary", "gallery-prompt-canary", "private-store.test"} {
+		require.NotContains(t, string(encoded), secret)
+	}
 }

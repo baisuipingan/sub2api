@@ -1,5 +1,18 @@
 export default {
   workbench: {
+    galleryBrowse: 'Browse gallery',
+    galleryBrowseHint: 'Archived results across users, including imported history. Filter by user or task. Only thumbnails load in the grid; opening an image loads a preview.',
+    galleryTaskFilter: 'Task ID',
+    galleryTaskPlaceholder: 'Exact task ID (optional)',
+    galleryViewImage: 'View image {number}',
+    galleryImageAlt: 'Generated result {number}',
+    galleryImageRetry: 'Failed to load. Click to retry.',
+    galleryPreviewHint: 'This is a preview, not the original. Images use short-lived private links.',
+    galleryResultCount: '{count} result images',
+    galleryEmpty: 'No matching result images',
+    galleryEmptyHint: 'Only undeleted archived cloud results, including imported history, appear here. Unsynced local images are unavailable.',
+    galleryViewResults: 'View images',
+    galleryResults: 'Results',
     overviewTitle: 'Overview',
     tasksTitle: 'Generation tasks',
     scope: 'Server-executed Studio tasks · All users',

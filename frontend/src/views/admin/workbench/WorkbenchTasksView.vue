@@ -30,6 +30,7 @@
           <template #cell-route_calls="{ row }"><WorkbenchTaskRoutes :calls="row.route_calls || []" /></template>
           <template #cell-status="{ row }"><StatusBadge :status="workbenchStatusVariant(row.status)" :label="t('admin.workbench.statuses.' + row.status)" /></template>
           <template #cell-output_count="{ row }"><div class="whitespace-nowrap text-xs"><p>{{ t('admin.workbench.imageProgress', { done: row.output_count, total: row.image_count }) }}</p><p class="mt-1 text-gray-500 dark:text-dark-400">{{ t('admin.workbench.callCount', { count: row.call_count }) }}</p></div></template>
+          <template #cell-gallery="{ row }"><RouterLink v-if="row.output_count > 0" :to="{ path: '/admin/workbench/gallery', query: { user_id: String(row.user_id), task_id: row.task_id } }" class="btn btn-secondary whitespace-nowrap text-xs">{{ t('admin.workbench.galleryViewResults') }}</RouterLink><span v-else class="text-gray-400">—</span></template>
           <template #cell-created_at="{ row }"><div class="whitespace-nowrap text-xs"><time :datetime="row.created_at">{{ formatTime(row.created_at) }}</time><p v-if="workbenchElapsedSeconds(row) !== null" class="mt-1 text-gray-500 dark:text-dark-400">{{ t(row.finished_at ? 'admin.workbench.duration' : 'admin.workbench.runningDuration', { seconds: workbenchElapsedSeconds(row) }) }}</p></div></template>
           <template #cell-error_code="{ row }"><div class="max-w-60 space-y-1 break-words text-xs"><p v-if="row.error_code" class="font-mono">{{ row.error_code }}</p><template v-if="row.error_message"><p class="whitespace-pre-wrap">{{ errorReason(row).summary }}</p><details v-if="errorReason(row).details"><summary class="cursor-pointer text-primary-600">{{ t('imageStudio.errors.details') }}</summary><p class="mt-1 whitespace-pre-wrap">{{ errorReason(row).details }}</p></details></template><p v-if="row.status === 'unknown'" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.unknownHint') }}</p><p v-if="row.billing_pending" class="text-gray-500 dark:text-dark-400">{{ t('admin.workbench.billingPendingCount', { count: row.billing_pending }) }}</p><p v-if="row.billing_unknown" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.billingUnknownCount', { count: row.billing_unknown }) }}</p><span v-if="!row.error_code && row.status !== 'unknown' && !row.billing_pending && !row.billing_unknown">—</span></div></template>
           <template #empty><EmptyState :title="t(hasFilters ? 'admin.workbench.noMatches' : 'admin.workbench.emptyTasks')" :description="t('admin.workbench.emptyHint')" :action-text="error ? t('common.refresh') : undefined" :action-icon="false" @action="load" /></template>
@@ -76,6 +77,7 @@ const columns = computed(() => [
   { key: 'route_calls', label: t('admin.workbench.columns.upstream') },
   { key: 'status', label: t('admin.workbench.columns.status') },
   { key: 'output_count', label: t('admin.workbench.columns.images') },
+  { key: 'gallery', label: t('admin.workbench.galleryResults') },
   { key: 'created_at', label: t('admin.workbench.columns.time') },
   { key: 'error_code', label: t('admin.workbench.columns.diagnostic') },
 ])

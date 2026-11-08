@@ -60,7 +60,7 @@
         <section class="card p-4 sm:p-6" :aria-label="t('admin.workbench.galleryTitle')">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 class="font-semibold text-gray-900 dark:text-white">{{ t('admin.workbench.galleryTitle') }}</h3>
-            <RouterLink to="/admin/workbench/settings" class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.workbench.settings') }}</RouterLink>
+            <RouterLink to="/admin/workbench/gallery" class="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.workbench.galleryBrowse') }}</RouterLink>
           </div>
           <dl class="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
             <div v-for="item in galleryStats" :key="item.label">

@@ -176,6 +176,7 @@ export default {
     workbenchManagement: '工作台管理',
     myCreations: '我的创作',
     workbenchOverview: '运行概览',
+    workbenchGallery: '云端图库',
     workbenchTasks: '生成任务',
     workbenchSettings: '工作台配置',
     switchAreaLabel: '切换控制台与工作台',
