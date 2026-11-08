@@ -47,6 +47,7 @@ export interface WorkbenchTask {
   finished_at: string | null
   elapsed_ms: number | null
   error_code: string
+  error_message?: string
   route_calls?: WorkbenchTaskRouteCall[]
 }
 

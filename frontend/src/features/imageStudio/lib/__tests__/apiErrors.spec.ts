@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ApiAuthError, ApiInsufficientBalanceError, ApiRateLimitError, ApiRequestError, ApiUpstreamError,
-  createApiError, getApiErrorMessageKey, getUserFacingApiErrorMessage, redactSensitiveText,
+  createApiError, getImageErrorPresentation, getApiErrorMessageKey, getUserFacingApiErrorMessage, redactSensitiveText,
 } from '../apiErrors'
 
 /**
@@ -128,5 +128,34 @@ describe('getUserFacingApiErrorMessage', () => {
     expect(getUserFacingApiErrorMessage(new Error('timeout'), t)).toBe(
       'translated:imageStudio.errors.timeout',
     )
+  })
+})
+
+
+describe('image business failure presentation', () => {
+  it.each(['MODERATION_BLOCKED', 'CONTENT_POLICY_VIOLATION'])('shows a readable safety reason for %s in cloud history', (code) => {
+    const detail = `[${code}]: Your request was rejected by the safety system. safety_violations=[sexual].`
+    const presentation = getImageErrorPresentation(detail)
+    expect(presentation.summary).toBe('上游安全审核拒绝了本次生成，请调整提示词或参考图片')
+    expect(presentation.details).toContain(`[${code}]`)
+    expect(presentation.details).toContain('safety_violations=[sexual]')
+  })
+
+  it('recognizes a typed policy error before generic HTTP authorization', () => {
+    const error = createApiError(403, { error: { code: 'moderation_blocked', message: 'Rejected by the safety system' } })
+    expect(getApiErrorMessageKey(error)).toBe('imageStudio.errors.moderation')
+  })
+
+  it.each(['UPSTREAM_NO_IMAGE', 'UPSTREAM_INVALID_RESPONSE', 'INVALID_IMAGE_RESULT'])('explains empty or invalid images for %s', (code) => {
+    const result = getImageErrorPresentation(`[${code}]: upstream did not provide a usable image`)
+    expect(result.summary).toContain('模型未返回图片')
+    expect(result.details).toContain(code)
+  })
+
+  it('removes private image URLs and inline image data from old history details', () => {
+    const result = getImageErrorPresentation('[UPSTREAM_NO_IMAGE]: url https://private.example/a?sig=secret data:image/png;base64,' + 'A'.repeat(400))
+    expect(result.details).not.toContain('private.example')
+    expect(result.details).not.toContain('data:image')
+    expect(result.details).not.toContain('A'.repeat(160))
   })
 })

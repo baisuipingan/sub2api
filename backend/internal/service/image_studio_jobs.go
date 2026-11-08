@@ -145,6 +145,9 @@ type StudioJobClaim struct {
 	StudioJob
 	Call       StudioJobCall
 	SpoolOwner string
+	// Set only by the worker after it verifies an explicit error response with
+	// no image output. This is not client-supplied or persisted request data.
+	RejectedWithoutOutput bool `json:"-"`
 }
 
 type StudioJobRepository interface {

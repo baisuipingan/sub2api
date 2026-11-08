@@ -80,7 +80,10 @@ export function redactSensitiveText(value: unknown, secrets: string[] = []): str
 function safeMessage(value: string, secrets: string[] = []) {
   // A proxy's HTML error page is not an actionable provider message.
   if (/<\/?(?:!doctype|html|head|body|script|style|title|div|span|pre|h[1-6]|p|img|iframe|table|br)\b/i.test(value)) return ''
-  return redactSensitiveText(value, secrets).replace(/\p{Cc}/gu, (character) => '\n\r\t'.includes(character) ? character : '').trim()
+  return redactSensitiveText(value, secrets)
+    .replace(/https?:\/\/[^\s<>"']+/gi, '[URL redacted]')
+    .replace(/data:[^\s"']+|[A-Za-z0-9+/=_-]{160,}/gi, '[image or token redacted]')
+    .replace(/\p{Cc}/gu, (character) => '\n\r\t'.includes(character) ? character : '').trim()
 }
 
 function errorDetail(value: unknown, depth = 0): { code?: string; message?: string } {
@@ -127,12 +130,16 @@ export function createApiError(status: number, detail?: unknown, apiKey = ''): A
 }
 
 export function getApiErrorMessageKey(value: unknown): string {
+  const detail = value instanceof ApiRequestError ? `${value.code ?? ''} ${value.detail ?? ''}` : ''
+  const message = `${detail} ${value instanceof Error ? value.message : String(value ?? '')}`
+  if (/MODERATION_BLOCKED|CONTENT_POLICY_VIOLATION|SAFETY_VIOLATION|safety system|safety review|审核拒绝/i.test(message)) return 'imageStudio.errors.moderation'
+  if (/UPSTREAM_NO_IMAGE|UPSTREAM_INVALID_RESPONSE|INVALID_IMAGE_RESULT|no image returned|invalid image result/i.test(message)) return 'imageStudio.errors.noImage'
   if (value instanceof ApiInsufficientBalanceError) return 'imageStudio.errors.insufficientBalance'
   if (value instanceof ApiAuthError) return 'imageStudio.errors.auth'
   if (value instanceof ApiRateLimitError) return 'imageStudio.errors.rateLimit'
   if (value instanceof ApiTimeoutError) return 'imageStudio.errors.timeout'
   if (value instanceof ApiUpstreamError) return 'imageStudio.errors.unavailable'
-  const message = value instanceof Error ? value.message : String(value ?? '')
+  if (value instanceof ApiRequestError) return 'imageStudio.errors.generic'
   if (message.includes('已停止生成')) return 'imageStudio.errors.stopped'
   if (/INSUFFICIENT_BALANCE|insufficient\s+(account\s+)?balance|余额不足/i.test(message)) return 'imageStudio.errors.insufficientBalance'
   if (/API Key|\b40[13]\b/i.test(message)) return 'imageStudio.errors.auth'
@@ -149,6 +156,7 @@ const FALLBACK_MESSAGES: Record<string, string> = {
   'imageStudio.errors.auth': 'API Key 无效或无权限，请检查后重试',
   'imageStudio.errors.timeout': '连接超时，请稍后重试',
   'imageStudio.errors.rateLimit': '请求过于频繁，请稍后重试',
+  'imageStudio.errors.moderation': '上游安全审核拒绝了本次生成，请调整提示词或参考图片',
   'imageStudio.errors.noImage': '模型未返回图片，请调整提示词后重试',
   'imageStudio.errors.unavailable': 'MiloRouter 服务暂时不可用，请稍后重试',
   'imageStudio.errors.generic': '生成失败，请稍后重试',
@@ -172,4 +180,11 @@ export function getUserFacingApiErrorMessage(value: unknown, t?: (key: string) =
   if (!message || isSummaryOnly(message)) return summary
   // Multi-line text has already been formatted for persistent task history.
   return typeof value === 'string' && message.includes('\n') ? message : `${summary}\n${message}`
+}
+
+/** A short readable reason stays visible; technical details can be expanded. */
+export function getImageErrorPresentation(value: unknown, t?: (key: string) => string) {
+  const message = getUserFacingApiErrorMessage(value, t)
+  const [summary = '', ...lines] = message.split('\n')
+  return { summary, details: lines.join('\n').trim() }
 }

@@ -232,3 +232,15 @@ describe('StudioResultPanel download', () => {
     expect(wrapper.find('[data-testid="download-result-image"]').exists()).toBe(false)
   })
 })
+
+
+it('shows a readable business failure and expandable safe technical details', async () => {
+  state.tasks = [task({ status: 'error', outputImages: [], error: '[MODERATION_BLOCKED]: Rejected by the safety system. code=moderation_blocked' })]
+  const wrapper = mountPanel()
+  await flushPromises()
+  const box = wrapper.get('[data-testid="result-error-message"]')
+  expect(box.text()).toContain('imageStudio.errors.moderation')
+  expect(box.get('summary').text()).toBe('imageStudio.errors.details')
+  expect(box.text()).toContain('[MODERATION_BLOCKED]')
+  expect(box.text()).toContain('Rejected by the safety system')
+})

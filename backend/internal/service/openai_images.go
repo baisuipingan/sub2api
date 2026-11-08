@@ -1086,7 +1086,37 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(
 	if err != nil {
 		return OpenAIUsage{}, 0, nil, err
 	}
+	// Some compatible relays commit HTTP 200 for keepalives and return an
+	// error document later. A successful transport status is not evidence of
+	// image output, and must not reach the requested-count billing fallback.
+	var responseErr *OpenAIImagesUpstreamError
+	if !gjson.ValidBytes(body) {
+		responseErr = &OpenAIImagesUpstreamError{
+			StatusCode: http.StatusBadGateway,
+			ErrorType:  "upstream_error",
+			Code:       "upstream_invalid_response",
+			Message:    "Upstream returned an invalid Images API JSON response",
+		}
+	} else if errorObj := gjson.GetBytes(body, "error"); openAIImagesHasExplicitResponseError(errorObj) &&
+		countOpenAIResponseImageOutputsFromJSONBytes(body) == 0 {
+		// Preserve compatible partial responses that already contain images.
+		// Their actual outputs still incurred cost; the error must not erase them.
+		responseErr = openAIImagesUpstreamErrorFromGJSON(errorObj, resp.Header.Get("x-request-id"))
+	}
+	if responseErr != nil {
+		return s.rejectOpenAIImagesAPIKeyResponse(resp, c, account, responseErr)
+	}
 	body = s.backfillOpenAIImagesB64JSON(ctx, account, parsed, body)
+	imageCounter := newOpenAIImageOutputCounter()
+	imageCounter.AddJSONResponse(body)
+	if imageCounter.Count() == 0 {
+		return s.rejectOpenAIImagesAPIKeyResponse(resp, c, account, &OpenAIImagesUpstreamError{
+			StatusCode: http.StatusBadGateway,
+			ErrorType:  "upstream_error",
+			Code:       "upstream_no_image",
+			Message:    "Upstream did not return image output",
+		})
+	}
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := "application/json"
 	if s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled {
@@ -1097,9 +1127,41 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(
 	c.Data(resp.StatusCode, contentType, body)
 
 	usage, _ := extractOpenAIUsageFromJSONBytes(body)
-	imageCounter := newOpenAIImageOutputCounter()
-	imageCounter.AddJSONResponse(body)
 	return usage, imageCounter.Count(), imageCounter.Sizes(), nil
+}
+
+func openAIImagesHasExplicitResponseError(errorObj gjson.Result) bool {
+	if errorObj.Type == gjson.String {
+		return strings.TrimSpace(errorObj.String()) != ""
+	}
+	return errorObj.IsObject() && (strings.TrimSpace(errorObj.Get("message").String()) != "" ||
+		strings.TrimSpace(errorObj.Get("type").String()) != "" || strings.TrimSpace(errorObj.Get("code").String()) != "")
+}
+
+// A terminal semantic failure is not a new failover opportunity. In particular,
+// moderation refusals must stop here rather than being retried on another relay.
+// Return no result so the gateway cannot create usage from a requested image n.
+func (s *OpenAIGatewayService) rejectOpenAIImagesAPIKeyResponse(
+	resp *http.Response,
+	c *gin.Context,
+	account *Account,
+	responseErr *OpenAIImagesUpstreamError,
+) (OpenAIUsage, int, []string, error) {
+	setOpsUpstreamError(c, responseErr.clientStatusCode(), responseErr.clientMessage(), "")
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  resp.Header.Get("x-request-id"),
+		Kind:               "response_error",
+		Reason:             responseErr.Code,
+		Message:            responseErr.clientMessage(),
+	})
+	writeOpenAIImagesUpstreamErrorResponse(c, responseErr)
+	return OpenAIUsage{}, 0, nil, responseErr
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(

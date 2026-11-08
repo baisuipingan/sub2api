@@ -84,6 +84,7 @@ type WorkbenchTaskSummary struct {
 	FinishedAt     *time.Time               `json:"finished_at"`
 	ElapsedMS      *int64                   `json:"elapsed_ms"`
 	ErrorCode      string                   `json:"error_code"`
+	ErrorMessage   string                   `json:"error_message"`
 	RouteCalls     []WorkbenchTaskRouteCall `json:"route_calls"`
 }
 
@@ -191,7 +192,14 @@ func (s *WorkbenchAdminService) ListTasks(ctx context.Context, filter WorkbenchT
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	return s.repo.ListTasks(ctx, filter)
+	page, err := s.repo.ListTasks(ctx, filter)
+	if err != nil || page == nil {
+		return page, err
+	}
+	for i := range page.Items {
+		page.Items[i].ErrorMessage = SanitizeStudioErrorMessage(page.Items[i].ErrorMessage)
+	}
+	return page, nil
 }
 
 func (s *WorkbenchAdminService) GetConfig(ctx context.Context) (*WorkbenchConfig, error) {

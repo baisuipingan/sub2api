@@ -126,7 +126,7 @@ describe('workbench management pages', () => {
     const wrapper = render(WorkbenchTasksView)
     await flushPromises()
     expect(wrapper.text()).toContain('结果 2 / 请求 5 张')
-    expect(wrapper.text()).toContain('3 个计划子调用')
+    expect(wrapper.text()).toContain('3 次计划生成请求')
     expect(wrapper.text()).toContain('可能已计费')
     expect(wrapper.text()).toContain('UPSTREAM_RESULT_UNKNOWN')
     expect(wrapper.findAll('button').some(button => /重试|生成图片/.test(button.text()))).toBe(false)

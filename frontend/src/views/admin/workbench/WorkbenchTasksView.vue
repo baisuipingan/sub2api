@@ -31,7 +31,7 @@
           <template #cell-status="{ row }"><StatusBadge :status="workbenchStatusVariant(row.status)" :label="t('admin.workbench.statuses.' + row.status)" /></template>
           <template #cell-output_count="{ row }"><div class="whitespace-nowrap text-xs"><p>{{ t('admin.workbench.imageProgress', { done: row.output_count, total: row.image_count }) }}</p><p class="mt-1 text-gray-500 dark:text-dark-400">{{ t('admin.workbench.callCount', { count: row.call_count }) }}</p></div></template>
           <template #cell-created_at="{ row }"><div class="whitespace-nowrap text-xs"><time :datetime="row.created_at">{{ formatTime(row.created_at) }}</time><p v-if="workbenchElapsedSeconds(row) !== null" class="mt-1 text-gray-500 dark:text-dark-400">{{ t(row.finished_at ? 'admin.workbench.duration' : 'admin.workbench.runningDuration', { seconds: workbenchElapsedSeconds(row) }) }}</p></div></template>
-          <template #cell-error_code="{ row }"><div class="max-w-60 space-y-1 break-words text-xs"><p v-if="row.error_code" class="font-mono">{{ row.error_code }}</p><p v-if="row.status === 'unknown'" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.unknownHint') }}</p><p v-if="row.billing_pending" class="text-gray-500 dark:text-dark-400">{{ t('admin.workbench.billingPendingCount', { count: row.billing_pending }) }}</p><p v-if="row.billing_unknown" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.billingUnknownCount', { count: row.billing_unknown }) }}</p><span v-if="!row.error_code && row.status !== 'unknown' && !row.billing_pending && !row.billing_unknown">—</span></div></template>
+          <template #cell-error_code="{ row }"><div class="max-w-60 space-y-1 break-words text-xs"><p v-if="row.error_code" class="font-mono">{{ row.error_code }}</p><template v-if="row.error_message"><p class="whitespace-pre-wrap">{{ errorReason(row).summary }}</p><details v-if="errorReason(row).details"><summary class="cursor-pointer text-primary-600">{{ t('imageStudio.errors.details') }}</summary><p class="mt-1 whitespace-pre-wrap">{{ errorReason(row).details }}</p></details></template><p v-if="row.status === 'unknown'" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.unknownHint') }}</p><p v-if="row.billing_pending" class="text-gray-500 dark:text-dark-400">{{ t('admin.workbench.billingPendingCount', { count: row.billing_pending }) }}</p><p v-if="row.billing_unknown" class="text-amber-700 dark:text-amber-400">{{ t('admin.workbench.billingUnknownCount', { count: row.billing_unknown }) }}</p><span v-if="!row.error_code && row.status !== 'unknown' && !row.billing_pending && !row.billing_unknown">—</span></div></template>
           <template #empty><EmptyState :title="t(hasFilters ? 'admin.workbench.noMatches' : 'admin.workbench.emptyTasks')" :description="t('admin.workbench.emptyHint')" :action-text="error ? t('common.refresh') : undefined" :action-icon="false" @action="load" /></template>
         </DataTable>
       </template>
@@ -54,6 +54,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import WorkbenchTaskRoutes from './WorkbenchTaskRoutes.vue'
 import { listWorkbenchTasks, WORKBENCH_TASK_STATUSES, type WorkbenchTask, type WorkbenchTaskQuery, type WorkbenchTaskStatus } from '@/api/admin/workbench'
+import { getImageErrorPresentation } from '@/features/imageStudio/lib/apiErrors'
 import { workbenchElapsedSeconds, workbenchStatusVariant, workbenchUserIdFilter } from './workbenchDisplay'
 
 const { t, locale } = useI18n()
@@ -79,6 +80,10 @@ const columns = computed(() => [
   { key: 'error_code', label: t('admin.workbench.columns.diagnostic') },
 ])
 const hasFilters = computed(() => Object.keys(applied.value).length > 0)
+const errorReason = (task: WorkbenchTask) => {
+  const detail = task.error_message || task.error_code
+  return getImageErrorPresentation(task.error_code && !detail.includes(`[${task.error_code}]`) ? `[${task.error_code}] ${detail}` : detail, t)
+}
 const formatTime = (value: string) => new Date(value).toLocaleString(locale.value)
 // Public task IDs are unique within a user, not across the administrator view.
 const taskRowKey = (task: WorkbenchTask) => `${task.user_id}:${task.task_id}`

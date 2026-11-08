@@ -32,7 +32,7 @@ func insertWorkbenchReadJob(t *testing.T, userID int64, taskID, status, childSta
 	require.NoError(t, err)
 	_, err = integrationDB.ExecContext(ctx, `INSERT INTO image_studio_job_calls
         (user_id,task_id,ordinal,status,billing_state,output_image_ids,error_code,error_message)
-        VALUES ($1,$2,0,$3,$4,$5,'INPUT_UNAVAILABLE','private-secret-marker')`, userID, taskID, childStatus, billing, ids)
+        VALUES ($1,$2,0,$3,$4,$5,'INPUT_UNAVAILABLE','access_token=private-secret-marker')`, userID, taskID, childStatus, billing, ids)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = integrationDB.ExecContext(ctx, `DELETE FROM image_studio_jobs WHERE user_id=$1 AND task_id=$2`, userID, taskID)
@@ -112,6 +112,8 @@ func TestWorkbenchTaskPageFiltersStablePaginationAndSafeProjection(t *testing.T)
 	page, err = repo.ListTasks(ctx, filter)
 	require.NoError(t, err)
 	require.Equal(t, "wb-second", page.Items[0].TaskID)
+	require.Contains(t, page.Items[0].ErrorMessage, "***")
+	require.NotContains(t, page.Items[0].ErrorMessage, "private-secret-marker")
 	require.Equal(t, int64(1), page.Items[0].BillingPending)
 	filter.Page = 1
 	filter.Status = "failed"

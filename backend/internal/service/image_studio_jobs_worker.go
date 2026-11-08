@@ -161,6 +161,7 @@ func (s *StudioJobService) runStudioJobs(ctx context.Context) {
 }
 
 func (s *StudioJobService) executeStudioClaim(parent context.Context, claim StudioJobClaim) {
+	defer s.finishStudioJobAfterCall(claim.UserID, claim.TaskID)
 	ctx, cancel := context.WithTimeout(parent, 25*time.Minute)
 	defer cancel()
 	stopHeartbeat := make(chan struct{})
@@ -255,6 +256,12 @@ func (s *StudioJobService) executeStudioClaim(parent context.Context, claim Stud
 		s.markStudioUnknown(claim)
 		return
 	}
+	if code, message, found := studioGatewayBusinessError(path+".tmp", writer.status); found && (writer.status < 500 && writer.status != http.StatusRequestTimeout) {
+		_ = os.Remove(path + ".tmp")
+		claim.RejectedWithoutOutput = true
+		s.failStudioClaim(claim, code, message)
+		return
+	}
 	if writer.status < 200 || writer.status >= 300 {
 		message := studioGatewayError(path+".tmp", writer.status)
 		_ = os.Remove(path + ".tmp")
@@ -338,10 +345,7 @@ func studioGatewayError(path string, status int) string {
 			} `json:"error"`
 		}
 		if json.Unmarshal(data, &parsed) == nil && parsed.Error.Message != "" {
-			message := strings.TrimSpace(parsed.Error.Message)
-			if len(message) > 200 {
-				message = message[:200]
-			}
+			message := SanitizeStudioErrorMessage(parsed.Error.Message)
 			return fmt.Sprintf("gateway returned HTTP %d: %s", status, message)
 		}
 	}
@@ -430,7 +434,7 @@ func (s *StudioJobService) removeStudioSpool(path string) {
 func (s *StudioJobService) failStudioClaim(claim StudioJobClaim, code, message string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := s.repo.FailCall(ctx, claim, code, message); err != nil {
+	if err := s.repo.FailCall(ctx, claim, code, SanitizeStudioErrorMessage(message)); err != nil {
 		slog.Error("Studio call failure state write failed", "task_id", claim.TaskID, "error", err)
 	}
 }
@@ -471,6 +475,11 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) == 0 || int64(len(data)) > studioJobMaxResponseBytes {
 		s.markStudioSavingLost(claim, false)
+		return
+	}
+	if code, message, found := studioGatewayBusinessError(path, http.StatusOK); found {
+		claim.RejectedWithoutOutput = true
+		s.failStudioClaim(claim, code, message)
 		return
 	}
 	if err := s.cacheStudioURLImages(ctx, claim, data, NewImageResultUploader(nil, "", GalleryMaxImageBytes, nil)); err != nil {
@@ -647,6 +656,16 @@ func (s *StudioJobService) reconcileStudioJobsOnce(ctx context.Context) {
 			s.markStudioSavingLost(claim, true)
 		}
 	}
+	// Resolve available billing evidence before selecting terminal parents;
+	// otherwise every paid result needs an unnecessary second scan interval.
+	pending, err := s.repo.PendingBilling(ctx, 50)
+	if err != nil {
+		slog.Error("Studio billing reconciliation scan failed", "error", err)
+	} else {
+		for _, claim := range pending {
+			s.reconcileStudioCallBilling(ctx, claim)
+		}
+	}
 	candidates, err := s.repo.FinalizationCandidates(ctx, 50)
 	if err != nil {
 		slog.Error("Studio finalization scan failed", "error", err)
@@ -673,22 +692,7 @@ func (s *StudioJobService) reconcileStudioJobsOnce(ctx context.Context) {
 			}
 		}
 	}
-	pending, err := s.repo.PendingBilling(ctx, 50)
-	if err != nil {
-		slog.Error("Studio billing reconciliation scan failed", "error", err)
-	} else {
-		for _, claim := range pending {
-			recorded, err := s.repo.BillingRecorded(ctx, studioBillingRequestID(claim), claim.APIKeyID)
-			if err != nil {
-				continue
-			}
-			if recorded {
-				_ = s.repo.SetBillingState(ctx, claim, "recorded")
-			} else if time.Since(claim.Call.UpdatedAt) > 10*time.Minute {
-				_ = s.repo.SetBillingState(ctx, claim, "unknown")
-			}
-		}
-	}
+
 }
 
 func (s *StudioJobService) finalizeStudioJob(ctx context.Context, job StudioJob) {
@@ -753,13 +757,13 @@ func (s *StudioJobService) finalizeStudioJob(ctx context.Context, job StudioJob)
 	}
 	task["status"] = taskStatus
 	task["finishedAt"] = finished
-	if created, ok := task["createdAt"].(float64); ok {
-		elapsed := finished - int64(created)
-		if elapsed < 0 {
-			elapsed = 0
-		}
-		task["elapsed"] = elapsed
+	// Match the administrator duration using server admission and actual call
+	// completion, excluding delayed recovery scans and client clock drift.
+	elapsed := finished - job.CreatedAt.UnixMilli()
+	if elapsed < 0 {
+		elapsed = 0
 	}
+	task["elapsed"] = elapsed
 	if taskStatus == "error" {
 		message := "image generation failed"
 		if unknown {

@@ -422,22 +422,38 @@ func (r *studioJobRepository) FailCall(ctx context.Context, claim service.Studio
 	result, err := tx.ExecContext(ctx, `UPDATE image_studio_job_calls SET
         status='failed',error_code=$5::text,error_message=$6,lease_token=NULL,lease_until=NULL,
         spool_path=NULL,spool_owner=NULL,
-        billing_state=CASE WHEN sent_at IS NULL OR $5::text LIKE 'GATEWAY_HTTP_4%'
+        billing_state=CASE WHEN sent_at IS NULL OR $7::boolean
           THEN 'not_started' ELSE 'pending' END,
         updated_at=NOW()
         WHERE user_id=$1 AND task_id=$2 AND ordinal=$3 AND lease_token=$4::uuid
           AND status IN ('generating','saving')`,
-		claim.UserID, claim.TaskID, claim.Call.Ordinal, claim.Call.LeaseToken, code, truncateStudioError(message))
+		claim.UserID, claim.TaskID, claim.Call.Ordinal, claim.Call.LeaseToken, code, truncateStudioError(message), claim.RejectedWithoutOutput || studioFailureIsNonBillable(code))
 	if err := oneStudioJobRow(result, err); err != nil {
 		return err
 	}
-	if code == "GALLERY_QUOTA_EXCEEDED" || code == "INVALID_IMAGE_RESULT" {
+	if code == "GALLERY_QUOTA_EXCEEDED" || code == "INVALID_IMAGE_RESULT" ||
+		code == "MODERATION_BLOCKED" || code == "CONTENT_POLICY_VIOLATION" || code == "IMAGE_GENERATION_REJECTED" {
 		if _, err := tx.ExecContext(ctx, `UPDATE image_studio_job_calls SET status='cancelled',updated_at=NOW()
             WHERE user_id=$1 AND task_id=$2 AND status='queued'`, claim.UserID, claim.TaskID); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+func studioFailureIsNonBillable(code string) bool {
+	if strings.HasPrefix(code, "GATEWAY_HTTP_4") {
+		return true
+	}
+	// These codes are emitted only for explicit business errors with no image
+	// result. Image download/post-processing/storage failures remain billable.
+	switch code {
+	case "MODERATION_BLOCKED", "CONTENT_POLICY_VIOLATION", "IMAGE_GENERATION_REJECTED",
+		"INSUFFICIENT_BALANCE", "UPSTREAM_INVALID_RESPONSE", "UPSTREAM_NO_IMAGE", "UPSTREAM_ERROR":
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *studioJobRepository) RetrySaving(ctx context.Context, claim service.StudioJobClaim, delay time.Duration, code string) error {
@@ -451,8 +467,12 @@ func (r *studioJobRepository) RetrySaving(ctx context.Context, claim service.Stu
 
 func (r *studioJobRepository) Finalize(ctx context.Context, userID int64, taskID, status string, task json.RawMessage) error {
 	result, err := r.db.ExecContext(ctx, `UPDATE image_studio_jobs SET status=$3,task_json=$4,
-        finished_at=NOW(),updated_at=NOW() WHERE user_id=$1 AND task_id=$2
-        AND deleted_at IS NULL AND status NOT IN ('cancelled','completed','partial','failed','unknown')`,
+        finished_at=GREATEST(created_at,COALESCE((SELECT MAX(c.updated_at)
+          FROM image_studio_job_calls c WHERE c.user_id=$1 AND c.task_id=$2),created_at)),
+        updated_at=NOW() WHERE user_id=$1 AND task_id=$2
+        AND deleted_at IS NULL AND status NOT IN ('cancelled','completed','partial','failed','unknown')
+        AND NOT EXISTS (SELECT 1 FROM image_studio_job_calls c WHERE c.user_id=$1 AND c.task_id=$2
+          AND (c.status IN ('queued','generating','saving') OR c.billing_state='pending'))`,
 		userID, taskID, status, task)
 	return oneStudioJobRow(result, err)
 }

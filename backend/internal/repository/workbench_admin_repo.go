@@ -100,12 +100,13 @@ func (r *workbenchAdminRepository) ListTasks(ctx context.Context, f service.Work
           COALESCE(c.outputs,0),COALESCE(c.calls,0),COALESCE(c.billing_pending,0),COALESCE(c.billing_unknown,0),
           j.created_at,j.updated_at,j.finished_at,
           CASE WHEN j.finished_at IS NULL THEN NULL ELSE GREATEST(0,(EXTRACT(EPOCH FROM (j.finished_at-j.created_at))*1000)::bigint) END,
-          COALESCE(c.error_code,'')
+          COALESCE(c.error_code,''),COALESCE(c.error_message,'')
         FROM selected j LEFT JOIN LATERAL (
           SELECT COUNT(*) AS calls,COALESCE(SUM(jsonb_array_length(output_image_ids)),0) AS outputs,
             COUNT(*) FILTER (WHERE billing_state='pending') AS billing_pending,
             COUNT(*) FILTER (WHERE billing_state='unknown') AS billing_unknown,
-            (ARRAY_AGG(error_code ORDER BY ordinal) FILTER (WHERE error_code IS NOT NULL AND error_code<>''))[1] AS error_code
+            (ARRAY_AGG(error_code ORDER BY ordinal) FILTER (WHERE error_code IS NOT NULL AND error_code<>''))[1] AS error_code,
+            (ARRAY_AGG(error_message ORDER BY ordinal) FILTER (WHERE error_code IS NOT NULL AND error_code<>''))[1] AS error_message
           FROM image_studio_job_calls WHERE user_id=j.user_id AND task_id=j.task_id
         ) c ON TRUE ORDER BY j.created_at DESC,j.task_id DESC,j.user_id DESC`, f.Status, f.UserID, f.Model, since, f.PageSize, (f.Page-1)*f.PageSize)
 	if err != nil {
@@ -115,9 +116,10 @@ func (r *workbenchAdminRepository) ListTasks(ctx context.Context, f service.Work
 	for rows.Next() {
 		var item service.WorkbenchTaskSummary
 		if err := rows.Scan(&item.TaskID, &item.UserID, &item.UserEmail, &item.Model, &item.Protocol, &item.Status, &item.ImageCount,
-			&item.OutputCount, &item.CallCount, &item.BillingPending, &item.BillingUnknown, &item.CreatedAt, &item.UpdatedAt, &item.FinishedAt, &item.ElapsedMS, &item.ErrorCode); err != nil {
+			&item.OutputCount, &item.CallCount, &item.BillingPending, &item.BillingUnknown, &item.CreatedAt, &item.UpdatedAt, &item.FinishedAt, &item.ElapsedMS, &item.ErrorCode, &item.ErrorMessage); err != nil {
 			return nil, err
 		}
+		item.ErrorMessage = service.SanitizeStudioErrorMessage(item.ErrorMessage)
 		result.Items = append(result.Items, item)
 	}
 	if err := rows.Err(); err != nil {

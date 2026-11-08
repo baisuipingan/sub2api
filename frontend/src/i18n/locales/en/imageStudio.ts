@@ -420,6 +420,8 @@ imageStudio: {
     resizedHint: 'Mask is drawn on a lightweight preview; submission still matches the original {width}×{height}',
   },
   errors: {
+    moderation: 'The upstream safety review rejected this generation. Adjust the prompt or reference images.',
+    details: 'View error details',
     stopped: 'Generation stopped',
     insufficientBalance: 'Insufficient balance. Please top up and try again',
     auth: 'Invalid or unauthorized API key, please check and retry',

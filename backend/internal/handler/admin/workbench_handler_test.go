@@ -23,7 +23,7 @@ func (r *workbenchHandlerRepo) Overview(context.Context, time.Time, time.Time) (
 }
 func (r *workbenchHandlerRepo) ListTasks(context.Context, service.WorkbenchTaskFilter) (*service.WorkbenchTaskPage, error) {
 	r.calls++
-	return &service.WorkbenchTaskPage{Items: []service.WorkbenchTaskSummary{{TaskID: "public-task", UserID: 7, Model: "gpt-image-2", ErrorCode: "UPSTREAM_RESULT_UNKNOWN"}}}, nil
+	return &service.WorkbenchTaskPage{Items: []service.WorkbenchTaskSummary{{TaskID: "public-task", UserID: 7, Model: "gpt-image-2", ErrorCode: "UPSTREAM_RESULT_UNKNOWN", ErrorMessage: "Safety review rejected the image. access_token=private-test-token https://private-provider.test/error"}}}, nil
 }
 
 func TestWorkbenchHandlerRejectsInvalidQueriesBeforeRepository(t *testing.T) {
@@ -68,7 +68,10 @@ func TestWorkbenchHandlerMetadataProjectionAndRestrictedKeyBoundary(t *testing.T
 		}
 		require.NoError(t, json.Unmarshal(r.Body.Bytes(), &result))
 		require.Len(t, result.Data.Items, 1)
-		for _, key := range []string{"prompt", "task_json", "request_json", "storage_bucket", "spool_path", "api_key_id", "url", "error_message"} {
+		require.Contains(t, result.Data.Items[0]["error_message"], "Safety review rejected")
+		require.NotContains(t, r.Body.String(), "private-test-token")
+		require.NotContains(t, r.Body.String(), "private-provider")
+		for _, key := range []string{"prompt", "task_json", "request_json", "storage_bucket", "spool_path", "api_key_id", "url"} {
 			require.NotContains(t, result.Data.Items[0], key)
 		}
 	}

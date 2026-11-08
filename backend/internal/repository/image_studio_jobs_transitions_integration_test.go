@@ -36,12 +36,17 @@ func studioTransitionClaim(t *testing.T, count int) (service.StudioJobRepository
 
 func TestStudioJobFailureTransitionsPersistWithoutRepeatingCalls(t *testing.T) {
 	for _, tc := range []struct {
-		name, code, billing string
-		dispatched, saving  bool
-		cancelSiblings      bool
+		name, code, billing   string
+		dispatched, saving    bool
+		cancelSiblings        bool
+		rejectedWithoutOutput bool
 	}{
 		{name: "before dispatch", code: "INPUT_UNAVAILABLE", billing: "not_started"},
 		{name: "gateway rejection", code: "GATEWAY_HTTP_403", billing: "not_started", dispatched: true},
+		{name: "moderation business error", code: "MODERATION_BLOCKED", billing: "not_started", dispatched: true, cancelSiblings: true},
+		{name: "empty result", code: "UPSTREAM_NO_IMAGE", billing: "not_started", dispatched: true},
+		{name: "invalid response", code: "UPSTREAM_INVALID_RESPONSE", billing: "not_started", dispatched: true},
+		{name: "provider-specific explicit rejection", code: "VENDOR_INVALID_INPUT", billing: "not_started", dispatched: true, rejectedWithoutOutput: true},
 		{name: "paid image invalid", code: "INVALID_IMAGE_RESULT", billing: "pending", dispatched: true, saving: true, cancelSiblings: true},
 		{name: "gallery quota", code: "GALLERY_QUOTA_EXCEEDED", billing: "pending", dispatched: true, saving: true, cancelSiblings: true},
 	} {
@@ -54,6 +59,7 @@ func TestStudioJobFailureTransitionsPersistWithoutRepeatingCalls(t *testing.T) {
 			if tc.saving {
 				require.NoError(t, repo.MarkSaving(ctx, claim, "/tmp/studio-test.json", "11111111-1111-4111-8111-111111111111"))
 			}
+			claim.RejectedWithoutOutput = tc.rejectedWithoutOutput
 			require.NoError(t, repo.FailCall(ctx, claim, tc.code, "request rejected"))
 			job, err := repo.Get(ctx, claim.UserID, claim.TaskID)
 			require.NoError(t, err)
@@ -76,11 +82,37 @@ func TestStudioJobFailureTransitionsPersistWithoutRepeatingCalls(t *testing.T) {
 	}
 }
 
+func TestStudioFinishTimestampUsesCallCompletionInsteadOfScanTime(t *testing.T) {
+	ctx := context.Background()
+	repo, claim := studioTransitionClaim(t, 1)
+	require.NoError(t, repo.MarkDispatched(ctx, claim))
+	require.NoError(t, repo.FailCall(ctx, claim, "MODERATION_BLOCKED", "upstream rejected content"))
+	// Simulate a recovery scan arriving much later. The admin end time must
+	// remain the execution's end, while updated_at records reconciliation.
+	_, err := integrationDB.ExecContext(ctx, `UPDATE image_studio_jobs SET created_at=NOW()-INTERVAL '1 minute'
+        WHERE user_id=$1 AND task_id=$2`, claim.UserID, claim.TaskID)
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE image_studio_job_calls SET updated_at=NOW()-INTERVAL '40 seconds'
+        WHERE user_id=$1 AND task_id=$2`, claim.UserID, claim.TaskID)
+	require.NoError(t, err)
+	require.NoError(t, repo.Finalize(ctx, claim.UserID, claim.TaskID, service.StudioJobFailed,
+		json.RawMessage(`{"id":"transition-test","status":"error","outputImages":[]}`)))
+	var elapsed float64
+	var sameEnd bool
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT EXTRACT(EPOCH FROM (j.updated_at-j.finished_at)),
+        j.finished_at=c.updated_at FROM image_studio_jobs j JOIN image_studio_job_calls c USING(user_id,task_id)
+        WHERE j.user_id=$1 AND j.task_id=$2`, claim.UserID, claim.TaskID).Scan(&elapsed, &sameEnd))
+	require.True(t, sameEnd)
+	require.Greater(t, elapsed, float64(39))
+}
+
 func TestStudioJobCompleteAndUnknownTerminalTransitions(t *testing.T) {
 	ctx := context.Background()
 	t.Run("saved output finalizes once", func(t *testing.T) {
 		repo, claim := studioTransitionClaim(t, 1)
 		require.NoError(t, repo.MarkDispatched(ctx, claim))
+		require.Error(t, repo.Finalize(ctx, claim.UserID, claim.TaskID, service.StudioJobCompleted,
+			json.RawMessage(`{"id":"transition-test","status":"done"}`)), "running calls cannot be finalized")
 		require.NoError(t, repo.MarkSaving(ctx, claim, "/tmp/studio-test.json", "11111111-1111-4111-8111-111111111111"))
 		require.NoError(t, repo.RetrySaving(ctx, claim, 0, "STORAGE_TEMPORARY"))
 		claimPtr, err := repo.Claim(ctx, "11111111-1111-4111-8111-111111111111")
@@ -88,6 +120,8 @@ func TestStudioJobCompleteAndUnknownTerminalTransitions(t *testing.T) {
 		require.NotNil(t, claimPtr)
 		claim = *claimPtr
 		require.NoError(t, repo.CompleteCall(ctx, claim, []string{"output-id"}, []string{"raw-id"}, "pending"))
+		require.Error(t, repo.Finalize(ctx, claim.UserID, claim.TaskID, service.StudioJobCompleted,
+			json.RawMessage(`{"id":"transition-test","status":"done"}`)), "pending billing cannot be finalized")
 		require.NoError(t, repo.SetBillingState(ctx, claim, "recorded"))
 		task := json.RawMessage(`{"id":"transition-test","status":"done","outputImages":["output-id"]}`)
 		require.NoError(t, repo.Finalize(ctx, claim.UserID, claim.TaskID, service.StudioJobCompleted, task))

@@ -1,6 +1,7 @@
 <template>
   <div class="min-w-44 max-w-64 whitespace-normal break-words text-xs">
     <template v-if="observations.length">
+      <p class="mb-1 text-gray-500 dark:text-dark-400">{{ t(latest.outcome === 'usage' ? 'admin.workbench.routes.finalUsage' : 'admin.workbench.routes.latestObserved') }}</p>
       <p class="font-medium text-gray-900 dark:text-white">{{ latest.account_name || t('admin.workbench.routes.account', { id: latest.account_id }) }} <span v-if="latest.account_name" class="font-normal text-gray-500">#{{ latest.account_id }}</span></p>
       <p class="mt-1 font-mono text-gray-500 dark:text-dark-400">{{ latest.upstream_model || t('admin.workbench.routes.modelUnknown') }}</p>
       <details class="mt-2">
@@ -10,6 +11,7 @@
             <p class="font-medium">{{ t('admin.workbench.routes.call', { number: call.ordinal + 1 }) }}</p>
             <ol v-if="call.upstreams.length" class="mt-1 space-y-2 border-l border-gray-200 pl-2 dark:border-dark-600">
               <li v-for="(upstream, index) in call.upstreams" :key="index">
+                <p class="mb-0.5 text-gray-500">{{ t('admin.workbench.routes.attempt', { number: index + 1 }) }}</p>
                 <p>{{ upstream.account_name || t('admin.workbench.routes.account', { id: upstream.account_id }) }} <span v-if="upstream.account_name" class="text-gray-500">#{{ upstream.account_id }}</span></p>
                 <p class="font-mono text-gray-500 dark:text-dark-400">{{ upstream.upstream_model || t('admin.workbench.routes.modelUnknown') }}</p>
                 <p :class="upstream.outcome === 'failed' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-500 dark:text-dark-400'">{{ t('admin.workbench.routes.' + upstream.outcome) }}<span v-if="upstream.status_code"> · HTTP {{ upstream.status_code }}</span></p>

@@ -420,6 +420,8 @@ imageStudio: {
     resizedHint: '已使用轻量预览绘制遮罩，提交时仍会匹配原图 {width}×{height}',
   },
   errors: {
+    moderation: '上游安全审核拒绝了本次生成，请调整提示词或参考图片',
+    details: '查看错误详情',
     stopped: '已停止生成',
     insufficientBalance: '余额不足，请先充值后再试',
     auth: 'API Key 无效或无权限，请检查后重试',

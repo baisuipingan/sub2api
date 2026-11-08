@@ -70,13 +70,17 @@
               @select-image="onSelectImage"
             />
             <div class="studio-ops flex min-w-0 flex-col items-center gap-2">
-              <p
+              <div
                 v-if="activeTask.status === 'error'"
                 data-testid="result-error-message"
                 class="w-full whitespace-pre-wrap break-words rounded-lg bg-red-50 px-3 py-2 text-center text-[11px] leading-5 text-red-600 dark:bg-red-500/10 dark:text-red-400"
               >
-                {{ errorMessage }}
-              </p>
+                <p>{{ errorPresentation.summary }}</p>
+                <details v-if="errorPresentation.details" class="mt-1 text-left">
+                  <summary class="cursor-pointer text-center">{{ t('imageStudio.errors.details') }}</summary>
+                  <p class="mt-1 whitespace-pre-wrap break-words">{{ errorPresentation.details }}</p>
+                </details>
+              </div>
               <p
                 v-else
                 class="flex w-full min-w-0 items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-dark-400"
@@ -244,7 +248,7 @@ import { formatImageRatio, parseRatio } from '../lib/size'
 import { getEstimatedCredits } from '../lib/generationEstimate'
 import { resolveUnitPrice } from '../lib/studioPricing'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
-import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
+import { getImageErrorPresentation } from '../lib/apiErrors'
 import { copyImageSourceToClipboard, getClipboardFailureMessage } from '../lib/clipboard'
 import { ensureImageCached } from '../lib/imageCache'
 import { downloadImageSource } from '../lib/downloadImage'
@@ -308,8 +312,8 @@ const displayPrompt = computed(() =>
   activeTask.value ? stripImageMentionMarkers(activeTask.value.prompt) || t('imageStudio.task.noPrompt') : '',
 )
 
-const errorMessage = computed(() =>
-  activeTask.value ? getUserFacingApiErrorMessage(activeTask.value.error, t) : '',
+const errorPresentation = computed(() =>
+  getImageErrorPresentation(activeTask.value?.error, t),
 )
 
 const modelName = computed(() => {
