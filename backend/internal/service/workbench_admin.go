@@ -68,22 +68,47 @@ type WorkbenchOverview struct {
 // WorkbenchTaskSummary deliberately excludes prompts, asset IDs, URLs,
 // storage targets, spool paths, raw upstream errors and API-key credentials.
 type WorkbenchTaskSummary struct {
-	TaskID         string     `json:"task_id"`
-	UserID         int64      `json:"user_id"`
-	UserEmail      string     `json:"user_email"`
-	Model          string     `json:"model"`
-	Protocol       string     `json:"protocol"`
-	Status         string     `json:"status"`
-	ImageCount     int        `json:"image_count"`
-	OutputCount    int64      `json:"output_count"`
-	CallCount      int64      `json:"call_count"`
-	BillingPending int64      `json:"billing_pending"`
-	BillingUnknown int64      `json:"billing_unknown"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
-	FinishedAt     *time.Time `json:"finished_at"`
-	ElapsedMS      *int64     `json:"elapsed_ms"`
-	ErrorCode      string     `json:"error_code"`
+	TaskID         string                   `json:"task_id"`
+	UserID         int64                    `json:"user_id"`
+	UserEmail      string                   `json:"user_email"`
+	Model          string                   `json:"model"`
+	Protocol       string                   `json:"protocol"`
+	Status         string                   `json:"status"`
+	ImageCount     int                      `json:"image_count"`
+	OutputCount    int64                    `json:"output_count"`
+	CallCount      int64                    `json:"call_count"`
+	BillingPending int64                    `json:"billing_pending"`
+	BillingUnknown int64                    `json:"billing_unknown"`
+	CreatedAt      time.Time                `json:"created_at"`
+	UpdatedAt      time.Time                `json:"updated_at"`
+	FinishedAt     *time.Time               `json:"finished_at"`
+	ElapsedMS      *int64                   `json:"elapsed_ms"`
+	ErrorCode      string                   `json:"error_code"`
+	RouteCalls     []WorkbenchTaskRouteCall `json:"route_calls"`
+}
+
+// WorkbenchTaskRouteCall contains administrator-only observed route metadata.
+// It never resolves today's account mappings to reconstruct a historical route.
+type WorkbenchTaskRouteCall struct {
+	Ordinal   int                     `json:"ordinal"`
+	State     string                  `json:"state"` // recorded | not_dispatched | pending | unknown
+	Upstreams []WorkbenchTaskUpstream `json:"upstreams"`
+}
+
+type WorkbenchTaskUpstream struct {
+	AccountID     int64     `json:"account_id"`
+	AccountName   string    `json:"account_name"`
+	UpstreamModel *string   `json:"upstream_model"`
+	Outcome       string    `json:"outcome"`
+	StatusCode    *int      `json:"status_code,omitempty"`
+	RecordedAt    time.Time `json:"recorded_at"`
+}
+
+// StudioJobCallRequestID is the existing deterministic internal gateway request
+// identifier. It is safe to use for exact admin log correlation, together with
+// user_id and api_key_id; it is not exposed by user-facing task APIs.
+func StudioJobCallRequestID(userID int64, taskID string, ordinal int) string {
+	return studioClientRequestID(StudioJobClaim{StudioJob: StudioJob{UserID: userID, TaskID: taskID}, Call: StudioJobCall{Ordinal: ordinal}})
 }
 
 type WorkbenchTaskFilter struct {

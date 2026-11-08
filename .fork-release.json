@@ -2,6 +2,6 @@
   "schema_epoch": 2,
   "database": {
     "rollback": "image-only",
-    "reason": "This release keeps schema epoch 2 and adds no migrations. Workbench navigation and administration reuse the existing Studio job, gallery, billing and configuration formats. The previous 0.2.20-ds.3 image can resume the same durable jobs; rollback within epoch 2 may switch images without restoring the database. Epoch 1 images remain incompatible."
+    "reason": "This release keeps schema epoch 2 and adds no migrations. Public image model parameter contracts, credential-free admin route diagnostics and Studio failure-state persistence use the existing job, gallery, usage and configuration formats. Same-epoch image rollback remains supported; epoch 1 images remain incompatible."
   }
 }

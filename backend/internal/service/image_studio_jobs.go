@@ -294,7 +294,9 @@ func (s *StudioJobService) Submit(ctx context.Context, userID, apiKeyID int64, i
 		return nil, ErrStudioJobInvalid
 	}
 	if in.Spec.ProviderProfile != "" && (len(profiles) != 1 || profiles[0].Profile != in.Spec.ProviderProfile) {
-		return nil, ErrStudioJobInvalid
+		// A pre-upgrade page may still carry the old private-target profile.
+		// Require a refresh instead of silently reinterpreting its parameters.
+		return nil, ErrStudioJobRouteChanged
 	}
 	in.Spec.AdmissionProfiles = profiles
 	canonicalSpec, err := json.Marshal(in.Spec)

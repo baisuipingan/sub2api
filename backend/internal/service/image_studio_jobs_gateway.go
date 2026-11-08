@@ -185,7 +185,7 @@ func studioCurrentProfiles(spec StudioJobSpec, models []ImageStudioModel) []Imag
 		}
 		var profiles []ImageStudioModelProfile
 		for _, profile := range model.Profiles {
-			allowed := profile.Provider == provider || profile.Provider == "unknown" ||
+			allowed := spec.Protocol == "gemini" || profile.Provider == provider || profile.Provider == "unknown" ||
 				(spec.Protocol == "openai" && profile.Provider == "google")
 			if allowed {
 				profiles = append(profiles, profile)

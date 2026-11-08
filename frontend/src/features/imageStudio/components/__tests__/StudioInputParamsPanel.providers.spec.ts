@@ -68,6 +68,23 @@ describe('StudioInputParamsPanel provider controls', () => {
     expect(wrapper.props('params')).toMatchObject({ resolution: '4K', size: '3840x2160' })
   })
 
+  it('retains public GPT Image 2 controls when a private supplier mapping is unknown', async () => {
+    // Private supplier product names must not remove the public model controls.
+    const current = model('gpt-image-2', {
+      api: 'openai',
+      profiles: [{ provider: 'openai', profile: 'gpt-image-2' }, { provider: 'unknown', profile: 'unknown' }],
+      available_size_tiers: ['1K', '2K', '4K'],
+    })
+    const wrapper = mountPanel(current)
+    expect(wrapper.get('[data-testid="provider-parameters-title"]').text()).toBe('imageStudio.params.providers.openai')
+    expect(wrapper.text()).not.toContain('imageStudio.params.unknownCapabilities')
+    expect(wrapper.props('params')).toMatchObject({ resolution: '2K', size: '2048x2048' })
+    expect(wrapper.get('input#image-count').attributes('max')).toBe('10')
+    await clickText(wrapper, '4K')
+    await clickText(wrapper, 'imageStudio.params.qualityOptions.high')
+    expect(wrapper.props('params')).toMatchObject({ resolution: '4K', quality: 'high', size: '2880x2880' })
+  })
+
   it('greys out 4K when account routing only admits 1K and 2K, and blocks clicks', async () => {
     const current = model('gpt-image-2.6-sunburst', { api: 'openai', available_size_tiers: ['1K', '2K'] })
     const wrapper = mountPanel(current)
@@ -94,16 +111,16 @@ describe('StudioInputParamsPanel provider controls', () => {
     expect(wrapper.props('params')).toMatchObject({ resolution: '4K', quality: 'high', complexity: 'low' })
   })
 
-  it('uses server profiles rather than the public GPT-looking name to choose controls', () => {
+  it('uses the public model family even when private metadata describes a different vendor', () => {
     const current = model('gpt-image-2.6-flare', {
-      api: 'gemini', profiles: [{ provider: 'google', profile: 'gemini-3.1-flash-image' }],
+      api: 'openai', profiles: [{ provider: 'google', profile: 'gemini-3.1-flash-image' }],
     })
     const wrapper = mountPanel(current)
 
-    expect(wrapper.get('[data-testid="provider-parameters-title"]').text()).toBe('imageStudio.params.providers.google')
-    expect(wrapper.findAll('button').some((button) => button.text() === '512')).toBe(true)
-    expect(wrapper.find('[data-testid="image-complexity"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('imageStudio.params.quality')
+    expect(wrapper.get('[data-testid="provider-parameters-title"]').text()).toBe('imageStudio.params.providers.openai')
+    expect(wrapper.findAll('button').some((button) => button.text() === '512')).toBe(false)
+    expect(wrapper.find('[data-testid="image-complexity"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('imageStudio.params.quality')
   })
 
   it('selects Gemini 512 and 1:8 through the real panel without generating GPT pixel sizes', async () => {
@@ -155,30 +172,14 @@ describe('StudioInputParamsPanel provider controls', () => {
     expect(wrapper.findAll('button')).toHaveLength(0)
   })
 
-  it('does not expose inferred GPT controls when server metadata marks the mapped model unknown', () => {
-    const wrapper = mountPanel(model('gpt-image-2.6-flare', {
-      api: 'openai', profiles: [{ provider: 'unknown', profile: 'unknown' }],
+  it('keeps unknown public aliases conservative even when private metadata has a known family', () => {
+    const wrapper = mountPanel(model('private-painter', {
+      api: 'openai', profiles: [{ provider: 'openai', profile: 'gpt-image-2.6' }],
     }))
 
     expect(wrapper.get('[role="status"]').text()).toBe('imageStudio.params.unknownCapabilities')
     expect(wrapper.find('[data-testid="image-complexity"]').exists()).toBe(false)
     expect(wrapper.findAll('button')).toHaveLength(0)
-  })
-
-  it('shows the shared-capabilities hint and hides controls outside a mixed channel intersection', () => {
-    const current = model('shared-image', {
-      api: 'gemini',
-      profiles: [
-        { provider: 'google', profile: 'gemini-2.5-flash-image' },
-        { provider: 'google', profile: 'gemini-3.1-flash-image' },
-      ],
-    })
-    const wrapper = mountPanel(current)
-
-    expect(wrapper.get('[role="status"]').text()).toBe('imageStudio.params.sharedCapabilities')
-    expect(current.capabilities.resolutions).toEqual(['auto', '1K'])
-    expect(wrapper.findAll('button').filter((button) => ['512', '2K', '4K'].includes(button.text()))).toHaveLength(0)
-    expect(wrapper.find('[data-testid="image-complexity"]').exists()).toBe(false)
   })
 
   it('drops provider-specific advanced parameters when switching from GPT to Gemini and back', async () => {

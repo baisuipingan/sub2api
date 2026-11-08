@@ -41,6 +41,12 @@ export function buildStudioJobSpec(
     image_count: opts.params.n,
   }
 
+  if (opts.apiKind === 'gemini') {
+    if (opts.maskDataUrl) throw new Error('Gemini image editing does not support a mask')
+    const body = buildGeminiImageRequest(opts.prompt, opts.params, [], opts.modelCapabilities)
+    return { ...base, protocol: 'gemini', prompt: opts.prompt, params: { generationConfig: body.generationConfig } }
+  }
+
   if (opts.modelProvider === 'xai') {
     const body = buildGrokImageRequest(opts)
     const params: Record<string, unknown> = { ...body }
@@ -49,12 +55,6 @@ export function buildStudioJobSpec(
     delete params.image
     delete params.images
     return { ...base, protocol: 'grok', prompt: body.prompt, params }
-  }
-
-  if (opts.apiKind === 'gemini') {
-    if (opts.maskDataUrl) throw new Error('Gemini image editing does not support a mask')
-    const body = buildGeminiImageRequest(opts.prompt, opts.params, [], opts.modelCapabilities)
-    return { ...base, protocol: 'gemini', prompt: opts.prompt, params: { generationConfig: body.generationConfig } }
   }
 
   const params: Record<string, unknown> = { ...imageRequestParams(opts, model) }

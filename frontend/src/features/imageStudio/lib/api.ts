@@ -21,7 +21,7 @@ async function callSingleImageApi(opts: CallApiOptions): Promise<ImageGenerateRe
 }
 
 export async function callImageApi(opts: CallApiOptions): Promise<ImageGenerateResult> {
-  if (opts.modelProvider === 'xai') return callGrokImageApi(opts)
+  if (opts.apiKind !== 'gemini' && opts.modelProvider === 'xai') return callGrokImageApi(opts)
   const requestCount = Math.min(MAX_OUTPUT_IMAGES, Math.max(1, Math.floor(opts.params.n)))
   if (requestCount === 1) return callSingleImageApi(opts)
 

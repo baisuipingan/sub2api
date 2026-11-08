@@ -47,6 +47,20 @@ export interface WorkbenchTask {
   finished_at: string | null
   elapsed_ms: number | null
   error_code: string
+  route_calls?: WorkbenchTaskRouteCall[]
+}
+
+export interface WorkbenchTaskRouteCall {
+  ordinal: number
+  state: 'recorded' | 'not_dispatched' | 'pending' | 'unknown'
+  upstreams: {
+    account_id: number
+    account_name: string
+    upstream_model: string | null
+    outcome: 'usage' | 'failed'
+    status_code?: number | null
+    recorded_at: string
+  }[]
 }
 
 export interface WorkbenchTaskQuery {

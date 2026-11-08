@@ -432,6 +432,9 @@ type OpsUpstreamErrorEvent struct {
 	Platform    string `json:"platform,omitempty"`
 	AccountID   int64  `json:"account_id,omitempty"`
 	AccountName string `json:"account_name,omitempty"`
+	// Snapshot the effective model for this attempt, before later failover
+	// overwrites request-local context. Older persisted events may omit it.
+	UpstreamModel string `json:"upstream_model,omitempty"`
 
 	// Proxy attribution is an immutable, credential-free snapshot of the route
 	// used by this attempt. ProxyID is null for direct and unknown routes;
@@ -489,6 +492,9 @@ func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {
 		ev.AtUnixMs = time.Now().UnixMilli()
 	}
 	ev.Platform = strings.TrimSpace(ev.Platform)
+	if ev.UpstreamModel == "" {
+		ev.UpstreamModel = strings.TrimSpace(c.GetString(OpsUpstreamModelKey))
+	}
 	normalizeOpsUpstreamProxyAttribution(&ev)
 	ev.UpstreamRequestID = strings.TrimSpace(ev.UpstreamRequestID)
 	ev.UpstreamResponseBody = strings.TrimSpace(ev.UpstreamResponseBody)

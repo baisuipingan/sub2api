@@ -152,7 +152,10 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 			continue
 		}
 		checkUpstreamRestriction := s.needsUpstreamChannelRestrictionCheck(requestCtx, &group.ID)
-		profiles := make(map[ImageStudioModelProfile]struct{})
+		// Public IDs define the documented parameter contract. Resolve private
+		// mappings below only for admission and configured routing restrictions.
+		profile := imageStudioProfileForModel(public)
+		admitted := false
 		sizeTiers := make(map[string]bool)
 		for i := range accounts {
 			account := &accounts[i]
@@ -178,7 +181,10 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 				if account.Type == AccountTypeAPIKey && validateCompatibleImagesModel(upstream) == nil ||
 					account.IsOpenAIOAuthLike() && validateOpenAIImagesModel(requestModel) == nil &&
 						validateOpenAIImagesModel(channelModel) == nil && validateOpenAIImagesModel(upstream) == nil {
-					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
+					admitted = true
+					if account.IsOpenAIOAuthLike() {
+						profile.Transport = "bridge"
+					}
 					// Any admitted supplier can serve its allowed tiers. An
 					// unrestricted supplier therefore makes all three available.
 					for _, tier := range openAIImageSizeTierOrder {
@@ -189,7 +195,7 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 				}
 			case PlatformGrok:
 				if account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityGrokMediaGeneration) && isGrokImageGenerationModel(requestModel) {
-					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
+					admitted = true
 				}
 			case PlatformGemini, PlatformAntigravity:
 				if account.Platform == PlatformAntigravity {
@@ -199,12 +205,12 @@ func (s *GatewayService) imageStudioModelMetadata(ctx context.Context, group *Gr
 				}
 				if (account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount || account.Type == AccountTypeOAuth) &&
 					imageStudioGoogleImageModel(upstream) {
-					profiles[imageStudioAccountProfile(account, upstream)] = struct{}{}
+					admitted = true
 				}
 			}
 		}
-		if len(profiles) > 0 {
-			metadata := ImageStudioModel{ID: public, API: api.name, Profiles: sortedImageStudioProfiles(profiles)}
+		if admitted {
+			metadata := ImageStudioModel{ID: public, API: api.name, Profiles: []ImageStudioModelProfile{profile}}
 			if api.name == "openai" && platform == PlatformOpenAI {
 				for _, tier := range openAIImageSizeTierOrder {
 					if sizeTiers[tier] {

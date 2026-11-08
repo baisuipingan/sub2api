@@ -110,6 +110,6 @@ func TestImageStudioSizeTiersApplyToGeminiUsingOpenAIImages(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, models, 1)
 	require.Equal(t, "openai", models[0].API)
-	require.Equal(t, "google", models[0].Profiles[0].Provider)
+	require.Equal(t, "openai", models[0].Profiles[0].Provider)
 	require.Equal(t, []string{"1K", "2K"}, models[0].AvailableSizeTiers)
 }

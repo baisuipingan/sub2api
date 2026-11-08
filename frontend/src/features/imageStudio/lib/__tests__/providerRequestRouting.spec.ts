@@ -69,8 +69,23 @@ describe('provider profile to image request routing', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toMatchObject(fields)
   })
 
-  it('keeps an arbitrary xAI public alias and sends n=10 in one Grok request', async () => {
-    const model = catalogModel('my-painter', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
+  it('sends the public GPT parameter contract even when private profiles are unknown or from another vendor', async () => {
+    const model = catalogModel('gpt-image-2', 'openai', [
+      { provider: 'unknown', profile: 'unknown' },
+      { provider: 'google', profile: 'gemini-3.1-flash-image' },
+    ])
+    await callImageApi(requestOptions(model, { resolution: '2K', quality: 'high', output_format: 'webp' }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('/v1/images/generations')
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toMatchObject({
+      model: 'gpt-image-2', prompt: 'Draw a red cup', n: 1,
+      size: '2048x2048', quality: 'high', output_format: 'webp',
+    })
+  })
+
+  it('uses the public Grok model contract and sends n=10 in one request', async () => {
+    const model = catalogModel('grok-imagine-image-2.0', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
     const opts = requestOptions(model, { n: 10, resolution: '2K', aspect_ratio: '21:9', quality: 'medium' })
 
     expect(model.provider).toBe('xai')
@@ -80,12 +95,41 @@ describe('provider profile to image request routing', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0][0]).toBe('/v1/images/generations')
     expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
-      model: 'my-painter', prompt: 'Draw a red cup', n: 10, response_format: 'b64_json', resolution: '2k', aspect_ratio: '21:9', quality: 'medium',
+      model: 'grok-imagine-image-2.0', prompt: 'Draw a red cup', n: 10, response_format: 'b64_json', resolution: '2k', aspect_ratio: '21:9', quality: 'medium',
     })
   })
 
+  it('does not infer a provider-specific request from an unknown public alias', async () => {
+    const model = catalogModel('private-painter', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
+    await callImageApi(requestOptions(model, { resolution: '2K', n: 10, quality: 'medium', aspect_ratio: '21:9' }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
+      model: 'private-painter', prompt: 'Draw a red cup', n: 1,
+    })
+  })
+
+  it('uses the declared Gemini API for a public Grok model while retaining its documented controls', async () => {
+    const model = catalogModel('grok-imagine-image', 'gemini', [{ provider: 'unknown', profile: 'unknown' }])
+    expect(model.provider).toBe('xai')
+    expect(model.capabilities.resolutions).toEqual(['auto', '1K', '2K'])
+    const opts = requestOptions(model, { resolution: '2K', aspect_ratio: '16:9', n: 2 })
+    await callImageApi(opts)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const [url, init] of fetchMock.mock.calls) {
+      expect(url).toBe('/v1beta/models/grok-imagine-image:generateContent')
+      const body = JSON.parse(init!.body as string)
+      expect(body).toMatchObject({
+        generationConfig: { responseModalities: ['IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
+      })
+      expect(body).not.toHaveProperty('resolution')
+      expect(body).not.toHaveProperty('n')
+    }
+  })
+
   it('routes five xAI edit references as JSON images with native geometry and no GPT fields', async () => {
-    const model = catalogModel('custom-edit-service', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
+    const model = catalogModel('grok-imagine-image-2.0', 'openai', [{ provider: 'xai', profile: 'grok-imagine-image-2.0' }])
     const references = [PNG, JPEG, PNG, JPEG, PNG]
     await callImageApi(requestOptions(model, { resolution: '2K', aspect_ratio: '21:9', quality: 'medium', output_format: 'webp', moderation: 'low', output_compression: 80 }, references))
 
@@ -94,18 +138,18 @@ describe('provider profile to image request routing', () => {
     expect(fetchMock.mock.calls[0][1]!.headers).toMatchObject({ 'Content-Type': 'application/json' })
     const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string)
     expect(body).toEqual({
-      model: 'custom-edit-service', prompt: 'Draw a red cup', n: 1, response_format: 'b64_json', resolution: '2k', aspect_ratio: '21:9', quality: 'medium',
+      model: 'grok-imagine-image-2.0', prompt: 'Draw a red cup', n: 1, response_format: 'b64_json', resolution: '2k', aspect_ratio: '21:9', quality: 'medium',
       images: references.map((url) => ({ url, type: 'image_url' })),
     })
     for (const field of ['image', 'size', 'output_format', 'output_compression', 'moderation', 'stream', 'partial_images', 'background']) expect(body).not.toHaveProperty(field)
   })
 
-  it('routes an arbitrary Google alias through the declared native API with 512 and an ultrawide ratio', async () => {
-    const model = catalogModel('my-banana', 'gemini', [{ provider: 'google', profile: 'gemini-3.1-flash-image' }])
+  it('routes a public Google model through the declared native API with 512 and an ultrawide ratio', async () => {
+    const model = catalogModel('gemini-3.1-flash-image', 'gemini', [{ provider: 'google', profile: 'gemini-3.1-flash-image' }])
     const result = await callImageApi(requestOptions(model, { resolution: '0.5K', aspect_ratio: '8:1' }, [JPEG]))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][0]).toBe('/v1beta/models/my-banana:generateContent')
+    expect(fetchMock.mock.calls[0][0]).toBe('/v1beta/models/gemini-3.1-flash-image:generateContent')
     expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
       contents: [{ role: 'user', parts: [{ text: 'Draw a red cup' }, { inlineData: { mimeType: 'image/jpeg', data: '/9j/AQIDBA==' } }] }],
       generationConfig: { responseModalities: ['IMAGE'], imageConfig: { imageSize: '512', aspectRatio: '8:1' } },
@@ -114,7 +158,7 @@ describe('provider profile to image request routing', () => {
   })
 
   it('keeps Google-compatible Images on Images even when the parameter provider is Google', async () => {
-    const model = catalogModel('my-compatible-banana', 'openai', [{ provider: 'google', profile: 'gemini-3.1-flash-image' }])
+    const model = catalogModel('gemini-3.1-flash-image', 'openai', [{ provider: 'google', profile: 'gemini-3.1-flash-image' }])
     await callImageApi(requestOptions(model, { resolution: '2K', size: '1024x1024' }))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -122,8 +166,8 @@ describe('provider profile to image request routing', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({ model: model.id, prompt: 'Draw a red cup', n: 1, size: '2048x2048' })
   })
 
-  it('sends OpenAI 2.6 alias complexity and preserves original JPEG bytes in multipart edits', async () => {
-    const model = catalogModel('my-detailed-editor', 'openai', [{ provider: 'openai', profile: 'gpt-image-2.6', transport: 'images' }])
+  it('sends public OpenAI 2.6 complexity and preserves original JPEG bytes in multipart edits', async () => {
+    const model = catalogModel('gpt-image-2.6-flare', 'openai', [{ provider: 'openai', profile: 'gpt-image-2.6', transport: 'images' }])
     const opts = requestOptions(model, { complexity: 'high', resolution: '2K', size: '1024x1024', quality: 'high' }, [JPEG])
     await callImageApi(opts)
 
@@ -132,7 +176,7 @@ describe('provider profile to image request routing', () => {
     const request = fetchMock.mock.calls[0][1]!
     expect(request.headers).not.toHaveProperty('Content-Type')
     const form = request.body as FormData
-    expect(form.get('model')).toBe('my-detailed-editor')
+    expect(form.get('model')).toBe('gpt-image-2.6-flare')
     expect(form.get('complexity')).toBe('high')
     expect(form.get('size')).toBe('2048x2048')
     expect(form.get('quality')).toBe('high')
@@ -143,7 +187,7 @@ describe('provider profile to image request routing', () => {
   })
 
   it('does not send new Images-only complexity through the existing subscription bridge', async () => {
-    const model = catalogModel('my-subscription-editor', 'openai', [{ provider: 'openai', profile: 'gpt-image-2.6', transport: 'bridge' }])
+    const model = catalogModel('gpt-image-2.6-flare', 'openai', [{ provider: 'openai', profile: 'gpt-image-2.6', transport: 'bridge' }])
     const opts = requestOptions(model, { complexity: 'high' })
     expect(opts.params.complexity).toBeUndefined()
     await callImageApi(opts)

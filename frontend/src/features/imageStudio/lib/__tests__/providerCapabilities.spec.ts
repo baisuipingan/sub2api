@@ -56,32 +56,75 @@ describe('Image Studio documented provider capabilities', () => {
     expect(model('gpt-image-2.6-flare-private').capabilityStatus).toBe('unknown')
   })
 
-  it('uses route metadata for a public alias and separates Gemini capabilities from Images protocol', () => {
+  it.each([
+    { id: 'grok-imagine-image-2026-11-01', profile: 'grok-imagine-image' },
+    { id: 'grok-imagine-image-pro-2026-11-01', profile: 'grok-imagine-image-pro' },
+  ])('recognizes the documented Grok public snapshot $id without relying on private profiles', ({ id, profile }) => {
+    const current = model(id, { api: 'openai', profiles: [{ provider: 'unknown', profile: 'unknown' }] })
+    expect(current.provider).toBe('xai')
+    expect(current.capabilityStatus).toBe('known')
+    expect(current.profiles).toEqual([{ provider: 'xai', profile }])
+    expect(current.capabilities.resolutions).toEqual(['auto', '1K', '2K'])
+    expect(current.capabilities.imageCount.max).toBe(10)
+    expect(getRequestModelId(current, 'auto', '2K')).toBe(id)
+  })
+
+  it.each(['grok-imagine-image-2.0-2026-11-01', 'grok-imagine-image-pro-private', 'grok-imagine-image-2026-11'])('does not broaden Grok public naming beyond documented snapshots: %s', (id) => {
+    expect(model(id).capabilityStatus).toBe('unknown')
+  })
+
+  it.each([
+    [{ provider: 'unknown', profile: 'unknown' }],
+    [{ provider: 'google', profile: 'gemini-3.1-flash-image' }],
+    [{ provider: 'openai', profile: 'gpt-image-2' }, { provider: 'unknown', profile: 'unknown' }],
+    [{ provider: 'openai', profile: 'gpt-image-2' }, { provider: 'xai', profile: 'grok-imagine-image-2.0' }],
+  ])('keeps the public GPT Image 2 contract regardless of private mapping profiles: %j', (...profiles) => {
+    const current = model('gpt-image-2', { api: 'openai', profiles })
+    expect(current.provider).toBe('openai')
+    expect(current.capabilityStatus).toBe('known')
+    expect(current.profiles).toEqual([{ provider: 'openai', profile: 'gpt-image-2' }])
+    expect(current.capabilities.resolutions).toContain('4K')
+    expect(current.capabilities.qualities).toContain('high')
+    expect(current.capabilities.referenceImages).toBe(16)
+  })
+
+  it('does not promote an unknown public alias using a known private mapping', () => {
     const current = model('my-private-banana', { api: 'openai', profiles: [{ provider: 'google', profile: 'gemini-3.1-flash-image' }] })
-    expect(current.provider).toBe('google')
+    expect(current.provider).toBe('unknown')
     expect(current.api).toBe('openai')
+    expect(current.capabilityStatus).toBe('unknown')
     expect(current.capabilities.qualities).toEqual([])
-    expect(current.capabilities.resolutions).toEqual(['auto', '1K', '2K', '4K'])
-    expect(current.capabilities.aspectRatios).not.toContain('1:8')
+    expect(current.capabilities.resolutions).toEqual(['auto'])
+    expect(current.capabilities.referenceImages).toBe(0)
     expect(current.name).toBe('my-private-banana')
   })
 
-  it('does not let a public GPT-looking alias override authoritative unknown mapping metadata', () => {
-    const current = model('gpt-image-2.6-flare', { api: 'openai', profiles: [{ provider: 'unknown', profile: 'unknown' }] })
-    expect(current.capabilityStatus).toBe('unknown')
-    expect(current.capabilities.complexities).toEqual([])
-    expect(current.capabilities.resolutions).toEqual(['auto'])
+  it('preserves the declared API and channel size tiers independently of public model capabilities', () => {
+    const current = model('gemini-3.1-flash-image', {
+      api: 'openai', available_size_tiers: ['1K', '2K'],
+      profiles: [{ provider: 'unknown', profile: 'unknown' }],
+    })
+    expect(current.provider).toBe('google')
+    expect(current.api).toBe('openai')
+    expect(current.capabilityStatus).toBe('known')
+    expect(current.capabilities.resolutions).toEqual(['auto', '1K', '2K', '4K'])
+    expect(current.capabilities.aspectRatios).not.toContain('1:8')
+    expect(isResolutionAvailable(current, '4K')).toBe(false)
+    expect(getRequestModelId(current, 'auto', '2K')).toBe(current.id)
   })
 
-  it('intersects all serving profiles, including unknown and bridge constraints', () => {
-    const metadata = { api: 'openai', profiles: [{ provider: 'openai', profile: 'gpt-image-2.6' }, { provider: 'openai', profile: 'gpt-image-2.6', transport: 'bridge' }] }
-    const mixed = model('paint', metadata)
-    expect(mixed.capabilityStatus).toBe('mixed')
-    expect(mixed.capabilities.complexities).toEqual([])
-    expect(mixed.capabilities.resolutions).toContain('4K')
-    const unknown = model('paint', { ...metadata, profiles: [...metadata.profiles, { provider: 'unknown', profile: 'unknown' }] })
-    expect(unknown.capabilities.referenceImages).toBe(0)
-    expect(unknown.capabilities.resolutions).toEqual(['auto'])
+  it('preserves bridge transport limits without using upstream model families', () => {
+    const current = model('gpt-image-2.6-flare', {
+      api: 'openai', profiles: [
+        { provider: 'unknown', profile: 'unknown', transport: 'bridge' },
+        { provider: 'google', profile: 'gemini-3.1-flash-image' },
+      ],
+    })
+    expect(current.provider).toBe('openai')
+    expect(current.capabilityStatus).toBe('known')
+    expect(current.profiles).toEqual([{ provider: 'openai', profile: 'gpt-image-2.6', transport: 'bridge' }])
+    expect(current.capabilities.complexities).toEqual([])
+    expect(current.capabilities.resolutions).toContain('4K')
   })
 
   it('uses separate Google model profiles rather than giving every Gemini model 4K', () => {
@@ -90,15 +133,6 @@ describe('Image Studio documented provider capabilities', () => {
     expect(model('gemini-3-pro-image-preview').capabilities.resolutions).toEqual(['auto', '1K', '2K', '4K'])
     expect(model('gemini-3.1-flash-image').capabilities.resolutions).toContain('0.5K')
     expect(model('gemini-nano-banana-2.1').capabilities.resolutions).not.toContain('0.5K')
-  })
-
-  it('does not advertise incompatible geometry fields when one public ID mixes Images vendors', () => {
-    const current = model('mixed-painter', { api: 'openai', profiles: [{ provider: 'openai', profile: 'gpt-image-2.6' }, { provider: 'xai', profile: 'grok-imagine-image-2.0' }] })
-    expect(current.capabilityStatus).toBe('mixed')
-    expect(current.provider).toBe('unknown')
-    expect(current.capabilities.resolutions).toEqual(['auto'])
-    expect(current.capabilities.referenceImages).toBe(0)
-    expect(current.capabilities.qualities).toEqual([])
   })
 
   it('preserves native 512 and ultrawide ratios without GPT pixel clamping', () => {

@@ -49,22 +49,18 @@ func TestImageStudioProfilesDoNotGuessPrivateOrAdjacentFamilies(t *testing.T) {
 	}
 }
 
-func TestImageStudioProfilesDescribeEverySupplierBehindPublicAlias(t *testing.T) {
+func TestImageStudioProfilesUsePublicContractAcrossDifferentSuppliers(t *testing.T) {
 	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
 		studioModelsAccount(1, PlatformOpenAI, map[string]any{"gpt-image-2": "gpt-image-2.6-flare"}),
 		studioModelsAccount(2, PlatformOpenAI, map[string]any{"gpt-image-2": "gemini-3.1-flash-image"}),
 		studioModelsAccount(3, PlatformOpenAI, map[string]any{"gpt-image-2": "gpt-image-2.6-sunburst"}),
 		studioModelsAccount(4, PlatformOpenAI, map[string]any{"gpt-image-2": "gpt-image-private-product"}),
-	}}, studioModelRoute("public-painter", "gpt-image-2", PlatformOpenAI, CompositeRouteEndpointImages))
+	}}, studioModelRoute("gpt-image-2", "gpt-image-2", PlatformOpenAI, CompositeRouteEndpointImages))
 	group := &Group{ID: 14, Platform: PlatformComposite, Status: StatusActive, AllowImageGeneration: true,
-		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter"}}}
+		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-image-2"}}}
 	models, err := svc.ListImageStudioModels(context.Background(), group)
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{{ID: "public-painter", API: "openai", Profiles: []ImageStudioModelProfile{
-		{Provider: "google", Profile: "gemini-3.1-flash-image"},
-		{Provider: "openai", Profile: "gpt-image-2.6"},
-		unknownImageStudioProfile,
-	}, AvailableSizeTiers: []string{ImageBillingSize1K, ImageBillingSize2K, ImageBillingSize4K}}}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2")}, models)
 	encoded, err := json.Marshal(models)
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "gpt-image-private-product")
@@ -72,13 +68,13 @@ func TestImageStudioProfilesDescribeEverySupplierBehindPublicAlias(t *testing.T)
 	require.NotContains(t, string(encoded), "sunburst")
 }
 
-func TestImageStudioProfilesDoNotInferTargetFromKnownPublicName(t *testing.T) {
+func TestImageStudioProfilesKnownPublicContractSurvivesPrivateTarget(t *testing.T) {
 	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
 		studioModelsAccount(1, PlatformOpenAI, map[string]any{"gpt-image-2.6-flare": "gpt-image-private-product"}),
 	}})
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2.6-flare", "unknown", "unknown")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2.6-flare", "openai", "gpt-image-2.6")}, models)
 }
 
 func TestImageStudioProfilesMergeSizeProductsByCanonicalFamily(t *testing.T) {
@@ -94,6 +90,41 @@ func TestImageStudioProfilesMergeSizeProductsByCanonicalFamily(t *testing.T) {
 	require.Equal(t, []ImageStudioModel{want}, models)
 }
 
+func TestImageStudioProfilesPublicContractKeepsSupplierSizeRestrictions(t *testing.T) {
+	base := studioModelsAccount(1, PlatformOpenAI, map[string]any{"gpt-image-2": "gpt-image-2"})
+	native := studioModelsAccount(2, PlatformOpenAI, map[string]any{"gpt-image-2": "gpt-image-2-原生4k"})
+	base.Extra = map[string]any{AccountExtraOpenAIImageSizeTiers: []any{"1K", "2K"}}
+	native.Extra = map[string]any{AccountExtraOpenAIImageSizeTiers: []any{"4K"}}
+	for _, accounts := range [][]Account{{base, native}, {native}} {
+		svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: accounts})
+		group := &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true}
+		models, err := svc.ListImageStudioModels(context.Background(), group)
+		require.NoError(t, err)
+		want := studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2")
+		if len(accounts) == 1 {
+			want.AvailableSizeTiers = []string{ImageBillingSize4K}
+		}
+		require.Equal(t, []ImageStudioModel{want}, models)
+		encoded, err := json.Marshal(models)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded), "原生")
+	}
+}
+
+func TestImageStudioPublicContractIsIndependentOfNativeProtocol(t *testing.T) {
+	account := studioModelsAccount(1, PlatformGemini, map[string]any{"gpt-image-2": "gemini-3-pro-image"})
+	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{account}})
+	models, err := svc.ListImageStudioModels(context.Background(), &Group{
+		ID: 14, Platform: PlatformGemini, Status: StatusActive, AllowImageGeneration: true,
+	})
+	require.NoError(t, err)
+	profile := ImageStudioModelProfile{Provider: "openai", Profile: "gpt-image-2"}
+	require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2", API: "gemini", Profiles: []ImageStudioModelProfile{profile}}}, models)
+	require.Equal(t, []ImageStudioModelProfile{profile}, studioCurrentProfiles(StudioJobSpec{
+		Protocol: "gemini", Model: "gpt-image-2",
+	}, models), "the native request adapter follows the admitted API, not the supplier's private family")
+}
+
 func TestImageStudioProfilesPreserveBridgeConstraintInMixedPool(t *testing.T) {
 	apiKey := studioModelsAccount(1, PlatformOpenAI, map[string]any{"gpt-image-2.6-flare": "gpt-image-2.6-flare"})
 	apiKey.Extra = map[string]any{"openai_passthrough": true}
@@ -105,7 +136,6 @@ func TestImageStudioProfilesPreserveBridgeConstraintInMixedPool(t *testing.T) {
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
 	require.Equal(t, []ImageStudioModel{{ID: "gpt-image-2.6-flare", API: "openai", Profiles: []ImageStudioModelProfile{
-		{Provider: "openai", Profile: "gpt-image-2.6"},
 		{Provider: "openai", Profile: "gpt-image-2.6", Transport: "bridge"},
 	}, AvailableSizeTiers: []string{ImageBillingSize1K, ImageBillingSize2K, ImageBillingSize4K}}}, models)
 }
@@ -127,7 +157,7 @@ func TestImageStudioProfilesImagesAPIKeyPassthroughStillUsesAccountMapping(t *te
 	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{account}})
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "google", "gemini-3-pro-image")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2")}, models)
 }
 
 func TestImageStudioProfilesNanoBananaUsesNativeAdmissionOnly(t *testing.T) {
@@ -142,7 +172,7 @@ func TestImageStudioProfilesNanoBananaUsesNativeAdmissionOnly(t *testing.T) {
 			})
 			require.NoError(t, err)
 			if platform == PlatformGemini {
-				require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-banana", "gemini", "google", "gemini-nano-banana-2.1")}, models)
+				require.Equal(t, []ImageStudioModel{studioModelWithProfile("public-banana", "gemini", "unknown", "unknown")}, models)
 			} else {
 				require.Empty(t, models, "metadata must not bypass the existing Images API model validation")
 			}

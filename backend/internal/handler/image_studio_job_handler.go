@@ -39,6 +39,8 @@ func studioJobHTTPError(c *gin.Context, err error) {
 		response.ErrorWithDetails(c, http.StatusBadRequest, "invalid studio task", "STUDIO_JOB_INVALID", nil)
 	case errors.Is(err, service.ErrStudioJobConflict):
 		response.ErrorWithDetails(c, http.StatusConflict, "studio task ID conflicts with a previous request", "STUDIO_JOB_CONFLICT", nil)
+	case errors.Is(err, service.ErrStudioJobRouteChanged):
+		response.ErrorWithDetails(c, http.StatusConflict, "image model parameters changed; refresh the model list before submitting again", "MODEL_ROUTE_CHANGED", nil)
 	case errors.Is(err, service.ErrStudioJobNotFound):
 		response.ErrorWithDetails(c, http.StatusNotFound, "studio task not found", "STUDIO_JOB_NOT_FOUND", nil)
 	case errors.Is(err, service.ErrGalleryDisabled):

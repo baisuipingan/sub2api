@@ -2,13 +2,12 @@ package service
 
 import (
 	"regexp"
-	"sort"
 	"strings"
 )
 
-// ImageStudioModelProfile identifies a documented parameter family, not the
-// supplier account or the transport protocol. Only fixed public enums are sent
-// to clients; an unknown private mapping must never become an exposed model ID.
+// ImageStudioModelProfile identifies the public model's documented parameter
+// contract. Supplier mapping targets do not redefine that contract. Only fixed
+// public enums are sent to clients; private targets remain server-side.
 type ImageStudioModelProfile struct {
 	Provider  string `json:"provider"`
 	Profile   string `json:"profile"`
@@ -46,32 +45,4 @@ func imageStudioProfileForModel(model string) ImageStudioModelProfile {
 		}
 	}
 	return unknownImageStudioProfile
-}
-
-func imageStudioAccountProfile(account *Account, upstream string) ImageStudioModelProfile {
-	profile := imageStudioProfileForModel(upstream)
-	// The subscription bridge is a transport constraint, not another model
-	// family. Clients can retain the known family while limiting its parameters
-	// to the subset this existing Images bridge actually forwards.
-	if account.IsOpenAIOAuthLike() {
-		profile.Transport = "bridge"
-	}
-	return profile
-}
-
-func sortedImageStudioProfiles(profiles map[ImageStudioModelProfile]struct{}) []ImageStudioModelProfile {
-	result := make([]ImageStudioModelProfile, 0, len(profiles))
-	for profile := range profiles {
-		result = append(result, profile)
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Provider != result[j].Provider {
-			return result[i].Provider < result[j].Provider
-		}
-		if result[i].Profile != result[j].Profile {
-			return result[i].Profile < result[j].Profile
-		}
-		return result[i].Transport < result[j].Transport
-	})
-	return result
 }

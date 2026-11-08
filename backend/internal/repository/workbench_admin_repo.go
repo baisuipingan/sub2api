@@ -126,5 +126,8 @@ func (r *workbenchAdminRepository) ListTasks(ctx context.Context, f service.Work
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
+	if err := loadWorkbenchTaskRoutes(ctx, tx, result.Items); err != nil {
+		return nil, err
+	}
 	return result, tx.Commit()
 }

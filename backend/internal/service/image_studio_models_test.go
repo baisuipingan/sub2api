@@ -76,7 +76,7 @@ func TestImageStudioModelsIgnoreRoutesWithoutConfiguredSupplier(t *testing.T) {
 	)
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformComposite, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "unknown", "unknown"), studioOpenAIModelWithProfile("gpt-image-2.5", "unknown", "unknown")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2"), studioOpenAIModelWithProfile("gpt-image-2.5", "openai", "gpt-image-2.5")}, models)
 	require.Equal(t, int64(14), repo.groupID)
 	encoded, err := json.Marshal(models)
 	require.NoError(t, err)
@@ -110,16 +110,16 @@ func TestImageStudioModelsResolveAliasesToCorrectClientProtocol(t *testing.T) {
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter", "public-banana", "fake-image"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "unknown", "unknown"), studioModelWithProfile("public-banana", "gemini", "google", "gemini-3.1-flash-image")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "unknown", "unknown"), studioModelWithProfile("public-banana", "gemini", "unknown", "unknown")}, models)
 }
 
-func TestImageStudioModelsCompatibleGeminiUsesImagesProtocol(t *testing.T) {
+func TestImageStudioModelsPublicContractIsIndependentOfCompatibleSupplier(t *testing.T) {
 	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
 		studioModelsAccount(1, PlatformOpenAI, map[string]any{"gpt-image-2": "gemini-3.1-flash-image"}),
 	}})
 	models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "google", "gemini-3.1-flash-image")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2")}, models)
 }
 
 func TestImageStudioModelsOAuthCannotServeCompatibleGeminiAlias(t *testing.T) {
@@ -163,7 +163,7 @@ func TestImageStudioModelsUnmappedAccountNeedsExplicitCatalog(t *testing.T) {
 	group.Platform = PlatformComposite
 	models, err = svc.ListImageStudioModels(context.Background(), group)
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("configured-painter", "openai", "gpt-image-2")}, models,
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("configured-painter", "unknown", "unknown")}, models,
 		"an explicit public route backed by an unrestricted account remains available")
 }
 

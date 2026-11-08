@@ -417,10 +417,12 @@ func (r *studioJobRepository) FailCall(ctx context.Context, claim service.Studio
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	// Use one explicit type for the error code: PostgreSQL otherwise infers
+	// varchar from the assignment and text from LIKE and rejects this update.
 	result, err := tx.ExecContext(ctx, `UPDATE image_studio_job_calls SET
-        status='failed',error_code=$5,error_message=$6,lease_token=NULL,lease_until=NULL,
+        status='failed',error_code=$5::text,error_message=$6,lease_token=NULL,lease_until=NULL,
         spool_path=NULL,spool_owner=NULL,
-        billing_state=CASE WHEN sent_at IS NULL OR $5 LIKE 'GATEWAY_HTTP_4%'
+        billing_state=CASE WHEN sent_at IS NULL OR $5::text LIKE 'GATEWAY_HTTP_4%'
           THEN 'not_started' ELSE 'pending' END,
         updated_at=NOW()
         WHERE user_id=$1 AND task_id=$2 AND ordinal=$3 AND lease_token=$4::uuid

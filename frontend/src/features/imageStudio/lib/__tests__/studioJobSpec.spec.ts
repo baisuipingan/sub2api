@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PARAMS, type AppSettings } from '../../types'
-import { getImageModel } from '../modelRegistry'
+import { createImageModelCatalogFromModelList, getImageModel } from '../modelRegistry'
 import { buildStudioJobSpec } from '../studioJobSpec'
 
 const settings: AppSettings = {
@@ -57,6 +57,47 @@ describe('Studio durable job spec parity', () => {
     expect(spec.params).toMatchObject({ n: 3, response_format: 'b64_json', resolution: '2k' })
     expect(spec.request_input_image_ids).toEqual(['input-1'])
     expect(JSON.stringify(spec)).not.toContain('data:image/')
+  })
+
+  it.each(['grok-imagine-image-2026-11-01', 'grok-imagine-image-pro-2026-11-01'])('keeps the public Grok snapshot %s on its native durable protocol', (id) => {
+    const model = getImageModel(id)!
+    expect(model).not.toBeNull()
+    const spec = buildStudioJobSpec({
+      settings: { ...settings, selectedModelId: id },
+      modelId: model.id,
+      apiKind: model.api,
+      modelProvider: model.provider,
+      modelCapabilities: model.capabilities,
+      prompt: 'A red figure',
+      params: { ...DEFAULT_PARAMS, resolution: '2K', aspect_ratio: '16:9', n: 3 },
+      inputImageDataUrls: [],
+    }, {
+      inputImageIds: [], requestInputImageIds: [], postprocess: 'none', providerProfile: model.profiles![0].profile,
+    })
+    expect(spec).toMatchObject({ model: id, protocol: 'grok', provider_profile: model.profiles![0].profile })
+    expect(spec.params).toMatchObject({ n: 3, resolution: '2k', aspect_ratio: '16:9' })
+    expect(spec.params).not.toHaveProperty('size')
+  })
+
+  it('uses the declared Gemini protocol for a public Grok model durable job', () => {
+    const model = createImageModelCatalogFromModelList({ models: [{
+      id: 'grok-imagine-image', api: 'gemini', profiles: [{ provider: 'unknown', profile: 'unknown' }],
+    }] })[0]
+    expect(model.provider).toBe('xai')
+    const spec = buildStudioJobSpec({
+      settings: { ...settings, selectedModelId: model.id },
+      modelId: model.id,
+      apiKind: model.api,
+      modelProvider: model.provider,
+      modelCapabilities: model.capabilities,
+      prompt: 'A red figure',
+      params: { ...DEFAULT_PARAMS, resolution: '2K', aspect_ratio: '16:9', n: 2 },
+      inputImageDataUrls: [],
+    }, {
+      inputImageIds: [], requestInputImageIds: [], postprocess: 'none', providerProfile: model.profiles![0].profile,
+    })
+    expect(spec).toMatchObject({ model: model.id, protocol: 'gemini', provider_profile: 'grok-imagine-image', image_count: 2 })
+    expect(spec.params).toEqual({ generationConfig: { responseModalities: ['IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } } })
   })
 
   it('uses the Gemini imageConfig builder and rejects missing input IDs', () => {

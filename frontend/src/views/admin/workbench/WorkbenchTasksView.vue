@@ -27,6 +27,7 @@
             <div class="max-w-64 break-words text-xs"><p class="font-mono text-gray-900 dark:text-white">{{ row.task_id }}</p><p class="mt-1 text-gray-500 dark:text-dark-400">{{ row.user_email || t('admin.workbench.user', { id: row.user_id }) }}</p><p class="text-gray-400">#{{ row.user_id }}</p></div>
           </template>
           <template #cell-model="{ row }"><div class="max-w-52 break-words"><p class="font-medium">{{ row.model }}</p><p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ row.protocol }}</p></div></template>
+          <template #cell-route_calls="{ row }"><WorkbenchTaskRoutes :calls="row.route_calls || []" /></template>
           <template #cell-status="{ row }"><StatusBadge :status="workbenchStatusVariant(row.status)" :label="t('admin.workbench.statuses.' + row.status)" /></template>
           <template #cell-output_count="{ row }"><div class="whitespace-nowrap text-xs"><p>{{ t('admin.workbench.imageProgress', { done: row.output_count, total: row.image_count }) }}</p><p class="mt-1 text-gray-500 dark:text-dark-400">{{ t('admin.workbench.callCount', { count: row.call_count }) }}</p></div></template>
           <template #cell-created_at="{ row }"><div class="whitespace-nowrap text-xs"><time :datetime="row.created_at">{{ formatTime(row.created_at) }}</time><p v-if="workbenchElapsedSeconds(row) !== null" class="mt-1 text-gray-500 dark:text-dark-400">{{ t(row.finished_at ? 'admin.workbench.duration' : 'admin.workbench.runningDuration', { seconds: workbenchElapsedSeconds(row) }) }}</p></div></template>
@@ -51,6 +52,7 @@ import Input from '@/components/common/Input.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
+import WorkbenchTaskRoutes from './WorkbenchTaskRoutes.vue'
 import { listWorkbenchTasks, WORKBENCH_TASK_STATUSES, type WorkbenchTask, type WorkbenchTaskQuery, type WorkbenchTaskStatus } from '@/api/admin/workbench'
 import { workbenchElapsedSeconds, workbenchStatusVariant, workbenchUserIdFilter } from './workbenchDisplay'
 
@@ -70,6 +72,7 @@ const statusOptions = computed(() => [{ value: '', label: t('admin.workbench.fil
 const columns = computed(() => [
   { key: 'task_id', label: t('admin.workbench.columns.task') },
   { key: 'model', label: t('admin.workbench.columns.model') },
+  { key: 'route_calls', label: t('admin.workbench.columns.upstream') },
   { key: 'status', label: t('admin.workbench.columns.status') },
   { key: 'output_count', label: t('admin.workbench.columns.images') },
   { key: 'created_at', label: t('admin.workbench.columns.time') },

@@ -339,7 +339,7 @@ export function filterGeminiImageModelsByNativeModelList(catalog: readonly Image
   return catalog.map((model) => {
     if (!model.id.startsWith('gemini-')) return model
     const api = availableIds.has(model.id) ? 'gemini' as const : 'openai' as const
-    const capabilities = model.profiles?.length ? commonCapabilities(model.profiles, api) : model.capabilities
+    const capabilities = model.profiles?.length ? profileCapabilities(model.profiles[0], api) : model.capabilities
     return { ...model, api, capabilities, requestModels: Object.fromEntries(capabilities.resolutions.map((tier) => [tier, model.id])) }
   })
 }
@@ -438,7 +438,8 @@ function inferModelProfile(id: string): ImageModelProfile {
     const family = profile === 'gpt-image-2.5' || profile === 'gpt-image-2.6' ? escaped + '(?:-(?:flare|sunburst))?' : escaped
     const suffix = profile.startsWith('gpt-')
       ? '(?:-\\d{4}-\\d{2}-\\d{2})?(?:-[124]k)?$'
-      : profile.startsWith('gemini-') ? '(?:-preview)?(?:-\\d{4}-\\d{2}-\\d{2})?$' : '$'
+      : profile.startsWith('gemini-') ? '(?:-preview)?(?:-\\d{4}-\\d{2}-\\d{2})?$'
+        : profile === 'grok-imagine-image' || profile === 'grok-imagine-image-pro' ? '(?:-\\d{4}-\\d{2}-\\d{2})?$' : '$'
     if (new RegExp('^' + family + suffix).test(model)) {
       return { provider: CAPABILITY_PROFILES[profile].provider, profile }
     }
@@ -465,32 +466,7 @@ function profileCapabilities(profile: ImageModelProfile, api: ImageApiKind): Ima
   return capabilities
 }
 
-function commonCapabilities(profiles: ImageModelProfile[], api: ImageApiKind): ImageModelCapabilities {
-  // Images providers can use incompatible JSON fields for the same concept.
-  // Without one shared adapter, only their minimal generation request is safe.
-  if (new Set(profiles.map((profile) => profile.provider)).size > 1) return createFallbackImageModel('').capabilities
-  const caps = profiles.map((profile) => profileCapabilities(profile, api))
-  const common = structuredClone(caps[0])
-  const arrays = ['resolutions', 'aspectRatios', 'qualities', 'outputFormats', 'moderation', 'complexities'] as const
-  for (const key of arrays) {
-    const values = (common[key] ?? []).filter((value) => caps.every((cap) => (cap[key] as readonly string[] | undefined)?.includes(value)))
-    ;(common as unknown as Record<string, unknown>)[key] = values
-  }
-  for (const key of ['customSize', 'outputCompression', 'mask', 'transparentOutput', 'nativeTransparentOutput', 'streamingGeneration', 'streamingEdit'] as const) {
-    common[key] = caps.every((cap) => cap[key])
-  }
-  common.imageCount = { min: Math.max(...caps.map((cap) => cap.imageCount.min)), max: Math.min(...caps.map((cap) => cap.imageCount.max)) }
-  common.referenceImages = Math.min(...caps.map((cap) => cap.referenceImages))
-  common.maxPartialImages = Math.min(...caps.map((cap) => cap.maxPartialImages)) as 0 | 1 | 2 | 3
-  if (!common.resolutions.length) common.resolutions = ['auto']
-  if (!common.aspectRatios.length) common.aspectRatios = ['1:1']
-  if (caps.some((cap) => cap.fixedSizes)) {
-    common.fixedSizes = caps.find((cap) => cap.fixedSizes)?.fixedSizes?.filter((size) => caps.every((cap) => !cap.fixedSizes || cap.fixedSizes.includes(size)))
-  }
-  return common
-}
-
-/** Model membership and names come only from the response; profiles supply controls. */
+/** Model membership comes from discovery; public IDs select documented controls. */
 export function createImageModelCatalogFromModelList(payload: unknown): ImageModelDefinition[] {
   const availableIds = getAvailableModelIds(payload)
   const items = extractModelItems(payload) ?? []
@@ -501,23 +477,19 @@ export function createImageModelCatalogFromModelList(payload: unknown): ImageMod
   return [...availableIds].filter((id) => isImageModelId(id) || inferModelProfile(id).provider !== 'unknown' || metadata.get(id)?.api === 'openai' || metadata.get(id)?.api === 'gemini').map((id) => {
     const item = metadata.get(id)
     const api: ImageApiKind = item?.api === 'gemini' || item?.api === 'openai' ? item.api : /^gemini-/i.test(id) ? 'gemini' : 'openai'
-    // Explicit unknown metadata is authoritative; a public alias must not override it.
-    const profiles: ImageModelProfile[] = Array.isArray(item?.profiles) && item.profiles.length
-      ? item.profiles.map((entry: unknown) => {
-        if (!isRecord(entry) || !['openai', 'google', 'xai', 'unknown'].includes(String(entry.provider)) || typeof entry.profile !== 'string') {
-          return { provider: 'unknown', profile: 'unknown' }
-        }
-        return { provider: entry.provider as ImageModelProvider, profile: entry.profile, ...(entry.transport === 'bridge' ? { transport: 'bridge' as const } : {}) }
-      })
-      : [inferModelProfile(id)]
-    const providers = new Set(profiles.map((profile) => profile.provider))
-    const provider: ImageModelProvider = providers.size === 1 ? profiles[0].provider : 'unknown'
-    const capabilities = commonCapabilities(profiles, api)
-    const known = profiles.every((profile) => CAPABILITY_PROFILES[profile.profile]?.provider === profile.provider)
+    // The public model ID defines the parameter contract the supplier promises.
+    // Private targets and other suppliers behind that ID must not alter controls.
+    const inferred = inferModelProfile(id)
+    const bridge = api === 'openai' && inferred.provider === 'openai'
+      && Array.isArray(item?.profiles) && item.profiles.some((entry: unknown) => isRecord(entry) && entry.transport === 'bridge')
+    const profiles: ImageModelProfile[] = [{ ...inferred, ...(bridge ? { transport: 'bridge' as const } : {}) }]
+    const provider = inferred.provider
+    const capabilities = profileCapabilities(profiles[0], api)
+    const known = inferred.provider !== 'unknown'
     return {
       id, name: id, api, provider, profiles,
       ...(Array.isArray(item?.available_size_tiers) ? { availableSizeTiers: ['1K', '2K', '4K'].filter((tier) => (item.available_size_tiers as unknown[]).includes(tier)) as Array<'1K' | '2K' | '4K'> } : {}),
-      capabilityStatus: !known ? 'unknown' as const : new Set(profiles.map((profile) => profile.profile + (profile.transport ?? ''))).size > 1 ? 'mixed' as const : 'known' as const,
+      capabilityStatus: known ? 'known' as const : 'unknown' as const,
       requestModels: Object.fromEntries(capabilities.resolutions.map((tier) => [tier, id])) as ImageModelDefinition['requestModels'],
       capabilities,
       defaults: { ...DEFAULTS },

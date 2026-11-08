@@ -40,7 +40,7 @@ describe('Image Studio default resolution state', () => {
     expect(state.params).toMatchObject({ resolution: '4K', size: '2880x2880' })
   })
 
-  it('keeps authoritative unknown-model metadata during local initialization', async () => {
+  it('keeps public GPT Image 2 at explicit 2K despite unknown private mapping metadata', async () => {
     const { initStore, storeState: state, useStore } = await import('../store')
     useStore.setState({
       modelCatalog: createImageModelCatalogFromModelList({ models: [{
@@ -48,7 +48,7 @@ describe('Image Studio default resolution state', () => {
       }] }),
     })
     await initStore()
-    expect(state.params).toMatchObject({ resolution: 'auto', size: 'auto' })
+    expect(state.params).toMatchObject({ resolution: '2K', size: '2048x2048' })
   })
 
   it.each(['auto', undefined])('preserves history but makes reused automatic geometry explicit with stored resolution %s', async (resolution) => {

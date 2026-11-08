@@ -27,12 +27,12 @@ func TestImageStudioModelsRespectPersistentChannelRestrictions(t *testing.T) {
 			svc.channelService = newTestChannelService(makeStandardRepo(channel, map[int64]string{14: PlatformOpenAI}))
 			models, err := svc.ListImageStudioModels(context.Background(), &Group{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, AllowImageGeneration: true})
 			require.NoError(t, err)
-			require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "unknown", "unknown")}, models)
+			require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("gpt-image-2", "openai", "gpt-image-2")}, models)
 		})
 	}
 }
 
-func TestImageStudioProfilesFollowCompositeChannelAndAccountMapping(t *testing.T) {
+func TestImageStudioProfilesDoNotBorrowPrivateMappingContract(t *testing.T) {
 	svc := studioModelsGateway(&imageStudioModelsAccountRepo{accounts: []Account{
 		studioModelsAccount(1, PlatformOpenAI, map[string]any{
 			"gpt-image-2": "gpt-image-1", "gpt-image-2.5": "gpt-image-2.6-sunburst-2026-11-01",
@@ -48,7 +48,7 @@ func TestImageStudioProfilesFollowCompositeChannelAndAccountMapping(t *testing.T
 		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"public-painter"}},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "openai", "gpt-image-2.6")}, models)
+	require.Equal(t, []ImageStudioModel{studioOpenAIModelWithProfile("public-painter", "unknown", "unknown")}, models)
 }
 
 func TestImageStudioSizeTiersExcludeChannelRejectedSupplier(t *testing.T) {
