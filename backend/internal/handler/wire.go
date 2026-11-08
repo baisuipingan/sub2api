@@ -12,6 +12,7 @@ import (
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
+	workbenchHandler *admin.WorkbenchHandler,
 	userHandler *admin.UserHandler,
 	groupHandler *admin.GroupHandler,
 	accountHandler *admin.AccountHandler,
@@ -59,6 +60,7 @@ func ProvideAdminHandlers(
 	accountHandler.SetClaudeResetCreditService(claudeResetCredits)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
+		Workbench:              workbenchHandler,
 		User:                   userHandler,
 		Group:                  groupHandler,
 		Account:                accountHandler,
@@ -290,6 +292,7 @@ var ProviderSet = wire.NewSet(
 
 	// Admin handlers
 	admin.NewDashboardHandler,
+	admin.NewWorkbenchHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandlerWithConfig,
 	admin.ProvideAccountHandler,

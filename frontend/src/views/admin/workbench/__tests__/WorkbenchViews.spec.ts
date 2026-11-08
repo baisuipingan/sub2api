@@ -1,0 +1,152 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
+import { createI18n } from 'vue-i18n'
+import zh from '@/i18n/locales/zh'
+import WorkbenchOverviewView from '../WorkbenchOverviewView.vue'
+import WorkbenchTasksView from '../WorkbenchTasksView.vue'
+import { workbenchElapsedSeconds, workbenchUserIdFilter } from '../workbenchDisplay'
+import type { WorkbenchOverview, WorkbenchTask } from '@/api/admin/workbench'
+
+const { getOverview, listTasks } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn() }))
+vi.mock('@/api/admin/workbench', async importOriginal => ({
+  ...await importOriginal<typeof import('@/api/admin/workbench')>(),
+  getWorkbenchOverview: getOverview,
+  listWorkbenchTasks: listTasks,
+}))
+
+const TableStub = defineComponent({
+  props: ['data', 'columns', 'loading'],
+  setup(props, { slots }) {
+    return () => h('div', props.data.length
+      ? props.data.map((row: WorkbenchTask) => h('div', props.columns.map((column: { key: string }) => slots['cell-' + column.key]?.({ row }))))
+      : slots.empty?.())
+  },
+})
+const SelectStub = defineComponent({
+  inheritAttrs: false,
+  props: ['modelValue', 'options'], emits: ['update:modelValue'],
+  setup(props, { emit, attrs }) {
+    return () => h('select', { ...attrs, value: props.modelValue, onChange: (event: Event) => emit('update:modelValue', (event.target as HTMLSelectElement).value) }, props.options.map((option: { value: string; label: string }) => h('option', { value: option.value }, option.label)))
+  },
+})
+function overview(total = 3): WorkbenchOverview {
+  return {
+    scope: 'studio_cloud_jobs', days: 7, since: '2026-11-01T00:00:00Z', until: '2026-11-08T00:00:00Z',
+    tasks: { total, queued: 0, generating: 0, saving: 0, completed: 2, partial: 0, failed: 1, unknown: 0, cancelled: 0 },
+    calls: { total: 5, completed: 4, failed: 1, unknown: 0, cancelled: 0, billing_pending: 0, billing_unknown: 0 },
+    output_images: 4, success_rate: 2 / 3, queue: { queued: 1, generating: 2, saving: 3, unknown: 4 },
+    gallery: { tasks: 8, output_images: 10, assets: 15, used_bytes: 1024 },
+  }
+}
+const task: WorkbenchTask = {
+  task_id: 'job-unknown', user_id: 9, user_email: 'user@example.test', model: 'custom-image-model', protocol: 'openai', status: 'unknown',
+  image_count: 5, output_count: 2, call_count: 3, billing_pending: 1, billing_unknown: 1,
+  created_at: '2026-11-08T00:00:00Z', updated_at: '2026-11-08T00:00:01Z', finished_at: '2026-11-08T00:00:01Z', elapsed_ms: 1000, error_code: 'UPSTREAM_RESULT_UNKNOWN',
+}
+const wrappers: ReturnType<typeof mount>[] = []
+function render(component: typeof WorkbenchOverviewView | typeof WorkbenchTasksView) {
+  const wrapper = mount(component, { global: {
+    plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })],
+    stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>' },
+      DataTable: TableStub,
+      Select: SelectStub,
+      RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+      Pagination: true,
+    },
+  } })
+  wrappers.push(wrapper)
+  return wrapper
+}
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done }); return { promise, resolve } }
+
+describe('workbench management pages', () => {
+  beforeEach(() => {
+    getOverview.mockReset().mockResolvedValue(overview())
+    listTasks.mockReset().mockResolvedValue({ items: [task], total: 1, page: 1, page_size: 20, pages: 1 })
+  })
+  afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
+
+  it('shows real aggregate values and keeps queue/gallery scope explicit', async () => {
+    const wrapper = render(WorkbenchOverviewView)
+    await flushPromises()
+    expect(getOverview).toHaveBeenCalledWith(7, expect.any(AbortSignal))
+    expect(wrapper.text()).toContain('66.7%')
+    expect(wrapper.text()).toContain('外部 API 调用不计入')
+    expect(wrapper.text()).toContain('不受上方统计时段限制')
+    expect(wrapper.text()).toContain('不是整个存储桶用量')
+    expect(wrapper.text()).toContain('结果待确认')
+  })
+
+  it('ignores an older reporting-period response after a new request', async () => {
+    const older = deferred<WorkbenchOverview>()
+    const newer = deferred<WorkbenchOverview>()
+    getOverview.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    const wrapper = render(WorkbenchOverviewView)
+    await wrapper.find('select').setValue('30')
+    newer.resolve({ ...overview(987), days: 30 })
+    await flushPromises()
+    older.resolve(overview(123))
+    await flushPromises()
+    expect(wrapper.text()).toContain('987')
+    expect(wrapper.text()).not.toContain('123')
+  })
+
+  it('does not present a failed aggregate request as zero activity', async () => {
+    getOverview.mockRejectedValueOnce(new Error('network failure'))
+    const wrapper = render(WorkbenchOverviewView)
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('无法读取')
+    expect(wrapper.text()).not.toContain('0%')
+    expect(wrapper.findAll('.stat-card')).toHaveLength(0)
+  })
+
+  it('sends exact validated filters and does not query on each keystroke', async () => {
+    const wrapper = render(WorkbenchTasksView)
+    await flushPromises()
+    await wrapper.find('#workbench-user').setValue('1e3')
+    await wrapper.find('form').trigger('submit')
+    expect(listTasks).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('正整数用户 ID')
+    await wrapper.find('#workbench-user').setValue('9')
+    await wrapper.find('#workbench-model').setValue(' custom-image-model ')
+    await wrapper.find('select').setValue('unknown')
+    expect(listTasks).toHaveBeenCalledTimes(1)
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(listTasks).toHaveBeenLastCalledWith({ page: 1, page_size: 20, user_id: 9, model: 'custom-image-model', status: 'unknown' }, expect.any(AbortSignal))
+  })
+
+  it('distinguishes image count, call count and uncertain billing without a generation action', async () => {
+    const wrapper = render(WorkbenchTasksView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('结果 2 / 请求 5 张')
+    expect(wrapper.text()).toContain('3 个计划子调用')
+    expect(wrapper.text()).toContain('可能已计费')
+    expect(wrapper.text()).toContain('UPSTREAM_RESULT_UNKNOWN')
+    expect(wrapper.findAll('button').some(button => /重试|生成图片/.test(button.text()))).toBe(false)
+  })
+
+  it('aborts an outstanding query on unmount', async () => {
+    const pending = deferred<WorkbenchOverview>()
+    getOverview.mockReturnValueOnce(pending.promise)
+    const wrapper = render(WorkbenchOverviewView)
+    const signal = getOverview.mock.calls[0][1] as AbortSignal
+    wrapper.unmount()
+    expect(signal.aborted).toBe(true)
+  })
+})
+
+describe('workbench display input boundaries', () => {
+  it('rejects unsafe user IDs and preserves exact positive IDs', () => {
+    for (const value of ['-1', '0', '1.5', '1e3', 'Infinity', '9007199254740992']) expect(() => workbenchUserIdFilter(value)).toThrow()
+    expect(workbenchUserIdFilter('')).toBeUndefined()
+    expect(workbenchUserIdFilter(' 9 ')).toBe(9)
+  })
+  it('never invents an elapsed time if the backend does not know it', () => {
+    expect(workbenchElapsedSeconds({ ...task, elapsed_ms: null })).toBeNull()
+    expect(workbenchElapsedSeconds({ ...task, elapsed_ms: -1000 })).toBe(0)
+  })
+})

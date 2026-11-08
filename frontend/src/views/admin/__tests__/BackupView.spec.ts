@@ -85,6 +85,7 @@ function mountBackupView() {
     global: {
       stubs: {
         TotpStepUpDialog: true,
+        RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
       },
     },
   })
@@ -200,68 +201,15 @@ describe('admin BackupView', () => {
     expect(updateSchedule).toHaveBeenCalledWith(expect.objectContaining({ retain_days: 0, retain_count: 0, monthly_archive: expect.objectContaining({ enabled: false }) }))
   })
 
-  it('旧图片存储配置缺少图库字段时默认关闭，并显示私有桶提醒', async () => {
-    getImageStorageConfig.mockResolvedValue({ config: { enabled: true, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
+  it('图片存储只保留工作台跳转入口，不在备份页重复加载或保存', async () => {
+    getImageStorageConfig.mockClear()
     const wrapper = mountBackupView()
     await flushPromises()
 
-    expect((wrapper.get('#studio-gallery-enabled').element as HTMLInputElement).checked).toBe(false)
-    expect((wrapper.get('#studio-jobs-enabled').element as HTMLInputElement).checked).toBe(false)
-    expect((wrapper.get('#studio-jobs-enabled').element as HTMLInputElement).disabled).toBe(true)
-    expect((wrapper.get('[data-testid="image-storage-settings"] > .mb-4 input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
-    expect(wrapper.get('#studio-gallery-private-warning').text()).toBe('admin.backup.imageStorage.studioGalleryPrivateBucketWarning')
-  })
-
-  it('服务端工作台任务开关独立于异步接口，且需要云端图库', async () => {
-    getImageStorageConfig.mockResolvedValue({ config: { enabled: false, studio_gallery_enabled: true, studio_jobs_enabled: false, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
-    const wrapper = mountBackupView()
-    await flushPromises()
-
-    expect((wrapper.get('#studio-jobs-enabled').element as HTMLInputElement).disabled).toBe(false)
-    await wrapper.get('#studio-jobs-enabled').setValue(true)
-    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
-    await flushPromises()
-    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({
-      enabled: false, studio_gallery_enabled: true, studio_jobs_enabled: true,
-    }))
-    expect(wrapper.get('#studio-jobs-description').text()).toBe('admin.backup.imageStorage.studioJobsDescription')
-  })
-
-  it('关闭图库时一并停止新服务端任务接单，不更改异步接口', async () => {
-    getImageStorageConfig.mockResolvedValue({ config: { enabled: true, studio_gallery_enabled: true, studio_jobs_enabled: true, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
-    const wrapper = mountBackupView()
-    await flushPromises()
-
-    await wrapper.get('#studio-gallery-enabled').setValue(false)
-    expect((wrapper.get('#studio-jobs-enabled').element as HTMLInputElement).checked).toBe(false)
-    expect((wrapper.get('#studio-jobs-enabled').element as HTMLInputElement).disabled).toBe(true)
-    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
-    await flushPromises()
-    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({
-      enabled: true, studio_gallery_enabled: false, studio_jobs_enabled: false,
-    }))
-  })
-
-  it('图库开关保存时不改变异步生图开关', async () => {
-    getImageStorageConfig.mockResolvedValue({ config: { enabled: false, studio_gallery_enabled: false, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
-    const wrapper = mountBackupView()
-    await flushPromises()
-
-    await wrapper.get('#studio-gallery-enabled').setValue(true)
-    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
-    await flushPromises()
-    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, studio_gallery_enabled: true }))
-  })
-
-  it('异步生图开关保存时不改变已开启的图库', async () => {
-    getImageStorageConfig.mockResolvedValue({ config: { enabled: true, studio_gallery_enabled: true, reuse_backup_s3: true, prefix: 'images/' }, secret_configured: false })
-    const wrapper = mountBackupView()
-    await flushPromises()
-
-    await wrapper.get('[data-testid="image-storage-settings"] > .mb-4 input[type="checkbox"]').setValue(false)
-    await wrapper.get('[data-testid="image-storage-settings"] .btn-primary').trigger('click')
-    await flushPromises()
-    expect(updateImageStorageConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, studio_gallery_enabled: true }))
+    expect(wrapper.get('[data-testid="image-storage-settings-link"]').text()).toContain('admin.workbenchSettings.movedStorageHint')
+    expect(wrapper.find('[data-testid="image-storage-settings"]').exists()).toBe(false)
+    expect(getImageStorageConfig).not.toHaveBeenCalled()
+    expect(updateImageStorageConfig).not.toHaveBeenCalled()
   })
 
   it('多选日期，手填份数；永久保留隐藏数量并在取消后恢复', async () => {

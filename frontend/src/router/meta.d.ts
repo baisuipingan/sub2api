@@ -7,6 +7,9 @@ import 'vue-router'
 
 declare module 'vue-router' {
   interface RouteMeta {
+    /** Functional area and data scope are independent of the user's role. */
+    workspaceArea?: 'console' | 'workbench'
+    workspaceContext?: 'admin' | 'personal'
     /**
      * Whether this route requires authentication
      * @default true

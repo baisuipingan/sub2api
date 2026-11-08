@@ -2,7 +2,7 @@
   <header class="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
     <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
       <!-- Left: Mobile Menu Toggle + Page Title -->
-      <div class="flex shrink-0 items-center gap-2 sm:gap-4">
+      <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
         <button
           @click="toggleMobileSidebar"
           class="btn-ghost btn-icon lg:hidden"
@@ -11,11 +11,12 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="hidden lg:block">
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <div class="min-w-0">
+          <p v-if="workspace.area === 'workbench'" class="text-xs text-gray-500 dark:text-dark-400">{{ t(workspace.context === 'admin' ? 'nav.workbenchManagement' : 'nav.workbench') }}</p>
+          <h1 class="truncate text-sm font-semibold text-gray-900 dark:text-white sm:text-lg">
             {{ pageTitle }}
           </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
+          <p v-if="pageDescription && workspace.area !== 'workbench'" class="hidden text-xs text-gray-500 dark:text-dark-400 lg:block">
             {{ pageDescription }}
           </p>
         </div>
@@ -266,6 +267,7 @@ import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
+import { workspaceLocation } from '@/router/workspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -273,6 +275,9 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const adminSettingsStore = useAdminSettingsStore()
+const workspace = computed(() => workspaceLocation(route, authStore.isAdmin
+  ? adminSettingsStore.customMenuItems.filter(item => item.visibility === 'admin').map(item => item.id)
+  : []))
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)
@@ -292,7 +297,7 @@ const balanceFrozenLabel = computed(() => `${balanceFrozenText.value} ${formatHe
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
-  return !authStore.isSimpleMode && user.value?.role === 'admin'
+  return !authStore.isSimpleMode && user.value?.role === 'admin' && workspace.value.area === 'console'
 })
 
 const userInitials = computed(() => {

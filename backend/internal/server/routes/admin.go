@@ -38,6 +38,7 @@ func RegisterAdminRoutes(
 
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
+		registerWorkbenchRoutes(admin, h, stepUpAuth, panelRateLimiter)
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
@@ -134,6 +135,17 @@ func RegisterAdminRoutes(
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
+}
+
+func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware, limiter *middleware.PanelRateLimiter) {
+	if h.Admin.Workbench == nil {
+		return
+	}
+	workbench := admin.Group("/workbench")
+	workbench.GET("/overview", limiter.Heavy(), h.Admin.Workbench.Overview)
+	workbench.GET("/tasks", limiter.Heavy(), h.Admin.Workbench.ListTasks)
+	workbench.GET("/config", h.Admin.Workbench.GetConfig)
+	workbench.PUT("/config", gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.UpdateConfig)
 }
 
 func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

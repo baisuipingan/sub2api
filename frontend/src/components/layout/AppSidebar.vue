@@ -29,12 +29,24 @@
       </div>
     </div>
 
+    <UserAreaSwitcher
+      v-if="isAdmin || !appStore.backendModeEnabled"
+      :area="workspace.area"
+      :collapsed="sidebarCollapsed"
+      :console-to="areaDestination('console')"
+      :workbench-to="areaDestination('workbench')"
+      @navigate="handleMenuItemClick"
+    />
+
     <!-- Navigation -->
     <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
         <div class="sidebar-section">
+          <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
+            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">{{ t(workspace.area === 'workbench' ? 'nav.workbenchManagement' : 'nav.platformManagement') }}</span>
+          </div>
           <template v-for="item in adminNavItems" :key="item.path">
             <!-- Collapsible group (has children) -->
             <template v-if="item.children?.length">
@@ -105,7 +117,7 @@
         <div v-if="!authStore.isSimpleMode" class="sidebar-section">
           <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
             <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
-              {{ t('nav.myAccount') }}
+              {{ t(workspace.area === 'workbench' ? 'nav.myCreations' : 'nav.myAccount') }}
             </span>
           </div>
 
@@ -214,12 +226,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useTicketStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
+import UserAreaSwitcher from './UserAreaSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
+import { workspaceDefault, workspaceKey, workspaceLocation, type WorkspaceArea } from '@/router/workspace'
 
 interface NavItem {
   path: string
@@ -271,15 +286,49 @@ const ticketStore = useTicketStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const workspaceNavigation = useWorkspaceNavigationStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
+// Mobile drawers always show labels. Resizing an open drawer back to desktop
+// must still honor AppLayout's 58px collapsed-rail offset.
+const desktopQuery = window.matchMedia('(min-width: 1024px)')
+const desktopViewport = ref(desktopQuery.matches)
+const sidebarCollapsed = computed(() => appStore.sidebarCollapsed && (desktopViewport.value || !appStore.mobileOpen))
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
+const adminCustomIds = computed(() => isAdmin.value ? adminSettingsStore.customMenuItems.filter(item => item.visibility === 'admin').map(item => item.id) : [])
+const workspace = computed(() => workspaceLocation(route, adminCustomIds.value))
+const homePath = computed(() => workspaceDefault(workspace.value.area, workspace.value.context, isAdmin.value))
+const currentScrollKey = computed(() => workspaceKey(workspace.value.area, workspace.value.context))
+let scrollOwner = { userId: authStore.user?.id ?? null, key: currentScrollKey.value }
+let restoringScroll = false
+
+function saveSidebarScroll() {
+  if (!sidebarNavRef.value || restoringScroll || scrollOwner.userId !== (authStore.user?.id ?? null)) return
+  appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
+  workspaceNavigation.saveScroll(scrollOwner.key, sidebarNavRef.value.scrollTop)
+}
+
+// CustomPageView can reuse the same AppLayout while switching from an admin
+// custom menu to a personal one; move scroll ownership without a remount.
+watch(() => [authStore.user?.id ?? null, currentScrollKey.value] as const, async ([userId, key], _previous, onCleanup) => {
+  saveSidebarScroll()
+  scrollOwner = { userId, key }
+  restoringScroll = true
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
+  await nextTick()
+  if (cancelled) return
+  if (sidebarNavRef.value) sidebarNavRef.value.scrollTop = workspaceNavigation.scrollPositions[key] ?? 0
+  restoringScroll = false
+})
+
+watch(() => authStore.user?.id ?? null, userId => workspaceNavigation.syncUser(userId), { immediate: true, flush: 'sync' })
+watch(() => [route.fullPath, adminCustomIds.value.join(',')] as const,
+  () => workspaceNavigation.remember(route, adminCustomIds.value), { immediate: true })
 
 // Per-group expand/collapse overrides. A group with no entry follows the
 // automatic behavior (expanded while the active route is one of its children);
@@ -792,7 +841,8 @@ function resolveBadge(item: NavItem): number {
   }
 }
 
-function buildSelfNavItems(withDashboard: boolean): NavItem[] {
+function buildSelfNavItems(withDashboard: boolean, area: WorkspaceArea = workspace.value.area): NavItem[] {
+  if (area === 'workbench') return [{ path: '/workbench/image', label: t('nav.imageStudio'), icon: ImageStudioIcon }]
   const items: NavItem[] = []
   if (withDashboard) {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
@@ -817,8 +867,6 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       icon: null,
       iconSvg: item.icon_svg,
     })),
-    // 生图工作台固定排在最后，且不受 featureFlag 影响（开关在页面内部处理）
-    { path: '/image-studio', label: t('nav.imageStudio'), icon: ImageStudioIcon },
   )
   return items
 }
@@ -852,7 +900,14 @@ const customMenuItemsForAdmin = computed(() => {
 })
 
 // Admin navigation items
-const adminNavItems = computed((): NavItem[] => {
+const adminNavItems = computed((): NavItem[] => buildAdminNavItems(workspace.value.area))
+
+function buildAdminNavItems(area: WorkspaceArea): NavItem[] {
+  if (area === 'workbench') return [
+    { path: '/admin/workbench', label: t('nav.workbenchOverview'), icon: ChartIcon },
+    { path: '/admin/workbench/tasks', label: t('nav.workbenchTasks'), icon: OrderListIcon },
+    { path: '/admin/workbench/settings', label: t('nav.workbenchSettings'), icon: CogIcon },
+  ]
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
@@ -938,7 +993,22 @@ const adminNavItems = computed((): NavItem[] => {
     visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
   }
   return visible
-})
+}
+
+function areaDestination(area: WorkspaceArea) {
+  const flatten = (items: NavItem[]): string[] => items.flatMap(item => [item.path, ...flatten(item.children ?? [])])
+  const context = isAdmin.value ? workspace.value.context : 'personal'
+  const visiblePaths = context === 'admin'
+    ? flatten(buildAdminNavItems(area))
+    : flatten(finalizeNav(buildSelfNavItems(!isAdmin.value, area)))
+  return workspaceNavigation.destination(router, area, context, {
+    isAdmin: isAdmin.value,
+    backendModeEnabled: appStore.backendModeEnabled,
+    isSimpleMode: authStore.isSimpleMode,
+    visiblePaths,
+    adminCustomIds: adminCustomIds.value,
+  })
+}
 
 function toggleSidebar() {
   appStore.toggleSidebar()
@@ -975,6 +1045,7 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
+  if (path === '/admin/workbench') return route.path === path
   return route.path === path || route.path.startsWith(path + '/')
 }
 
@@ -1035,25 +1106,30 @@ watch(
 )
 
 onMounted(() => {
+  desktopQuery.addEventListener('change', onDesktopViewportChange)
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }
   // Restore sidebar scroll position after route change re-mounts the component
-  if (appStore.sidebarScrollTop > 0 && sidebarNavRef.value) {
+  const savedScroll = workspaceNavigation.scrollPositions[currentScrollKey.value] ?? 0
+  if (savedScroll > 0 && sidebarNavRef.value) {
     void nextTick(() => {
       if (sidebarNavRef.value) {
-        sidebarNavRef.value.scrollTop = appStore.sidebarScrollTop
+        sidebarNavRef.value.scrollTop = savedScroll
       }
     })
   }
 })
 
 onBeforeUnmount(() => {
-  if (sidebarNavRef.value) {
-    appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
-  }
+  desktopQuery.removeEventListener('change', onDesktopViewportChange)
+  saveSidebarScroll()
 })
+
+function onDesktopViewportChange(event: MediaQueryListEvent) {
+  desktopViewport.value = event.matches
+}
 </script>
 
 <style scoped>

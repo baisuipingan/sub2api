@@ -6507,55 +6507,11 @@
                 </div>
               </div>
 
-              <!-- 生图工作台 -->
-              <div
-                data-testid="image-studio-section"
-                class="border-t border-gray-100 pt-4 dark:border-dark-700"
-              >
-                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
-                  {{ t("admin.settings.site.imageStudioTitle") }}
-                </h3>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.imageStudioDescription") }}
-                </p>
-
-                <div class="mt-4 space-y-4">
-                  <label
-                    class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-dark-600"
-                  >
-                    <span class="text-sm text-gray-700 dark:text-dark-200">
-                      {{ t("admin.settings.site.imageStudioEnabled") }}
-                    </span>
-                    <Toggle v-model="imageStudioEnabledModel" />
-                  </label>
-
-                  <div v-if="form.image_studio_enabled !== false">
-                    <label
-                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{ t("admin.settings.site.imageStudioGroup") }}
-                    </label>
-                    <!-- 与站内其它设置一致，使用公共 Select 组件（支持搜索、键盘操作、暗色主题） -->
-                    <Select
-                      :model-value="form.image_studio_group_id ?? 0"
-                      :options="imageStudioGroupOptions"
-                      :searchable="imageStudioGroupOptions.length > 6"
-                      :placeholder="t('admin.settings.site.imageStudioGroupPlaceholder')"
-                      @update:model-value="
-                        form.image_studio_group_id = Number($event) || 0
-                      "
-                    />
-                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      {{ t("admin.settings.site.imageStudioGroupHint") }}
-                    </p>
-                    <p
-                      v-if="!form.image_studio_group_id"
-                      class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
-                    >
-                      {{ t("admin.settings.site.imageStudioGroupRequired") }}
-                    </p>
-                  </div>
-                </div>
+              <!-- Workbench configuration has one editor to avoid stale full-site saves. -->
+              <div data-testid="image-studio-section" class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ t("admin.workbenchSettings.movedTitle") }}</h3>
+                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t("admin.workbenchSettings.movedHint") }}</p>
+                <router-link to="/admin/workbench/settings" class="btn btn-secondary btn-sm mt-3">{{ t("admin.workbenchSettings.openSettings") }}</router-link>
               </div>
 
               <!-- Global Table Preferences -->
@@ -9914,8 +9870,6 @@ const form = reactive<SettingsForm>({
   doc_url: "",
   recharge_link_mode: "internal",
   recharge_custom_url: "",
-  image_studio_enabled: true,
-  image_studio_group_id: 0,
   home_content: "",
   compact_home_enabled: false,
   backend_mode_enabled: false,
@@ -11337,44 +11291,6 @@ async function loadSettings() {
   }
 }
 
-/**
- * 生图工作台可选分组。
- *
- * 只列可用分组：绑定了停用分组的密钥会让工作台请求必然失败，
- * 所以拉全量后在模板里标注状态，由管理员自行判断。
- */
-const imageStudioGroups = ref<AdminGroup[]>([]);
-
-/** Select 组件所需的选项结构；0 表示未配置 */
-const imageStudioGroupOptions = computed(() => [
-  {
-    value: 0,
-    label: t("admin.settings.site.imageStudioGroupPlaceholder"),
-  },
-  ...imageStudioGroups.value.map((group) => ({
-    value: group.id,
-    label:
-      group.status === "active" ? group.name : `${group.name}（${group.status}）`,
-  })),
-]);
-
-/** Toggle 要求 boolean，而设置项允许 undefined（历史数据无此字段），这里兜底为 true */
-const imageStudioEnabledModel = computed({
-  get: () => form.image_studio_enabled !== false,
-  set: (value: boolean) => {
-    form.image_studio_enabled = value;
-  },
-});
-
-async function loadImageStudioGroups() {
-  try {
-    const groups = await adminAPI.groups.getAll();
-    imageStudioGroups.value = groups;
-  } catch (_error: unknown) {
-    imageStudioGroups.value = [];
-  }
-}
-
 async function loadSubscriptionGroups() {
   try {
     const groups = await adminAPI.groups.getAll();
@@ -11666,8 +11582,6 @@ async function saveSettings() {
       doc_url: form.doc_url,
       recharge_link_mode: form.recharge_link_mode || 'internal',
       recharge_custom_url: form.recharge_custom_url || '',
-      image_studio_enabled: form.image_studio_enabled !== false,
-      image_studio_group_id: Number(form.image_studio_group_id) || 0,
       home_content: form.home_content,
       compact_home_enabled: form.compact_home_enabled,
       backend_mode_enabled: form.backend_mode_enabled,
@@ -13071,7 +12985,6 @@ async function handleDeleteProvider() {
 onMounted(() => {
   loadSettings();
   loadSubscriptionGroups();
-  loadImageStudioGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();
   loadOllamaCloudUsageSettings();

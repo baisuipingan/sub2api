@@ -766,6 +766,19 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("keeps workbench access in its dedicated editor and does not submit stale values", async () => {
+    getSettings.mockResolvedValueOnce({ ...baseSettingsResponse, image_studio_enabled: true, image_studio_group_id: 7 });
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)?.[0];
+    expect(payload).not.toHaveProperty("image_studio_enabled");
+    expect(payload).not.toHaveProperty("image_studio_group_id");
+    wrapper.unmount();
+  });
+
   it("renders panel rate limit card and saves settings", async () => {
     getPanelRateLimitSettings.mockClear();
     updatePanelRateLimitSettings.mockClear();

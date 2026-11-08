@@ -4,6 +4,7 @@
  */
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
@@ -13,6 +14,8 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { withWorkspaceMeta } from './workspace'
+import { workbenchRoutes } from './workbenchRoutes'
 
 /**
  * Route definitions with lazy loading
@@ -420,17 +423,7 @@ const routes: RouteRecordRaw[] = [
       requiresPayment: false
     }
   },
-  {
-    path: '/image-studio',
-    name: 'ImageStudio',
-    component: () => import('@/views/user/ImageStudioView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Image Studio',
-      titleKey: 'nav.imageStudio',
-    }
-  },
+  ...workbenchRoutes,
   {
     path: '/custom/:id',
     name: 'CustomPage',
@@ -789,11 +782,15 @@ const routes: RouteRecordRaw[] = [
  */
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes,
-  scrollBehavior(_to, _from, savedPosition) {
+  routes: withWorkspaceMeta(routes),
+  async scrollBehavior(to, _from, savedPosition) {
     // Scroll to saved position when using browser back/forward
     if (savedPosition) {
       return savedPosition
+    }
+    if (to.hash && to.path === '/admin/workbench/settings') {
+      await nextTick()
+      return { el: to.hash, top: 96 }
     }
     // Scroll to top for new routes
     return { top: 0 }

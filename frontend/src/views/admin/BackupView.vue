@@ -54,98 +54,12 @@
         </div>
       </div>
 
-      <!-- Image object storage: async tasks and Studio gallery have independent switches. -->
-      <div class="card p-6" data-testid="image-storage-settings">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.backup.imageStorage.title') }}
-            </h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.backup.imageStorage.description') }}
-            </p>
-          </div>
-          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input v-model="imageStorageForm.enabled" type="checkbox" />
-            <span>{{ t('admin.backup.imageStorage.enabled') }}</span>
-          </label>
-        </div>
-
-        <div data-testid="studio-gallery-setting" class="mb-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-dark-700 dark:bg-dark-800/40">
-          <label for="studio-gallery-enabled" class="flex items-start gap-3 text-sm text-gray-700 dark:text-gray-300">
-            <input id="studio-gallery-enabled" v-model="imageStorageForm.studio_gallery_enabled" type="checkbox" class="mt-0.5" aria-describedby="studio-gallery-description studio-gallery-private-warning" @change="onStudioGalleryEnabledChange" />
-            <span>
-              <span class="block font-medium text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.studioGalleryEnabled') }}</span>
-              <span id="studio-gallery-description" class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.backup.imageStorage.studioGalleryDescription') }}</span>
-            </span>
-          </label>
-          <label for="studio-jobs-enabled" class="mt-3 flex items-start gap-3 border-t border-gray-200 pt-3 text-sm text-gray-700 dark:border-dark-700 dark:text-gray-300">
-            <input id="studio-jobs-enabled" v-model="imageStorageForm.studio_jobs_enabled" type="checkbox" class="mt-0.5" :disabled="!imageStorageForm.studio_gallery_enabled" aria-describedby="studio-jobs-description" />
-            <span>
-              <span class="block font-medium text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.studioJobsEnabled') }}</span>
-              <span id="studio-jobs-description" class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.backup.imageStorage.studioJobsDescription') }}</span>
-            </span>
-          </label>
-          <p id="studio-gallery-private-warning" role="note" class="mt-3 text-xs leading-5 text-amber-700 dark:text-amber-300">{{ t('admin.backup.imageStorage.studioGalleryPrivateBucketWarning') }}</p>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input v-model="imageStorageForm.reuse_backup_s3" type="checkbox" />
-          <span>{{ t('admin.backup.imageStorage.reuseBackupS3') }}</span>
-        </label>
-
-        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.bucket') }}</label>
-            <input v-model="imageStorageForm.bucket" class="input w-full" :placeholder="imageStorageForm.reuse_backup_s3 ? t('admin.backup.imageStorage.bucketInherited') : ''" />
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.prefix') }}</label>
-            <input v-model="imageStorageForm.prefix" class="input w-full" placeholder="images/" />
-          </div>
-
-          <template v-if="!imageStorageForm.reuse_backup_s3">
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.endpoint') }}</label>
-              <input v-model="imageStorageForm.endpoint" class="input w-full" placeholder="https://<account_id>.r2.cloudflarestorage.com" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.region') }}</label>
-              <input v-model="imageStorageForm.region" class="input w-full" placeholder="auto" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.accessKeyId') }}</label>
-              <input v-model="imageStorageForm.access_key_id" class="input w-full" />
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.s3.secretAccessKey') }}</label>
-              <input v-model="imageStorageForm.secret_access_key" type="password" class="input w-full" :placeholder="imageStorageSecretConfigured ? t('admin.backup.s3.secretConfigured') : ''" />
-            </div>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
-              <input v-model="imageStorageForm.force_path_style" type="checkbox" />
-              <span>{{ t('admin.backup.s3.forcePathStyle') }}</span>
-            </label>
-          </template>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.publicBaseUrl') }}</label>
-            <input v-model="imageStorageForm.public_base_url" class="input w-full" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
-          </div>
-          <div>
-            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.imageStorage.presignExpiryHours') }}</label>
-            <input v-model.number="imageStorageForm.presign_expiry_hours" type="number" min="1" class="input w-full" />
-          </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="testingImageStorage" @click="testImageStorage">
-            {{ testingImageStorage ? t('common.loading') : t('admin.backup.s3.testConnection') }}
-          </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingImageStorage" @click="saveImageStorageConfig">
-            {{ savingImageStorage ? t('common.loading') : t('common.save') }}
-          </button>
-        </div>
-      </div>
+      <!-- Shared image configuration has one editor in the workbench. -->
+      <section class="card p-6" data-testid="image-storage-settings-link">
+        <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.workbenchSettings.movedTitle') }}</h3>
+        <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.movedStorageHint') }}</p>
+        <router-link to="/admin/workbench/settings#image-storage" class="btn btn-secondary btn-sm mt-4">{{ t('admin.workbenchSettings.openSettings') }}</router-link>
+      </section>
 
       <!-- Schedule Config -->
       <div class="card p-6" data-testid="backup-schedule">
@@ -442,7 +356,6 @@ import type {
   BackupMonthlyArchiveConfig,
   BackupRecord,
   BackupDownloadPart,
-  ImageStorageConfig,
 } from '@/api/admin/backup'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
@@ -476,28 +389,6 @@ const s3Form = ref<BackupS3Config>({
 const s3SecretConfigured = ref(false)
 const savingS3 = ref(false)
 const testingS3 = ref(false)
-
-// Async image tasks and Studio features share object storage credentials, but
-// each has its own enable switch. Both Studio switches remain off by default.
-const imageStorageForm = ref<ImageStorageConfig>({
-  enabled: false,
-  studio_gallery_enabled: false,
-  studio_jobs_enabled: false,
-  reuse_backup_s3: true,
-  bucket: '',
-  prefix: 'images/',
-  public_base_url: '',
-  presign_expiry_hours: 24,
-  max_download_bytes: 33554432,
-  endpoint: '',
-  region: 'auto',
-  access_key_id: '',
-  secret_access_key: '',
-  force_path_style: false,
-})
-const imageStorageSecretConfigured = ref(false)
-const savingImageStorage = ref(false)
-const testingImageStorage = ref(false)
 
 // Schedule config
 const scheduleForm = ref<BackupScheduleConfig>({
@@ -708,60 +599,6 @@ async function saveS3Config() {
   }
 }
 
-async function loadImageStorageConfig() {
-  try {
-    const { config, secret_configured } = await adminAPI.backup.getImageStorageConfig()
-    imageStorageForm.value = {
-      ...config,
-      studio_gallery_enabled: config.studio_gallery_enabled === true,
-      studio_jobs_enabled: config.studio_gallery_enabled === true && config.studio_jobs_enabled === true,
-      prefix: config.prefix || 'images/',
-      region: config.region || 'auto',
-      secret_access_key: '',
-    }
-    imageStorageSecretConfigured.value = secret_configured
-  } catch (error) {
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  }
-}
-
-function onStudioGalleryEnabledChange() {
-  if (!imageStorageForm.value.studio_gallery_enabled) imageStorageForm.value.studio_jobs_enabled = false
-}
-
-async function saveImageStorageConfig() {
-  savingImageStorage.value = true
-  try {
-    await backupStepUp.run(() => adminAPI.backup.updateImageStorageConfig(imageStorageForm.value))
-    appStore.showSuccess(t('admin.backup.imageStorage.saved'))
-    await loadImageStorageConfig()
-  } catch (error) {
-    if (isStepUpCancelled(error)) {
-      savingImageStorage.value = false
-      return
-    }
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  } finally {
-    savingImageStorage.value = false
-  }
-}
-
-async function testImageStorage() {
-  testingImageStorage.value = true
-  try {
-    const result = await adminAPI.backup.testImageStorageConnection(imageStorageForm.value)
-    if (result.ok) {
-      appStore.showSuccess(result.message || t('admin.backup.s3.testSuccess'))
-    } else {
-      appStore.showError(result.message || t('admin.backup.s3.testFailed'))
-    }
-  } catch (error) {
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  } finally {
-    testingImageStorage.value = false
-  }
-}
-
 async function testS3() {
   testingS3.value = true
   try {
@@ -943,7 +780,7 @@ function formatDate(value?: string): string {
 
 onMounted(async () => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  await Promise.all([loadS3Config(), loadImageStorageConfig(), loadSchedule(), loadBackups()])
+  await Promise.all([loadS3Config(), loadSchedule(), loadBackups()])
 
   // 如果有正在 running 的备份，恢复轮询
   const runningBackup = backups.value.find(r => r.status === 'running')
