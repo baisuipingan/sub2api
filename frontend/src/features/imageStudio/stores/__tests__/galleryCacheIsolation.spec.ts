@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { clearTasks, clearImages, getPendingSyncTaskIds, deleteImage, deleteImageCacheEntry } = vi.hoisted(() => ({
+const { clearTasks, clearImages, getPendingSyncTaskIds, deleteImage, deleteImageCacheEntry, clearImageVariantCaches } = vi.hoisted(() => ({
   clearTasks: vi.fn(),
   clearImages: vi.fn(),
   getPendingSyncTaskIds: vi.fn(),
   deleteImage: vi.fn(),
   deleteImageCacheEntry: vi.fn(),
+  clearImageVariantCaches: vi.fn(),
 }))
 
 vi.mock('../../lib/db', async () => ({
@@ -14,7 +15,7 @@ vi.mock('../../lib/db', async () => ({
 }))
 vi.mock('../../lib/imageCache', async () => ({
   ...await vi.importActual<typeof import('../../lib/imageCache')>('../../lib/imageCache'),
-  deleteImageCacheEntry,
+  deleteImageCacheEntry, clearImageVariantCaches,
 }))
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
@@ -23,10 +24,11 @@ import { verifyGalleryIdentity } from '../../lib/gallerySession'
 import { clearData, deleteImageIfUnreferenced, submitTask, useStore } from '../store'
 
 beforeEach(() => {
-  for (const mock of [clearTasks, clearImages, getPendingSyncTaskIds, deleteImage, deleteImageCacheEntry]) mock.mockReset()
+  for (const mock of [clearTasks, clearImages, getPendingSyncTaskIds, deleteImage, deleteImageCacheEntry, clearImageVariantCaches]) mock.mockReset()
   clearTasks.mockResolvedValue(undefined)
   clearImages.mockResolvedValue(undefined)
   deleteImage.mockResolvedValue(undefined)
+  clearImageVariantCaches.mockResolvedValue(undefined)
   localStorage.setItem('auth_token', 'token-a')
   localStorage.setItem('auth_user', JSON.stringify({ id: 42 }))
   setImageStudioUserScope(42)
@@ -43,6 +45,7 @@ describe('gallery local-cache account isolation', () => {
     expect(useStore.getState().toast?.message).toBe('imageStudio.gallery.cacheClearing')
     finish([])
     await clearing
+    expect(clearImageVariantCaches).toHaveBeenCalledWith(expect.objectContaining({ userId: 42, scope: 'milorouter-ai-image-user-42' }))
   })
 
   it('does not clear the next account after switching during pending-sync lookup', async () => {
@@ -59,6 +62,7 @@ describe('gallery local-cache account isolation', () => {
 
     expect(clearTasks).not.toHaveBeenCalled()
     expect(clearImages).not.toHaveBeenCalled()
+    expect(clearImageVariantCaches).not.toHaveBeenCalled()
   })
 
   it('deletes only the captured account image and never clears the next account cache', async () => {

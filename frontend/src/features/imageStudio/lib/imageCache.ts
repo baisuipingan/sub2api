@@ -7,6 +7,7 @@ import {
 } from './db'
 import { ensureGalleryIdentity, fetchGalleryAssetDataUrl, getGalleryAssetUrl } from './galleryApi'
 import { captureGallerySession, isGallerySessionCurrent, mayReadGalleryCache } from './gallerySession'
+import { clearPrivateImageVariants, deletePrivateImageVariants, loadPrivateImageVariant } from '@/lib/privateImageVariantCache'
 
 type ImageThumbnail = {
   dataUrl: string
@@ -25,9 +26,59 @@ const thumbnailBackfillRunningIds = new Set<string>()
 const thumbnailSubscribers = new Map<string, Set<(thumbnail: ImageThumbnail) => void>>()
 let thumbnailBackfillScheduled = false
 let cacheSession = captureGallerySession()
+let memoryEpoch = 0
+const variantEpochs = new Map<string, number>()
+const variantInvalidations = new Map<string, Promise<void>>()
+
+type Variant = 'thumbnail' | 'preview'
+type CacheSession = ReturnType<typeof captureGallerySession>
+
+function variantScope(session: CacheSession, id: string) { return session.scope + ':' + id }
+
+function invalidatePrivateVariants(id: string, variants: Variant[]) {
+  const session = captureGallerySession()
+  const key = variantScope(session, id)
+  variantEpochs.set(key, (variantEpochs.get(key) ?? 0) + 1)
+  if (!session.userId || !session.token) return
+  const userId = session.userId
+  const previous = variantInvalidations.get(key) ?? Promise.resolve()
+  const pending = previous.catch(() => undefined)
+    .then(() => deletePrivateImageVariants(userId, userId, [id], variants))
+    .catch(() => undefined)
+  variantInvalidations.set(key, pending)
+  void pending.finally(() => { if (variantInvalidations.get(key) === pending) variantInvalidations.delete(key) })
+}
+
+async function cloudVariant(id: string, variant: Variant, session: CacheSession) {
+  if (!session.userId || !session.token) return undefined
+  const userId = session.userId
+  const key = variantScope(session, id)
+  const epoch = memoryEpoch
+  const version = variantEpochs.get(key) ?? 0
+  const current = () => epoch === memoryEpoch && version === (variantEpochs.get(key) ?? 0)
+    && isGallerySessionCurrent(session) && mayReadGalleryCache()
+  await variantInvalidations.get(key)?.catch(() => undefined)
+  if (!current()) return undefined
+  const result = await loadPrivateImageVariant({
+    viewerId: userId, ownerId: userId, imageId: id, variant,
+    authorize: () => getGalleryAssetUrl(id, variant),
+    isCurrent: current,
+  }).catch(() => undefined)
+  return current() ? result : undefined
+}
+
+/** Settings may clear this bounded cache without touching cloud tasks or the
+ * existing original-image database. Account changes clear only in-memory state. */
+export async function clearImageVariantCaches(session = captureGallerySession()) {
+  memoryEpoch++
+  if (!session.userId || !session.token) return
+  await clearPrivateImageVariants(session.userId, session.userId).catch(() => undefined)
+}
 
 function ensureCacheSession() {
   if (isGallerySessionCurrent(cacheSession)) return
+  memoryEpoch++
+  variantEpochs.clear()
   imageCache.clear()
   previewCache.clear()
   thumbnailCache.clear()
@@ -125,6 +176,9 @@ export function cacheImage(id: string, dataUrl: string) {
 export function deleteCachedImage(id: string) {
   imageCache.delete(id)
   previewCache.delete(id)
+  // The result view's explicit retry must bypass a corrupt persisted preview.
+  // Thumbnails remain useful and original-image storage is unchanged.
+  invalidatePrivateVariants(id, ['preview'])
 }
 
 function getCachedThumbnail(id: string) {
@@ -158,6 +212,7 @@ export function cacheThumbnail(id: string, thumbnail: ImageThumbnail) {
 
 export function deleteImageCacheEntry(id: string) {
   ensureCacheSession()
+  invalidatePrivateVariants(id, ['thumbnail', 'preview'])
   imageCache.delete(id)
   previewCache.delete(id)
   cloudAssetIds.delete(id)
@@ -168,6 +223,8 @@ export function deleteImageCacheEntry(id: string) {
 }
 
 export function clearImageCaches() {
+  memoryEpoch++
+  variantEpochs.clear()
   imageCache.clear()
   previewCache.clear()
   cloudAssetIds.clear()
@@ -202,7 +259,7 @@ export async function ensureImagePreviewUrl(id: string): Promise<string | undefi
   const cached = getCachedPreviewUrl(id)
   if (cached) return cached
   if (cloudAssetIds.has(id)) {
-    const remote = await getGalleryAssetUrl(id, 'preview').catch(() => undefined)
+    const remote = await cloudVariant(id, 'preview', session)
     if (!isGallerySessionCurrent(session)) return undefined
     if (remote) {
       cachePreviewUrl(id, remote.url, Date.parse(remote.expires_at))
@@ -217,7 +274,7 @@ export async function ensureImagePreviewUrl(id: string): Promise<string | undefi
     if (preview) cachePreviewUrl(id, preview)
     return preview
   }
-  const remote = await getGalleryAssetUrl(id, 'preview').catch(() => undefined)
+  const remote = await cloudVariant(id, 'preview', session)
   if (!isGallerySessionCurrent(session)) return undefined
   if (!remote) return undefined
   cloudAssetIds.add(id)
@@ -235,7 +292,7 @@ export async function ensureImageThumbnailCached(id: string): Promise<ImageThumb
   if (!isGallerySessionCurrent(session)) return undefined
   if (!rec?.thumbnailDataUrl) {
     if (cloudAssetIds.has(id)) {
-      const remote = await getGalleryAssetUrl(id, 'thumbnail').catch(() => undefined)
+      const remote = await cloudVariant(id, 'thumbnail', session)
       if (!isGallerySessionCurrent(session)) return undefined
       if (remote) {
         const thumbnail = {
@@ -254,7 +311,7 @@ export async function ensureImageThumbnailCached(id: string): Promise<ImageThumb
       scheduleThumbnailBackfill([id], 'visible')
       return undefined
     }
-    const remote = await getGalleryAssetUrl(id, 'thumbnail').catch(() => undefined)
+    const remote = await cloudVariant(id, 'thumbnail', session)
     if (!isGallerySessionCurrent(session)) return undefined
     if (!remote) return undefined
     const thumbnail = {

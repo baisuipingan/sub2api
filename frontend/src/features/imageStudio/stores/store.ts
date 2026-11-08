@@ -46,7 +46,7 @@ import {
   storeImageWithSize,
   type GallerySyncRecord,
 } from '../lib/db'
-import { cacheImage, clearImageCaches, deleteImageCacheEntry, ensureImageCached, registerCloudAssetIds } from '../lib/imageCache'
+import { cacheImage, clearImageCaches, clearImageVariantCaches, deleteImageCacheEntry, ensureImageCached, registerCloudAssetIds } from '../lib/imageCache'
 import { deleteGalleryTask, ensureGalleryIdentity, fetchGalleryAssetDataUrl, getGalleryAssetUrl, getGalleryStatus, listGalleryTasks, putGalleryAsset, GalleryApiError, type GalleryStats } from '../lib/galleryApi'
 import { taskAssetIds, uploadGalleryTask } from '../lib/gallerySync'
 import { captureGallerySession, isGallerySessionCurrent, isVerifiedGalleryAuth, verifyGalleryIdentity } from '../lib/gallerySession'
@@ -1929,12 +1929,16 @@ export async function clearData(options: { clearConfig?: boolean; clearTasks?: b
         await dbClearTasks(session.scope)
         await dbClearImages(session.scope)
         if (!isGallerySessionCurrent(session)) return
+        await clearImageVariantCaches(session)
+        if (!isGallerySessionCurrent(session)) return
         clearImageCaches()
         state.showToast(st('imageStudio.store.dataCleared'), 'success')
         return
       }
       await dbClearTasks(session.scope)
       await dbClearImages(session.scope)
+      if (!isGallerySessionCurrent(session)) return
+      await clearImageVariantCaches(session)
       if (!isGallerySessionCurrent(session)) return
       clearImageCaches()
       useStore.setState({

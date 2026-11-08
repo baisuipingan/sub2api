@@ -10,6 +10,7 @@ export type GalleryVariant = 'thumbnail' | 'preview' | 'original'
 export interface GalleryAssetUrl {
   url: string
   expires_at: string
+  cache_version?: string
   bytes: number
   mime: string
   width: number

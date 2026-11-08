@@ -503,10 +503,12 @@ func (s *ImageStudioGalleryService) ListTasks(ctx context.Context, userID int64,
 type GalleryAssetURL struct {
 	URL       string `json:"url"`
 	ExpiresAt string `json:"expires_at"`
-	Bytes     int64  `json:"bytes"`
-	MIME      string `json:"mime"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
+	// Opaque immutable variant identity, independent of temporary URL signatures.
+	CacheVersion string `json:"cache_version"`
+	Bytes        int64  `json:"bytes"`
+	MIME         string `json:"mime"`
+	Width        int    `json:"width"`
+	Height       int    `json:"height"`
 }
 
 func (s *ImageStudioGalleryService) AssetURL(ctx context.Context, userID int64, id, variant string) (GalleryAssetURL, error) {
@@ -539,6 +541,8 @@ func (s *ImageStudioGalleryService) AssetURL(ctx context.Context, userID int64, 
 	default:
 		return GalleryAssetURL{}, ErrGalleryInvalid
 	}
+	version := sha256.Sum256([]byte(fmt.Sprintf("gallery-variant-v1:%s:%s:%s:%d:%d:%d", asset.SHA256, variant, key, result.Bytes, result.Width, result.Height)))
+	result.CacheVersion = hex.EncodeToString(version[:])
 	result.URL, err = storage.PresignGet(ctx, key, galleryURLLifetime)
 	if err != nil {
 		return GalleryAssetURL{}, fmt.Errorf("%w: sign image: %v", ErrGalleryUnavailable, err)

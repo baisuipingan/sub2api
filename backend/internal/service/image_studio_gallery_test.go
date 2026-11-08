@@ -339,3 +339,25 @@ func TestImageStudioGalleryCleanupRetriesS3Failure(t *testing.T) {
 	require.Equal(t, 1, repo.finalized)
 	require.Empty(t, store.objects)
 }
+
+func TestGalleryCacheVersionIsStableAcrossSignaturesAndVariesByVariant(t *testing.T) {
+	svc, repo, _, _ := galleryTestService(t)
+	ctx := context.Background()
+	require.NoError(t, svc.PutAsset(ctx, 7, "versioned-output", "image/png", galleryPNG(t, 8, 6)))
+	thumbnail, err := svc.AssetURL(ctx, 7, "versioned-output", "thumbnail")
+	require.NoError(t, err)
+	again, err := svc.AssetURL(ctx, 7, "versioned-output", "thumbnail")
+	require.NoError(t, err)
+	preview, err := svc.AssetURL(ctx, 7, "versioned-output", "preview")
+	require.NoError(t, err)
+	require.Len(t, thumbnail.CacheVersion, 64)
+	require.Equal(t, thumbnail.CacheVersion, again.CacheVersion)
+	require.NotEqual(t, thumbnail.CacheVersion, preview.CacheVersion)
+	asset := repo.assets["versioned-output"]
+	require.NotContains(t, thumbnail.CacheVersion, asset.ThumbnailKey)
+	asset.ThumbnailKey += ".regenerated"
+	repo.assets[asset.ImageID] = asset
+	regenerated, err := svc.AssetURL(ctx, 7, "versioned-output", "thumbnail")
+	require.NoError(t, err)
+	require.NotEqual(t, thumbnail.CacheVersion, regenerated.CacheVersion)
+}

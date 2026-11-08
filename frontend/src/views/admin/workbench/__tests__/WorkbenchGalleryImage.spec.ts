@@ -1,13 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import WorkbenchGalleryImage from '../WorkbenchGalleryImage.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { getWorkbenchGalleryImage } from '@/api/admin/workbench'
+import { loadPrivateImageVariant, deletePrivateImageVariants } from '@/lib/privateImageVariantCache'
 
 vi.mock('@/api/admin/workbench', () => ({ getWorkbenchGalleryImage: vi.fn() }))
+vi.mock('@/lib/privateImageVariantCache', () => ({
+  loadPrivateImageVariant: vi.fn(async (opts: { authorize: () => Promise<unknown> }) => opts.authorize()),
+  deletePrivateImageVariants: vi.fn(async () => undefined),
+}))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
-afterEach(() => vi.unstubAllGlobals())
+beforeEach(() => {
+  vi.clearAllMocks()
+  localStorage.setItem('auth_token', 'test-viewer-session')
+  localStorage.setItem('auth_user', JSON.stringify({ id: 9, role: 'admin' }))
+})
+afterEach(() => { vi.unstubAllGlobals(); localStorage.removeItem('auth_token'); localStorage.removeItem('auth_user') })
 
 describe('administrator gallery image variants', () => {
   it('loads only a thumbnail until opened and never requests an original', async () => {
@@ -17,6 +27,12 @@ describe('administrator gallery image variants', () => {
     const wrapper = mount(WorkbenchGalleryImage, { props: { task, imageId: 'image-one', number: 1 }, global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' }, LoadingSpinner: true } } })
     await flushPromises()
     expect(getWorkbenchGalleryImage).toHaveBeenCalledTimes(1)
+    expect(loadPrivateImageVariant).toHaveBeenCalledWith(expect.objectContaining({ viewerId: 9, ownerId: 7, imageId: 'image-one', variant: 'thumbnail' }))
+    const authorization = vi.mocked(loadPrivateImageVariant).mock.calls[0]![0]
+    expect(authorization.isCurrent()).toBe(true)
+    localStorage.setItem('auth_user', JSON.stringify({ id: 10, role: 'admin' }))
+    expect(authorization.isCurrent()).toBe(false)
+    localStorage.setItem('auth_user', JSON.stringify({ id: 9, role: 'admin' }))
     expect(getWorkbenchGalleryImage).toHaveBeenLastCalledWith(task, 'image-one', 'thumbnail', expect.any(AbortSignal))
     expect(wrapper.find('img').attributes('loading')).toBe('lazy')
     expect(wrapper.find('img').attributes('referrerpolicy')).toBe('no-referrer')
@@ -67,6 +83,7 @@ describe('administrator gallery image variants', () => {
     await wrapper.findAll('img').at(-1)!.trigger('error')
     await flushPromises()
     expect(vi.mocked(getWorkbenchGalleryImage)).toHaveBeenCalledTimes(3)
+    expect(deletePrivateImageVariants).toHaveBeenCalledWith(9, 7, ['image-one'])
     expect(wrapper.text()).toContain('common.tryAgain')
   })
 })

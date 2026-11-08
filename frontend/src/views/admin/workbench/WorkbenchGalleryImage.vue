@@ -18,6 +18,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { loadPrivateImageVariant, deletePrivateImageVariants } from '@/lib/privateImageVariantCache'
 import { getWorkbenchGalleryImage, type WorkbenchGalleryImage, type WorkbenchGalleryTask } from '@/api/admin/workbench'
 
 const props = defineProps<{ task: WorkbenchGalleryTask; imageId: string; number: number }>()
@@ -34,17 +35,40 @@ let previewRetried = false
 const element = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 let thumbnailRetried = false
+function viewerIdentity() {
+  const token = localStorage.getItem('auth_token')
+  const user = JSON.parse(localStorage.getItem('auth_user') || 'null') as { id?: unknown } | null
+  const id = Number(user?.id)
+  if (!token || !Number.isSafeInteger(id) || id <= 0) throw new Error('Gallery authentication required')
+  return { token, id }
+}
+async function loadVariant(variant: 'thumbnail' | 'preview', signal: AbortSignal) {
+  const viewer = viewerIdentity()
+  return loadPrivateImageVariant({
+    viewerId: viewer.id, ownerId: props.task.user_id, imageId: props.imageId, variant, signal,
+    authorize: () => getWorkbenchGalleryImage(props.task, props.imageId, variant, signal),
+    isCurrent: () => {
+      try { const current = viewerIdentity(); return current.token === viewer.token && current.id === viewer.id }
+      catch { return false }
+    },
+  })
+}
+async function invalidateVariant() {
+  try { const viewer = viewerIdentity(); await deletePrivateImageVariants(viewer.id, props.task.user_id, [props.imageId]) }
+  catch { /* A blocked browser cache must not prevent reloading a valid link. */ }
+}
+
 async function loadThumbnail() {
   failed.value = false
   try {
-    const result = await getWorkbenchGalleryImage(props.task, props.imageId, 'thumbnail', controller.signal)
+    const result = await loadVariant('thumbnail', controller.signal)
     if (!controller.signal.aborted) thumbnail.value = result
   }
   catch { if (!controller.signal.aborted) failed.value = true }
 }
 function imageFailed() {
   thumbnail.value = null
-  if (!thumbnailRetried) { thumbnailRetried = true; void loadThumbnail() }
+  if (!thumbnailRetried) { thumbnailRetried = true; void invalidateVariant().then(loadThumbnail) }
   else failed.value = true
 }
 async function loadPreview() {
@@ -54,13 +78,13 @@ async function loadPreview() {
   preview.value = null
   previewFailed.value = false
   try {
-    const result = await getWorkbenchGalleryImage(props.task, props.imageId, 'preview', previewController.signal)
+    const result = await loadVariant('preview', previewController.signal)
     if (current === previewSequence && show.value) preview.value = result
   } catch { if (current === previewSequence && show.value && !previewController?.signal.aborted) previewFailed.value = true }
 }
 function previewImageFailed() {
   preview.value = null
-  if (!previewRetried) { previewRetried = true; void loadPreview() }
+  if (!previewRetried) { previewRetried = true; void invalidateVariant().then(() => { if (show.value) void loadPreview() }) }
   else previewFailed.value = true
 }
 function retryPreview() { previewRetried = false; void loadPreview() }

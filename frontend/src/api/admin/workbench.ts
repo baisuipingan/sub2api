@@ -119,6 +119,7 @@ export interface WorkbenchGalleryPage {
 export interface WorkbenchGalleryImage {
   url: string
   expires_at: string
+  cache_version?: string
   bytes: number
   mime: string
   width: number
