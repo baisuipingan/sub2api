@@ -16,10 +16,13 @@ vi.mock('@/api/admin/workbench', async importOriginal => ({
 }))
 
 const TableStub = defineComponent({
-  props: ['data', 'columns', 'loading'],
+  props: ['data', 'columns', 'loading', 'rowKey'],
   setup(props, { slots }) {
     return () => h('div', props.data.length
-      ? props.data.map((row: WorkbenchTask) => h('div', props.columns.map((column: { key: string }) => slots['cell-' + column.key]?.({ row }))))
+      ? props.data.map((row: WorkbenchTask) => {
+        const key = typeof props.rowKey === 'function' ? props.rowKey(row) : row[props.rowKey as keyof WorkbenchTask]
+        return h('div', { key, 'data-task-key': key }, props.columns.map((column: { key: string }) => slots['cell-' + column.key]?.({ row })))
+      })
       : slots.empty?.())
   },
 })
@@ -136,6 +139,15 @@ describe('workbench management pages', () => {
     const signal = getOverview.mock.calls[0][1] as AbortSignal
     wrapper.unmount()
     expect(signal.aborted).toBe(true)
+  })
+
+  it('keeps identical task IDs from different users as independent table rows', async () => {
+    listTasks.mockResolvedValueOnce({ items: [task, { ...task, user_id: 10, user_email: 'other@example.test' }], total: 2, page: 1, page_size: 20, pages: 1 })
+    const wrapper = render(WorkbenchTasksView)
+    await flushPromises()
+    expect(wrapper.findAll('[data-task-key]').map(row => row.attributes('data-task-key'))).toEqual(['9:job-unknown', '10:job-unknown'])
+    expect(wrapper.text()).toContain('user@example.test')
+    expect(wrapper.text()).toContain('other@example.test')
   })
 })
 

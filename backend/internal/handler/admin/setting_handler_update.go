@@ -445,7 +445,7 @@ var settingKeyJSONAliases = map[string]string{
 // UpdateSettingsRequest to the setting key each one writes. Resolved once from
 // the struct tags so new fields are covered without touching this file.
 //
-// Pointer-typed fields are deliberately excluded: they already carry their own
+// Pointer-typed fields are generally excluded: they already carry their own
 // "omitted = keep the stored value" merge in UpdateSettings, and some of them
 // rely on being rewritten on every save to re-normalize fail-closed security
 // state (see TestUpdateSettingsMalformedForwardedClientIPHeadersRemainFailClosedWhenOmitted).
@@ -480,6 +480,18 @@ func omittedSettingKeys(sentFields map[string]json.RawMessage) service.OmittedSe
 	omitted := make(service.OmittedSettingKeys, len(settingKeyByJSONName))
 	for jsonName, settingKey := range settingKeyByJSONName {
 		if _, sent := sentFields[jsonName]; !sent {
+			omitted[settingKey] = struct{}{}
+		}
+	}
+	// Workbench access has its own focused editor. Unlike security switches
+	// that must be re-normalized on every save, omitted workbench fields must
+	// not be rewritten from the earlier settings snapshot: another request may
+	// have changed the group or disabled access while this save was validating.
+	for jsonName, settingKey := range map[string]string{
+		"image_studio_enabled":  service.SettingKeyImageStudioEnabled,
+		"image_studio_group_id": service.SettingKeyImageStudioGroupID,
+	} {
+		if value, sent := sentFields[jsonName]; !sent || strings.TrimSpace(string(value)) == "null" {
 			omitted[settingKey] = struct{}{}
 		}
 	}

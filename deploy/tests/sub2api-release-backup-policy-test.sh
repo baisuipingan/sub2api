@@ -16,6 +16,11 @@ mkdir -p "$BACKUP_DIR" "$RECORD_DIR"
 cat > "$CURRENT_RECORD" <<'JSON'
 {"release_version":"0.2.20-ds.1","schema_epoch":1,"database_rollback":"image-only"}
 JSON
+if [[ "$TEST_CASE" == same_epoch_switch_failure ]]; then
+  cat > "$CURRENT_RECORD" <<'JSON'
+{"release_version":"0.2.20-ds.3","schema_epoch":2,"database_rollback":"backup-required"}
+JSON
+fi
 
 preflight() { :; }
 acquire_lock() { :; }
@@ -27,12 +32,14 @@ docker() {
 }
 image_label() {
   case "$2" in
-    org.opencontainers.image.version) printf '0.2.20-ds.2' ;;
+    org.opencontainers.image.version)
+      if [[ "$TEST_CASE" == same_epoch_switch_failure ]]; then printf '0.2.20-ds.4'; else printf '0.2.20-ds.2'; fi ;;
     io.baisuipingan.upstream.version) printf '0.2.20' ;;
     io.baisuipingan.upstream.commit) printf 'upstream-commit' ;;
     org.opencontainers.image.revision) printf 'source-commit' ;;
     io.baisuipingan.database.schema-epoch) printf '2' ;;
-    io.baisuipingan.database.rollback) printf 'backup-required' ;;
+    io.baisuipingan.database.rollback)
+      if [[ "$TEST_CASE" == same_epoch_switch_failure ]]; then printf 'image-only'; else printf 'backup-required'; fi ;;
     io.baisuipingan.build.type) printf 'fork' ;;
     *) : ;;
   esac
@@ -47,7 +54,7 @@ backup_database() {
 switch_image() {
   [[ -s "$BACKUP_DIR/pre-deploy.dump.gz" ]] || return 8
   printf 'attempted\n' > "$TEST_DIR/switch.marker"
-  [[ "$TEST_CASE" != switch_failure ]]
+  [[ "$TEST_CASE" != switch_failure && "$TEST_CASE" != same_epoch_switch_failure ]]
 }
 restore_previous_image() {
   printf 'unsafe rollback\n' > "$TEST_DIR/restore.marker"
@@ -101,6 +108,14 @@ fi
 [[ -f "$tmp/switch_failure/switch.marker" ]]
 [[ ! -f "$tmp/switch_failure/restore.marker" ]]
 grep -F 'automatic image rollback refused' "$tmp/switch_failure.log" >/dev/null
+
+if run_case same_epoch_switch_failure; then
+  echo 'failed compatible deployment unexpectedly succeeded' >&2
+  exit 1
+fi
+[[ -s "$tmp/same_epoch_switch_failure/releases/backups/pre-deploy.dump.gz" ]]
+[[ -f "$tmp/same_epoch_switch_failure/restore.marker" ]]
+grep -F 'previous image restored from 2-compatible baseline' "$tmp/same_epoch_switch_failure.log" >/dev/null
 
 if run_case rollback_refusal; then
   echo 'backup-required release allowed image-only rollback' >&2

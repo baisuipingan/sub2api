@@ -3,9 +3,12 @@
 package admin
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/stretchr/testify/require"
@@ -37,6 +40,77 @@ func TestUpdateSettingsPartialPayloadKeepsUnsentKeys(t *testing.T) {
 	require.Equal(t, "smtp.example.com", repo.values[service.SettingKeySMTPHost])
 	require.Equal(t, "noreply@example.com", repo.values[service.SettingKeySMTPFrom])
 	require.Equal(t, "true", repo.values[service.SettingKeyTurnstileEnabled])
+}
+
+type workbenchInterleavedSettingsRepo struct {
+	*settingHandlerRepoStub
+	beforeWrite func()
+}
+
+func (r *workbenchInterleavedSettingsRepo) SetMultiple(ctx context.Context, updates map[string]string) error {
+	if callback := r.beforeWrite; callback != nil {
+		r.beforeWrite = nil
+		callback()
+	}
+	return r.settingHandlerRepoStub.SetMultiple(ctx, updates)
+}
+
+func TestUpdateSettingsOmittedWorkbenchFieldsDoNotOverwriteConcurrentFocusedSave(t *testing.T) {
+	repo := &workbenchInterleavedSettingsRepo{settingHandlerRepoStub: &settingHandlerRepoStub{values: map[string]string{
+		service.SettingKeySiteName:           "before",
+		service.SettingKeyImageStudioEnabled: "true",
+		service.SettingKeyImageStudioGroupID: "11",
+	}}}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	h := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	// Interleave the dedicated workbench write after the broad handler has
+	// read its old snapshot, but immediately before that handler persists it.
+	repo.beforeWrite = func() {
+		require.NoError(t, svc.UpdateWorkbenchConfig(context.Background(), service.WorkbenchConfig{
+			ImageStudioEnabled: false,
+			ImageStudioGroupID: 22,
+		}))
+	}
+	rec := doUpdateSettings(t, h, map[string]any{"site_name": "after"}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "after", repo.values[service.SettingKeySiteName])
+	require.Equal(t, "false", repo.values[service.SettingKeyImageStudioEnabled])
+	require.Equal(t, "22", repo.values[service.SettingKeyImageStudioGroupID])
+	require.NotContains(t, repo.lastUpdates, service.SettingKeyImageStudioEnabled)
+	require.NotContains(t, repo.lastUpdates, service.SettingKeyImageStudioGroupID)
+}
+
+func TestUpdateSettingsExplicitLegacyWorkbenchFieldsRemainWritable(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		body    map[string]any
+		enabled string
+		groupID string
+	}{
+		{"both", map[string]any{"image_studio_enabled": false, "image_studio_group_id": 0}, "false", "0"},
+		{"enabled only", map[string]any{"image_studio_enabled": false}, "false", "11"},
+		{"group only", map[string]any{"image_studio_group_id": 22}, "true", "22"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+				service.SettingKeyImageStudioEnabled: "true",
+				service.SettingKeyImageStudioGroupID: "11",
+			})
+			rec := doUpdateSettings(t, h, test.body, nil)
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Equal(t, test.enabled, repo.values[service.SettingKeyImageStudioEnabled])
+			require.Equal(t, test.groupID, repo.values[service.SettingKeyImageStudioGroupID])
+		})
+	}
+}
+
+func TestUpdateSettingsNullWorkbenchFieldsHaveOmittedPointerSemantics(t *testing.T) {
+	omitted := omittedSettingKeys(map[string]json.RawMessage{
+		"image_studio_enabled":  json.RawMessage("null"),
+		"image_studio_group_id": json.RawMessage(" null "),
+	})
+	require.Contains(t, omitted, service.SettingKeyImageStudioEnabled)
+	require.Contains(t, omitted, service.SettingKeyImageStudioGroupID)
 }
 
 // A full payload keeps whole-document semantics: fields explicitly set to their

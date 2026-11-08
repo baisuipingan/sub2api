@@ -1,7 +1,7 @@
 {
   "schema_epoch": 2,
   "database": {
-    "rollback": "backup-required",
-    "reason": "dsapi_004 adds durable Image Studio execution state. An old image cannot resume accepted jobs. Stop new admissions and drain or explicitly classify outstanding jobs before rollback; restore the pre-deploy database backup only after accounting for jobs accepted since that backup."
+    "rollback": "image-only",
+    "reason": "This release keeps schema epoch 2 and adds no migrations. Workbench navigation and administration reuse the existing Studio job, gallery, billing and configuration formats. The previous 0.2.20-ds.3 image can resume the same durable jobs; rollback within epoch 2 may switch images without restoring the database. Epoch 1 images remain incompatible."
   }
 }

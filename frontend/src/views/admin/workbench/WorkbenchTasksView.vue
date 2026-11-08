@@ -22,7 +22,7 @@
         </div>
       </template>
       <template #table>
-        <DataTable :columns="columns" :data="items" :loading="loading" row-key="task_id">
+        <DataTable :columns="columns" :data="items" :loading="loading" :row-key="taskRowKey">
           <template #cell-task_id="{ row }">
             <div class="max-w-64 break-words text-xs"><p class="font-mono text-gray-900 dark:text-white">{{ row.task_id }}</p><p class="mt-1 text-gray-500 dark:text-dark-400">{{ row.user_email || t('admin.workbench.user', { id: row.user_id }) }}</p><p class="text-gray-400">#{{ row.user_id }}</p></div>
           </template>
@@ -77,6 +77,8 @@ const columns = computed(() => [
 ])
 const hasFilters = computed(() => Object.keys(applied.value).length > 0)
 const formatTime = (value: string) => new Date(value).toLocaleString(locale.value)
+// Public task IDs are unique within a user, not across the administrator view.
+const taskRowKey = (task: WorkbenchTask) => `${task.user_id}:${task.task_id}`
 
 async function load() {
   controller?.abort()
