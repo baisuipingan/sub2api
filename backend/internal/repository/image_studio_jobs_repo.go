@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/google/uuid"
@@ -881,9 +882,12 @@ func oneStudioJobRow(result sql.Result, err error) error {
 }
 
 func truncateStudioError(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) > 240 {
-		value = value[:240]
+	value = strings.ToValidUTF8(strings.TrimSpace(value), "")
+	if len(value) > 1000 {
+		value = value[:1000]
+		for !utf8.ValidString(value) {
+			value = value[:len(value)-1]
+		}
 	}
 	return value
 }

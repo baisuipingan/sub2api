@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -104,6 +105,20 @@ func TestStudioFinishTimestampUsesCallCompletionInsteadOfScanTime(t *testing.T) 
         WHERE j.user_id=$1 AND j.task_id=$2`, claim.UserID, claim.TaskID).Scan(&elapsed, &sameEnd))
 	require.True(t, sameEnd)
 	require.Greater(t, elapsed, float64(39))
+}
+
+func TestStudioLongChineseErrorPersistsWithoutStalling(t *testing.T) {
+	ctx := context.Background()
+	repo, claim := studioTransitionClaim(t, 1)
+	require.NoError(t, repo.MarkDispatched(ctx, claim))
+	message := "[MODERATION_BLOCKED]: " + strings.Repeat("上游安全审核拒绝", 100)
+	require.NoError(t, repo.FailCall(ctx, claim, "MODERATION_BLOCKED", message))
+	job, err := repo.Get(ctx, claim.UserID, claim.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, service.StudioJobFailed, job.Calls[0].Status)
+	require.True(t, utf8.ValidString(job.Calls[0].ErrorMessage))
+	require.LessOrEqual(t, len(job.Calls[0].ErrorMessage), 1000)
+	require.Contains(t, job.Calls[0].ErrorMessage, "安全审核拒绝")
 }
 
 func TestStudioJobCompleteAndUnknownTerminalTransitions(t *testing.T) {
