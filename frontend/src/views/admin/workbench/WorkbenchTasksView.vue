@@ -12,7 +12,7 @@
           </div>
           <form class="flex flex-wrap items-end gap-3" @submit.prevent="search">
             <div class="w-full sm:w-44"><label for="workbench-status" class="input-label">{{ t('admin.workbench.filters.status') }}</label><Select id="workbench-status" v-model="filters.status" :options="statusOptions" :aria-label="t('admin.workbench.filters.status')" /></div>
-            <div class="w-full sm:w-36"><Input id="workbench-user" v-model="filters.user" :label="t('admin.workbench.filters.user')" :placeholder="t('admin.workbench.filters.userPlaceholder')" :error="filterError" /></div>
+            <div class="w-full sm:w-64"><UserSearchSelect ref="userPicker" id="workbench-user" v-model="selectedUserId" :label="t('admin.workbench.filters.user')" :placeholder="t('admin.workbench.filters.userPlaceholder')" :error="filterError" @change="onUserChange" /></div>
             <div class="min-w-0 flex-1 basis-48"><Input id="workbench-model" v-model="filters.model" :label="t('admin.workbench.filters.model')" :placeholder="t('admin.workbench.filters.modelPlaceholder')" /></div>
             <button type="submit" class="btn btn-primary" :disabled="loading">{{ t('common.search') }}</button>
             <button type="button" class="btn btn-secondary" @click="reset">{{ t('common.reset') }}</button>
@@ -50,16 +50,21 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import Input from '@/components/common/Input.vue'
+import UserSearchSelect from '@/components/admin/UserSearchSelect.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import WorkbenchTaskRoutes from './WorkbenchTaskRoutes.vue'
 import { listWorkbenchTasks, WORKBENCH_TASK_STATUSES, type WorkbenchTask, type WorkbenchTaskQuery, type WorkbenchTaskStatus } from '@/api/admin/workbench'
 import { getImageErrorPresentation } from '@/features/imageStudio/lib/apiErrors'
-import { workbenchElapsedSeconds, workbenchStatusVariant, workbenchUserIdFilter } from './workbenchDisplay'
+import { workbenchElapsedSeconds, workbenchStatusVariant } from './workbenchDisplay'
 
 const { t, locale } = useI18n()
-const filters = reactive({ status: '', user: '', model: '' })
+const filters = reactive({ status: '', model: '' })
+const selectedUserId = ref<number>()
+const userPicker = ref<InstanceType<typeof UserSearchSelect> | null>(null)
+let resettingFilters = false
+function onUserChange() { if (!resettingFilters) search() }
 const applied = ref<WorkbenchTaskQuery>({})
 const items = ref<WorkbenchTask[]>([])
 const total = ref(0)
@@ -113,8 +118,8 @@ async function load() {
 
 function search() {
   filterError.value = ''
-  let userId: number | undefined
-  try { userId = workbenchUserIdFilter(filters.user) } catch { filterError.value = t('admin.workbench.filters.invalidUser'); return }
+  if (userPicker.value?.hasUnselectedQuery()) { filterError.value = t('admin.workbench.filters.chooseUser'); return }
+  const userId = selectedUserId.value
   applied.value = {
     ...(filters.status ? { status: filters.status as WorkbenchTaskStatus } : {}),
     ...(userId ? { user_id: userId } : {}),
@@ -123,7 +128,13 @@ function search() {
   page.value = 1
   void load()
 }
-function reset() { filters.status = ''; filters.user = ''; filters.model = ''; search() }
+function reset() {
+  resettingFilters = true
+  filters.status = ''; filters.model = ''; selectedUserId.value = undefined
+  userPicker.value?.clear()
+  resettingFilters = false
+  search()
+}
 function setPage(value: number) { page.value = value; void load() }
 function setPageSize(value: number) { pageSize.value = value; page.value = 1; void load() }
 onMounted(() => { void load() })

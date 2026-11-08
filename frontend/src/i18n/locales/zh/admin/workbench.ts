@@ -44,7 +44,7 @@ export default {
     emptyHint: '开启服务端执行后，新接收的任务会显示在这里。已有本机历史仍在个人图片生成页面中。',
     noMatches: '没有符合筛选条件的任务',
     metadataHint: '此处查询不会重新生图。实际上游取自每次生成请求的用量和错误记录，包含已留痕的重试；运行中的记录可能尚未返回，旧记录缺失时显示未知，不会根据当前配置推测。图片和提示词不随列表加载。',
-    filters: { status: '任务状态', all: '全部状态', user: '用户 ID', userPlaceholder: '精确用户 ID', model: '模型', modelPlaceholder: '精确模型名', invalidUser: '请输入有效的正整数用户 ID。' },
+    filters: { status: '任务状态', all: '全部状态', user: '用户', userPlaceholder: '搜索名字、昵称或邮箱…', chooseUser: '请从搜索结果中选择用户。', userSearchFailed: '用户搜索失败，请重新输入重试。', noUsers: '没有找到匹配的用户。', model: '模型', modelPlaceholder: '精确模型名', invalidUser: '请输入有效的正整数用户 ID。' },
     columns: { upstream: '实际上游', task: '任务 / 用户', model: '模型', status: '状态', images: '图片 / 调用', time: '时间', diagnostic: '诊断' },
     user: '用户 #{id}',
     imageProgress: '结果 {done} / 请求 {total} 张',

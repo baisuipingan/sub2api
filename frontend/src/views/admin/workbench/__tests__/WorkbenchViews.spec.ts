@@ -7,6 +7,9 @@ import WorkbenchOverviewView from '../WorkbenchOverviewView.vue'
 import WorkbenchTasksView from '../WorkbenchTasksView.vue'
 import { workbenchElapsedSeconds, workbenchUserIdFilter } from '../workbenchDisplay'
 import type { WorkbenchOverview, WorkbenchTask } from '@/api/admin/workbench'
+import { searchUsers } from '@/api/admin/usage'
+
+vi.mock('@/api/admin/usage', async importOriginal => ({ ...await importOriginal<typeof import('@/api/admin/usage')>(), searchUsers: vi.fn() }))
 
 const { getOverview, listTasks } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn() }))
 vi.mock('@/api/admin/workbench', async importOriginal => ({
@@ -68,6 +71,7 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 describe('workbench management pages', () => {
   beforeEach(() => {
     getOverview.mockReset().mockResolvedValue(overview())
+    vi.mocked(searchUsers).mockReset().mockResolvedValue([])
     listTasks.mockReset().mockResolvedValue({ items: [task], total: 1, page: 1, page_size: 20, pages: 1 })
   })
   afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
@@ -106,17 +110,22 @@ describe('workbench management pages', () => {
     expect(wrapper.findAll('.stat-card')).toHaveLength(0)
   })
 
-  it('sends exact validated filters and does not query on each keystroke', async () => {
+  it('selects searched users instead of treating typed text as an ID', async () => {
+    vi.mocked(searchUsers).mockResolvedValue([{ id: 9, username: '测试昵称', email: 'user@example.test', deleted: false }])
     const wrapper = render(WorkbenchTasksView)
     await flushPromises()
-    await wrapper.find('#workbench-user').setValue('1e3')
+    await wrapper.find('#workbench-user').setValue('测试昵称')
     await wrapper.find('form').trigger('submit')
     expect(listTasks).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('正整数用户 ID')
-    await wrapper.find('#workbench-user').setValue('9')
+    expect(wrapper.text()).toContain('请从搜索结果中选择用户')
+    await new Promise(resolve => setTimeout(resolve, 350))
+    await flushPromises()
+    expect(searchUsers).toHaveBeenCalledWith('测试昵称')
+    await wrapper.get('[role="option"]').trigger('click')
+    await flushPromises()
+    expect(listTasks).toHaveBeenLastCalledWith({ page: 1, page_size: 20, user_id: 9 }, expect.any(AbortSignal))
     await wrapper.find('#workbench-model').setValue(' custom-image-model ')
     await wrapper.find('select').setValue('unknown')
-    expect(listTasks).toHaveBeenCalledTimes(1)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(listTasks).toHaveBeenLastCalledWith({ page: 1, page_size: 20, user_id: 9, model: 'custom-image-model', status: 'unknown' }, expect.any(AbortSignal))

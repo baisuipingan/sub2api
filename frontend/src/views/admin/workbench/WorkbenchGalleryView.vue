@@ -7,7 +7,7 @@
           <button type="button" class="btn btn-secondary" :disabled="loading" @click="load"><Icon name="refresh" class="mr-1.5" :class="{ 'animate-spin': loading }" />{{ t('common.refresh') }}</button>
         </div>
         <form class="flex flex-wrap items-end gap-3" @submit.prevent="search">
-          <div class="w-full sm:w-44"><Input id="gallery-user" v-model="filters.user" :label="t('admin.workbench.filters.user')" :placeholder="t('admin.workbench.filters.userPlaceholder')" :error="filterError" /></div>
+          <div class="w-full sm:w-64"><UserSearchSelect ref="userPicker" id="gallery-user" v-model="selectedUserId" :label="t('admin.workbench.filters.user')" :placeholder="t('admin.workbench.filters.userPlaceholder')" :error="filterError" @change="onUserChange" /></div>
           <div class="min-w-0 flex-1 basis-48"><Input id="gallery-task" v-model="filters.task" :label="t('admin.workbench.galleryTaskFilter')" :placeholder="t('admin.workbench.galleryTaskPlaceholder')" /></div>
           <button type="submit" class="btn btn-primary" :disabled="loading">{{ t('common.search') }}</button>
           <button type="button" class="btn btn-secondary" @click="reset">{{ t('common.reset') }}</button>
@@ -35,11 +35,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Input from '@/components/common/Input.vue'
+import UserSearchSelect from '@/components/admin/UserSearchSelect.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -51,7 +52,11 @@ import WorkbenchGalleryImage from './WorkbenchGalleryImage.vue'
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const filters = reactive({ user: '', task: '' })
+const filters = reactive({ task: '' })
+const selectedUserId = ref<number>()
+const userPicker = ref<InstanceType<typeof UserSearchSelect> | null>(null)
+let resettingFilters = false
+function onUserChange() { if (!resettingFilters) search() }
 const items = ref<WorkbenchGalleryTask[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -61,11 +66,11 @@ const error = ref(false)
 const filterError = ref('')
 let controller: AbortController | null = null
 let sequence = 0
+let routeSequence = 0
 const formatTime = (value: string) => new Date(value).toLocaleString(locale.value)
 async function load() {
-  let userID: number | undefined
-  filterError.value = ''
-  try { userID = workbenchUserIdFilter(filters.user) } catch { filterError.value = t('admin.workbench.filters.invalidUser'); return }
+  if (userPicker.value?.hasUnselectedQuery()) { filterError.value = t('admin.workbench.filters.chooseUser'); return }
+  const userID = selectedUserId.value
   controller?.abort()
   controller = new AbortController()
   const current = ++sequence
@@ -83,14 +88,46 @@ async function load() {
   finally { if (current === sequence) loading.value = false }
 }
 function search() {
+  filterError.value = ''
+  if (userPicker.value?.hasUnselectedQuery()) { filterError.value = t('admin.workbench.filters.chooseUser'); return }
   page.value = 1
-  const query = { ...(filters.user.trim() ? { user_id: filters.user.trim() } : {}), ...(filters.task.trim() ? { task_id: filters.task.trim() } : {}) }
+  const query = { ...(selectedUserId.value ? { user_id: String(selectedUserId.value) } : {}), ...(filters.task.trim() ? { task_id: filters.task.trim() } : {}) }
   if (JSON.stringify(route.query) === JSON.stringify(query)) void load()
   else void router.replace({ query })
 }
-function reset() { filters.user = ''; filters.task = ''; search() }
+function reset() {
+  resettingFilters = true
+  filters.task = ''; selectedUserId.value = undefined
+  userPicker.value?.clear()
+  resettingFilters = false
+  search()
+}
 function setPage(value: number) { page.value = value; void load() }
 function setPageSize(value: number) { pageSize.value = Math.min(value, 50); page.value = 1; void load() }
-watch(() => route.query, () => { filters.user = typeof route.query.user_id === 'string' ? route.query.user_id : ''; filters.task = typeof route.query.task_id === 'string' ? route.query.task_id : ''; page.value = 1; void load() }, { immediate: true })
-onBeforeUnmount(() => { sequence++; controller?.abort() })
+watch(() => route.query, async () => {
+  const revision = ++routeSequence
+  filterError.value = ''
+  try {
+    selectedUserId.value = workbenchUserIdFilter(typeof route.query.user_id === 'string' ? route.query.user_id : '')
+  } catch {
+    selectedUserId.value = undefined
+    filterError.value = t('admin.workbench.filters.invalidUser')
+    controller?.abort()
+    sequence++
+    loading.value = false
+    items.value = []
+    total.value = 0
+    return
+  }
+  if (selectedUserId.value === undefined) {
+    resettingFilters = true
+    userPicker.value?.clear()
+    resettingFilters = false
+  }
+  filters.task = typeof route.query.task_id === 'string' ? route.query.task_id : ''
+  page.value = 1
+  await nextTick()
+  if (revision === routeSequence) void load()
+}, { immediate: true })
+onBeforeUnmount(() => { sequence++; routeSequence++; controller?.abort() })
 </script>

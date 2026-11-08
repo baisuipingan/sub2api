@@ -44,7 +44,7 @@ export default {
     emptyHint: 'New tasks appear here after server execution is enabled. Existing browser history remains in personal image generation.',
     noMatches: 'No tasks match these filters',
     metadataHint: 'This view does not generate images. Observed upstreams come from each generation request’s usage and error logs, including retained retries. In-flight records may not be available yet; missing history remains unknown rather than inferred from current settings. Images and prompts are not loaded.',
-    filters: { status: 'Task status', all: 'All statuses', user: 'User ID', userPlaceholder: 'Exact user ID', model: 'Model', modelPlaceholder: 'Exact model name', invalidUser: 'Enter a valid positive integer user ID.' },
+    filters: { status: 'Task status', all: 'All statuses', user: 'User', userPlaceholder: 'Search name, nickname or email…', chooseUser: 'Select a user from the search results.', userSearchFailed: 'User search failed. Type again to retry.', noUsers: 'No matching users.', model: 'Model', modelPlaceholder: 'Exact model name', invalidUser: 'Enter a valid positive integer user ID.' },
     columns: { upstream: 'Observed upstream', task: 'Task / User', model: 'Model', status: 'Status', images: 'Images / Calls', time: 'Time', diagnostic: 'Diagnostics' },
     user: 'User #{id}',
     imageProgress: '{done} results / {total} requested',
