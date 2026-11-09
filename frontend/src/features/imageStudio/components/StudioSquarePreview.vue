@@ -17,9 +17,9 @@
           <img v-if="streamPreview" :src="streamPreview" :alt="t('imageStudio.task.streamPreview')" class="h-full w-full object-contain" />
           <div v-else class="flex flex-col items-center gap-3 text-sm text-primary-600 dark:text-primary-400">
             <LoadingSpinner size="md" />
-            {{ t('imageStudio.result.generating') }}
+            {{ runningLabel }}
           </div>
-          <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">{{ t('imageStudio.result.rendering') }}</span>
+          <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">{{ submissionStage ? runningLabel : t('imageStudio.result.rendering') }}</span>
         </template>
         <button
           v-else-if="source"
@@ -68,6 +68,8 @@ const failed = ref(false)
 const loading = ref(false)
 const imageIndex = computed(() => Math.max(0, props.task.outputImages.indexOf(props.imageId ?? '')))
 const multiple = computed(() => props.task.outputImages.length > 1)
+const submissionStage = computed(() => state.studioSubmissionStage?.[props.task.id])
+const runningLabel = computed(() => t(submissionStage.value === 'preparing' ? 'imageStudio.store.referencePreparing' : submissionStage.value === 'uploading' ? 'imageStudio.store.referenceUploading' : submissionStage.value === 'submitting' ? 'imageStudio.store.cloudSubmitting' : 'imageStudio.result.generating'))
 const streamPreview = computed(() => state.streamPreviews[props.task.id]?.image)
 
 watch(() => props.imageId, async (id, _previous, onCleanup) => {

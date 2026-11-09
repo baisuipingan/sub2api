@@ -628,9 +628,15 @@ func (r *studioJobRepository) markUnknown(ctx context.Context, claim service.Stu
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	message := "upstream request may have been billed; it will not be retried automatically"
+	if !expiredOnly {
+		if detail := service.SanitizeStudioErrorMessage(claim.Call.ErrorMessage); detail != "" {
+			message = service.SanitizeStudioErrorMessage(detail + "; upstream completion or billing could not be confirmed; it will not be retried automatically")
+		}
+	}
 	query := `UPDATE image_studio_job_calls SET status='unknown',
         billing_state='unknown',error_code='UPSTREAM_RESULT_UNKNOWN',
-        error_message='upstream request may have been billed; it will not be retried automatically',
+        error_message=$5,
         lease_token=NULL,lease_until=NULL,updated_at=NOW()
         WHERE user_id=$1 AND task_id=$2 AND ordinal=$3 AND lease_token=$4::uuid
 		  AND status='generating'`
@@ -638,7 +644,7 @@ func (r *studioJobRepository) markUnknown(ctx context.Context, claim service.Stu
 		query += " AND lease_until<NOW()"
 	}
 	result, err := tx.ExecContext(ctx, query,
-		claim.UserID, claim.TaskID, claim.Call.Ordinal, claim.Call.LeaseToken)
+		claim.UserID, claim.TaskID, claim.Call.Ordinal, claim.Call.LeaseToken, message)
 	if err := oneStudioJobRow(result, err); err != nil {
 		return err
 	}

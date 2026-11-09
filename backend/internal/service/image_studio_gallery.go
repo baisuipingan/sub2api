@@ -276,8 +276,17 @@ func (s *ImageStudioGalleryService) PutAcceptedJobAsset(ctx context.Context, use
 }
 
 func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, acceptedTaskID, imageID, contentType string, data []byte, requireEnabled bool) error {
-	if userID <= 0 || !galleryIDValid(imageID) || len(data) == 0 || len(data) > GalleryMaxImageBytes {
+	if userID <= 0 {
 		return ErrGalleryInvalid
+	}
+	if !galleryIDValid(imageID) {
+		return galleryValidationError("GALLERY_INVALID_ID", "image identifier is invalid; reselect the reference image and retry", nil)
+	}
+	if len(data) == 0 {
+		return galleryValidationError("GALLERY_IMAGE_EMPTY", "reference image is empty; reselect the image and retry", nil)
+	}
+	if len(data) > GalleryMaxImageBytes {
+		return galleryValidationError("GALLERY_TOO_LARGE", "reference image exceeds the 32 MiB upload limit", map[string]string{"max_bytes": strconv.Itoa(GalleryMaxImageBytes)})
 	}
 	digest := sha256.Sum256(data)
 	hexDigest := hex.EncodeToString(digest[:])
@@ -316,15 +325,26 @@ func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, 
 	}
 	decodedCfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	mime := galleryImageMIME(format)
-	if err != nil || mime == "" || decodedCfg.Width <= 0 || decodedCfg.Height <= 0 || int64(decodedCfg.Width)*int64(decodedCfg.Height) > galleryMaxPixels {
-		return ErrGalleryInvalid
+	if err != nil {
+		return galleryImageDecodeError(data)
 	}
-	if declared := strings.TrimSpace(strings.Split(contentType, ";")[0]); declared != "" && declared != mime {
-		return ErrGalleryInvalid
+	if mime == "" {
+		return galleryValidationError("GALLERY_IMAGE_FORMAT_UNSUPPORTED", "unsupported image format; upload a PNG, JPEG, WebP or GIF image", nil)
+	}
+	if decodedCfg.Width <= 0 || decodedCfg.Height <= 0 {
+		return galleryValidationError("GALLERY_IMAGE_DECODE_FAILED", "image dimensions are invalid; export the image again and retry", nil)
+	}
+	if int64(decodedCfg.Width)*int64(decodedCfg.Height) > galleryMaxPixels {
+		return galleryValidationError("GALLERY_IMAGE_TOO_MANY_PIXELS", "reference image exceeds 20 million pixels; reduce its dimensions and retry", galleryImageDimensions(decodedCfg.Width, decodedCfg.Height))
+	}
+	if strings.TrimSpace(contentType) != "" && GalleryDeclaredImageMIME(contentType) != mime {
+		metadata := galleryImageDimensions(decodedCfg.Width, decodedCfg.Height)
+		metadata["actual_mime"] = mime
+		return galleryValidationError("GALLERY_IMAGE_MIME_MISMATCH", "image format does not match its declared content type; export or reselect the image and retry", metadata)
 	}
 	decoded, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
-		return ErrGalleryInvalid
+		return galleryValidationError("GALLERY_IMAGE_DECODE_FAILED", "image data is incomplete or cannot be decoded; export the image again and retry", galleryImageDimensions(decodedCfg.Width, decodedCfg.Height))
 	}
 	preview, previewWidth, previewHeight, previewMIME, err := galleryVariant(decoded, 1600)
 	if err != nil {

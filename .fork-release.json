@@ -2,6 +2,6 @@
   "schema_epoch": 2,
   "database": {
     "rollback": "image-only",
-    "reason": "This release keeps schema epoch 2 and adds no database migrations. The bounded browser-only thumbnail/preview cache uses a separate disposable IndexedDB and an additive opaque cache_version field. Existing Studio task, original image, routing, billing and configuration formats are unchanged. Same-epoch image rollback remains supported."
+    "reason": "Schema epoch 2 is retained. Migration 254 adds the ticket attachment table and nullable operation identifiers on ticket messages; older images can run with these additive structures retained. Ticket screenshots use the existing private S3/R2 target under tickets/v1/. Studio reference-upload diagnostics and bounded control requests do not change routing, billing or existing image formats. Image-only rollback is supported; the older application will not display or clean up ticket attachments."
   }
 }

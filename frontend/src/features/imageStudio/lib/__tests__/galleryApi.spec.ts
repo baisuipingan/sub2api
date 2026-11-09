@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { imageSourceToBlob, imageDataUrlToPngBlob } = vi.hoisted(() => ({
   imageSourceToBlob: vi.fn(), imageDataUrlToPngBlob: vi.fn(),
@@ -11,7 +11,10 @@ vi.mock('../gallerySession', () => ({
   verifyGalleryIdentity: vi.fn(),
 }))
 
-import { fetchGalleryAssetBlob, GalleryApiError, getGalleryStatus, listGalleryTasks, putGalleryAsset } from '../galleryApi'
+import i18n from '@/i18n'
+import zhStudio from '@/i18n/locales/zh/imageStudio'
+
+import { fetchGalleryAssetBlob, GalleryApiError, getGalleryErrorMessage, getGalleryStatus, listGalleryTasks, putGalleryAsset } from '../galleryApi'
 
 function apiResponse(data: unknown, code = 0) {
   return new Response(JSON.stringify({ code, data }), {
@@ -25,8 +28,56 @@ beforeEach(() => {
   imageSourceToBlob.mockReset()
   imageDataUrlToPngBlob.mockReset()
 })
+afterEach(() => { vi.useRealTimers(); i18n.global.locale.value = 'en' })
 
 describe('gallery API contract', () => {
+  it('retains precise image validation reason and metadata with a helpful localized message', async () => {
+    i18n.global.setLocaleMessage('zh', zhStudio)
+    i18n.global.locale.value = 'zh'
+    imageSourceToBlob.mockResolvedValue(new Blob(['image'], { type: 'image/png' }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      code: 400, reason: 'GALLERY_IMAGE_TOO_MANY_PIXELS', message: 'image dimensions 5000x5000 exceed maximum',
+      metadata: { width: '5000', height: '5000', max_pixels: '20000000' },
+    }), { status: 400 })))
+    const error = await putGalleryAsset('reference', 'data:image/png;base64,aW1hZ2U=').catch(error => error)
+    expect(error).toMatchObject({ code: 'GALLERY_IMAGE_TOO_MANY_PIXELS', metadata: { width: '5000' } })
+    expect(getGalleryErrorMessage(error)).toContain('2000 万像素')
+    expect(getGalleryErrorMessage(error)).toContain('5000x5000')
+    expect(getGalleryErrorMessage(new GalleryApiError('invalid gallery item', 400, 'GALLERY_INVALID'))).not.toContain('invalid gallery item')
+    expect(getGalleryErrorMessage(new GalleryApiError('Use https://private.test/x?signature=secret', 503))).not.toContain('private.test')
+  })
+
+  it('bounds reference uploads and forwards cancellation to the transport', async () => {
+    vi.useFakeTimers()
+    imageSourceToBlob.mockResolvedValue(new Blob(['image'], { type: 'image/png' }))
+    let signal: AbortSignal | undefined
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, init: RequestInit) => {
+      signal = init.signal as AbortSignal
+      return new Promise(() => undefined)
+    }))
+    const pending = putGalleryAsset('reference', 'data:image/png;base64,aW1hZ2U=')
+    const failed = expect(pending).rejects.toMatchObject({ code: 'GALLERY_UPLOAD_TIMEOUT', status: 408 })
+    await vi.advanceTimersByTimeAsync(120_000)
+    await failed
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('cancels an active gallery PUT using the task signal', async () => {
+    imageSourceToBlob.mockResolvedValue(new Blob(['image'], { type: 'image/png' }))
+    let signal: AbortSignal | undefined
+    const transport = vi.fn().mockImplementation((_url, init: RequestInit) => {
+      signal = init.signal as AbortSignal
+      return new Promise(() => undefined)
+    })
+    vi.stubGlobal('fetch', transport)
+    const caller = new AbortController()
+    const pending = putGalleryAsset('reference', 'data:image/png;base64,aW1hZ2U=', 'token', caller.signal)
+    const failed = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() => expect(transport).toHaveBeenCalledOnce())
+    caller.abort()
+    await failed
+    expect(signal?.aborted).toBe(true)
+  })
   it('reads canonical status and cursor pagination envelopes', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(apiResponse({ enabled: true, user_id: 1 }))
       .mockResolvedValueOnce(apiResponse({ items: [], next_cursor: 'next' }))

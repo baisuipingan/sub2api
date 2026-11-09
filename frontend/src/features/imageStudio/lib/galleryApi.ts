@@ -2,6 +2,9 @@ import type { TaskRecord } from '../types'
 import { blobToDataUrl, imageSourceToBlob } from './dataUrl'
 import { imageDataUrlToPngBlob } from './canvasImage'
 import { currentGalleryUserId, isVerifiedGalleryAuth, verifyGalleryIdentity } from './gallerySession'
+import { StudioRequestTimeoutError, withStudioRequestDeadline } from './requestDeadline'
+import { libT } from './i18nMessage'
+import { safeMessage } from './apiErrors'
 
 const BASE = '/api/v1/image-studio/gallery'
 
@@ -37,7 +40,7 @@ export interface GalleryStatus {
 }
 
 export class GalleryApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) {
+  constructor(message: string, readonly status: number, readonly code?: string, readonly metadata?: Record<string, string>) {
     super(message)
     this.name = 'GalleryApiError'
   }
@@ -49,25 +52,33 @@ function token() {
   return value
 }
 
-async function request<T>(path: string, init: RequestInit = {}, authToken = token()): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, authToken = token(), timeoutMs = 20_000): Promise<T> {
   if (path !== '/status' && !isVerifiedGalleryAuth(authToken)) {
     await ensureGalleryIdentity(authToken)
   }
-  const response = await fetch(BASE + path, {
-    ...init,
-    cache: 'no-store',
-    headers: { Authorization: 'Bearer ' + authToken, ...init.headers },
-  })
-  let payload: { code?: number; message?: string; reason?: string; data?: T; error?: { code?: string; message?: string } }
   try {
-    payload = await response.json() as typeof payload
-  } catch {
-    throw new GalleryApiError('Invalid gallery response', response.status)
+    return await withStudioRequestDeadline(timeoutMs, init.signal, async signal => {
+      const response = await fetch(BASE + path, {
+        ...init,
+        signal,
+        cache: 'no-store',
+        headers: { Authorization: 'Bearer ' + authToken, ...init.headers },
+      })
+      let payload: { code?: number; message?: string; reason?: string; metadata?: Record<string, string>; data?: T; error?: { code?: string; message?: string } }
+      try {
+        payload = await response.json() as typeof payload
+      } catch {
+        throw new GalleryApiError('Invalid gallery response', response.status)
+      }
+      if (!response.ok || payload.code !== 0 || !payload.data) {
+        throw new GalleryApiError(payload.error?.message ?? payload.message ?? 'Gallery request failed', response.status, payload.error?.code ?? payload.reason, payload.metadata)
+      }
+      return payload.data
+    })
+  } catch (error) {
+    if (error instanceof StudioRequestTimeoutError) throw new GalleryApiError('Gallery request timed out', 408, timeoutMs > 20_000 ? 'GALLERY_UPLOAD_TIMEOUT' : 'STUDIO_REQUEST_TIMEOUT')
+    throw error
   }
-  if (!response.ok || payload.code !== 0 || !payload.data) {
-    throw new GalleryApiError(payload.error?.message ?? payload.message ?? 'Gallery request failed', response.status, payload.error?.code ?? payload.reason)
-  }
-  return payload.data
 }
 
 /** Revalidate a refreshed JWT before any cloud asset or task operation. */
@@ -85,7 +96,8 @@ export function getGalleryStatus() {
   return request<GalleryStatus>('/status')
 }
 
-export async function putGalleryAsset(imageId: string, dataUrl: string, authToken = token()) {
+export async function putGalleryAsset(imageId: string, dataUrl: string, authToken = token(), signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Screenshot upload cancelled', 'AbortError')
   const source = await imageSourceToBlob(dataUrl)
   // Preserve legacy uploads locally; archive a decodable unsupported format as PNG.
   const blob = ['image/png', 'image/jpeg', 'image/webp'].includes(source.type)
@@ -96,11 +108,27 @@ export async function putGalleryAsset(imageId: string, dataUrl: string, authToke
   }
   const data = await request<{ id: string }>('/assets/' + encodeURIComponent(imageId), {
     method: 'PUT',
+    signal,
     headers: { 'Content-Type': blob.type },
     body: blob,
-  }, authToken)
+  }, authToken, 120_000)
   if (data.id !== imageId) throw new GalleryApiError('Gallery image ID mismatch', 502)
   return data
+}
+
+export function getGalleryErrorMessage(error: unknown): string {
+  const keys: Record<string, string> = {
+    GALLERY_INVALID: 'invalid', GALLERY_INVALID_ID: 'invalidId', GALLERY_IMAGE_EMPTY: 'empty',
+    GALLERY_TOO_LARGE: 'tooLarge', GALLERY_IMAGE_FORMAT_UNSUPPORTED: 'format',
+    GALLERY_IMAGE_TOO_MANY_PIXELS: 'pixels', GALLERY_IMAGE_MIME_MISMATCH: 'mime',
+    GALLERY_IMAGE_DECODE_FAILED: 'decode', GALLERY_UPLOAD_TIMEOUT: 'uploadTimeout', STUDIO_REQUEST_TIMEOUT: 'requestTimeout',
+  }
+  if (!(error instanceof GalleryApiError)) return error instanceof Error ? safeMessage(error.message) : libT('imageStudio.galleryInputErrors.invalid')
+  const key = error.code && keys[error.code]
+  const detail = safeMessage(error.message)
+  if (!key) return detail
+  const hint = libT('imageStudio.galleryInputErrors.' + key)
+  return error.code === 'GALLERY_INVALID' || error.code?.endsWith('TIMEOUT') ? hint : `${hint}\n${detail}`
 }
 
 export function putGalleryTask(task: TaskRecord) {

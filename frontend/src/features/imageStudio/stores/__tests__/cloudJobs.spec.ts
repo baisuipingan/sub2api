@@ -3,10 +3,22 @@ import { DEFAULT_PARAMS, type TaskRecord } from '../../types'
 import { createImageModelCatalogFromModelList } from '../../lib/modelRegistry'
 import { GalleryApiError } from '../../lib/galleryApi'
 
-const { callImageApi, createStudioJob, getStudioJob, listStudioJobs, deleteStudioJob, getGalleryStatus, listGalleryTasks, putGalleryAsset, ensureGalleryIdentity, showBrowserNotification, getAllTasks, getPendingSyncRecords, getPendingSyncTaskIds, putTask, putTaskWithPendingSync, commitTaskDeletion, clearTaskPendingSync, storeImageWithSize } = vi.hoisted(() => ({
+const { prepareStudioReference, validateMaskMatchesImage, createMaskedInputImage, loadImage, callImageApi, createStudioJob, getStudioJob, listStudioJobs, deleteStudioJob, getGalleryStatus, listGalleryTasks, putGalleryAsset, ensureGalleryIdentity, showBrowserNotification, getAllTasks, getPendingSyncRecords, getPendingSyncTaskIds, putTask, putTaskWithPendingSync, commitTaskDeletion, clearTaskPendingSync, storeImage, storeImageWithSize } = vi.hoisted(() => ({
+  prepareStudioReference: vi.fn(), validateMaskMatchesImage: vi.fn(), createMaskedInputImage: vi.fn(), loadImage: vi.fn(),
   callImageApi: vi.fn(), createStudioJob: vi.fn(), getStudioJob: vi.fn(), listStudioJobs: vi.fn(), deleteStudioJob: vi.fn(),
   getGalleryStatus: vi.fn(), listGalleryTasks: vi.fn(), putGalleryAsset: vi.fn(), ensureGalleryIdentity: vi.fn(), showBrowserNotification: vi.fn(), getAllTasks: vi.fn(), getPendingSyncRecords: vi.fn(),
-  getPendingSyncTaskIds: vi.fn(), putTask: vi.fn(), putTaskWithPendingSync: vi.fn(), commitTaskDeletion: vi.fn(), clearTaskPendingSync: vi.fn(), storeImageWithSize: vi.fn(),
+  getPendingSyncTaskIds: vi.fn(), putTask: vi.fn(), putTaskWithPendingSync: vi.fn(), commitTaskDeletion: vi.fn(), clearTaskPendingSync: vi.fn(), storeImage: vi.fn(), storeImageWithSize: vi.fn(),
+}))
+
+vi.mock('../../lib/imageApiShared', async () => ({
+  ...await vi.importActual<typeof import('../../lib/imageApiShared')>('../../lib/imageApiShared'),
+  getDataUrlDecodedByteSize: (value: string) => value.includes('oversized-mask-request') ? 33 * 1024 * 1024 : 100,
+}))
+
+vi.mock('../../lib/referenceImagePreparation', () => ({ prepareStudioReference, GALLERY_REFERENCE_MAX_BYTES: 32 * 1024 * 1024 }))
+vi.mock('../../lib/canvasImage', async () => ({
+  ...await vi.importActual<typeof import('../../lib/canvasImage')>('../../lib/canvasImage'),
+  validateMaskMatchesImage, createMaskedInputImage, loadImage,
 }))
 
 vi.mock('../../lib/api', () => ({ callImageApi }))
@@ -20,7 +32,7 @@ vi.mock('../../lib/studioJobsApi', async () => ({
 }))
 vi.mock('../../lib/db', async () => ({
   ...await vi.importActual<typeof import('../../lib/db')>('../../lib/db'),
-  putTask, putTaskWithPendingSync, commitTaskDeletion, clearTaskPendingSync, storeImageWithSize, getAllTasks,
+  putTask, putTaskWithPendingSync, commitTaskDeletion, clearTaskPendingSync, storeImage, storeImageWithSize, getAllTasks,
   getTaskSyncRecord: vi.fn().mockResolvedValue(null),
   getPendingSyncRecords,
   getPendingSyncTaskIds,
@@ -46,6 +58,10 @@ function tokenFor(id: number) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  prepareStudioReference.mockImplementation(async (dataUrl: string, maskDataUrl?: string) => ({ dataUrl, maskDataUrl, width: 2048, height: 2048, changed: false }))
+  validateMaskMatchesImage.mockResolvedValue(undefined)
+  createMaskedInputImage.mockResolvedValue('data:image/png;base64,masked-request')
+  loadImage.mockResolvedValue({ naturalWidth: 4096, naturalHeight: 1987 })
   const token = tokenFor(100)
   localStorage.setItem('auth_token', token)
   localStorage.setItem('auth_user', JSON.stringify({ id: 100 }))
@@ -63,6 +79,7 @@ beforeEach(() => {
   listGalleryTasks.mockResolvedValue({ items: [], next_cursor: null })
   putGalleryAsset.mockResolvedValue({ id: 'reference-1' })
   ensureGalleryIdentity.mockResolvedValue(undefined)
+  storeImage.mockResolvedValue('normalized-mask')
   storeImageWithSize.mockResolvedValue({ id: 'local-result', width: 2048, height: 2048 })
   callImageApi.mockResolvedValue({ images: ['data:image/png;base64,output'] })
   listStudioJobs.mockResolvedValue({ items: [], next_cursor: null })
@@ -92,6 +109,7 @@ beforeEach(() => {
     tasks: [], prompt: 'A landscape', inputImages: [], maskDraft: null,
     params: { ...DEFAULT_PARAMS, partial_images: 0 },
     studioJobStatus: {}, gallerySyncStatus: {}, gallerySyncErrorCode: {},
+    studioSubmissionStage: {},
   })
 })
 
@@ -102,6 +120,58 @@ afterEach(() => {
 })
 
 describe('durable Studio generation handoff', () => {
+  it('submits an oversized reference copy under a new ID while preserving the original draft', async () => {
+    const original = { id: 'original-large', dataUrl: 'data:image/jpeg;base64,large' }
+    prepareStudioReference.mockResolvedValueOnce({ dataUrl: 'data:image/jpeg;base64,small', width: 4096, height: 1987, changed: true })
+    storeImageWithSize.mockResolvedValueOnce({ id: 'normalized-reference', width: 4096, height: 1987 })
+    useStore.setState({ inputImages: [original] })
+    await submitTask()
+    expect(state.inputImages).toEqual([original])
+    expect(putGalleryAsset).toHaveBeenCalledWith('normalized-reference', 'data:image/jpeg;base64,small', expect.any(String), expect.any(AbortSignal))
+    expect(createStudioJob.mock.calls[0][1]).toMatchObject({ input_image_ids: ['normalized-reference'], request_input_image_ids: ['normalized-reference'] })
+    expect(createStudioJob.mock.calls[0][0].inputImageIds).toEqual(['normalized-reference'])
+  })
+
+  it('resizes the mask and source together for the submission and retains the original mask draft', async () => {
+    const original = { id: 'original-large', dataUrl: 'data:image/jpeg;base64,large' }
+    const maskDraft = { targetImageId: original.id, maskDataUrl: 'data:image/png;base64,original-mask', updatedAt: 1, mode: 'region' as const }
+    prepareStudioReference.mockResolvedValueOnce({ dataUrl: 'data:image/jpeg;base64,small', maskDataUrl: 'data:image/png;base64,small-mask', width: 4096, height: 1987, changed: true })
+    storeImageWithSize.mockImplementation(async (data: string) => ({ id: data.includes('small-mask') ? 'normalized-mask' : data.includes('masked-request') ? 'masked-request' : 'normalized-reference', width: 4096, height: 1987 }))
+    useStore.setState({ inputImages: [original], maskDraft })
+    await submitTask()
+    expect(state.inputImages).toEqual([original])
+    expect(state.maskDraft).toEqual(maskDraft)
+    expect(validateMaskMatchesImage).toHaveBeenNthCalledWith(1, maskDraft.maskDataUrl, original.dataUrl)
+    expect(validateMaskMatchesImage).toHaveBeenNthCalledWith(2, 'data:image/png;base64,small-mask', 'data:image/jpeg;base64,small')
+    expect(createMaskedInputImage).toHaveBeenCalledWith('data:image/jpeg;base64,small', 'data:image/png;base64,small-mask')
+    expect(createStudioJob.mock.calls[0][1]).toMatchObject({ input_image_ids: ['normalized-reference'], request_input_image_ids: ['masked-request'], mask_image_id: 'normalized-mask', mask_target_image_id: 'normalized-reference' })
+  })
+
+  it('does not create any task or call the model when preparing an oversized source fails', async () => {
+    prepareStudioReference.mockRejectedValueOnce(new Error('Reference could not be decoded'))
+    useStore.setState({ inputImages: [{ id: 'bad-source', dataUrl: 'data:image/jpeg;base64,bad' }] })
+    await submitTask()
+    expect(state.tasks).toHaveLength(0)
+    expect(putGalleryAsset).not.toHaveBeenCalled()
+    expect(createStudioJob).not.toHaveBeenCalled()
+    expect(callImageApi).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds an oversized masked PNG from a smaller synchronized source and mask', async () => {
+    const original = { id: 'source', dataUrl: 'data:image/jpeg;base64,ordinary' }
+    const maskDraft = { targetImageId: 'source', maskDataUrl: 'data:image/png;base64,original-mask', updatedAt: 1, mode: 'region' as const }
+    prepareStudioReference.mockResolvedValueOnce({ dataUrl: original.dataUrl, maskDataUrl: maskDraft.maskDataUrl, width: 4096, height: 4096, changed: false })
+      .mockResolvedValueOnce({ dataUrl: 'data:image/jpeg;base64,smaller', maskDataUrl: 'data:image/png;base64,smaller-mask', width: 2560, height: 2560, changed: true })
+    createMaskedInputImage.mockResolvedValueOnce('data:image/png;base64,oversized-mask-request').mockResolvedValueOnce('data:image/png;base64,final-masked-request')
+    storeImageWithSize.mockImplementation(async (data: string) => ({ id: data.includes('final-masked') ? 'final-request' : 'final-source', width: 2560, height: 2560 }))
+    useStore.setState({ inputImages: [original], maskDraft })
+    await submitTask()
+    expect(prepareStudioReference).toHaveBeenNthCalledWith(2, original.dataUrl, maskDraft.maskDataUrl, 2560)
+    expect(createMaskedInputImage).toHaveBeenLastCalledWith('data:image/jpeg;base64,smaller', 'data:image/png;base64,smaller-mask')
+    expect(createStudioJob.mock.calls[0][1]).toMatchObject({ input_image_ids: ['final-source'], request_input_image_ids: ['final-request'], mask_target_image_id: 'final-source' })
+    expect(state.inputImages).toEqual([original])
+    expect(state.maskDraft).toEqual(maskDraft)
+  })
   it('accepts a server job and polls it without invoking the browser model API', async () => {
     await submitTask()
     expect(createStudioJob).toHaveBeenCalledOnce()
@@ -139,7 +209,7 @@ describe('durable Studio generation handoff', () => {
     useStore.setState({ inputImages: [{ id: 'reference-1', dataUrl: 'data:image/png;base64,AQID' }] })
     await submitTask()
     expect(order).toEqual(['asset', 'job'])
-    expect(putGalleryAsset).toHaveBeenCalledWith('reference-1', 'data:image/png;base64,AQID', localStorage.getItem('auth_token'))
+    expect(putGalleryAsset).toHaveBeenCalledWith('reference-1', 'data:image/png;base64,AQID', localStorage.getItem('auth_token'), expect.any(AbortSignal))
     expect(createStudioJob.mock.calls[0]?.[1]).toMatchObject({ input_image_ids: ['reference-1'], request_input_image_ids: ['reference-1'] })
     expect(callImageApi).not.toHaveBeenCalled()
   })
@@ -158,6 +228,56 @@ describe('durable Studio generation handoff', () => {
     expect(createStudioJob).toHaveBeenCalledOnce()
     expect(callImageApi).not.toHaveBeenCalled()
     expect(state.tasks).toHaveLength(1)
+  })
+
+  it('marks reference preparation separately and never starts a job after an upload failure', async () => {
+    let fail!: (error: Error) => void
+    putGalleryAsset.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+    useStore.setState({ inputImages: [{ id: 'reference-1', dataUrl: 'data:image/png;base64,AQID' }] })
+    const submit = submitTask()
+    await vi.waitFor(() => expect(putGalleryAsset).toHaveBeenCalledOnce())
+    expect(state.studioSubmissionStage[state.tasks[0].id]).toBe('uploading')
+    expect(createStudioJob).not.toHaveBeenCalled()
+    fail(new GalleryApiError('image exceeds the supported pixel count', 400, 'GALLERY_IMAGE_TOO_MANY_PIXELS'))
+    await submit
+    expect(state.tasks[0].status).toBe('error')
+    expect(state.tasks[0].error).toContain('imageStudio.store.referenceUploadFailed')
+    expect(state.tasks[0].error).toContain('image exceeds the supported pixel count')
+    expect(state.studioSubmissionStage[state.tasks[0].id]).toBeUndefined()
+    expect(createStudioJob).not.toHaveBeenCalled()
+    expect(callImageApi).not.toHaveBeenCalled()
+  })
+
+  it('stops an in-flight reference upload without submitting or polling a paid job', async () => {
+    let signal!: AbortSignal
+    putGalleryAsset.mockImplementationOnce((_id: string, _image: string, _token: string, input: AbortSignal) => new Promise((_resolve, reject) => {
+      signal = input
+      input.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+    }))
+    useStore.setState({ inputImages: [{ id: 'reference-1', dataUrl: 'data:image/png;base64,AQID' }] })
+    const submit = submitTask()
+    await vi.waitFor(() => expect(putGalleryAsset).toHaveBeenCalledOnce())
+    stopTaskGeneration(state.tasks[0].id)
+    await submit
+    await vi.waitFor(() => expect(state.tasks[0].cloudJobStatus).toBe('cancelled'))
+    expect(signal.aborted).toBe(true)
+    expect(createStudioJob).not.toHaveBeenCalled()
+    expect(deleteStudioJob).not.toHaveBeenCalled()
+    expect(getStudioJob).not.toHaveBeenCalled()
+    expect(callImageApi).not.toHaveBeenCalled()
+  })
+
+  it('continues only safe GET polling after a control request times out', async () => {
+    vi.useFakeTimers()
+    getStudioJob.mockRejectedValueOnce(new GalleryApiError('timed out', 408, 'STUDIO_REQUEST_TIMEOUT'))
+    try {
+      await submitTask()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(getStudioJob).toHaveBeenCalledTimes(2)
+      expect(createStudioJob).toHaveBeenCalledOnce()
+      expect(callImageApi).not.toHaveBeenCalled()
+      expect(state.tasks[0].status).toBe('done')
+    } finally { vi.useRealTimers() }
   })
 
   it('recovers an accepted POST after the same user refreshes JWT without another model call', async () => {

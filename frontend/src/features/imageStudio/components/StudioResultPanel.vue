@@ -292,6 +292,8 @@ const activeTask = computed(
   () => state.tasks.find((task) => task.id === activeTaskId.value) ?? null,
 )
 const cloudStageLabel = computed(() => {
+  const stage = activeTask.value ? state.studioSubmissionStage?.[activeTask.value.id] : undefined
+  if (stage) return t(stage === 'preparing' ? 'imageStudio.store.referencePreparing' : stage === 'uploading' ? 'imageStudio.store.referenceUploading' : 'imageStudio.store.cloudSubmitting')
   const status = activeTask.value ? state.studioJobStatus[activeTask.value.id] : undefined
   return t(status === 'saving' ? 'imageStudio.store.cloudSaving'
     : status === 'generating' ? 'imageStudio.store.cloudGenerating'

@@ -419,7 +419,21 @@ imageStudio: {
     draftLoadFailed: 'Failed to load mask draft, reset to empty mask: {error}',
     resizedHint: 'Mask is drawn on a lightweight preview; submission still matches the original {width}×{height}',
   },
+  galleryInputErrors: {
+    invalid: 'Reference validation failed. Use a complete PNG, JPEG, WebP or GIF image, up to 32 MiB and 20 megapixels each',
+    invalidId: 'This reference record is invalid. Remove it and upload again',
+    empty: 'The reference image is empty. Select the original file again',
+    tooLarge: 'Reference images must be at most 32 MiB each. Resize before uploading',
+    format: 'Unsupported reference format. Convert to PNG, JPEG, WebP or GIF',
+    pixels: 'This reference exceeds 20 megapixels. Resize before uploading',
+    mime: 'The declared image format differs from its contents. Export as PNG or JPEG and upload again',
+    decode: 'The reference image could not be decoded. Export the image again',
+    uploadTimeout: 'Reference upload timed out. Check your connection and retry; generation has not started',
+    requestTimeout: 'The workbench request timed out. Task state is retained; check again shortly',
+  },
   errors: {
+    referenceUploadFailed: 'Reference upload failed; generation has not started',
+    resultUnknown: 'No definitive generation result was received. The system will not regenerate automatically',
     moderation: 'The upstream safety review rejected this generation. Adjust the prompt or reference images.',
     details: 'View error details',
     stopped: 'Generation stopped',
@@ -432,6 +446,14 @@ imageStudio: {
     generic: 'Generation failed, please retry later',
   },
   store: {
+    referencesPrepared: 'Oversized references were resized proportionally to {sizes} for this generation; originals are retained',
+    referencePreparationFailed: 'Reference preparation failed; generation has not started',
+
+    referencePreparing: 'Preparing reference images',
+    referenceUploading: 'Uploading references; generation has not started',
+    cloudSubmitting: 'Submitting cloud task',
+    referenceUploadFailed: 'Reference upload failed; generation has not started',
+
     imageUnreadable: 'Failed to read image. It may have been cleared by the browser — please regenerate.',
     catalogFailed: 'Failed to load models, please retry',
     interrupted: 'Previous generation was interrupted',

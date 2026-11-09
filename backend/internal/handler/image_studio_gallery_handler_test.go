@@ -152,3 +152,24 @@ func TestImageStudioGalleryCanonicalResponseEnvelope(t *testing.T) {
 	require.Equal(t, http.StatusOK, request(http.MethodGet, "/gallery/tasks", nil, "").Code)
 	require.Equal(t, http.StatusOK, request(http.MethodGet, "/gallery/assets/image-one/url?variant=original", nil, "").Code)
 }
+
+func TestGalleryValidationHTTPResponsePreservesSafeReasonAndLimits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		reason   string
+		status   int
+		metadata map[string]string
+	}{
+		{"GALLERY_IMAGE_TOO_MANY_PIXELS", http.StatusBadRequest, map[string]string{"max_pixels": "20000000", "width": "5000", "height": "5000"}},
+		{"GALLERY_TOO_LARGE", http.StatusRequestEntityTooLarge, map[string]string{"max_bytes": "33554432"}},
+	} {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		galleryHTTPError(c, &service.GalleryValidationError{Reason: tc.reason, Message: "reference image exceeds the supported limit", Metadata: tc.metadata})
+		require.Equal(t, tc.status, rec.Code)
+		require.Equal(t, tc.reason, gjson.GetBytes(rec.Body.Bytes(), "reason").String())
+		for key, value := range tc.metadata {
+			require.Equal(t, value, gjson.GetBytes(rec.Body.Bytes(), "metadata."+key).String())
+		}
+	}
+}

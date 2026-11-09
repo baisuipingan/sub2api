@@ -36,11 +36,28 @@ const spec: StudioJobSpec = {
 
 beforeEach(() => localStorage.setItem('auth_token', 'test-jwt'))
 afterEach(() => {
+  vi.useRealTimers()
   localStorage.clear()
   vi.unstubAllGlobals()
 })
 
 describe('Studio durable job API', () => {
+  it('times out a stuck GET without submitting a new generation request', async () => {
+    vi.useFakeTimers()
+    let signal: AbortSignal | undefined
+    const transport = vi.fn().mockImplementation((_url, init: RequestInit) => {
+      signal = init.signal as AbortSignal
+      return new Promise(() => undefined)
+    })
+    vi.stubGlobal('fetch', transport)
+    const pending = getStudioJob('known-task')
+    const failed = expect(pending).rejects.toMatchObject({ code: 'STUDIO_REQUEST_TIMEOUT', status: 408 })
+    await vi.advanceTimersByTimeAsync(20_000)
+    await failed
+    expect(signal?.aborted).toBe(true)
+    expect(transport).toHaveBeenCalledOnce()
+    expect(transport.mock.calls[0][1].method).toBeUndefined()
+  })
   it('submits only the gallery asset IDs and provider parameters under JWT auth', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 0, data: {
       job: { task_id: task.id, status: 'queued', task, calls: [], created_at: '', updated_at: '' },

@@ -27,6 +27,13 @@ export function gallerySyncReasonKey(code: string | undefined): string {
     case 'GALLERY_DISABLED': return 'errorDisabled'
     case 'GALLERY_CONFLICT': return 'errorConflict'
     case 'GALLERY_INVALID': return 'errorInvalid'
+    case 'GALLERY_INVALID_ID':
+    case 'GALLERY_IMAGE_EMPTY':
+    case 'GALLERY_TOO_LARGE':
+    case 'GALLERY_IMAGE_FORMAT_UNSUPPORTED':
+    case 'GALLERY_IMAGE_TOO_MANY_PIXELS':
+    case 'GALLERY_IMAGE_MIME_MISMATCH':
+    case 'GALLERY_IMAGE_DECODE_FAILED': return 'errorInvalid'
     case 'GALLERY_PUBLIC_STORAGE': return 'errorStorageConfig'
     case 'GALLERY_NOT_FOUND': return 'errorImageMissing'
     case 'AUTH': return 'errorAuth'

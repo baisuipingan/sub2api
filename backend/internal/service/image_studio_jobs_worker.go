@@ -253,7 +253,7 @@ func (s *StudioJobService) executeStudioClaim(parent context.Context, claim Stud
 	}
 	if ctx.Err() != nil || writer.writeErr != nil {
 		_ = os.Remove(path + ".tmp")
-		s.markStudioUnknown(claim)
+		s.markStudioUnknown(claim, studioUncertainResponseCause(ctx.Err(), writer.writeErr))
 		return
 	}
 	if code, message, found := studioGatewayBusinessError(path+".tmp", writer.status); found && (writer.status < 500 && writer.status != http.StatusRequestTimeout) {
@@ -268,7 +268,7 @@ func (s *StudioJobService) executeStudioClaim(parent context.Context, claim Stud
 		if writer.status >= 500 || writer.status == http.StatusRequestTimeout {
 			// A gateway timeout/5xx may be emitted after the upstream accepted
 			// the request; do not run another paid call for this child.
-			s.markStudioUnknown(claim)
+			s.markStudioUnknown(claim, message)
 			return
 		}
 		s.failStudioClaim(claim, fmt.Sprintf("GATEWAY_HTTP_%d", writer.status), message)
@@ -276,11 +276,11 @@ func (s *StudioJobService) executeStudioClaim(parent context.Context, claim Stud
 	}
 	if writer.written == 0 {
 		_ = os.Remove(path + ".tmp")
-		s.markStudioUnknown(claim)
+		s.markStudioUnknown(claim, "gateway returned a successful HTTP status but an empty image response")
 		return
 	}
 	if err := os.Rename(path+".tmp", path); err != nil {
-		s.markStudioUnknown(claim)
+		s.markStudioUnknown(claim, "gateway response was received but could not be committed to local temporary storage")
 		return
 	}
 	if err := syncStudioDirectory(s.spoolDir); err != nil {
@@ -438,9 +438,23 @@ func (s *StudioJobService) failStudioClaim(claim StudioJobClaim, code, message s
 		slog.Error("Studio call failure state write failed", "task_id", claim.TaskID, "error", err)
 	}
 }
-func (s *StudioJobService) markStudioUnknown(claim StudioJobClaim) {
+func studioUncertainResponseCause(contextErr, writeErr error) string {
+	if writeErr != nil {
+		return "gateway response could not be persisted to local temporary storage"
+	}
+	if errors.Is(contextErr, context.DeadlineExceeded) {
+		return "gateway request exceeded its execution deadline before a complete image response was saved"
+	}
+	if contextErr != nil {
+		return "gateway request was interrupted before a complete image response was saved"
+	}
+	return "gateway did not provide a complete image response"
+}
+
+func (s *StudioJobService) markStudioUnknown(claim StudioJobClaim, message string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	claim.Call.ErrorMessage = SanitizeStudioErrorMessage(message)
 	if err := s.repo.MarkUncertain(ctx, claim); err != nil {
 		slog.Error("Studio unknown result state write failed", "task_id", claim.TaskID, "error", err)
 	}

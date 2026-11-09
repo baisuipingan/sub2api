@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,6 +40,16 @@ func (h *ImageStudioGalleryHandler) userID(c *gin.Context) (int64, bool) {
 }
 
 func galleryHTTPError(c *gin.Context, err error) {
+	var invalid *service.GalleryValidationError
+	if errors.As(err, &invalid) {
+		middleware.SetAuditExtra(c, map[string]any{"error_code": invalid.Reason})
+		status := http.StatusBadRequest
+		if invalid.Reason == "GALLERY_TOO_LARGE" {
+			status = http.StatusRequestEntityTooLarge
+		}
+		response.ErrorWithDetails(c, status, invalid.Message, invalid.Reason, invalid.Metadata)
+		return
+	}
 	switch {
 	case errors.Is(err, service.ErrGalleryDisabled):
 		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "gallery uploads are disabled", "GALLERY_DISABLED", nil)
@@ -107,7 +118,9 @@ func (h *ImageStudioGalleryHandler) PutAsset(c *gin.Context) {
 	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "gallery image is too large", "GALLERY_TOO_LARGE", nil)
+			middleware.SetAuditExtra(c, map[string]any{"error_code": "GALLERY_TOO_LARGE"})
+			slog.Warn("Studio reference image upload rejected", "reason", "GALLERY_TOO_LARGE", "declared_type", service.GalleryDeclaredImageMIME(c.GetHeader("Content-Type")), "bytes", len(data))
+			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "reference image exceeds the 32 MiB upload limit", "GALLERY_TOO_LARGE", map[string]string{"max_bytes": strconv.Itoa(service.GalleryMaxImageBytes)})
 			return
 		}
 		galleryHTTPError(c, service.ErrGalleryInvalid)
@@ -115,6 +128,16 @@ func (h *ImageStudioGalleryHandler) PutAsset(c *gin.Context) {
 	}
 	id := c.Param("image_id")
 	if err := h.gallery.PutAsset(c.Request.Context(), userID, id, c.GetHeader("Content-Type"), data); err != nil {
+		if errors.Is(err, service.ErrGalleryInvalid) {
+			reason := "GALLERY_INVALID"
+			var width, height string
+			var invalid *service.GalleryValidationError
+			if errors.As(err, &invalid) {
+				reason = invalid.Reason
+				width, height = invalid.Metadata["width"], invalid.Metadata["height"]
+			}
+			slog.Warn("Studio reference image upload rejected", "reason", reason, "declared_type", service.GalleryDeclaredImageMIME(c.GetHeader("Content-Type")), "bytes", len(data), "width", width, "height", height)
+		}
 		galleryHTTPError(c, err)
 		return
 	}

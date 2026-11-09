@@ -9,6 +9,26 @@ import {
  * 分类错了用户会得到误导性的提示（例如把「超时」说成「密钥无效」）。
  */
 describe('getApiErrorMessageKey', () => {
+  it('keeps a reference upload failure as the headline when rendering persisted errors again', () => {
+    const message = '参考图上传失败，尚未开始调用模型\n参考图片超过 2000 万像素\nimage dimensions exceed maximum'
+    for (const error of [message, new Error(message)]) {
+      expect(getImageErrorPresentation(error)).toEqual({ summary: '参考图上传失败，尚未开始调用模型', details: '参考图片超过 2000 万像素\nimage dimensions exceed maximum' })
+    }
+  })
+  it('keeps uncertain paid results separate from failures or retryable timeouts', () => {
+    for (const value of [
+      '[UPSTREAM_RESULT_UNKNOWN] gateway HTTP 502: dial timeout',
+      '[PAID_RESULT_LOST] an image result could not be saved',
+      '上游结果暂无法确认；为避免重复计费，系统不会自动重新生成',
+      'The upstream result is uncertain. To avoid duplicate billing, the system will not regenerate automatically.',
+      '生成失败，请稍后重试\n[UPSTREAM_RESULT_UNKNOWN] dial timeout',
+    ]) {
+      const { summary, details } = getImageErrorPresentation(value)
+      expect(summary).toBe('未收到明确生成结果，系统不会自动重新生成')
+      expect(summary).not.toContain('重试')
+      expect(details).toContain(value.replace('生成失败，请稍后重试\n', ''))
+    }
+  })
   it('识别鉴权失败', () => {
     expect(getApiErrorMessageKey(new Error('401 unauthorized'))).toBe('imageStudio.errors.auth')
     expect(getApiErrorMessageKey(new Error('API Key 无效'))).toBe('imageStudio.errors.auth')

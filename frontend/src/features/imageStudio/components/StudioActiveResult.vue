@@ -26,7 +26,7 @@
           <span
             class="h-9 w-9 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600"
           />
-          {{ t('imageStudio.result.generating') }}
+          {{ runningLabel }}
         </template>
       </div>
 
@@ -273,6 +273,12 @@ const imageId = computed(() => {
 
 const imageIndex = computed(() => props.task.outputImages.indexOf(imageId.value))
 const streamPreview = computed(() => state.streamPreviews[props.task.id]?.image)
+const runningLabel = computed(() => {
+  const stage = state.studioSubmissionStage?.[props.task.id]
+  return t(stage === 'preparing' ? 'imageStudio.store.referencePreparing'
+    : stage === 'uploading' ? 'imageStudio.store.referenceUploading'
+      : stage === 'submitting' ? 'imageStudio.store.cloudSubmitting' : 'imageStudio.result.generating')
+})
 
 const displayPrompt = computed(
   () => stripImageMentionMarkers(props.task.prompt) || t('imageStudio.task.noPrompt'),

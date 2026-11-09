@@ -1,5 +1,6 @@
 import type { StudioJobStatus, TaskRecord } from '../types'
 import { GalleryApiError, ensureGalleryIdentity } from './galleryApi'
+import { StudioRequestTimeoutError, withStudioRequestDeadline } from './requestDeadline'
 
 const BASE = '/api/v1/image-studio/jobs'
 
@@ -62,24 +63,32 @@ async function request<T>(path: string, init: RequestInit, authToken: string): P
   if (localStorage.getItem('auth_token') !== authToken) {
     throw new GalleryApiError('Studio login changed', 401, 'STUDIO_LOGIN_CHANGED_BEFORE_SEND')
   }
-  const response = await fetch(BASE + path, {
-    ...init,
-    cache: 'no-store',
-    headers: { Authorization: 'Bearer ' + authToken, ...init.headers },
-  })
-  let body: { code?: number; data?: T; message?: string; reason?: string; error?: { code?: string; message?: string } }
   try {
-    body = await response.json() as typeof body
-  } catch {
-    throw new GalleryApiError('Invalid Studio task response', response.status)
+    return await withStudioRequestDeadline(20_000, init.signal, async signal => {
+      const response = await fetch(BASE + path, {
+        ...init,
+        signal,
+        cache: 'no-store',
+        headers: { Authorization: 'Bearer ' + authToken, ...init.headers },
+      })
+      let body: { code?: number; data?: T; message?: string; reason?: string; error?: { code?: string; message?: string } }
+      try {
+        body = await response.json() as typeof body
+      } catch {
+        throw new GalleryApiError('Invalid Studio task response', response.status)
+      }
+      if (localStorage.getItem('auth_token') !== authToken) {
+        throw new GalleryApiError('Studio login changed', 401, 'STUDIO_LOGIN_CHANGED_AFTER_SEND')
+      }
+      if (!response.ok || body.code !== 0 || !body.data) {
+        throw new GalleryApiError(body.error?.message ?? body.message ?? 'Studio task request failed', response.status, body.error?.code ?? body.reason)
+      }
+      return body.data
+    })
+  } catch (error) {
+    if (error instanceof StudioRequestTimeoutError) throw new GalleryApiError('Studio task request timed out', 408, 'STUDIO_REQUEST_TIMEOUT')
+    throw error
   }
-  if (localStorage.getItem('auth_token') !== authToken) {
-    throw new GalleryApiError('Studio login changed', 401, 'STUDIO_LOGIN_CHANGED_AFTER_SEND')
-  }
-  if (!response.ok || body.code !== 0 || !body.data) {
-    throw new GalleryApiError(body.error?.message ?? body.message ?? 'Studio task request failed', response.status, body.error?.code ?? body.reason)
-  }
-  return body.data
 }
 
 export function createStudioJob(task: TaskRecord, spec: StudioJobSpec, authToken = currentToken()): Promise<{ job: StudioJob }> {

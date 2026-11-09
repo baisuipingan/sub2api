@@ -77,7 +77,7 @@ export function redactSensitiveText(value: unknown, secrets: string[] = []): str
   return redacted
 }
 
-function safeMessage(value: string, secrets: string[] = []) {
+export function safeMessage(value: string, secrets: string[] = []) {
   // A proxy's HTML error page is not an actionable provider message.
   if (/<\/?(?:!doctype|html|head|body|script|style|title|div|span|pre|h[1-6]|p|img|iframe|table|br)\b/i.test(value)) return ''
   return redactSensitiveText(value, secrets)
@@ -132,6 +132,8 @@ export function createApiError(status: number, detail?: unknown, apiKey = ''): A
 export function getApiErrorMessageKey(value: unknown): string {
   const detail = value instanceof ApiRequestError ? `${value.code ?? ''} ${value.detail ?? ''}` : ''
   const message = `${detail} ${value instanceof Error ? value.message : String(value ?? '')}`
+  if (/^(?:参考图上传失败，尚未开始调用模型|Reference upload failed; generation has not started)/i.test(value instanceof Error ? value.message : String(value ?? ''))) return 'imageStudio.errors.referenceUploadFailed'
+  if (/UPSTREAM_RESULT_UNKNOWN|PAID_RESULT_LOST|上游结果暂无法确认|云端未确认接收本次任务|未收到明确生成结果|result.*(?:unknown|uncertain|cannot be confirmed)|server did not confirm this task|No definitive generation result/i.test(message)) return 'imageStudio.errors.resultUnknown'
   if (/MODERATION_BLOCKED|CONTENT_POLICY_VIOLATION|SAFETY_VIOLATION|safety system|safety review|审核拒绝/i.test(message)) return 'imageStudio.errors.moderation'
   if (/UPSTREAM_NO_IMAGE|UPSTREAM_INVALID_RESPONSE|INVALID_IMAGE_RESULT|no image returned|invalid image result/i.test(message)) return 'imageStudio.errors.noImage'
   if (value instanceof ApiInsufficientBalanceError) return 'imageStudio.errors.insufficientBalance'
@@ -151,6 +153,8 @@ export function getApiErrorMessageKey(value: unknown): string {
 }
 
 const FALLBACK_MESSAGES: Record<string, string> = {
+  'imageStudio.errors.referenceUploadFailed': '参考图上传失败，尚未开始调用模型',
+  'imageStudio.errors.resultUnknown': '未收到明确生成结果，系统不会自动重新生成',
   'imageStudio.errors.stopped': '已停止生成',
   'imageStudio.errors.insufficientBalance': '账户余额不足，请先充值',
   'imageStudio.errors.auth': 'API Key 无效或无权限，请检查后重试',
@@ -178,7 +182,17 @@ export function getUserFacingApiErrorMessage(value: unknown, t?: (key: string) =
   }
   const message = safeMessage(value instanceof Error ? value.message : typeof value === 'string' ? value : '')
   if (!message || isSummaryOnly(message)) return summary
+  if (key === 'imageStudio.errors.referenceUploadFailed') {
+    const [, ...details] = message.split('\n')
+    return [summary, ...details].join('\n')
+  }
   // Multi-line text has already been formatted for persistent task history.
+  if (key === 'imageStudio.errors.resultUnknown') {
+    if (message.startsWith(summary)) return message
+    const lines = message.split('\n')
+    if (lines.length > 1 && isSummaryOnly(lines[0])) lines.shift()
+    return `${summary}\n${lines.join('\n')}`
+  }
   return typeof value === 'string' && message.includes('\n') ? message : `${summary}\n${message}`
 }
 

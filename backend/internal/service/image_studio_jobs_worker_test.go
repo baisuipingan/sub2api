@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,35 @@ func TestStudioSpoolOwnerPersistsAcrossRestart(t *testing.T) {
 	info, err := os.Stat(filepath.Join(dir, ".owner"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
+type studioUnknownCaptureRepo struct {
+	StudioJobRepository
+	claim StudioJobClaim
+}
+
+func (r *studioUnknownCaptureRepo) MarkUncertain(_ context.Context, claim StudioJobClaim) error {
+	r.claim = claim
+	return nil
+}
+
+func TestStudioUnknownPreservesSanitizedCauseWithoutRetrying(t *testing.T) {
+	repo := &studioUnknownCaptureRepo{}
+	svc := &StudioJobService{repo: repo}
+	svc.markStudioUnknown(StudioJobClaim{Call: StudioJobCall{Ordinal: 1}}, "gateway returned HTTP 502: dial tcp :443 i/o timeout; access_token=private-test-token https://private.test/path")
+	require.Equal(t, 1, repo.claim.Call.Ordinal)
+	require.Contains(t, repo.claim.Call.ErrorMessage, "HTTP 502")
+	require.Contains(t, repo.claim.Call.ErrorMessage, "i/o timeout")
+	require.NotContains(t, repo.claim.Call.ErrorMessage, "private-test-token")
+	require.NotContains(t, repo.claim.Call.ErrorMessage, "private.test")
+}
+
+func TestStudioUnknownResponseStagesDoNotExposeLocalPaths(t *testing.T) {
+	require.Contains(t, studioUncertainResponseCause(context.DeadlineExceeded, nil), "execution deadline")
+	require.Contains(t, studioUncertainResponseCause(context.Canceled, nil), "interrupted")
+	message := studioUncertainResponseCause(nil, errors.New("write /private/spool/user.json: disk full"))
+	require.Contains(t, message, "local temporary storage")
+	require.NotContains(t, message, "/private/spool")
 }
 
 func TestStudioSpoolWriterRejectsOversizeWithoutUnboundedWrite(t *testing.T) {

@@ -419,7 +419,21 @@ imageStudio: {
     draftLoadFailed: '遮罩草稿加载失败，已重置为空白遮罩：{error}',
     resizedHint: '已使用轻量预览绘制遮罩，提交时仍会匹配原图 {width}×{height}',
   },
+  galleryInputErrors: {
+    invalid: '参考图片校验失败，请使用完整的 PNG、JPEG、WebP 或 GIF 图片，单张不超过 32 MiB、2000 万像素',
+    invalidId: '参考图片记录无效，请移除后重新上传',
+    empty: '参考图片内容为空，请重新选择原图',
+    tooLarge: '参考图片过大，单张最多 32 MiB，请缩小后上传',
+    format: '参考图片格式不受支持，请转换为 PNG、JPEG、WebP 或 GIF',
+    pixels: '参考图片超过 2000 万像素，请缩小图片后上传',
+    mime: '参考图片标注的格式与文件实际内容不一致，请重新导出为 PNG 或 JPEG 后上传',
+    decode: '参考图片无法解码，文件可能损坏，请重新导出后上传',
+    uploadTimeout: '参考图片上传超时，请检查网络后重试；尚未开始调用模型',
+    requestTimeout: '工作台请求超时，正在保留任务状态，请稍后查看',
+  },
   errors: {
+    referenceUploadFailed: '参考图上传失败，尚未开始调用模型',
+    resultUnknown: '未收到明确生成结果，系统不会自动重新生成',
     moderation: '上游安全审核拒绝了本次生成，请调整提示词或参考图片',
     details: '查看错误详情',
     stopped: '已停止生成',
@@ -432,6 +446,14 @@ imageStudio: {
     generic: '生成失败，请稍后重试',
   },
   store: {
+    referencesPrepared: '超大参考图已为本次生成等比缩小至 {sizes}，原图保留',
+    referencePreparationFailed: '参考图准备失败，尚未开始调用模型',
+
+    referencePreparing: '正在准备参考图',
+    referenceUploading: '正在上传参考图，尚未开始调用模型',
+    cloudSubmitting: '正在提交云端任务',
+    referenceUploadFailed: '参考图上传失败，尚未开始调用模型',
+
     imageUnreadable: '图片读取失败，可能已被浏览器清理，请重新生成',
     catalogFailed: '模型列表加载失败，请稍后重试',
     interrupted: '上次生成已中断',
