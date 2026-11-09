@@ -13,8 +13,7 @@ import type {
 import { DEFAULT_PARAMS } from '../types'
 import i18n from '@/i18n'
 import { callImageApi } from '../lib/api'
-import { getDataUrlDecodedByteSize } from '../lib/imageApiShared'
-import { GALLERY_REFERENCE_MAX_BYTES, prepareStudioReference } from '../lib/referenceImagePreparation'
+import { assertOpenAIReferenceInputs, usesOpenAIReferenceLimits } from '../lib/referenceInputLimits'
 import { buildStudioJobSpec } from '../lib/studioJobSpec'
 import { createStudioJob, deleteStudioJob, getStudioJob, listStudioJobs, type StudioJob, type StudioJobStatus } from '../lib/studioJobsApi'
 import { fetchMiloRouterImageModels } from '../lib/miloRouterApi'
@@ -1267,49 +1266,26 @@ async function submitTaskInternal() {
     state.showToast(`当前模型最多支持 ${model.capabilities.referenceImages} 张参考图`, 'error')
     return
   }
-  let maskDraft = capabilities.mask ? state.maskDraft : null
+  const maskDraft = capabilities.mask ? state.maskDraft : null
   if (maskDraft && !inputImages.some((image) => image.id === maskDraft?.targetImageId)) {
     state.clearMaskDraft()
     state.showToast(st('imageStudio.store.maskTargetMissing'), 'error')
     return
   }
 
-  let orderedInputImages = maskDraft
+  const orderedInputImages = maskDraft
     ? orderInputImagesForMask(inputImages, maskDraft.targetImageId)
     : inputImages
-  let inputImageDataUrls = await Promise.all(orderedInputImages.map(async (image) => image.dataUrl || await ensureImageCached(image.id) || ''))
+  const inputImageDataUrls = await Promise.all(orderedInputImages.map(async (image) => image.dataUrl || await ensureImageCached(image.id) || ''))
   if (!await isGenerationSessionCurrent(generationSession)) return
   if (inputImageDataUrls.some((url) => !url)) {
     state.showToast(st('imageStudio.store.referenceReadFailed'), 'error')
     return
   }
-  if (useCloudJob && orderedInputImages.length) {
-    try {
-      // Validate original mask coverage before resizing it together with its
-      // target. Only this submission uses copies; saved drafts remain intact.
-      if (maskDraft) {
-        await validateMaskMatchesImage(maskDraft.maskDataUrl, inputImageDataUrls[0])
-        if (!await isGenerationSessionCurrent(generationSession)) return
-      }
-      const preparedInputs = [...orderedInputImages]
-      const preparedURLs = [...inputImageDataUrls]
-      const preparedSizes: string[] = []
-      for (let index = 0; index < preparedInputs.length; index++) {
-        const result = await prepareStudioReference(preparedURLs[index], index === 0 ? maskDraft?.maskDataUrl : undefined)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        if (!result.changed) continue
-        const copy = await storeImageWithSize(result.dataUrl, 'upload', generationScope)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        cacheImage(copy.id, result.dataUrl)
-        preparedInputs[index] = { id: copy.id, dataUrl: result.dataUrl }
-        preparedURLs[index] = result.dataUrl
-        if (index === 0 && maskDraft && result.maskDataUrl) maskDraft = { ...maskDraft, targetImageId: copy.id, maskDataUrl: result.maskDataUrl }
-        preparedSizes.push(`${result.width}×${result.height}`)
-      }
-      orderedInputImages = preparedInputs
-      inputImageDataUrls = preparedURLs
-      if (preparedSizes.length) state.showToast(st('imageStudio.store.referencesPrepared', { sizes: preparedSizes.join('、') }), 'info')
-    } catch (error) {
+  const openAIReferenceLimits = usesOpenAIReferenceLimits(model.api, model.provider)
+  if (openAIReferenceLimits && orderedInputImages.length) {
+    try { assertOpenAIReferenceInputs(inputImageDataUrls, maskDraft?.maskDataUrl) }
+    catch (error) {
       if (!await isGenerationSessionCurrent(generationSession)) return
       state.showToast(st('imageStudio.store.referencePreparationFailed') + '\n' + getGalleryErrorMessage(error), 'error')
       return
@@ -1322,27 +1298,11 @@ async function submitTaskInternal() {
     try {
       await validateMaskMatchesImage(maskDraft.maskDataUrl, inputImageDataUrls[0])
       if (!await isGenerationSessionCurrent(generationSession)) return
-      let maskedInput = await createMaskedInputImage(inputImageDataUrls[0], maskDraft.maskDataUrl)
+      const maskedInput = await createMaskedInputImage(inputImageDataUrls[0], maskDraft.maskDataUrl)
       if (!await isGenerationSessionCurrent(generationSession)) return
-      if (useCloudJob && getDataUrlDecodedByteSize(maskedInput) > GALLERY_REFERENCE_MAX_BYTES) {
-        // A compact JPEG may expand beyond the gallery byte cap when masking
-        // creates PNG. Resize the source and mask together, never only one.
-        const result = await prepareStudioReference(inputImageDataUrls[0], maskDraft.maskDataUrl, 2560)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        if (!result.maskDataUrl) throw new Error(st('imageStudio.store.maskInvalid'))
-        const copy = await storeImageWithSize(result.dataUrl, 'upload', generationScope)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        cacheImage(copy.id, result.dataUrl)
-        orderedInputImages = [{ id: copy.id, dataUrl: result.dataUrl }, ...orderedInputImages.slice(1)]
-        inputImageDataUrls = [result.dataUrl, ...inputImageDataUrls.slice(1)]
-        maskDraft = { ...maskDraft, targetImageId: copy.id, maskDataUrl: result.maskDataUrl }
-        await validateMaskMatchesImage(maskDraft.maskDataUrl, result.dataUrl)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        maskedInput = await createMaskedInputImage(result.dataUrl, maskDraft.maskDataUrl)
-        if (!await isGenerationSessionCurrent(generationSession)) return
-        if (getDataUrlDecodedByteSize(maskedInput) > GALLERY_REFERENCE_MAX_BYTES) throw new Error(st('imageStudio.galleryInputErrors.tooLarge'))
-        state.showToast(st('imageStudio.store.referencesPrepared', { sizes: `${result.width}×${result.height}` }), 'info')
-      }
+      // Mask preprocessing creates a PNG, which can be larger than a compact
+      // JPEG source. Check the actual submission bytes without resizing it.
+      if (openAIReferenceLimits) assertOpenAIReferenceInputs([maskedInput], maskDraft.maskDataUrl)
       const sourceImage = await loadImage(inputImageDataUrls[0])
       if (!await isGenerationSessionCurrent(generationSession)) return
       maskTargetSize = model.capabilities.customSize

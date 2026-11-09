@@ -153,6 +153,14 @@ describe('getUserFacingApiErrorMessage', () => {
 
 
 describe('image business failure presentation', () => {
+  it('explains legacy unknown results without presenting possible billing as an observed charge', () => {
+    const result = getImageErrorPresentation('[UPSTREAM_RESULT_UNKNOWN] upstream request may have been billed; it will not be retried automatically')
+    expect(result.summary).toBe('未收到明确生成结果，系统不会自动重新生成')
+    expect(result.details).toBe('')
+    const known = getImageErrorPresentation('[UPSTREAM_RESULT_UNKNOWN] gateway returned HTTP 502: connection timed out')
+    expect(known.details).toContain('HTTP 502')
+    expect(known.details).toContain('connection timed out')
+  })
   it.each(['MODERATION_BLOCKED', 'CONTENT_POLICY_VIOLATION'])('shows a readable safety reason for %s in cloud history', (code) => {
     const detail = `[${code}]: Your request was rejected by the safety system. safety_violations=[sexual].`
     const presentation = getImageErrorPresentation(detail)

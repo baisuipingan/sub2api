@@ -17,6 +17,7 @@ import {
 } from './imageApiShared'
 import { MILO_ROUTER_BASE_URL } from './miloRouterConfig'
 import { getImageModel } from './modelRegistry'
+import { assertOpenAIMaskBytes, assertOpenAIReferenceBytes, usesOpenAIReferenceLimits } from './referenceInputLimits'
 
 function buildUrl(path: string) {
   return `${MILO_ROUTER_BASE_URL}/v1/${path}`
@@ -214,6 +215,7 @@ export async function callOpenAIImageApi(opts: CallApiOptions): Promise<ImageGen
   const signal = controller.signal
   const timeoutId = setTimeout(() => controller.abort(), opts.settings.timeout * 1000)
   const isEdit = opts.inputImageDataUrls.length > 0
+  const openAIReferenceLimits = usesOpenAIReferenceLimits(opts.apiKind, opts.modelProvider)
   const stream = paramsSupportStreaming(opts, isEdit)
 
   try {
@@ -232,9 +234,14 @@ export async function callOpenAIImageApi(opts: CallApiOptions): Promise<ImageGen
         const blob = opts.maskDataUrl && index === 0
           ? await imageDataUrlToPngBlob(dataUrl)
           : await dataUrlToBlob(dataUrl)
+        if (openAIReferenceLimits) assertOpenAIReferenceBytes(blob.size)
         form.append('image[]', blob, `reference-${index + 1}.${blob.type.split('/')[1] || 'png'}`)
       }
-      if (opts.maskDataUrl) form.append('mask', await maskDataUrlToPngBlob(opts.maskDataUrl), 'mask.png')
+      if (opts.maskDataUrl) {
+        const mask = await maskDataUrlToPngBlob(opts.maskDataUrl)
+        if (openAIReferenceLimits) assertOpenAIMaskBytes(mask.size, mask.type)
+        form.append('mask', mask, 'mask.png')
+      }
       body = form
     } else {
       headers = { ...headers, 'Content-Type': 'application/json' }

@@ -234,11 +234,10 @@ func TestImageStudioGalleryOpaquePreviewUsesJPEGAndTransparentPreviewKeepsPNG(t 
 	require.True(t, bytes.HasPrefix(store.objects[transparent.PreviewKey], []byte{137, 80, 78, 71}))
 }
 
-func TestImageStudioGalleryRejectsTooManyPixelsBeforeDecode(t *testing.T) {
+func TestImageStudioGalleryRejectsInsufficientDecodeCapacityBeforeDecode(t *testing.T) {
 	svc, repo, store, _ := galleryTestService(t)
-	require.GreaterOrEqual(t, galleryMaxPixels, 4096*4096, "4K square must remain allowed")
-	err := svc.PutAsset(context.Background(), 17, "large", "image/png", galleryPNGHeader(5000, 5000))
-	require.ErrorIs(t, err, ErrGalleryInvalid)
+	err := svc.PutAsset(context.Background(), 17, "large", "image/png", galleryPNGHeader(50000, 50000))
+	require.ErrorIs(t, err, ErrGalleryBusy)
 	require.Zero(t, repo.reserveCalls)
 	require.Zero(t, store.puts)
 }

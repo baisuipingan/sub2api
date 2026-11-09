@@ -420,12 +420,16 @@ imageStudio: {
     resizedHint: '已使用轻量预览绘制遮罩，提交时仍会匹配原图 {width}×{height}',
   },
   galleryInputErrors: {
-    invalid: '参考图片校验失败，请使用完整的 PNG、JPEG、WebP 或 GIF 图片，单张不超过 32 MiB、2000 万像素',
+    invalid: '参考图片校验失败，请检查文件格式和大小；具体限制以所选模型的接口为准',
     invalidId: '参考图片记录无效，请移除后重新上传',
+    openaiTooLarge: 'OpenAI 参考图片必须小于 50 MB，请压缩文件后再提交',
+    maskTooLarge: 'OpenAI 遮罩 PNG 必须小于 4 MB，请重新导出遮罩后再提交',
+    maskFormat: 'OpenAI 遮罩必须是 PNG，并与原图尺寸一致',
+    busy: '图片处理资源暂时繁忙，请稍后重试；尚未开始调用模型',
     empty: '参考图片内容为空，请重新选择原图',
-    tooLarge: '参考图片过大，单张最多 32 MiB，请缩小后上传',
+    tooLarge: '参考图片超过上传大小限制，请查看具体错误说明',
     format: '参考图片格式不受支持，请转换为 PNG、JPEG、WebP 或 GIF',
-    pixels: '参考图片超过 2000 万像素，请缩小图片后上传',
+    pixels: '图片处理未能完成，请查看错误详情；这不代表模型规定了该分辨率限制',
     mime: '参考图片标注的格式与文件实际内容不一致，请重新导出为 PNG 或 JPEG 后上传',
     decode: '参考图片无法解码，文件可能损坏，请重新导出后上传',
     uploadTimeout: '参考图片上传超时，请检查网络后重试；尚未开始调用模型',
@@ -446,7 +450,6 @@ imageStudio: {
     generic: '生成失败，请稍后重试',
   },
   store: {
-    referencesPrepared: '超大参考图已为本次生成等比缩小至 {sizes}，原图保留',
     referencePreparationFailed: '参考图准备失败，尚未开始调用模型',
 
     referencePreparing: '正在准备参考图',

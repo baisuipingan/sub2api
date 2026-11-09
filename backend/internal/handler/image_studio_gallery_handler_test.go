@@ -160,8 +160,8 @@ func TestGalleryValidationHTTPResponsePreservesSafeReasonAndLimits(t *testing.T)
 		status   int
 		metadata map[string]string
 	}{
-		{"GALLERY_IMAGE_TOO_MANY_PIXELS", http.StatusBadRequest, map[string]string{"max_pixels": "20000000", "width": "5000", "height": "5000"}},
-		{"GALLERY_TOO_LARGE", http.StatusRequestEntityTooLarge, map[string]string{"max_bytes": "33554432"}},
+		{"GALLERY_IMAGE_DECODE_FAILED", http.StatusBadRequest, map[string]string{"width": "9000", "height": "4367"}},
+		{"GALLERY_TOO_LARGE", http.StatusRequestEntityTooLarge, map[string]string{"max_bytes": "49999999"}},
 	} {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)

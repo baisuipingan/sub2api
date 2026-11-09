@@ -60,9 +60,9 @@ export default {
     runningDuration: 'Running for {seconds} seconds',
     createdAt: 'Created',
     noDiagnostic: '—',
-    unknownHint: 'The upstream outcome is uncertain and may have been charged. No automatic replay is performed.',
+    unknownHint: 'No definitive generation result was received. This does not confirm a charge. Check usage records; generation will not be repeated automatically.',
     billingPendingCount: '{count} settlements pending',
-    billingUnknownCount: '{count} settlements uncertain',
+    billingUnknownCount: 'Charges for {count} calls need verification',
     statuses: { queued: 'Queued', generating: 'Generating', saving: 'Saving', completed: 'Completed', partial: 'Partial success', failed: 'Failed', unknown: 'Result uncertain', cancelled: 'Cancelled' },
   },
 }

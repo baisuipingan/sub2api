@@ -41,9 +41,11 @@ describe('gallery API contract', () => {
     }), { status: 400 })))
     const error = await putGalleryAsset('reference', 'data:image/png;base64,aW1hZ2U=').catch(error => error)
     expect(error).toMatchObject({ code: 'GALLERY_IMAGE_TOO_MANY_PIXELS', metadata: { width: '5000' } })
-    expect(getGalleryErrorMessage(error)).toContain('2000 万像素')
+    expect(getGalleryErrorMessage(error)).toContain('不代表模型规定')
+    expect(getGalleryErrorMessage(error)).not.toContain('2000 万像素')
     expect(getGalleryErrorMessage(error)).toContain('5000x5000')
     expect(getGalleryErrorMessage(new GalleryApiError('invalid gallery item', 400, 'GALLERY_INVALID'))).not.toContain('invalid gallery item')
+    expect(getGalleryErrorMessage(new GalleryApiError('image processing capacity is unavailable', 503, 'GALLERY_BUSY'))).toContain('资源暂时繁忙')
     expect(getGalleryErrorMessage(new GalleryApiError('Use https://private.test/x?signature=secret', 503))).not.toContain('private.test')
   })
 

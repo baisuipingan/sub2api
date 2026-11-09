@@ -34,6 +34,11 @@ func studioJobUserID(c *gin.Context) (int64, bool) {
 }
 
 func studioJobHTTPError(c *gin.Context, err error) {
+	var invalid *service.StudioInputValidationError
+	if errors.As(err, &invalid) {
+		response.ErrorWithDetails(c, http.StatusBadRequest, invalid.Message, invalid.Reason, nil)
+		return
+	}
 	switch {
 	case errors.Is(err, service.ErrStudioJobInvalid):
 		response.ErrorWithDetails(c, http.StatusBadRequest, "invalid studio task", "STUDIO_JOB_INVALID", nil)
@@ -51,6 +56,8 @@ func studioJobHTTPError(c *gin.Context, err error) {
 		response.ErrorWithDetails(c, http.StatusConflict, "cloud gallery has insufficient capacity for this task", "STUDIO_GALLERY_QUOTA", nil)
 	case errors.Is(err, service.ErrStudioJobQueueFull):
 		response.ErrorWithDetails(c, http.StatusTooManyRequests, "too many Studio tasks are already running", "STUDIO_JOB_QUEUE_FULL", nil)
+	case errors.Is(err, service.ErrGalleryBusy):
+		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "server image-processing capacity is insufficient for this edit; use fewer or smaller references", "GALLERY_BUSY", nil)
 	default:
 		response.ErrorWithDetails(c, http.StatusInternalServerError, "studio task operation failed", "STUDIO_JOB_ERROR", nil)
 	}

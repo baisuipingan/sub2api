@@ -119,7 +119,7 @@ export async function putGalleryAsset(imageId: string, dataUrl: string, authToke
 export function getGalleryErrorMessage(error: unknown): string {
   const keys: Record<string, string> = {
     GALLERY_INVALID: 'invalid', GALLERY_INVALID_ID: 'invalidId', GALLERY_IMAGE_EMPTY: 'empty',
-    GALLERY_TOO_LARGE: 'tooLarge', GALLERY_IMAGE_FORMAT_UNSUPPORTED: 'format',
+    GALLERY_TOO_LARGE: 'tooLarge', GALLERY_BUSY: 'busy', GALLERY_IMAGE_FORMAT_UNSUPPORTED: 'format',
     GALLERY_IMAGE_TOO_MANY_PIXELS: 'pixels', GALLERY_IMAGE_MIME_MISMATCH: 'mime',
     GALLERY_IMAGE_DECODE_FAILED: 'decode', GALLERY_UPLOAD_TIMEOUT: 'uploadTimeout', STUDIO_REQUEST_TIMEOUT: 'requestTimeout',
   }

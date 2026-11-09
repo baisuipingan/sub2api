@@ -22,7 +22,7 @@ func TestGalleryUploadValidationExplainsFailureBeforeStorage(t *testing.T) {
 		{"invalid id", "unsafe.id", "image/png", "GALLERY_INVALID_ID", valid},
 		{"empty", "input", "image/png", "GALLERY_IMAGE_EMPTY", nil},
 		{"unsupported", "input", "image/svg+xml", "GALLERY_IMAGE_FORMAT_UNSUPPORTED", []byte(`<svg>private-test-text</svg>`)},
-		{"pixels", "input", "image/png", "GALLERY_IMAGE_TOO_MANY_PIXELS", galleryPNGHeader(5000, 5000)},
+		{"reported dimensions are accepted before actual decode", "input", "image/png", "GALLERY_IMAGE_DECODE_FAILED", galleryPNGHeader(9000, 4367)},
 		{"mismatched type", "input", "image/jpeg", "GALLERY_IMAGE_MIME_MISMATCH", valid},
 		{"broken pixels", "input", "image/png", "GALLERY_IMAGE_DECODE_FAILED", galleryPNGHeader(4, 3)},
 		{"oversized", "input", "image/png", "GALLERY_TOO_LARGE", make([]byte, GalleryMaxImageBytes+1)},
@@ -37,9 +37,6 @@ func TestGalleryUploadValidationExplainsFailureBeforeStorage(t *testing.T) {
 			require.NotContains(t, err.Error(), "private-test-text")
 			require.Zero(t, repo.reserveCalls)
 			require.Empty(t, store.objects)
-			if tc.reason == "GALLERY_IMAGE_TOO_MANY_PIXELS" {
-				require.Equal(t, map[string]string{"width": "5000", "height": "5000", "max_pixels": "20000000"}, detail.Metadata)
-			}
 		})
 	}
 }

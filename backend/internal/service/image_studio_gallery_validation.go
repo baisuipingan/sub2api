@@ -51,5 +51,5 @@ func galleryImageDecodeError(data []byte) error {
 }
 
 func galleryImageDimensions(width, height int) map[string]string {
-	return map[string]string{"width": fmt.Sprint(width), "height": fmt.Sprint(height), "max_pixels": fmt.Sprint(galleryMaxPixels)}
+	return map[string]string{"width": fmt.Sprint(width), "height": fmt.Sprint(height)}
 }

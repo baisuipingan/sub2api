@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	GalleryMaxImageBytes = 32 << 20
-	galleryMaxPixels     = 20_000_000
+	// GPT image reference files must be strictly smaller than 50 MB.
+	GalleryMaxImageBytes = 50_000_000 - 1
 	galleryPrefix        = "studio/v1/"
 	galleryURLLifetime   = 10 * time.Minute
 )
@@ -286,7 +286,7 @@ func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, 
 		return galleryValidationError("GALLERY_IMAGE_EMPTY", "reference image is empty; reselect the image and retry", nil)
 	}
 	if len(data) > GalleryMaxImageBytes {
-		return galleryValidationError("GALLERY_TOO_LARGE", "reference image exceeds the 32 MiB upload limit", map[string]string{"max_bytes": strconv.Itoa(GalleryMaxImageBytes)})
+		return galleryValidationError("GALLERY_TOO_LARGE", "reference image must be smaller than 50 MB", map[string]string{"max_bytes": strconv.Itoa(GalleryMaxImageBytes)})
 	}
 	digest := sha256.Sum256(data)
 	hexDigest := hex.EncodeToString(digest[:])
@@ -331,17 +331,19 @@ func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, 
 	if mime == "" {
 		return galleryValidationError("GALLERY_IMAGE_FORMAT_UNSUPPORTED", "unsupported image format; upload a PNG, JPEG, WebP or GIF image", nil)
 	}
-	if decodedCfg.Width <= 0 || decodedCfg.Height <= 0 {
+	if _, valid := studioImagePixels(decodedCfg.Width, decodedCfg.Height); !valid {
 		return galleryValidationError("GALLERY_IMAGE_DECODE_FAILED", "image dimensions are invalid; export the image again and retry", nil)
-	}
-	if int64(decodedCfg.Width)*int64(decodedCfg.Height) > galleryMaxPixels {
-		return galleryValidationError("GALLERY_IMAGE_TOO_MANY_PIXELS", "reference image exceeds 20 million pixels; reduce its dimensions and retry", galleryImageDimensions(decodedCfg.Width, decodedCfg.Height))
 	}
 	if strings.TrimSpace(contentType) != "" && GalleryDeclaredImageMIME(contentType) != mime {
 		metadata := galleryImageDimensions(decodedCfg.Width, decodedCfg.Height)
 		metadata["actual_mime"] = mime
 		return galleryValidationError("GALLERY_IMAGE_MIME_MISMATCH", "image format does not match its declared content type; export or reselect the image and retry", metadata)
 	}
+	releaseMemory, err := acquireStudioImageMemory(decodedCfg.Width, decodedCfg.Height)
+	if err != nil {
+		return err
+	}
+	defer releaseMemory()
 	decoded, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return galleryValidationError("GALLERY_IMAGE_DECODE_FAILED", "image data is incomplete or cannot be decoded; export the image again and retry", galleryImageDimensions(decodedCfg.Width, decodedCfg.Height))
@@ -354,6 +356,7 @@ func (s *ImageStudioGalleryService) putAsset(ctx context.Context, userID int64, 
 	if err != nil {
 		return err
 	}
+	releaseMemory() // No decoded pixels are needed during database or S3 I/O.
 	// Conversion is complete before taking the target lock; only target lookup
 	// and durable reservation are serialized with admin S3 target changes.
 	releaseTarget, err := s.repo.LockTarget(ctx)

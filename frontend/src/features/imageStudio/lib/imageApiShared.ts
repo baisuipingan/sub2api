@@ -9,7 +9,6 @@ export const MIME_MAP: Record<string, string> = {
   webp: 'image/webp',
 }
 
-export const MAX_MASK_EDIT_FILE_BYTES = 50 * 1024 * 1024
 export const MAX_IMAGE_INPUT_PAYLOAD_BYTES = 512 * 1024 * 1024
 
 export interface CallApiOptions {
@@ -91,10 +90,6 @@ export function getDataUrlDecodedByteSize(dataUrl: string) {
 
 export function assertImageInputPayloadSize(bytes: number) {
   if (bytes > MAX_IMAGE_INPUT_PAYLOAD_BYTES) throw new Error(libT('imageStudio.lib.referencePayloadTooLarge'))
-}
-
-export function assertMaskEditFileSize(label: string, bytes: number) {
-  if (bytes > MAX_MASK_EDIT_FILE_BYTES) throw new Error(libT('imageStudio.lib.fileTooLarge', { label }))
 }
 
 /** Preserve the provider's structured fields; createApiError selects and sanitizes display text. */

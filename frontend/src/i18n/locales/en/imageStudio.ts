@@ -420,12 +420,16 @@ imageStudio: {
     resizedHint: 'Mask is drawn on a lightweight preview; submission still matches the original {width}×{height}',
   },
   galleryInputErrors: {
-    invalid: 'Reference validation failed. Use a complete PNG, JPEG, WebP or GIF image, up to 32 MiB and 20 megapixels each',
+    invalid: 'Reference validation failed. Check the file format and size against the selected model’s API requirements',
     invalidId: 'This reference record is invalid. Remove it and upload again',
+    openaiTooLarge: 'OpenAI reference images must be smaller than 50 MB. Compress the file before submitting',
+    maskTooLarge: 'An OpenAI PNG mask must be smaller than 4 MB. Export the mask again before submitting',
+    maskFormat: 'An OpenAI mask must be PNG and have the same dimensions as its source image',
+    busy: 'Image processing capacity is temporarily busy. Retry shortly; generation has not started',
     empty: 'The reference image is empty. Select the original file again',
-    tooLarge: 'Reference images must be at most 32 MiB each. Resize before uploading',
+    tooLarge: 'The reference exceeds the upload size limit. See the error details',
     format: 'Unsupported reference format. Convert to PNG, JPEG, WebP or GIF',
-    pixels: 'This reference exceeds 20 megapixels. Resize before uploading',
+    pixels: 'Image processing could not complete. See the error details; this is not a documented model resolution limit',
     mime: 'The declared image format differs from its contents. Export as PNG or JPEG and upload again',
     decode: 'The reference image could not be decoded. Export the image again',
     uploadTimeout: 'Reference upload timed out. Check your connection and retry; generation has not started',
@@ -446,7 +450,6 @@ imageStudio: {
     generic: 'Generation failed, please retry later',
   },
   store: {
-    referencesPrepared: 'Oversized references were resized proportionally to {sizes} for this generation; originals are retained',
     referencePreparationFailed: 'Reference preparation failed; generation has not started',
 
     referencePreparing: 'Preparing reference images',

@@ -60,9 +60,9 @@ export default {
     runningDuration: '已运行 {seconds} 秒',
     createdAt: '创建时间',
     noDiagnostic: '—',
-    unknownHint: '请求结果尚不确定，可能已计费；系统不会自动重新发送。',
+    unknownHint: '未收到明确的生成结果，不代表已经扣费。请结合使用记录核实；系统不会自动重新生成。',
     billingPendingCount: '{count} 次结算待确认',
-    billingUnknownCount: '{count} 次结算状态未知',
+    billingUnknownCount: '{count} 次调用的扣费情况待核实',
     statuses: { queued: '排队中', generating: '生成中', saving: '保存中', completed: '完整完成', partial: '部分成功', failed: '失败', unknown: '结果待确认', cancelled: '已取消' },
   },
 }

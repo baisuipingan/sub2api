@@ -188,6 +188,9 @@ export function getUserFacingApiErrorMessage(value: unknown, t?: (key: string) =
   }
   // Multi-line text has already been formatted for persistent task history.
   if (key === 'imageStudio.errors.resultUnknown') {
+    // Old jobs persisted only this generic English fallback. It adds no actual
+    // diagnostic evidence and must not imply that a charge was observed.
+    if (/^(?:\[UPSTREAM_RESULT_UNKNOWN\]\s*:?\s*)?upstream request may have been billed;?\s*it will not be retried automatically\.?$/i.test(message)) return summary
     if (message.startsWith(summary)) return message
     const lines = message.split('\n')
     if (lines.length > 1 && isSummaryOnly(lines[0])) lines.shift()

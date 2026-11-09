@@ -15,10 +15,11 @@ import (
 type imageStudioGalleryRepository struct{ db *sql.DB }
 
 const (
-	galleryMaxUserBytes             int64 = 1 << 30
-	galleryMaxUserAssets                  = 500
-	galleryMaxUserTasks                   = 1000
-	galleryReservedBytesPerJobAsset int64 = 48 << 20
+	galleryMaxUserBytes  int64 = 1 << 30
+	galleryMaxUserAssets       = 500
+	galleryMaxUserTasks        = 1000
+	// Reserve a maximum original plus bounded preview/thumbnail overhead.
+	galleryReservedBytesPerJobAsset int64 = service.GalleryMaxImageBytes + (16 << 20)
 	galleryLockNamespace            int64 = 8_000_000_000_000_000
 	galleryTargetLock               int64 = 7_000_000_000_000_000
 )

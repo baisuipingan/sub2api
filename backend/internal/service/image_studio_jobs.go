@@ -332,6 +332,9 @@ func (s *StudioJobService) Submit(ctx context.Context, userID, apiKeyID int64, i
 		}
 		assets[id] = asset
 	}
+	if err := validateStudioInputAssets(in.Spec, assets); err != nil {
+		return nil, err
+	}
 	var inputBytes int64
 	for _, id := range in.Spec.RequestInputImageIDs {
 		inputBytes += assets[id].Bytes
@@ -340,12 +343,15 @@ func (s *StudioJobService) Submit(ctx context.Context, userID, apiKeyID int64, i
 		inputBytes += assets[in.Spec.MaskImageID].Bytes
 	}
 	if inputBytes > studioJobMaxInputBytes {
-		return nil, ErrStudioJobInvalid
+		return nil, &StudioInputValidationError{"STUDIO_INPUT_CAPACITY", "combined reference images exceed this gateway's 96 MiB request-processing capacity; reduce the number or file size of references"}
 	}
 	if in.Spec.Postprocess == "mask" {
 		source, mask := assets[in.Spec.MaskTargetImageID], assets[in.Spec.MaskImageID]
 		if source == nil || mask == nil || source.Width != mask.Width || source.Height != mask.Height {
 			return nil, ErrStudioJobInvalid
+		}
+		if err := validateStudioMaskMemory(in.Spec, source); err != nil {
+			return nil, err
 		}
 	}
 	hash := sha256.Sum256(append(canonicalTask, canonicalSpec...))

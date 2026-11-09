@@ -25,6 +25,9 @@ func (s *StudioJobService) buildStudioGatewayRequest(ctx context.Context, claim 
 		return nil, ErrStudioJobUnavailable
 	}
 	spec := claim.Spec
+	if err := validateStudioInputCount(spec); err != nil {
+		return nil, err
+	}
 	if s.gateway == nil || key.Group == nil {
 		return nil, ErrStudioJobRouteChanged
 	}
@@ -45,6 +48,11 @@ func (s *StudioJobService) buildStudioGatewayRequest(ctx context.Context, claim 
 		if err != nil {
 			return nil, err
 		}
+		if studioOpenAIInputRules(spec) {
+			if err := validateStudioInputFile(mime, int64(len(data)), false); err != nil {
+				return nil, err
+			}
+		}
 		total += int64(len(data))
 		if total > studioJobMaxInputBytes {
 			return nil, ErrStudioJobInvalid
@@ -60,6 +68,11 @@ func (s *StudioJobService) buildStudioGatewayRequest(ctx context.Context, claim 
 		mask, maskMIME, err = s.gallery.ReadAsset(ctx, claim.UserID, spec.MaskImageID)
 		if err != nil {
 			return nil, err
+		}
+		if studioOpenAIInputRules(spec) {
+			if err := validateStudioInputFile(maskMIME, int64(len(mask)), true); err != nil {
+				return nil, err
+			}
 		}
 		total += int64(len(mask))
 		if total > studioJobMaxInputBytes {

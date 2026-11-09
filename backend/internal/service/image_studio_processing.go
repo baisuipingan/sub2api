@@ -28,7 +28,6 @@ const (
 	StudioPostprocessNone  StudioPostprocessMode = "none"
 	StudioPostprocessMask  StudioPostprocessMode = "mask"
 	StudioPostprocessKeyed StudioPostprocessMode = "keyed"
-	studioMaxPixels                              = 20_000_000
 )
 
 var errStudioImageInvalid = errors.New("invalid Studio image or post-processing request")
@@ -46,6 +45,15 @@ func ProcessStudioImage(
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
+	memoryBytes, err := studioProcessingMemoryRequirement(raw, source, mask, mode)
+	if err != nil {
+		return nil, "", err
+	}
+	releaseMemory, err := sharedStudioImageMemory.acquire(memoryBytes)
+	if err != nil {
+		return nil, "", err
+	}
+	defer releaseMemory()
 	generated, originalMIME, err := decodeStudioImage(raw)
 	if err != nil {
 		return nil, "", err
@@ -79,13 +87,13 @@ func ProcessStudioImage(
 	return encodeStudioImage(ctx, result, mode, outputFormat, outputCompression)
 }
 
-func decodeStudioImage(data []byte) (*image.NRGBA, string, error) {
+func studioImageConfig(data []byte) (image.Config, string, error) {
 	if len(data) == 0 || len(data) > GalleryMaxImageBytes {
-		return nil, "", errStudioImageInvalid
+		return image.Config{}, "", errStudioImageInvalid
 	}
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > studioMaxPixels {
-		return nil, "", errStudioImageInvalid
+	if _, valid := studioImagePixels(config.Width, config.Height); err != nil || !valid {
+		return image.Config{}, "", errStudioImageInvalid
 	}
 	mime := ""
 	switch format {
@@ -96,7 +104,55 @@ func decodeStudioImage(data []byte) (*image.NRGBA, string, error) {
 	case "webp":
 		mime = "image/webp"
 	default:
-		return nil, "", errStudioImageInvalid
+		return image.Config{}, "", errStudioImageInvalid
+	}
+	return config, mime, nil
+}
+
+// Reserve all simultaneously live pixels before decoding any of them. Mask
+// compositing also keeps an output and possibly a resized generated image;
+// keyed removal has per-pixel queue/coverage arrays. These are server resource
+// costs, not official input-resolution restrictions.
+func studioProcessingMemoryRequirement(raw, source, mask []byte, mode StudioPostprocessMode) (int64, error) {
+	inputs := []struct {
+		data   []byte
+		weight int64
+	}{{raw, 8}}
+	switch mode {
+	case StudioPostprocessNone:
+	case StudioPostprocessMask:
+		inputs = append(inputs, struct {
+			data   []byte
+			weight int64
+		}{source, 16}, struct {
+			data   []byte
+			weight int64
+		}{mask, 8})
+	case StudioPostprocessKeyed:
+		inputs[0].weight = 16
+	default:
+		return 0, errStudioImageInvalid
+	}
+	var total int64
+	for _, input := range inputs {
+		config, _, err := studioImageConfig(input.data)
+		if err != nil {
+			return 0, err
+		}
+		estimate, err := studioImageMemoryEstimate(config.Width, config.Height, input.weight)
+		if err != nil || estimate > studioImageMemoryLimit-total {
+			return 0, ErrGalleryBusy
+		}
+		total += estimate
+	}
+	return total, nil
+}
+
+// Called only inside ProcessStudioImage's retained memory reservation.
+func decodeStudioImage(data []byte) (*image.NRGBA, string, error) {
+	config, mime, err := studioImageConfig(data)
+	if err != nil {
+		return nil, "", err
 	}
 	decoded, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {

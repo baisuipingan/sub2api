@@ -1,7 +1,7 @@
 {
-  "schema_epoch": 2,
+  "schema_epoch": 3,
   "database": {
-    "rollback": "image-only",
-    "reason": "Schema epoch 2 is retained. Migration 254 adds the ticket attachment table and nullable operation identifiers on ticket messages; older images can run with these additive structures retained. Ticket screenshots use the existing private S3/R2 target under tickets/v1/. Studio reference-upload diagnostics and bounded control requests do not change routing, billing or existing image formats. Image-only rollback is supported; the older application will not display or clean up ticket attachments."
+    "rollback": "backup-required",
+    "reason": "Schema epoch 3 admits original gallery assets below 50 MB without the previous 20MP constraint via dsapi_005_gallery_official_input_limits.sql. Older applications still enforce 32MiB/20MP and may reject these new assets, so rollback across this boundary requires the pre-release database backup and matching object-storage recovery planning. Migration 254 also adds private ticket attachments and nullable operation identifiers. This does not change model routing or billing."
   }
 }

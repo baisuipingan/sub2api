@@ -5,6 +5,7 @@ import { buildGeminiImageRequest, mapGeminiImageConfig } from '../geminiImageApi
 import type { CallApiOptions } from '../imageApiShared'
 import { createImageModelCatalogFromModelList, IMAGE_MODEL_REGISTRY, type ImageModelDefinition } from '../modelRegistry'
 import { normalizeParamsForSettings } from '../paramCompatibility'
+import { dataUrlToBlob, maskDataUrlToPngBlob } from '../canvasImage'
 
 vi.mock('../i18nMessage', () => ({ libT: (key: string) => key }))
 vi.mock('../canvasImage', () => ({
@@ -164,6 +165,22 @@ describe('Image Studio protocol adapters', () => {
     expect(form.get('background')).toBeNull()
     expect(form.get('quality')).toBe('auto')
     expect(form.get('output_format')).toBe('png')
+  })
+
+  it('rejects a 50 MB reference before sending a direct OpenAI edit', async () => {
+    const blob = new Blob(['reference'], { type: 'image/png' })
+    Object.defineProperty(blob, 'size', { value: 50_000_000 })
+    vi.mocked(dataUrlToBlob).mockResolvedValueOnce(blob)
+    await expect(callImageApi(options('gpt-image-2', { apiKind: 'openai', inputImageDataUrls: [IMAGE] }))).rejects.toThrow('openaiTooLarge')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('checks the actual PNG mask against the endpoint 4 MB limit', async () => {
+    const mask = new Blob(['mask'], { type: 'image/png' })
+    Object.defineProperty(mask, 'size', { value: 4_000_000 })
+    vi.mocked(maskDataUrlToPngBlob).mockResolvedValueOnce(mask)
+    await expect(callImageApi(options('gpt-image-2', { apiKind: 'openai', inputImageDataUrls: [IMAGE], maskDataUrl: IMAGE }))).rejects.toThrow('maskTooLarge')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('declared GPT streaming still sends streaming controls and parses the final image', async () => {

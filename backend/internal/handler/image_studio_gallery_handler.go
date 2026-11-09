@@ -54,7 +54,7 @@ func galleryHTTPError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrGalleryDisabled):
 		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "gallery uploads are disabled", "GALLERY_DISABLED", nil)
 	case errors.Is(err, service.ErrGalleryBusy):
-		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "gallery image processing is busy", "GALLERY_BUSY", nil)
+		response.ErrorWithDetails(c, http.StatusServiceUnavailable, "server image-processing capacity is temporarily insufficient; retry later or use a smaller reference image", "GALLERY_BUSY", nil)
 	case errors.Is(err, service.ErrGalleryQuota):
 		response.ErrorWithDetails(c, http.StatusTooManyRequests, "gallery storage quota exceeded", "GALLERY_QUOTA_EXCEEDED", nil)
 	case errors.Is(err, service.ErrGalleryUnavailable):
@@ -120,7 +120,7 @@ func (h *ImageStudioGalleryHandler) PutAsset(c *gin.Context) {
 		if errors.As(err, &maxErr) {
 			middleware.SetAuditExtra(c, map[string]any{"error_code": "GALLERY_TOO_LARGE"})
 			slog.Warn("Studio reference image upload rejected", "reason", "GALLERY_TOO_LARGE", "declared_type", service.GalleryDeclaredImageMIME(c.GetHeader("Content-Type")), "bytes", len(data))
-			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "reference image exceeds the 32 MiB upload limit", "GALLERY_TOO_LARGE", map[string]string{"max_bytes": strconv.Itoa(service.GalleryMaxImageBytes)})
+			response.ErrorWithDetails(c, http.StatusRequestEntityTooLarge, "reference image must be smaller than 50 MB", "GALLERY_TOO_LARGE", map[string]string{"max_bytes": strconv.Itoa(service.GalleryMaxImageBytes)})
 			return
 		}
 		galleryHTTPError(c, service.ErrGalleryInvalid)
