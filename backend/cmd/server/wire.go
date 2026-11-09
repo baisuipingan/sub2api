@@ -125,6 +125,7 @@ func provideCleanup(
 	backupSvc *service.BackupService,
 	gallery *service.ImageStudioGalleryService,
 	studioJobs *service.StudioJobService,
+	ticketAttachments *service.TicketAttachmentService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
@@ -148,6 +149,12 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"TicketAttachmentService", func() error {
+				if ticketAttachments != nil {
+					ticketAttachments.Stop()
+				}
+				return nil
+			}},
 			{"StudioJobService", func() error { studioJobs.Stop(); return nil }},
 			{"ImageStudioGalleryService", func() error {
 				gallery.StopCleaner()

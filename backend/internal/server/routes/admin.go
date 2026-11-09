@@ -463,6 +463,8 @@ func registerTicketRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		tickets.GET("", h.Admin.Ticket.List)
 		tickets.GET("/unread-count", h.Admin.Ticket.UnreadCount)
+		tickets.GET("/attachments/status", h.Admin.Ticket.AttachmentStatus)
+		tickets.GET("/:id/attachments/:attachment_id/url", h.Admin.Ticket.AttachmentURL)
 		tickets.GET("/:id", h.Admin.Ticket.Get)
 		tickets.POST("/:id/messages", h.Admin.Ticket.Reply)
 		tickets.PUT("/:id", h.Admin.Ticket.Update)

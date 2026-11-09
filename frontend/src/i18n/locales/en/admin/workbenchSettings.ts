@@ -13,7 +13,7 @@ export default {
     groupUnavailable: 'Group #{id} is unavailable; select another group',
     manageGroups: 'Manage groups',
     saved: 'Workbench access settings saved',
-    sharedStorageHint: 'The cloud gallery and native asynchronous image API share this image storage configuration, with independent admission switches.',
+    sharedStorageHint: 'The cloud gallery, native asynchronous image API and ticket screenshots share this storage connection, with independent switches.',
     asyncHint: 'Controls new native asynchronous image API tasks only. The cloud gallery and server-executed workbench jobs use the separate switches below.',
     routingTitle: 'Models, Routing, and Billing',
     routingHint: 'Accounts, channels, size mappings, and pricing continue to use the console configuration. No second model setup is needed.',

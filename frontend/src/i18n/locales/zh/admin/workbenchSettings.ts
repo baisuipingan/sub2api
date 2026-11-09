@@ -13,7 +13,7 @@ export default {
     groupUnavailable: '分组 #{id} 不可用，请重新选择',
     manageGroups: '管理分组',
     saved: '工作台访问设置已保存',
-    sharedStorageHint: '工作台云端图库和原生异步生图共用这套图片存储配置，接单开关各自独立。',
+    sharedStorageHint: '工作台云端图库、原生异步生图和工单截图共用这套存储连接，各功能开关相互独立。',
     asyncHint: '仅控制原生异步生图 API 的新任务；工作台图库和服务端任务使用下方独立开关。',
     routingTitle: '模型、路由与计费',
     routingHint: '继续使用控制台的账号、渠道、尺寸映射与价格配置，无需再配置一套工作台模型。',

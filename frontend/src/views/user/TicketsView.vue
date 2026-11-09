@@ -105,120 +105,54 @@
       </div>
     </div>
 
-    <!-- 新建工单 -->
-    <div
-      v-if="createOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      @click.self="closeCreate"
-    >
-      <div class="w-full max-w-lg rounded-xl bg-white shadow-xl dark:bg-dark-800">
-        <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3.5 dark:border-dark-700">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('tickets.create') }}</h2>
-          <button type="button" class="text-gray-400 hover:text-gray-600" @click="closeCreate">
-            <Icon name="x" size="sm" />
-          </button>
-        </div>
-        <div class="space-y-4 px-5 py-4">
-          <div>
-            <label class="input-label">{{ t('tickets.titleLabel') }}</label>
-            <input v-model="form.title" class="input" :placeholder="t('tickets.titlePlaceholder')" maxlength="120" />
-          </div>
-          <div>
-            <label class="input-label">{{ t('tickets.contentLabel') }}</label>
-            <textarea
-              v-model="form.content"
-              class="input min-h-[140px] resize-y"
-              :placeholder="t('tickets.contentPlaceholder')"
-              maxlength="5000"
-            />
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 border-t border-gray-100 px-5 py-3 dark:border-dark-700">
-          <button class="btn btn-secondary" type="button" @click="closeCreate">
-            {{ t('common.cancel') }}
-          </button>
-          <button class="btn btn-primary" type="button" :disabled="submitting || !canSubmit" @click="submitCreate">
+    <BaseDialog :show="createOpen" :title="t('tickets.create')" :close-on-escape="!submitting && !createPreparing" :show-close-button="!submitting && !createPreparing" @close="closeCreate">
+      <div class="space-y-4" @paste="createPicker?.paste($event)">
+        <Input id="ticket-title" v-model="form.title" :maxlength="120" :label="t('tickets.titleLabel')" :placeholder="t('tickets.titlePlaceholder')" :disabled="submitting" />
+        <Textarea id="ticket-content" v-model="form.content" :maxlength="5000" :label="t('tickets.contentLabel')" :placeholder="t('tickets.contentPlaceholder')" :rows="5" :disabled="submitting" />
+        <TicketScreenshotPicker v-if="attachmentsEnabled || createImages.length || createPreparing" ref="createPicker" v-model="createImages" :uploads-enabled="attachmentsEnabled" :disabled="submitting" @busy="createPreparing = $event" />
+        <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('tickets.openLimitHint') }}</p>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <button class="btn btn-secondary" type="button" :disabled="submitting || createPreparing" @click="closeCreate">{{ t('common.cancel') }}</button>
+          <button class="btn btn-primary" type="button" :disabled="submitting || createPreparing || !canSubmit" @click="submitCreate">
             {{ submitting ? t('tickets.submitting') : t('tickets.submit') }}
           </button>
         </div>
-      </div>
-    </div>
+      </template>
+    </BaseDialog>
 
-    <!-- 工单详情 -->
-    <div
-      v-if="detailOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      @click.self="closeDetail"
-    >
-      <div class="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl dark:bg-dark-800">
-        <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-3.5 dark:border-dark-700">
-          <div class="min-w-0">
-            <h2 class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-              {{ detail?.ticket.title }}
-            </h2>
-            <p class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <StatusBadge v-if="detail" :status="detail.ticket.status" />
-              <span class="text-gray-400">
-                {{ t('tickets.updatedAt', { time: formatTime(detail?.ticket.last_message_at) }) }}
-              </span>
-            </p>
+    <BaseDialog :show="detailOpen" :title="detail?.ticket.title || t('tickets.myTitle')" width="wide" :close-on-escape="!replying && !deleting && !replyPreparing" :show-close-button="!replying && !deleting && !replyPreparing" @close="closeDetail">
+      <div v-if="detail" class="space-y-4">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+          <StatusBadge :status="detail.ticket.status" />
+          <span>#{{ detail.ticket.id }}</span>
+          <span>{{ t('tickets.updatedAt', { time: formatTime(detail.ticket.last_message_at) }) }}</span>
+        </div>
+        <div v-for="message in detail.messages" :key="message.id" class="space-y-1">
+          <div class="flex items-center gap-2 text-[11px] text-gray-400">
+            <span class="font-medium text-gray-600 dark:text-dark-300">{{ message.sender_role === 'admin' ? t('tickets.adminName') : t('tickets.me') }}</span>
+            <span>{{ formatTime(message.created_at) }}</span>
           </div>
-          <button type="button" class="shrink-0 text-gray-400 hover:text-gray-600" @click="closeDetail">
-            <Icon name="x" size="sm" />
-          </button>
-        </div>
-
-        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div v-for="message in detail?.messages ?? []" :key="message.id" class="space-y-1">
-            <div class="flex items-center gap-2 text-[11px] text-gray-400">
-              <span class="font-medium text-gray-600 dark:text-dark-300">
-                {{ message.sender_role === 'admin' ? t('tickets.adminName') : t('tickets.me') }}
-              </span>
-              <span>{{ formatTime(message.created_at) }}</span>
-            </div>
-            <div
-              class="rounded-lg px-3 py-2 text-sm leading-6 whitespace-pre-wrap break-words"
-              :class="
-                message.sender_role === 'admin'
-                  ? 'bg-primary-50 text-gray-800 dark:bg-primary-500/10 dark:text-dark-100'
-                  : 'bg-gray-50 text-gray-800 dark:bg-dark-700 dark:text-dark-100'
-              "
-            >
-              {{ message.content }}
-            </div>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between border-t border-gray-100 px-5 py-2 dark:border-dark-700">
-          <button
-            class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400"
-            type="button"
-            :disabled="deleting"
-            @click="removeTicket"
-          >
-            {{ t('tickets.delete') }}
-          </button>
-          <span class="text-[11px] text-gray-400">{{ t('tickets.deleteHint') }}</span>
-        </div>
-
-        <div v-if="detail?.ticket.status !== 'closed'" class="border-t border-gray-100 px-5 py-3 dark:border-dark-700">
-          <textarea
-            v-model="replyContent"
-            class="input min-h-[80px] resize-y"
-            :placeholder="t('tickets.replyPlaceholder')"
-            maxlength="5000"
-          />
-          <div class="mt-2 flex justify-end">
-            <button class="btn btn-primary" type="button" :disabled="replying || !replyContent.trim()" @click="submitReply">
-              {{ replying ? t('tickets.replying') : t('tickets.reply') }}
-            </button>
-          </div>
-        </div>
-        <div v-else class="border-t border-gray-100 px-5 py-3 text-xs text-gray-400 dark:border-dark-700">
-          {{ t('tickets.closedHint') }}
+          <div class="rounded-lg px-3 py-2 text-sm leading-6 whitespace-pre-wrap break-words" :class="message.sender_role === 'admin' ? 'bg-primary-50 text-gray-800 dark:bg-primary-500/10 dark:text-dark-100' : 'bg-gray-50 text-gray-800 dark:bg-dark-700 dark:text-dark-100'">{{ message.content }}</div>
+          <TicketMessageAttachments :ticket-id="detail.ticket.id" :owner-id="detail.ticket.user_id" :attachments="message.attachments" />
         </div>
       </div>
-    </div>
+      <LoadingSpinner v-else class="mx-auto my-8 block" />
+      <template #footer>
+        <div v-if="detail" class="max-h-[50vh] w-full min-w-0 space-y-3 overflow-y-auto" @paste="replyPicker?.paste($event)">
+          <template v-if="detail.ticket.status !== 'closed'">
+            <Textarea id="ticket-reply" v-model="replyContent" :maxlength="5000" :aria-label="t('tickets.replyPlaceholder')" :placeholder="t('tickets.replyPlaceholder')" :disabled="replying" />
+            <TicketScreenshotPicker v-if="attachmentsEnabled || replyImages.length || replyPreparing" ref="replyPicker" v-model="replyImages" :uploads-enabled="attachmentsEnabled" :disabled="replying" @busy="replyPreparing = $event" />
+          </template>
+          <p v-else class="text-xs text-gray-400">{{ t('tickets.closedHint') }}</p>
+          <div class="flex items-center justify-between gap-3">
+            <button class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400" type="button" :disabled="deleting || replying || replyPreparing" @click="removeTicket">{{ t('tickets.delete') }}</button>
+            <button v-if="detail.ticket.status !== 'closed'" class="btn btn-primary" type="button" :disabled="replying || replyPreparing || !replyContent.trim()" @click="submitReply">{{ replying ? t('tickets.replying') : t('tickets.reply') }}</button>
+          </div>
+        </div>
+      </template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
@@ -230,15 +164,24 @@
  * 状态由后端根据「最后一条消息是谁发的」自动流转，前端只做展示，
  * 避免两边各算一套状态导致不一致。
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Input from '@/components/common/Input.vue'
+import Textarea from '@/components/common/TextArea.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import TicketScreenshotPicker from '@/components/tickets/TicketScreenshotPicker.vue'
+import TicketMessageAttachments from '@/components/tickets/TicketMessageAttachments.vue'
+import { createTicketOperation } from '@/lib/ticketAttachments'
+import { ticketErrorKey } from '@/lib/ticketErrors'
 import StatusBadge from '@/components/tickets/TicketStatusBadge.vue'
 import { useAppStore } from '@/stores/app'
 import { useTicketStore } from '@/stores/tickets'
 import {
   createTicket,
+  getTicketAttachmentStatus,
   deleteTicket,
   getTicket,
   listTickets,
@@ -271,6 +214,21 @@ const form = reactive({ title: '', content: '' })
 const submitting = ref(false)
 const canSubmit = computed(() => form.title.trim() !== '' && form.content.trim() !== '')
 
+const attachmentsEnabled = ref(false)
+const createImages = ref<File[]>([])
+const replyImages = ref<File[]>([])
+const createPreparing = ref(false)
+const replyPreparing = ref(false)
+const createPicker = ref<InstanceType<typeof TicketScreenshotPicker>>()
+const replyPicker = ref<InstanceType<typeof TicketScreenshotPicker>>()
+const createOperation = createTicketOperation()
+let replyOperation = createTicketOperation()
+const replyDrafts = new Map<number, { content: string; images: File[]; operation: ReturnType<typeof createTicketOperation> }>()
+let activeTicketId: number | null = null
+let detailRequest = 0
+let listRequest = 0
+let attachmentStatusRequest = 0
+
 const detailOpen = ref(false)
 const detail = ref<TicketDetail | null>(null)
 const replyContent = ref('')
@@ -278,6 +236,7 @@ const replying = ref(false)
 const deleting = ref(false)
 
 async function load() {
+  const request = ++listRequest
   loading.value = true
   try {
     const res = await listTickets({
@@ -285,13 +244,14 @@ async function load() {
       page_size: pageSize.value,
       status: activeStatus.value || undefined
     })
+    if (request !== listRequest) return
     tickets.value = res.items ?? []
     total.value = res.total ?? 0
     pages.value = res.pages ?? 1
-  } catch (error) {
-    appStore.showError(t('tickets.loadFailed'))
+  } catch {
+    if (request === listRequest) appStore.showError(t('tickets.loadFailed'))
   } finally {
-    loading.value = false
+    if (request === listRequest) loading.value = false
   }
 }
 
@@ -307,20 +267,22 @@ function changePage(next: number) {
 }
 
 function openCreate() {
-  form.title = ''
-  form.content = ''
+  void refreshAttachmentStatus()
   createOpen.value = true
 }
 
 function closeCreate() {
+  if (submitting.value || createPreparing.value) return
   createOpen.value = false
 }
 
 async function submitCreate() {
-  if (!canSubmit.value || submitting.value) return
+  if (!canSubmit.value || submitting.value || createPreparing.value) return
   submitting.value = true
   try {
-    await createTicket({ title: form.title.trim(), content: form.content.trim() })
+    const payload = { title: form.title.trim(), content: form.content.trim() }
+    await createTicket(payload, { images: createImages.value, idempotencyKey: createOperation.keyFor(payload, createImages.value) })
+    form.title = ''; form.content = ''; createImages.value = []; createOperation.reset()
     createOpen.value = false
     appStore.showSuccess(t('tickets.createSuccess'))
     page.value = 1
@@ -332,21 +294,49 @@ async function submitCreate() {
   }
 }
 
+function saveReplyDraft() {
+  if (activeTicketId !== null) {
+    replyDrafts.set(activeTicketId, { content: replyContent.value, images: [...replyImages.value], operation: replyOperation })
+  }
+}
+
+async function refreshAttachmentStatus() {
+  const request = ++attachmentStatusRequest
+  try {
+    const status = await getTicketAttachmentStatus()
+    if (request === attachmentStatusRequest) attachmentsEnabled.value = status.enabled
+  } catch { /* Existing screenshots and text submissions remain available. */ }
+}
+
 async function openDetail(id: number) {
+  if (replying.value || deleting.value || replyPreparing.value) return
+  saveReplyDraft()
+  const draft = replyDrafts.get(id)
+  activeTicketId = id
+  replyContent.value = draft?.content ?? ''
+  replyImages.value = draft?.images ?? []
+  replyOperation = draft?.operation ?? createTicketOperation()
+  const request = ++detailRequest
   detailOpen.value = true
   detail.value = null
-  replyContent.value = ''
+  void refreshAttachmentStatus()
   try {
-    detail.value = await getTicket(id)
-    // 打开即已读：立刻刷新侧栏红点，不必等下一次轮询
+    const result = await getTicket(id)
+    if (request !== detailRequest || !detailOpen.value || activeTicketId !== id) return
+    detail.value = result
     void ticketStore.refreshUserUnread()
   } catch {
+    if (request !== detailRequest || !detailOpen.value) return
     appStore.showError(t('tickets.loadFailed'))
-    detailOpen.value = false
+    closeDetail()
   }
 }
 
 function closeDetail() {
+  if (replying.value || deleting.value || replyPreparing.value) return
+  saveReplyDraft()
+  detailRequest++
+  activeTicketId = null
   detailOpen.value = false
   detail.value = null
 }
@@ -354,12 +344,13 @@ function closeDetail() {
 /** 删除当前工单。软删除，管理端仍可追溯。 */
 async function removeTicket() {
   const id = detail.value?.ticket.id
-  if (!id || deleting.value) return
+  if (!id || deleting.value || replying.value || replyPreparing.value) return
   if (typeof window !== 'undefined' && !window.confirm(t('tickets.deleteConfirm'))) return
   deleting.value = true
   try {
     await deleteTicket(id)
-    closeDetail()
+    replyDrafts.delete(id); activeTicketId = null; detailRequest++
+    detailOpen.value = false; detail.value = null
     appStore.showSuccess(t('tickets.deleteSuccess'))
     await load()
     void ticketStore.refreshUserUnread()
@@ -372,12 +363,17 @@ async function removeTicket() {
 
 async function submitReply() {
   const id = detail.value?.ticket.id
-  if (!id || !replyContent.value.trim() || replying.value) return
+  if (!id || !replyContent.value.trim() || replying.value || replyPreparing.value) return
   replying.value = true
   try {
-    await replyTicket(id, replyContent.value.trim())
-    replyContent.value = ''
-    detail.value = await getTicket(id)
+    const content = replyContent.value.trim()
+    const message = await replyTicket(id, content, { images: replyImages.value, idempotencyKey: replyOperation.keyFor({ id, content }, replyImages.value) })
+    replyContent.value = ''; replyImages.value = []; replyOperation.reset(); replyDrafts.delete(id)
+    if (detail.value?.ticket.id === id) {
+      detail.value.messages.push(message)
+      detail.value.ticket.status = 'pending'
+      detail.value.ticket.last_message_at = message.created_at
+    }
     await load()
   } catch (error) {
     appStore.showError(resolveError(error, 'tickets.replyFailed'))
@@ -393,14 +389,12 @@ async function submitReply() {
  * 这里优先按 reason 给出具体原因，认不出来才退回通用文案。
  */
 function resolveError(error: unknown, fallbackKey: string): string {
-  const reason = (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
-  if (reason === 'TICKET_CREATE_RATE_LIMITED' || reason === 'TICKET_MESSAGE_RATE_LIMITED') {
-    return t('tickets.rateLimited')
+  const key = ticketErrorKey(error)
+  if (key === 'tickets.attachments.disabledError') {
+    attachmentStatusRequest++
+    attachmentsEnabled.value = false
   }
-  if (reason === 'TICKET_CLOSED') {
-    return t('tickets.closedHint')
-  }
-  return t(fallbackKey)
+  return t(key || fallbackKey)
 }
 
 function formatTime(value?: string) {
@@ -417,5 +411,9 @@ function priorityClass(priority: string) {
     : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300'
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void refreshAttachmentStatus()
+})
+onUnmounted(() => { listRequest++; detailRequest++; attachmentStatusRequest++ })
 </script>

@@ -12,7 +12,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/composables/useStepUp', () => ({ useStepUp: () => ({ run: stepUpRun }), isStepUpCancelled: () => false, isStepUpBlocked: () => false, stepUpBlockReason: () => '' }))
 
 const baseConfig = {
-  enabled: true, studio_gallery_enabled: true, studio_jobs_enabled: false, reuse_backup_s3: true,
+  enabled: true, studio_gallery_enabled: true, studio_jobs_enabled: false, ticket_attachments_enabled: false, reuse_backup_s3: true,
   bucket: 'private-images', prefix: 'image-results/', public_base_url: '', presign_expiry_hours: 12,
   max_download_bytes: 16777216, endpoint: 'https://s3.test', region: 'auto', access_key_id: 'key-id', force_path_style: false,
 }
@@ -34,12 +34,13 @@ describe('shared ImageStorageSettings', () => {
   afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()))
 
   it('legacy settings keep gallery and server execution disabled without changing async', async () => {
-    getConfig.mockResolvedValue({ config: { ...baseConfig, studio_gallery_enabled: undefined, studio_jobs_enabled: undefined }, secret_configured: false })
+    getConfig.mockResolvedValue({ config: { ...baseConfig, studio_gallery_enabled: undefined, studio_jobs_enabled: undefined, ticket_attachments_enabled: undefined }, secret_configured: false })
     const wrapper = mountSettings()
     await flushPromises()
     expect(checked(wrapper, '#async-image-enabled')).toBe(true)
     expect(checked(wrapper, '#studio-gallery-enabled')).toBe(false)
     expect(checked(wrapper, '#studio-jobs-enabled')).toBe(false)
+    expect(checked(wrapper, '#ticket-attachments-enabled')).toBe(false)
     expect(wrapper.get('#studio-jobs-enabled').attributes('disabled')).toBeDefined()
     expect(wrapper.get('#studio-gallery-private-warning').text()).toContain('studioGalleryPrivateBucketWarning')
   })
@@ -74,6 +75,29 @@ describe('shared ImageStorageSettings', () => {
     await wrapper.get('[data-testid="image-storage-save"]').trigger('click')
     await flushPromises()
     expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ ...baseConfig, enabled: false, secret_access_key: '' }))
+  })
+
+  it('allows ticket screenshots without enabling any image-generation feature', async () => {
+    getConfig.mockResolvedValue({ config: { ...baseConfig, enabled: false, studio_gallery_enabled: false }, secret_configured: true })
+    const wrapper = mountSettings()
+    await flushPromises()
+    await wrapper.get('#ticket-attachments-enabled').trigger('click')
+    await wrapper.get('[data-testid="image-storage-save"]').trigger('click')
+    await flushPromises()
+    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, studio_gallery_enabled: false, studio_jobs_enabled: false, ticket_attachments_enabled: true }))
+    expect(wrapper.get('#ticket-attachments-private-warning').text()).toContain('ticketAttachmentsPrivateBucketWarning')
+  })
+
+  it('rejects public URLs for ticket screenshots before saving', async () => {
+    getConfig.mockResolvedValue({ config: { ...baseConfig, public_base_url: 'https://public.test' }, secret_configured: true })
+    const wrapper = mountSettings()
+    await flushPromises()
+    await wrapper.get('#ticket-attachments-enabled').trigger('click')
+    await wrapper.get('[data-testid="image-storage-save"]').trigger('click')
+    await flushPromises()
+    expect(updateConfig).not.toHaveBeenCalled()
+    expect(stepUpRun).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith('admin.backup.imageStorage.ticketAttachmentsPrivateBucketError')
   })
 
   it('leaves an existing secret blank and preserves it during save', async () => {

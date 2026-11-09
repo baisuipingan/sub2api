@@ -33,6 +33,8 @@ const (
 	ticketContentMaxRunes = 5000
 	ticketPageSizeMax     = 100
 
+	TicketMaxOpen = 5
+
 	// 防刷：同一用户 10 分钟内最多新建 5 个工单、最多发 30 条消息。
 	// 用数据库计数而不是 Redis：工单量本身很小，一次 COUNT 足够便宜，
 	// 也不引入「Redis 挂了要不要 fail-open」的判断。
@@ -63,12 +65,13 @@ type Ticket struct {
 
 // TicketMessage 工单里的一条消息。
 type TicketMessage struct {
-	ID         int64     `json:"id"`
-	TicketID   int64     `json:"ticket_id"`
-	SenderID   *int64    `json:"sender_id"`
-	SenderRole string    `json:"sender_role"`
-	Content    string    `json:"content"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          int64              `json:"id"`
+	TicketID    int64              `json:"ticket_id"`
+	SenderID    *int64             `json:"sender_id"`
+	SenderRole  string             `json:"sender_role"`
+	Content     string             `json:"content"`
+	CreatedAt   time.Time          `json:"created_at"`
+	Attachments []TicketAttachment `json:"attachments,omitempty"`
 }
 
 // TicketListFilters 管理端列表筛选。
@@ -106,11 +109,16 @@ type TicketRepository interface {
 // 权限与状态流转都收在这里，handler 只做参数解析：
 // 用户只能看到自己的工单；关闭后用户不能再回复；管理员回复即视为重新处理。
 type TicketService struct {
-	repo TicketRepository
+	repo        TicketRepository
+	attachments *TicketAttachmentService
 }
 
 func NewTicketService(repo TicketRepository) *TicketService {
 	return &TicketService{repo: repo}
+}
+
+func (s *TicketService) SetAttachmentService(attachments *TicketAttachmentService) {
+	s.attachments = attachments
 }
 
 func normalizeTicketStatus(status string) string {
@@ -219,6 +227,12 @@ func (s *TicketService) GetDetail(ctx context.Context, ticketID, userID int64) (
 		return nil, nil, err
 	}
 
+	if s.attachments != nil {
+		if err := s.attachments.attachToMessages(ctx, ticketID, messages); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// 打开即视为已读。失败不影响读取本身（最多红点晚消失一次）。
 	role := TicketSenderRoleAdmin
 	if userID > 0 {
@@ -262,8 +276,12 @@ func (s *TicketService) ReplyAsAdmin(ctx context.Context, ticketID, adminID int6
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.repo.GetByID(ctx, ticketID); err != nil {
+	ticket, err := s.repo.GetByID(ctx, ticketID)
+	if err != nil {
 		return nil, err
+	}
+	if ticket == nil {
+		return nil, NewTicketNotFoundError(ticketID)
 	}
 	return s.repo.AddMessage(ctx, ticketID, adminID, TicketSenderRoleAdmin, cleanContent, TicketStatusReplied)
 }

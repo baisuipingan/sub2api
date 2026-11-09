@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -31,6 +32,37 @@ func TestDeriveAuditAction(t *testing.T) {
 		if got := deriveAuditAction(tc.method, tc.path); got != tc.want {
 			t.Fatalf("deriveAuditAction(%q, %q) = %q, want %q", tc.method, tc.path, got, tc.want)
 		}
+	}
+}
+
+func TestTicketAuditDoesNotReadOrPersistScreenshots(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &auditCaptureRepository{}
+	audit := service.NewAuditLogService(repo, nil)
+	audit.Start()
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAuditLogMiddleware(audit)))
+	const privateBody = "private-ticket-screenshot-bytes"
+	for _, path := range []string{"/api/v1/tickets", "/api/v1/tickets/:id/messages", "/api/v1/admin/tickets/:id/messages"} {
+		router.POST(path, func(c *gin.Context) {
+			body, err := io.ReadAll(c.Request.Body)
+			require.NoError(t, err)
+			require.Equal(t, privateBody, string(body))
+			c.Status(http.StatusCreated)
+		})
+	}
+	for _, path := range []string{"/api/v1/tickets", "/api/v1/tickets/1/messages", "/api/v1/admin/tickets/1/messages"} {
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(privateBody))
+		req.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	audit.Stop()
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	require.Len(t, repo.logs, 3)
+	for _, entry := range repo.logs {
+		require.NotContains(t, entry.RequestBody, privateBody)
+		require.Contains(t, entry.RequestBody, "omitted")
 	}
 }
 

@@ -13,6 +13,7 @@
         :required="required"
         :placeholder="placeholderText"
         :readonly="readonly"
+        :maxlength="maxlength"
         :rows="rows"
         :aria-label="ariaLabel"
         :class="[
@@ -46,6 +47,7 @@ interface Props {
   disabled?: boolean
   required?: boolean
   readonly?: boolean
+  maxlength?: number | string
   error?: string
   hint?: string
   id?: string

@@ -26,6 +26,8 @@ export interface PrivateImageVariantOptions {
   authorize: () => Promise<AuthorizedImageVariant>
   isCurrent: () => boolean
   signal?: AbortSignal
+  /** Ticket screenshots can retain legible text at 2560px; galleries keep 1600px. */
+  previewMaxDimension?: 1600 | 2560
 }
 export interface CachedPrivateImageVariant extends AuthorizedImageVariant { cached: boolean }
 
@@ -67,8 +69,8 @@ function awaitConsumer<T>(promise: Promise<T>, options: PrivateImageVariantOptio
   })
 }
 function variantLimit(variant: PrivateImageVariant) { return variant === 'thumbnail' ? 4 * 1024 * 1024 : 16 * 1024 * 1024 }
-function validMetadata(asset: AuthorizedImageVariant, variant: PrivateImageVariant) {
-  const maximumDimension = variant === 'thumbnail' ? 720 : 1600
+function validMetadata(asset: AuthorizedImageVariant, variant: PrivateImageVariant, previewMaxDimension: 1600 | 2560 = 1600) {
+  const maximumDimension = variant === 'thumbnail' ? 720 : previewMaxDimension
   return allowedMimes.has(asset.mime) && Number.isSafeInteger(asset.bytes) && asset.bytes > 0 && asset.bytes <= variantLimit(variant)
     && Number.isInteger(asset.width) && Number.isInteger(asset.height) && asset.width > 0 && asset.height > 0
     && asset.width <= maximumDimension && asset.height <= maximumDimension
@@ -168,7 +170,7 @@ export async function loadPrivateImageVariant(options: PrivateImageVariantOption
     if (!current()) throw new DOMException('Image cache entry was removed', 'AbortError')
     return { ...asset, cached: false }
   }
-  if (!validMetadata(asset, options.variant)) return direct()
+  if (!validMetadata(asset, options.variant, options.previewMaxDimension)) return direct()
   const version = asset.cache_version || 'v1'
   const key = JSON.stringify(['schema-v1', options.viewerId, options.ownerId, options.imageId, options.variant, version])
   await pendingClears.get(options.viewerId)

@@ -55,6 +55,19 @@ describe('private image variant caching', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('caches 2560px ticket previews only when explicitly allowed, keeping gallery limits unchanged', async () => {
+    const { loadPrivateImageVariant } = await import('../privateImageVariantCache')
+    const authorize = vi.fn(async () => ({ ...asset, width: 2560, height: 1440 }))
+    const gallery = options({ variant: 'preview', authorize })
+    expect((await loadPrivateImageVariant(gallery)).cached).toBe(false)
+    expect(fetch).not.toHaveBeenCalled()
+    const ticket = options({ imageId: 'ticket:1:image-one', variant: 'preview', authorize, previewMaxDimension: 2560 })
+    expect((await loadPrivateImageVariant(ticket)).cached).toBe(true)
+    expect((await loadPrivateImageVariant(ticket)).cached).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(authorize).toHaveBeenCalledTimes(3)
+  })
+
   it('separates viewers, owners, variants and content versions', async () => {
     const { loadPrivateImageVariant } = await import('../privateImageVariantCache')
     await loadPrivateImageVariant(options())

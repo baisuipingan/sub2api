@@ -23,6 +23,7 @@
         :placeholder="placeholderText"
         :autocomplete="autocomplete"
         :readonly="readonly"
+        :maxlength="maxlength"
         :min="min"
         :max="max"
         :step="step"
@@ -70,6 +71,7 @@ interface Props {
   disabled?: boolean
   required?: boolean
   readonly?: boolean
+  maxlength?: number | string
   error?: string
   hint?: string
   id?: string

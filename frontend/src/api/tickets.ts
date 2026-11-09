@@ -6,6 +6,7 @@
 
 import { apiClient } from './client'
 import type { PaginatedResponse } from '@/types'
+import type { AuthorizedImageVariant } from '@/lib/privateImageVariantCache'
 
 export type TicketStatus = 'pending' | 'replied' | 'closed'
 export type TicketPriority = 'normal' | 'high'
@@ -26,6 +27,27 @@ export interface Ticket {
   unread?: boolean
 }
 
+export interface TicketAttachment {
+  id: string
+  mime: string
+  bytes: number
+  width: number
+  height: number
+  thumbnail_width: number
+  thumbnail_height: number
+}
+
+export interface TicketAttachmentStatus {
+  enabled: boolean
+  max_files: number
+  max_file_bytes: number
+}
+
+export interface TicketSubmissionOptions {
+  images?: readonly File[]
+  idempotencyKey?: string
+}
+
 export interface TicketMessage {
   id: number
   ticket_id: number
@@ -33,6 +55,7 @@ export interface TicketMessage {
   sender_role: 'user' | 'admin'
   content: string
   created_at: string
+  attachments?: TicketAttachment[]
 }
 
 export interface TicketDetail {
@@ -70,8 +93,9 @@ export async function createTicket(payload: {
   title: string
   content: string
   priority?: TicketPriority
-}): Promise<Ticket> {
-  const { data } = await apiClient.post<Ticket>('/tickets', payload)
+}, options: TicketSubmissionOptions = {}): Promise<Ticket> {
+  const { body, config } = ticketRequest(payload, options)
+  const { data } = await apiClient.post<Ticket>('/tickets', body, config)
   return data
 }
 
@@ -82,8 +106,9 @@ export async function getTicket(id: number): Promise<TicketDetail> {
 }
 
 /** 用户：回复工单 */
-export async function replyTicket(id: number, content: string): Promise<TicketMessage> {
-  const { data } = await apiClient.post<TicketMessage>(`/tickets/${id}/messages`, { content })
+export async function replyTicket(id: number, content: string, options: TicketSubmissionOptions = {}): Promise<TicketMessage> {
+  const { body, config } = ticketRequest({ content }, options)
+  const { data } = await apiClient.post<TicketMessage>(`/tickets/${id}/messages`, body, config)
   return data
 }
 
@@ -110,14 +135,35 @@ export async function adminGetTicket(id: number): Promise<TicketDetail> {
 }
 
 /** 管理端：回复 */
-export async function adminReplyTicket(id: number, content: string): Promise<TicketMessage> {
-  const { data } = await apiClient.post<TicketMessage>(`/admin/tickets/${id}/messages`, { content })
+export async function adminReplyTicket(id: number, content: string, options: TicketSubmissionOptions = {}): Promise<TicketMessage> {
+  const { body, config } = ticketRequest({ content }, options)
+  const { data } = await apiClient.post<TicketMessage>(`/admin/tickets/${id}/messages`, body, config)
   return data
 }
 
 /** 管理端：改状态 */
 export async function adminUpdateTicket(id: number, status: TicketStatus): Promise<Ticket> {
   const { data } = await apiClient.put<Ticket>(`/admin/tickets/${id}`, { status })
+  return data
+}
+
+/** Do not set a multipart boundary; the browser owns its encoding. */
+function ticketRequest(payload: Record<string, string | undefined>, options: TicketSubmissionOptions) {
+  const key = options.idempotencyKey || crypto.randomUUID()
+  if (!options.images?.length) return { body: payload, config: { headers: { 'Idempotency-Key': key } } }
+  const body = new FormData()
+  for (const [name, value] of Object.entries(payload)) if (value !== undefined) body.append(name, value)
+  for (const image of options.images) body.append('images', image, image.name)
+  return { body, config: { timeout: 90_000, headers: { 'Idempotency-Key': key, 'Content-Type': undefined } } }
+}
+
+export async function getTicketAttachmentStatus(admin = false): Promise<TicketAttachmentStatus> {
+  const { data } = await apiClient.get<TicketAttachmentStatus>(`${admin ? '/admin' : ''}/tickets/attachments/status`)
+  return data
+}
+
+export async function getTicketAttachmentURL(ticketId: number, attachmentId: string, variant: 'thumbnail' | 'preview', admin = false): Promise<AuthorizedImageVariant> {
+  const { data } = await apiClient.get<AuthorizedImageVariant>(`${admin ? '/admin' : ''}/tickets/${ticketId}/attachments/${encodeURIComponent(attachmentId)}/url`, { params: { variant } })
   return data
 }
 

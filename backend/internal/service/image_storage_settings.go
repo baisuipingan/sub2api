@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -28,10 +29,11 @@ type ImageStorageFactory func(ctx context.Context, cfg *config.ImageStorageConfi
 // ReuseBackupS3 为真时不保存自己的凭证，直接借用数据库备份已配置的 S3 端点与密钥，
 // 只用自己的 Bucket/Prefix 区分对象；这样"数据走 backups/、图片走 images/"无需重复配置。
 type ImageStorageSettings struct {
-	Enabled              bool `json:"enabled"`
-	StudioGalleryEnabled bool `json:"studio_gallery_enabled"`
-	StudioJobsEnabled    bool `json:"studio_jobs_enabled"`
-	ReuseBackupS3        bool `json:"reuse_backup_s3"`
+	Enabled                  bool `json:"enabled"`
+	StudioGalleryEnabled     bool `json:"studio_gallery_enabled"`
+	StudioJobsEnabled        bool `json:"studio_jobs_enabled"`
+	TicketAttachmentsEnabled bool `json:"ticket_attachments_enabled"`
+	ReuseBackupS3            bool `json:"reuse_backup_s3"`
 
 	Bucket           string `json:"bucket"` // 留空且复用备份时，沿用备份桶
 	Prefix           string `json:"prefix"`
@@ -70,7 +72,9 @@ type ImageStorageSettingService struct {
 	// activeAsyncTasks counts accepted native async requests still using a
 	// pinned uploader. Update holds mu while validating the target, so admission
 	// and a storage-target change cannot cross each other.
-	activeAsyncTasks int
+	activeAsyncTasks    int
+	activeTicketStorage int
+	ticketStorageUsage  func(context.Context) (bool, error)
 }
 
 func (s *ImageStorageSettingService) SetGalleryRepository(repo GalleryRepository) {
@@ -81,10 +85,21 @@ func (s *ImageStorageSettingService) SetStudioJobRepository(repo StudioJobReposi
 	s.studioJobs = repo
 }
 
+// SetTicketStorageUsage includes pending and deleting attachments, so changing
+// the shared target cannot strand an upload or its cleanup on the old bucket.
+func (s *ImageStorageSettingService) SetTicketStorageUsage(check func(context.Context) (bool, error)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ticketStorageUsage = check
+}
+
 var ErrGalleryStorageTargetInUse = infraerrors.Conflict("GALLERY_STORAGE_TARGET_IN_USE", "gallery contains assets; migrate or delete them before changing the S3 target")
 var ErrGalleryPublicStorage = infraerrors.BadRequest("GALLERY_PUBLIC_STORAGE", "cloud gallery requires a private object-storage target; clear public_base_url and verify the bucket is not public")
 var ErrAsyncImageStorageTargetInUse = infraerrors.Conflict("ASYNC_IMAGE_STORAGE_TARGET_IN_USE", "accepted async image tasks are still using this object-storage target")
 var ErrStudioJobStorageTargetInUse = infraerrors.Conflict("STUDIO_JOB_STORAGE_TARGET_IN_USE", "accepted Studio jobs are still using this object-storage target")
+var ErrTicketStorageTargetInUse = infraerrors.Conflict("TICKET_STORAGE_TARGET_IN_USE", "ticket attachments exist; delete them before changing the S3 target")
+var ErrTicketAttachmentsDisabled = infraerrors.BadRequest("TICKET_ATTACHMENTS_DISABLED", "ticket screenshot uploads are disabled")
+var ErrTicketStorageUnavailable = infraerrors.New(http.StatusServiceUnavailable, "TICKET_STORAGE_UNAVAILABLE", "ticket screenshot storage is unavailable; configure a private S3/R2 bucket and clear public_base_url")
 
 func sameGalleryStorageTarget(a, b *config.ImageStorageConfig) bool {
 	return a != nil && b != nil && a.Endpoint == b.Endpoint && a.Region == b.Region &&
@@ -230,8 +245,12 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 	if in.StudioGalleryEnabled && in.PublicBaseURL != "" {
 		return nil, ErrGalleryPublicStorage
 	}
+	if in.TicketAttachmentsEnabled && in.PublicBaseURL != "" {
+		return nil, ErrTicketStorageUnavailable
+	}
 	hasAssets := false
 	hasStudioJobs := false
+	hasTicketAttachments := false
 	if s.galleryRepo != nil {
 		var err error
 		hasAssets, err = s.galleryRepo.HasAssets(ctx)
@@ -246,7 +265,14 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 			return nil, err
 		}
 	}
-	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs {
+	if s.ticketStorageUsage != nil {
+		var err error
+		hasTicketAttachments, err = s.ticketStorageUsage(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs || hasTicketAttachments || s.activeTicketStorage > 0 {
 		previous, err := s.effectiveConfig(ctx)
 		if err != nil {
 			return nil, err
@@ -260,6 +286,14 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 		}
 		if hasStudioJobs && !sameGalleryStorageTarget(previous, next) {
 			return nil, ErrStudioJobStorageTargetInUse
+		}
+		if hasTicketAttachments || s.activeTicketStorage > 0 {
+			if in.PublicBaseURL != "" {
+				return nil, ErrTicketStorageUnavailable
+			}
+			if !sameGalleryStorageTarget(previous, next) {
+				return nil, ErrTicketStorageTargetInUse
+			}
 		}
 		if hasAssets {
 			if in.PublicBaseURL != "" {
@@ -290,6 +324,12 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 			return nil, fmt.Errorf("encrypt secret: %w", err)
 		}
 		in.SecretAccessKey = encrypted
+	}
+	if in.TicketAttachmentsEnabled || hasTicketAttachments || s.activeTicketStorage > 0 {
+		cfg, err := s.toImageStorageConfig(ctx, &in)
+		if err != nil || !cfg.IsConfigured() {
+			return nil, ErrTicketStorageUnavailable
+		}
 	}
 
 	data, err := json.Marshal(in)
@@ -342,14 +382,29 @@ func (s *ImageStorageSettingService) TestConnection(ctx context.Context, in Imag
 	if in.StudioGalleryEnabled && cfg.PublicBaseURL != "" {
 		return ErrGalleryPublicStorage
 	}
+	if in.TicketAttachmentsEnabled && cfg.PublicBaseURL != "" {
+		return ErrTicketStorageUnavailable
+	}
 	storage, err := s.factory(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	if in.StudioGalleryEnabled {
+	if in.StudioGalleryEnabled || in.TicketAttachmentsEnabled {
+		if in.TicketAttachmentsEnabled {
+			if prober, ok := storage.(interface {
+				ProbeReadWriteDeletePrefix(context.Context, string) error
+			}); ok {
+				if err := prober.ProbeReadWriteDeletePrefix(ctx, "tickets/v1/"); err != nil {
+					return err
+				}
+				if !in.StudioGalleryEnabled {
+					return nil
+				}
+			}
+		}
 		prober, ok := storage.(interface{ ProbeReadWriteDelete(context.Context) error })
 		if !ok {
-			return fmt.Errorf("gallery storage connection probe is unavailable")
+			return fmt.Errorf("private image storage connection probe is unavailable")
 		}
 		return prober.ProbeReadWriteDelete(ctx)
 	}
@@ -389,6 +444,83 @@ func (s *ImageStorageSettingService) StudioGalleryConfig(ctx context.Context) (*
 	}
 	cfg.PublicBaseURL = "" // gallery objects are always private
 	return cfg, settings.StudioGalleryEnabled && cfg.IsConfigured(), nil
+}
+
+// TicketStorageConfig shares credentials with image storage, but its admission
+// switch and fixed prefix are independent of all image-generation features.
+// Existing attachments remain readable and deletable after uploads are disabled.
+func (s *ImageStorageSettingService) TicketStorageConfig(ctx context.Context, requireEnabled bool) (*config.ImageStorageConfig, error) {
+	if s == nil {
+		return nil, ErrTicketStorageUnavailable
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ticketStorageConfigLocked(ctx, requireEnabled)
+}
+
+func (s *ImageStorageSettingService) ticketStorageConfigLocked(ctx context.Context, requireEnabled bool) (*config.ImageStorageConfig, error) {
+	settings, err := s.load(ctx)
+	if err != nil {
+		return nil, ErrTicketStorageUnavailable.WithCause(err)
+	}
+	if settings == nil {
+		settings = settingsFromConfig(s.fallback)
+	}
+	if requireEnabled && !settings.TicketAttachmentsEnabled {
+		return nil, ErrTicketAttachmentsDisabled
+	}
+	cfg, err := s.toImageStorageConfig(ctx, settings)
+	if err != nil {
+		return nil, ErrTicketStorageUnavailable.WithCause(err)
+	}
+	if !cfg.IsConfigured() || cfg.PublicBaseURL != "" {
+		return nil, ErrTicketStorageUnavailable
+	}
+	cfg.Enabled = settings.TicketAttachmentsEnabled
+	cfg.Prefix = "tickets/v1/"
+	return cfg, nil
+}
+
+// AcquireTicketStorage protects the first pending attachment reservation from
+// racing a settings update, including across server instances. Callers release
+// immediately after recording pending objects in the database, before S3 I/O.
+// Keep the common lock order: target advisory lock, then settings.mu.
+func (s *ImageStorageSettingService) AcquireTicketStorage(ctx context.Context, requireEnabled bool) (*config.ImageStorageConfig, func(), error) {
+	if s == nil {
+		return nil, nil, ErrTicketStorageUnavailable
+	}
+	var releaseTarget func()
+	if s.galleryRepo != nil {
+		var err error
+		releaseTarget, err = s.galleryRepo.LockTarget(ctx)
+		if err != nil {
+			return nil, nil, ErrTicketStorageUnavailable.WithCause(err)
+		}
+	}
+	s.mu.Lock()
+	cfg, err := s.ticketStorageConfigLocked(ctx, requireEnabled)
+	if err == nil {
+		s.activeTicketStorage++
+	}
+	s.mu.Unlock()
+	if err != nil {
+		if releaseTarget != nil {
+			releaseTarget()
+		}
+		return nil, nil, err
+	}
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			s.mu.Lock()
+			s.activeTicketStorage--
+			s.mu.Unlock()
+			if releaseTarget != nil {
+				releaseTarget()
+			}
+		})
+	}
+	return cfg, release, nil
 }
 
 func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {

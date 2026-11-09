@@ -33,6 +33,14 @@
           <Toggle id="studio-jobs-enabled" v-model="form.studio_jobs_enabled" :disabled="!form.studio_gallery_enabled" aria-describedby="studio-jobs-description" :aria-label="t('admin.backup.imageStorage.studioJobsEnabled')" />
         </div>
         <p id="studio-gallery-private-warning" role="note" class="text-xs leading-5 text-amber-700 dark:text-amber-300">{{ t('admin.backup.imageStorage.studioGalleryPrivateBucketWarning') }}</p>
+        <div class="flex items-start justify-between gap-4 border-t border-gray-100 pt-4 dark:border-dark-700">
+          <div>
+            <label for="ticket-attachments-enabled" class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.ticketAttachmentsEnabled') }}</label>
+            <p id="ticket-attachments-description" class="mt-1 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('admin.backup.imageStorage.ticketAttachmentsDescription') }}</p>
+          </div>
+          <Toggle id="ticket-attachments-enabled" v-model="form.ticket_attachments_enabled" aria-describedby="ticket-attachments-description ticket-attachments-private-warning" :aria-label="t('admin.backup.imageStorage.ticketAttachmentsEnabled')" />
+        </div>
+        <p id="ticket-attachments-private-warning" role="note" class="text-xs leading-5 text-amber-700 dark:text-amber-300">{{ t('admin.backup.imageStorage.ticketAttachmentsPrivateBucketWarning') }}</p>
       </div>
 
       <div class="flex items-center justify-between gap-4">
@@ -85,7 +93,7 @@ const testing = ref(false)
 const loadError = ref('')
 const secretConfigured = ref(false)
 const form = ref<ImageStorageConfig>({
-  enabled: false, studio_gallery_enabled: false, studio_jobs_enabled: false,
+  enabled: false, studio_gallery_enabled: false, studio_jobs_enabled: false, ticket_attachments_enabled: false,
   reuse_backup_s3: true, bucket: '', prefix: 'images/', public_base_url: '',
   presign_expiry_hours: 24, max_download_bytes: 33554432, endpoint: '', region: 'auto',
   access_key_id: '', secret_access_key: '', force_path_style: false,
@@ -108,6 +116,7 @@ async function loadConfig() {
       ...config,
       studio_gallery_enabled: config.studio_gallery_enabled === true,
       studio_jobs_enabled: config.studio_gallery_enabled === true && config.studio_jobs_enabled === true,
+      ticket_attachments_enabled: config.ticket_attachments_enabled === true,
       prefix: config.prefix || 'images/', region: config.region || 'auto', secret_access_key: '',
     }
     secretConfigured.value = secret_configured
@@ -124,6 +133,10 @@ function setGalleryEnabled(enabled: boolean) {
 
 async function saveConfig() {
   if (!loaded.value || loading.value || saving.value || testing.value) return
+  if (form.value.ticket_attachments_enabled && form.value.public_base_url.trim()) {
+    appStore.showError(t('admin.backup.imageStorage.ticketAttachmentsPrivateBucketError'))
+    return
+  }
   saving.value = true
   const payload = { ...form.value }
   try {

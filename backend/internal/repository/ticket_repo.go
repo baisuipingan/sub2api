@@ -44,39 +44,11 @@ func unreadExpr(readCol string, roleParam int) string {
 }
 
 func (r *ticketRepository) Create(ctx context.Context, userID int64, title, priority, content string) (*service.Ticket, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	result, err := r.SubmitTicket(ctx, service.TicketSubmission{OwnerID: userID, SenderID: userID, Role: service.TicketSenderRoleUser, Title: title, Priority: priority, Content: content})
 	if err != nil {
-		return nil, fmt.Errorf("begin ticket tx: %w", err)
+		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	var ticket service.Ticket
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO tickets (user_id, title, status, priority, last_message_at, last_message_role)
-		VALUES ($1, $2, $3, $4, NOW(), $5)
-		RETURNING id, user_id, title, status, priority, last_message_at, last_message_role, created_at, updated_at`,
-		userID, title, service.TicketStatusPending, priority, service.TicketSenderRoleUser,
-	).Scan(
-		&ticket.ID, &ticket.UserID, &ticket.Title, &ticket.Status, &ticket.Priority,
-		&ticket.LastMessageAt, &ticket.LastMessageRole, &ticket.CreatedAt, &ticket.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("insert ticket: %w", err)
-	}
-
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, content)
-		VALUES ($1, $2, $3, $4)`,
-		ticket.ID, userID, service.TicketSenderRoleUser, content,
-	); err != nil {
-		return nil, fmt.Errorf("insert ticket message: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit ticket tx: %w", err)
-	}
-	ticket.MessageCount = 1
-	return &ticket, nil
+	return result.Ticket, nil
 }
 
 func (r *ticketRepository) GetByID(ctx context.Context, id int64) (*service.Ticket, error) {
@@ -227,66 +199,53 @@ func (r *ticketRepository) ListMessages(ctx context.Context, ticketID int64) ([]
 
 // AddMessage 追加消息并同步工单状态与最后消息时间（同一事务）。
 func (r *ticketRepository) AddMessage(ctx context.Context, ticketID, senderID int64, role, content, nextStatus string) (*service.TicketMessage, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	ticket, err := r.GetByID(ctx, ticketID)
 	if err != nil {
-		return nil, fmt.Errorf("begin message tx: %w", err)
+		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	// 先锁工单行：并发回复时保证「状态 + 最后消息 + 已读时间」三次写入是原子的，
-	// 否则两个请求可能交叉覆盖，出现「状态是 A 的、最后消息是 B 的」。
-	var lockedID int64
-	if err := tx.QueryRowContext(ctx,
-		`SELECT id FROM tickets WHERE id = $1 FOR UPDATE`, ticketID).Scan(&lockedID); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, service.NewTicketNotFoundError(ticketID)
-		}
-		return nil, fmt.Errorf("lock ticket: %w", err)
+	if ticket == nil {
+		return nil, service.NewTicketNotFoundError(ticketID)
 	}
-
-	var msg service.TicketMessage
-	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, content)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, ticket_id, sender_id, sender_role, content, created_at`,
-		ticketID, senderID, role, content,
-	).Scan(&msg.ID, &msg.TicketID, &msg.SenderID, &msg.SenderRole, &msg.Content, &msg.CreatedAt); err != nil {
-		return nil, fmt.Errorf("insert message: %w", err)
+	result, err := r.SubmitTicket(ctx, service.TicketSubmission{TicketID: ticketID, OwnerID: ticket.UserID, SenderID: senderID, Role: role, Content: content})
+	if err != nil {
+		return nil, err
 	}
-
-	// 本人刚发的消息不该算作自己的未读：把发送方的已读时间一并推上去。
-	// 另一个角色的已读时间保持不变，从而正确产生对方的未读。
-	readCol := "user_read_at"
-	if role == service.TicketSenderRoleAdmin {
-		readCol = "admin_read_at"
-	}
-	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`
-		UPDATE tickets SET status = $2, last_message_at = $3, last_message_role = $4,
-			%s = $3, updated_at = NOW()
-		WHERE id = $1`, readCol), ticketID, nextStatus, msg.CreatedAt, role); err != nil {
-		return nil, fmt.Errorf("update ticket after message: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit message tx: %w", err)
-	}
-	return &msg, nil
+	return result.Message, nil
 }
 
 func (r *ticketRepository) UpdateStatus(ctx context.Context, ticketID int64, status string) error {
-	res, err := r.db.ExecContext(ctx, `
-		UPDATE tickets SET status = $2, updated_at = NOW() WHERE id = $1`, ticketID, status)
-	if err != nil {
-		return fmt.Errorf("update ticket status: %w", err)
-	}
-	affected, err := res.RowsAffected()
+	ticket, err := r.GetByID(ctx, ticketID)
 	if err != nil {
 		return err
 	}
-	if affected == 0 {
+	if ticket == nil {
 		return service.NewTicketNotFoundError(ticketID)
 	}
-	return nil
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err = lockTicketOwner(ctx, tx, ticket.UserID); err != nil {
+		return err
+	}
+	var current string
+	var deleted sql.NullTime
+	if err = tx.QueryRowContext(ctx, `SELECT status,deleted_at FROM tickets WHERE id=$1 FOR UPDATE`, ticketID).Scan(&current, &deleted); err != nil {
+		return err
+	}
+	if deleted.Valid {
+		return service.NewTicketNotFoundError(ticketID)
+	}
+	if current == service.TicketStatusClosed && status != service.TicketStatusClosed {
+		if err = ticketOpenLimit(ctx, tx, ticket.UserID); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE tickets SET status=$2,updated_at=NOW() WHERE id=$1`, ticketID, status); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // MarkRead 把某角色对该工单的已读时间推到最新消息时间。
@@ -355,10 +314,26 @@ func (r *ticketRepository) CountUserMessagesSince(ctx context.Context, userID in
 
 // SoftDelete 软删除工单。重复删除视为成功（幂等）。
 func (r *ticketRepository) SoftDelete(ctx context.Context, ticketID int64) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE tickets SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, ticketID)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("soft delete ticket: %w", err)
+		return err
 	}
-	return nil
+	defer func() { _ = tx.Rollback() }()
+	var ownerID int64
+	if err = tx.QueryRowContext(ctx, `SELECT user_id FROM tickets WHERE id=$1`, ticketID).Scan(&ownerID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return err
+	}
+	if err = lockTicketOwner(ctx, tx, ownerID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE tickets SET deleted_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, ticketID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE ticket_message_attachments SET state='deleting',updated_at=NOW() WHERE message_id IN (SELECT id FROM ticket_messages WHERE ticket_id=$1)`, ticketID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

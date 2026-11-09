@@ -2,24 +2,26 @@ package httputil
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"time"
 )
 
+type bodyReadTimeoutContextKey struct{}
+
 // WithBodyReadTimeout bounds each socket read while receiving a body. It does
 // not set a whole-request deadline or limit the duration of an SSE response.
 func WithBodyReadTimeout(next http.Handler, timeout time.Duration) http.Handler {
-	if timeout <= 0 {
-		return next
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil && r.Body != http.NoBody {
 			body := &bodyReadTimeout{ReadCloser: r.Body, controller: http.NewResponseController(w), timeout: timeout}
 			r.Body = body
+			r = r.WithContext(context.WithValue(r.Context(), bodyReadTimeoutContextKey{}, body))
 			if r.ProtoMajor == 1 {
 				writer := &bodyDrainTimeoutWriter{ResponseWriter: w, body: body}
 				defer func() {
@@ -39,16 +41,77 @@ func WithBodyReadTimeout(next http.Handler, timeout time.Duration) http.Handler 
 
 type bodyReadTimeout struct {
 	io.ReadCloser
-	controller *http.ResponseController
-	timeout    time.Duration
-	finished   atomic.Bool
-	failed     atomic.Bool
+	controller       *http.ResponseController
+	timeout          time.Duration
+	finished         atomic.Bool
+	failed           atomic.Bool
+	absoluteDeadline atomic.Int64
+}
+
+// LimitRequestBodyReadDeadline adds an absolute deadline to the existing idle
+// timeout, including reads made through MaxBytesReader and implicit HTTP/1
+// drains. Configure it before consuming the body. A zero deadline clears the
+// additional limit after a successful upload, before long-running processing.
+// False means the server does not provide controllable body read deadlines.
+func LimitRequestBodyReadDeadline(r *http.Request, deadline time.Time) bool {
+	if r == nil {
+		return false
+	}
+	body, _ := r.Context().Value(bodyReadTimeoutContextKey{}).(*bodyReadTimeout)
+	if body == nil {
+		body, _ = r.Body.(*bodyReadTimeout)
+	}
+	if body == nil {
+		return false
+	}
+	if deadline.IsZero() {
+		body.absoluteDeadline.Store(0)
+		if body.failed.Load() {
+			return true // A failed read must retain its deadline for the final drain.
+		}
+		return body.controller.SetReadDeadline(time.Time{}) == nil
+	}
+	next := deadline.UnixNano()
+	for {
+		previous := body.absoluteDeadline.Load()
+		if previous != 0 && previous <= next {
+			next = previous
+			break
+		}
+		if body.absoluteDeadline.CompareAndSwap(previous, next) {
+			break
+		}
+	}
+	return body.controller.SetReadDeadline(time.Unix(0, next)) == nil
+}
+
+func (r *bodyReadTimeout) readDeadline() time.Time {
+	var deadline time.Time
+	if r.timeout > 0 {
+		deadline = time.Now().Add(r.timeout)
+	}
+	if absolute := r.absoluteDeadline.Load(); absolute != 0 && (deadline.IsZero() || absolute < deadline.UnixNano()) {
+		return time.Unix(0, absolute)
+	}
+	return deadline
+}
+
+func (r *bodyReadTimeout) absoluteDeadlineExpired() bool {
+	absolute := r.absoluteDeadline.Load()
+	return absolute != 0 && time.Now().UnixNano() >= absolute
 }
 
 func (r *bodyReadTimeout) Read(p []byte) (int, error) {
-	err := r.controller.SetReadDeadline(time.Now().Add(r.timeout))
-	if err != nil && !errors.Is(err, http.ErrNotSupported) {
-		return 0, err
+	deadline := r.readDeadline()
+	if !deadline.IsZero() {
+		err := r.controller.SetReadDeadline(deadline)
+		if err != nil && !errors.Is(err, http.ErrNotSupported) {
+			return 0, err
+		}
+	}
+	if r.absoluteDeadlineExpired() {
+		r.failed.Store(true)
+		return 0, os.ErrDeadlineExceeded
 	}
 	n, readErr := r.ReadCloser.Read(p)
 	if errors.Is(readErr, io.EOF) {
@@ -57,7 +120,14 @@ func (r *bodyReadTimeout) Read(p []byte) (int, error) {
 		r.failed.Store(true)
 	}
 	if readErr == nil || errors.Is(readErr, io.EOF) {
-		_ = r.controller.SetReadDeadline(time.Time{})
+		if r.absoluteDeadlineExpired() {
+			r.failed.Store(true)
+			_ = r.controller.SetReadDeadline(r.readDeadline())
+			return n, os.ErrDeadlineExceeded
+		}
+		if !deadline.IsZero() {
+			_ = r.controller.SetReadDeadline(time.Time{})
+		}
 	}
 	// Keep a failed read's deadline: net/http may drain an unread HTTP/1 body
 	// after the handler returns. Clearing a timeout here could block that drain.
@@ -80,12 +150,18 @@ func (r *bodyReadTimeout) startDrain() bool {
 	if r.finished.Load() || r.failed.Load() {
 		return false
 	}
-	return r.controller.SetReadDeadline(time.Now().Add(r.timeout)) == nil
+	deadline := r.readDeadline()
+	return !deadline.IsZero() && r.controller.SetReadDeadline(deadline) == nil
 }
 
 func (r *bodyReadTimeout) finishDrain(armed bool) {
 	if armed && !r.failed.Load() {
-		_ = r.controller.SetReadDeadline(time.Time{})
+		if r.absoluteDeadlineExpired() {
+			r.failed.Store(true)
+			_ = r.controller.SetReadDeadline(r.readDeadline())
+		} else {
+			_ = r.controller.SetReadDeadline(time.Time{})
+		}
 	}
 }
 

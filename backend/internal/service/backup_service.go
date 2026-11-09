@@ -425,6 +425,7 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 	}
 	activeAsync := s.asyncImageSettings != nil && s.asyncImageSettings.activeAsyncTasks > 0
 	activeStudio := false
+	activeTickets := false
 	if s.asyncImageSettings != nil && s.asyncImageSettings.studioJobs != nil {
 		var err error
 		activeStudio, err = s.asyncImageSettings.studioJobs.HasActive(ctx)
@@ -432,7 +433,17 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			return nil, err
 		}
 	}
-	if hasAssets || activeAsync || activeStudio {
+	if s.asyncImageSettings != nil {
+		activeTickets = s.asyncImageSettings.activeTicketStorage > 0
+		if s.asyncImageSettings.ticketStorageUsage != nil {
+			hasTickets, err := s.asyncImageSettings.ticketStorageUsage(ctx)
+			if err != nil {
+				return nil, err
+			}
+			activeTickets = activeTickets || hasTickets
+		}
+	}
+	if hasAssets || activeAsync || activeStudio || activeTickets {
 		raw, err := s.settingRepo.GetValue(ctx, settingKeyImageStorageConfig)
 		if err != nil && !errors.Is(err, ErrSettingNotFound) {
 			return nil, err
@@ -445,9 +456,15 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			if activeStudio {
 				return nil, ErrStudioJobStorageTargetInUse
 			}
+			if activeTickets {
+				return nil, ErrTicketStorageTargetInUse
+			}
 			return nil, ErrAsyncImageStorageTargetInUse
 		}
 		if imageSettings.ReuseBackupS3 {
+			if activeTickets && strings.TrimSpace(cfg.AccessKeyID) == "" {
+				return nil, ErrTicketStorageUnavailable
+			}
 			old, err := s.loadS3Config(ctx)
 			if err != nil || old == nil {
 				if hasAssets {
@@ -455,6 +472,9 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 				}
 				if activeStudio {
 					return nil, ErrStudioJobStorageTargetInUse
+				}
+				if activeTickets {
+					return nil, ErrTicketStorageTargetInUse
 				}
 				return nil, ErrAsyncImageStorageTargetInUse
 			}
@@ -468,6 +488,9 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 				}
 				if activeStudio {
 					return nil, ErrStudioJobStorageTargetInUse
+				}
+				if activeTickets {
+					return nil, ErrTicketStorageTargetInUse
 				}
 				return nil, ErrAsyncImageStorageTargetInUse
 			}

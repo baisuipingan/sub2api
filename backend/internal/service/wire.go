@@ -719,6 +719,19 @@ func ProvideImageStorageSettingService(
 	return svc
 }
 
+func ProvideTicketAttachmentService(repo TicketAttachmentRepository, settings *ImageStorageSettingService, factory GalleryObjectStoreFactory) *TicketAttachmentService {
+	settings.SetTicketStorageUsage(repo.HasAttachments)
+	svc := NewTicketAttachmentService(repo, settings.AcquireTicketStorage, factory)
+	svc.StartCleaner()
+	return svc
+}
+
+func ProvideTicketService(repo TicketRepository, attachments *TicketAttachmentService) *TicketService {
+	svc := NewTicketService(repo)
+	svc.SetAttachmentService(attachments)
+	return svc
+}
+
 // ProvideImageTaskService 构造异步图片任务服务。
 //
 // 对象存储是异步图片任务的启用前提：仅当开关打开且凭证齐全时功能才可用，否则整体禁用
@@ -898,7 +911,8 @@ var ProviderSet = wire.NewSet(
 	NewImageStudioPricingService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,
-	NewTicketService,
+	ProvideTicketService,
+	ProvideTicketAttachmentService,
 	NewAdminService,
 	NewGatewayService,
 	NewOpenAIGatewayService,

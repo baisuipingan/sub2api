@@ -91,92 +91,37 @@
       </div>
     </div>
 
-    <div
-      v-if="detailOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      @click.self="closeDetail"
-    >
-      <div class="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl dark:bg-dark-800">
-        <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-3.5 dark:border-dark-700">
-          <div class="min-w-0">
-            <h2 class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-              #{{ detail?.ticket.id }} {{ detail?.ticket.title }}
-            </h2>
-            <p class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <StatusBadge v-if="detail" :status="detail.ticket.status" />
-              <span class="text-gray-400">{{ detail?.ticket.user_email }}</span>
-              <span class="text-gray-400">{{ formatTime(detail?.ticket.last_message_at) }}</span>
-            </p>
-          </div>
-          <button type="button" class="shrink-0 text-gray-400 hover:text-gray-600" @click="closeDetail">
-            <Icon name="x" size="sm" />
-          </button>
+    <BaseDialog :show="detailOpen" :title="detail ? `#${detail.ticket.id} ${detail.ticket.title}` : t('tickets.adminTitle')" width="wide" :close-on-escape="!replying && !updating && !deleting && !replyPreparing" :show-close-button="!replying && !updating && !deleting && !replyPreparing" @close="closeDetail">
+      <div v-if="detail" class="space-y-4">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+          <StatusBadge :status="detail.ticket.status" />
+          <span>{{ detail.ticket.user_email }}</span>
+          <span>{{ formatTime(detail.ticket.last_message_at) }}</span>
         </div>
-
-        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div v-for="message in detail?.messages ?? []" :key="message.id" class="space-y-1">
-            <div class="flex items-center gap-2 text-[11px] text-gray-400">
-              <span class="font-medium text-gray-600 dark:text-dark-300">
-                {{ message.sender_role === 'admin' ? t('tickets.adminName') : t('tickets.userName') }}
-              </span>
-              <span>{{ formatTime(message.created_at) }}</span>
-            </div>
-            <div
-              class="rounded-lg px-3 py-2 text-sm leading-6 whitespace-pre-wrap break-words"
-              :class="
-                message.sender_role === 'admin'
-                  ? 'bg-primary-50 text-gray-800 dark:bg-primary-500/10 dark:text-dark-100'
-                  : 'bg-gray-50 text-gray-800 dark:bg-dark-700 dark:text-dark-100'
-              "
-            >
-              {{ message.content }}
-            </div>
+        <div v-for="message in detail.messages" :key="message.id" class="space-y-1">
+          <div class="flex items-center gap-2 text-[11px] text-gray-400">
+            <span class="font-medium text-gray-600 dark:text-dark-300">{{ message.sender_role === 'admin' ? t('tickets.adminName') : t('tickets.userName') }}</span>
+            <span>{{ formatTime(message.created_at) }}</span>
           </div>
-        </div>
-
-        <div class="border-t border-gray-100 px-5 py-3 dark:border-dark-700">
-          <textarea
-            v-model="replyContent"
-            class="input min-h-[80px] resize-y"
-            :placeholder="t('tickets.replyPlaceholder')"
-            maxlength="5000"
-          />
-          <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <button
-                v-if="detail?.ticket.status !== 'closed'"
-                class="btn btn-secondary !py-1.5 text-xs"
-                type="button"
-                :disabled="updating"
-                @click="changeStatus('closed')"
-              >
-                {{ t('tickets.close') }}
-              </button>
-              <button
-                v-else
-                class="btn btn-secondary !py-1.5 text-xs"
-                type="button"
-                :disabled="updating"
-                @click="changeStatus('pending')"
-              >
-                {{ t('tickets.reopen') }}
-              </button>
-              <button
-                class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400"
-                type="button"
-                :disabled="deleting"
-                @click="removeTicket"
-              >
-                {{ t('tickets.delete') }}
-              </button>
-            </div>
-            <button class="btn btn-primary" type="button" :disabled="replying || !replyContent.trim()" @click="submitReply">
-              {{ replying ? t('tickets.replying') : t('tickets.reply') }}
-            </button>
-          </div>
+          <div class="rounded-lg px-3 py-2 text-sm leading-6 whitespace-pre-wrap break-words" :class="message.sender_role === 'admin' ? 'bg-primary-50 text-gray-800 dark:bg-primary-500/10 dark:text-dark-100' : 'bg-gray-50 text-gray-800 dark:bg-dark-700 dark:text-dark-100'">{{ message.content }}</div>
+          <TicketMessageAttachments :ticket-id="detail.ticket.id" :owner-id="detail.ticket.user_id" :attachments="message.attachments" admin />
         </div>
       </div>
-    </div>
+      <LoadingSpinner v-else class="mx-auto my-8 block" />
+      <template #footer>
+        <div v-if="detail" class="max-h-[50vh] w-full min-w-0 space-y-3 overflow-y-auto" @paste="replyPicker?.paste($event)">
+          <Textarea id="admin-ticket-reply" v-model="replyContent" :maxlength="5000" :aria-label="t('tickets.replyPlaceholder')" :placeholder="t('tickets.replyPlaceholder')" :disabled="replying || updating || deleting" />
+          <TicketScreenshotPicker v-if="attachmentsEnabled || replyImages.length || replyPreparing" ref="replyPicker" v-model="replyImages" :uploads-enabled="attachmentsEnabled" :disabled="replying || updating || deleting" @busy="replyPreparing = $event" />
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <button class="btn btn-secondary !py-1.5 text-xs" type="button" :disabled="updating || replying || deleting || replyPreparing" @click="changeStatus(detail.ticket.status === 'closed' ? 'pending' : 'closed')">{{ t(detail.ticket.status === 'closed' ? 'tickets.reopen' : 'tickets.close') }}</button>
+              <button class="text-xs text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400" type="button" :disabled="deleting || replying || updating || replyPreparing" @click="removeTicket">{{ t('tickets.delete') }}</button>
+            </div>
+            <button class="btn btn-primary" type="button" :disabled="replying || updating || deleting || replyPreparing || !replyContent.trim()" @click="submitReply">{{ replying ? t('tickets.replying') : t('tickets.reply') }}</button>
+          </div>
+        </div>
+      </template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
@@ -187,16 +132,23 @@
  * 按状态/关键词筛，点开即可回复；回复会把工单置为「待用户回复」，
  * 也可以直接关闭或重新打开。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import Icon from '@/components/icons/Icon.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import Textarea from '@/components/common/TextArea.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import TicketScreenshotPicker from '@/components/tickets/TicketScreenshotPicker.vue'
+import TicketMessageAttachments from '@/components/tickets/TicketMessageAttachments.vue'
+import { createTicketOperation } from '@/lib/ticketAttachments'
+import { ticketErrorKey } from '@/lib/ticketErrors'
 import Select from '@/components/common/Select.vue'
 import StatusBadge from '@/components/tickets/TicketStatusBadge.vue'
 import { useAppStore } from '@/stores/app'
 import { useTicketStore } from '@/stores/tickets'
 import {
   adminDeleteTicket,
+  getTicketAttachmentStatus,
   adminGetTicket,
   adminListTickets,
   adminReplyTicket,
@@ -227,6 +179,17 @@ const statusOptions = computed(() => [
 ])
 const search = ref('')
 
+const attachmentsEnabled = ref(false)
+const replyImages = ref<File[]>([])
+const replyPreparing = ref(false)
+const replyPicker = ref<InstanceType<typeof TicketScreenshotPicker>>()
+let replyOperation = createTicketOperation()
+const replyDrafts = new Map<number, { content: string; images: File[]; operation: ReturnType<typeof createTicketOperation> }>()
+let activeTicketId: number | null = null
+let detailRequest = 0
+let listRequest = 0
+let attachmentStatusRequest = 0
+
 const detailOpen = ref(false)
 const detail = ref<TicketDetail | null>(null)
 const replyContent = ref('')
@@ -235,6 +198,7 @@ const updating = ref(false)
 const deleting = ref(false)
 
 async function load() {
+  const request = ++listRequest
   loading.value = true
   try {
     const res = await adminListTickets({
@@ -243,13 +207,14 @@ async function load() {
       status: statusFilter.value || undefined,
       search: search.value.trim() || undefined
     })
+    if (request !== listRequest) return
     tickets.value = res.items ?? []
     total.value = res.total ?? 0
     pages.value = res.pages ?? 1
   } catch {
-    appStore.showError(t('tickets.loadFailed'))
+    if (request === listRequest) appStore.showError(t('tickets.loadFailed'))
   } finally {
-    loading.value = false
+    if (request === listRequest) loading.value = false
   }
 }
 
@@ -263,20 +228,49 @@ function changePage(next: number) {
   void load()
 }
 
+function saveReplyDraft() {
+  if (activeTicketId !== null) {
+    replyDrafts.set(activeTicketId, { content: replyContent.value, images: [...replyImages.value], operation: replyOperation })
+  }
+}
+
+async function refreshAttachmentStatus() {
+  const request = ++attachmentStatusRequest
+  try {
+    const status = await getTicketAttachmentStatus(true)
+    if (request === attachmentStatusRequest) attachmentsEnabled.value = status.enabled
+  } catch { /* Existing screenshots and text submissions remain available. */ }
+}
+
 async function openDetail(id: number) {
+  if (replying.value || deleting.value || replyPreparing.value || updating.value) return
+  saveReplyDraft()
+  const draft = replyDrafts.get(id)
+  activeTicketId = id
+  replyContent.value = draft?.content ?? ''
+  replyImages.value = draft?.images ?? []
+  replyOperation = draft?.operation ?? createTicketOperation()
+  const request = ++detailRequest
   detailOpen.value = true
   detail.value = null
-  replyContent.value = ''
+  void refreshAttachmentStatus()
   try {
-    detail.value = await adminGetTicket(id)
+    const result = await adminGetTicket(id)
+    if (request !== detailRequest || !detailOpen.value || activeTicketId !== id) return
+    detail.value = result
     void ticketStore.refreshAdminUnread()
   } catch {
+    if (request !== detailRequest || !detailOpen.value) return
     appStore.showError(t('tickets.loadFailed'))
-    detailOpen.value = false
+    closeDetail()
   }
 }
 
 function closeDetail() {
+  if (replying.value || deleting.value || replyPreparing.value || updating.value) return
+  saveReplyDraft()
+  detailRequest++
+  activeTicketId = null
   detailOpen.value = false
   detail.value = null
 }
@@ -284,12 +278,13 @@ function closeDetail() {
 /** 删除工单（软删除）。管理端可删任意工单，用于清理垃圾/广告。 */
 async function removeTicket() {
   const id = detail.value?.ticket.id
-  if (!id || deleting.value) return
+  if (!id || deleting.value || replying.value || replyPreparing.value || updating.value) return
   if (typeof window !== 'undefined' && !window.confirm(t('tickets.deleteConfirm'))) return
   deleting.value = true
   try {
     await adminDeleteTicket(id)
-    closeDetail()
+    replyDrafts.delete(id); activeTicketId = null; detailRequest++
+    detailOpen.value = false; detail.value = null
     appStore.showSuccess(t('tickets.deleteSuccess'))
     await load()
     void ticketStore.refreshAdminUnread()
@@ -302,12 +297,17 @@ async function removeTicket() {
 
 async function submitReply() {
   const id = detail.value?.ticket.id
-  if (!id || !replyContent.value.trim() || replying.value) return
+  if (!id || !replyContent.value.trim() || replying.value || updating.value || deleting.value || replyPreparing.value) return
   replying.value = true
   try {
-    await adminReplyTicket(id, replyContent.value.trim())
-    replyContent.value = ''
-    detail.value = await adminGetTicket(id)
+    const content = replyContent.value.trim()
+    const message = await adminReplyTicket(id, content, { images: replyImages.value, idempotencyKey: replyOperation.keyFor({ id, content }, replyImages.value) })
+    replyContent.value = ''; replyImages.value = []; replyOperation.reset(); replyDrafts.delete(id)
+    if (detail.value?.ticket.id === id) {
+      detail.value.messages.push(message)
+      detail.value.ticket.status = 'replied'
+      detail.value.ticket.last_message_at = message.created_at
+    }
     await load()
   } catch (error) {
     appStore.showError(resolveError(error, 'tickets.replyFailed'))
@@ -318,11 +318,11 @@ async function submitReply() {
 
 async function changeStatus(status: TicketStatus) {
   const id = detail.value?.ticket.id
-  if (!id || updating.value) return
+  if (!id || updating.value || replying.value || deleting.value || replyPreparing.value) return
   updating.value = true
   try {
-    await adminUpdateTicket(id, status)
-    detail.value = await adminGetTicket(id)
+    const updated = await adminUpdateTicket(id, status)
+    if (detail.value?.ticket.id === id) detail.value.ticket = updated
     await load()
   } catch (error) {
     appStore.showError(resolveError(error, 'tickets.updateFailed'))
@@ -333,14 +333,12 @@ async function changeStatus(status: TicketStatus) {
 
 /** 与用户页保持一致：能识别具体原因就给具体提示 */
 function resolveError(error: unknown, fallbackKey: string): string {
-  const reason = (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
-  if (reason === 'TICKET_CREATE_RATE_LIMITED' || reason === 'TICKET_MESSAGE_RATE_LIMITED') {
-    return t('tickets.rateLimited')
+  const key = ticketErrorKey(error)
+  if (key === 'tickets.attachments.disabledError') {
+    attachmentStatusRequest++
+    attachmentsEnabled.value = false
   }
-  if (reason === 'TICKET_CLOSED') {
-    return t('tickets.closedHint')
-  }
-  return t(fallbackKey)
+  return t(key || fallbackKey)
 }
 
 function formatTime(value?: string) {
@@ -357,5 +355,9 @@ function priorityClass(priority: string) {
     : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-300'
 }
 
-onMounted(load)
+onMounted(() => {
+  void load()
+  void refreshAttachmentStatus()
+})
+onUnmounted(() => { listRequest++; detailRequest++; attachmentStatusRequest++ })
 </script>

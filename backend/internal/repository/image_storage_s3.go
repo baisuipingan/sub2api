@@ -84,8 +84,13 @@ func (s *S3ImageStorage) Save(ctx context.Context, key, contentType string, data
 // ProbeReadWriteDelete checks the permissions the private Studio gallery needs.
 // Constructing an S3 client alone does not contact the bucket.
 func (s *S3ImageStorage) ProbeReadWriteDelete(ctx context.Context) (probeErr error) {
-	key := "studio/v1/_connection-test/" + uuid.NewString()
-	data := []byte("gallery-storage-probe")
+	return s.ProbeReadWriteDeletePrefix(ctx, "studio/v1/")
+}
+
+// ProbeReadWriteDeletePrefix also supports credentials scoped to ticket objects.
+func (s *S3ImageStorage) ProbeReadWriteDeletePrefix(ctx context.Context, prefix string) (probeErr error) {
+	key := strings.TrimRight(prefix, "/") + "/_connection-test/" + uuid.NewString()
+	data := []byte("private-storage-probe")
 	contentType := "text/plain"
 	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &s.bucket, Key: &key, Body: bytes.NewReader(data), ContentType: &contentType,
