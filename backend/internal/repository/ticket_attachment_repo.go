@@ -295,7 +295,7 @@ func (r *ticketRepository) ListTicketAttachments(ctx context.Context, ticketID i
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var assets []service.TicketStoredAttachment
 	for rows.Next() {
 		a, err := scanTicketAttachment(rows)
@@ -322,7 +322,7 @@ func (r *ticketRepository) ClaimTicketAttachmentCleanup(ctx context.Context, bef
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var assets []service.TicketStoredAttachment
 	for rows.Next() {
 		a, err := scanTicketAttachment(rows)
@@ -354,7 +354,7 @@ func (r *ticketRepository) ListDeletingTicketOperationAttachments(ctx context.Co
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var assets []service.TicketStoredAttachment
 	for rows.Next() {
 		a, err := scanTicketAttachment(rows)

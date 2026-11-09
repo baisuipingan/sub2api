@@ -272,6 +272,9 @@ func (s *ImageStudioGalleryService) PutAsset(ctx context.Context, userID int64, 
 // PutAcceptedJobAsset is internal to an already-admitted Studio job. Disabling
 // new cloud gallery writes must not strand a paid image already in flight.
 func (s *ImageStudioGalleryService) PutAcceptedJobAsset(ctx context.Context, userID int64, taskID, imageID, contentType string, data []byte) error {
+	if len(data) == 0 || len(data) > StudioMaxOutputImageBytes {
+		return ErrGalleryInvalid
+	}
 	return s.putAsset(ctx, userID, taskID, imageID, contentType, data, false)
 }
 

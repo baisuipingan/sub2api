@@ -139,7 +139,7 @@ func TestMultipartTotalDeadlineOnRealServer(t *testing.T) {
 	defer server.Close()
 	conn, err := net.Dial("tcp", server.Listener.Addr().String())
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_, err = io.WriteString(conn, "POST /tickets HTTP/1.1\r\nHost: test\r\nContent-Type: multipart/form-data; boundary=slow\r\nIdempotency-Key: slow-key\r\nContent-Length: 1024\r\n\r\n--slow\r\n")
 	require.NoError(t, err)
 	select {

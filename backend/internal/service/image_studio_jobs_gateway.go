@@ -283,7 +283,7 @@ func (s *StudioJobService) archiveStudioImages(ctx context.Context, claim Studio
 	if err != nil {
 		return nil, nil, err
 	}
-	uploader := NewImageResultUploader(nil, "", GalleryMaxImageBytes, nil)
+	uploader := NewImageResultUploader(nil, "", StudioMaxOutputImageBytes, nil)
 	outputs, raws := make([]string, 0, len(images)), []string{}
 	var source, mask []byte
 	if claim.Spec.Postprocess == "mask" {

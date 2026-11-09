@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	studioJobMaxResponseBytes  int64 = 128 << 20
+	studioJobMaxResponseBytes int64 = 128 << 20
+	// Preserve the existing ten-result batch capacity. The larger reference-input
+	// limit does not expand generated-result storage or spool reservations.
 	studioJobMaxTaskSpoolBytes int64 = 512 << 20
 	studioJobMaxSpoolBytes     int64 = 1 << 30
 	studioJobMaxInputBytes     int64 = 96 << 20
@@ -405,7 +407,7 @@ func studioSpoolReservationBytes(claim StudioJobClaim) int64 {
 	}
 	// Leave room for a bounded gateway response and all possible URL originals
 	// before making a paid call, even if a supplier returns native n=10.
-	return studioJobMaxResponseBytes + int64(count)*GalleryMaxImageBytes
+	return studioJobMaxResponseBytes + int64(count)*StudioMaxOutputImageBytes
 }
 
 func (s *StudioJobService) releaseStudioReservation(claim StudioJobClaim) {
@@ -496,7 +498,7 @@ func (s *StudioJobService) saveStudioClaim(ctx context.Context, claim StudioJobC
 		s.failStudioClaim(claim, code, message)
 		return
 	}
-	if err := s.cacheStudioURLImages(ctx, claim, data, NewImageResultUploader(nil, "", GalleryMaxImageBytes, nil)); err != nil {
+	if err := s.cacheStudioURLImages(ctx, claim, data, NewImageResultUploader(nil, "", StudioMaxOutputImageBytes, nil)); err != nil {
 		if errors.Is(err, ErrGalleryInvalid) {
 			s.failStudioClaim(claim, "INVALID_IMAGE_RESULT", "upstream returned an invalid image result")
 		} else {

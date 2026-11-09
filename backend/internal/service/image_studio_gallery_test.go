@@ -167,7 +167,7 @@ func TestStudioArchiveUsesDurableURLAfterObjectStoreRecovery(t *testing.T) {
 	require.NoError(t, err)
 	claim := StudioJobClaim{StudioJob: StudioJob{UserID: 17, TaskID: "paid-url", Spec: StudioJobSpec{Protocol: "openai", Postprocess: "none"}}}
 	s := &StudioJobService{spoolDir: t.TempDir(), gallery: gallery}
-	require.NoError(t, s.cacheStudioURLImages(context.Background(), claim, response, NewImageResultUploader(nil, "", GalleryMaxImageBytes, upstream.Client())))
+	require.NoError(t, s.cacheStudioURLImages(context.Background(), claim, response, NewImageResultUploader(nil, "", StudioMaxOutputImageBytes, upstream.Client())))
 	objects.putErr = errors.New("R2 temporarily unavailable")
 	_, _, err = s.archiveStudioImages(context.Background(), claim, response)
 	require.ErrorIs(t, err, ErrGalleryUnavailable)

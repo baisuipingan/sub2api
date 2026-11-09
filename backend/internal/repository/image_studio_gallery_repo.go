@@ -18,8 +18,9 @@ const (
 	galleryMaxUserBytes  int64 = 1 << 30
 	galleryMaxUserAssets       = 500
 	galleryMaxUserTasks        = 1000
-	// Reserve a maximum original plus bounded preview/thumbnail overhead.
-	galleryReservedBytesPerJobAsset int64 = service.GalleryMaxImageBytes + (16 << 20)
+	// Paid outputs retain their original 32 MiB limit; the separate 50 MB
+	// reference-input limit must not shrink supported batch counts.
+	galleryReservedBytesPerJobAsset int64 = service.StudioMaxOutputImageBytes + (16 << 20)
 	galleryLockNamespace            int64 = 8_000_000_000_000_000
 	galleryTargetLock               int64 = 7_000_000_000_000_000
 )

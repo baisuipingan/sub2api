@@ -28,6 +28,9 @@ const (
 	StudioPostprocessNone  StudioPostprocessMode = "none"
 	StudioPostprocessMask  StudioPostprocessMode = "mask"
 	StudioPostprocessKeyed StudioPostprocessMode = "keyed"
+	// Generated results keep the pre-existing storage and spool bound.
+	// Official reference-input limits are separate from result capacity.
+	StudioMaxOutputImageBytes = 32 << 20
 )
 
 var errStudioImageInvalid = errors.New("invalid Studio image or post-processing request")
@@ -44,6 +47,9 @@ func ProcessStudioImage(
 ) ([]byte, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
+	}
+	if len(raw) == 0 || len(raw) > StudioMaxOutputImageBytes {
+		return nil, "", errStudioImageInvalid
 	}
 	memoryBytes, err := studioProcessingMemoryRequirement(raw, source, mask, mode)
 	if err != nil {
@@ -484,7 +490,7 @@ func studioJPEGQuality(compression *int) int {
 }
 
 func boundedStudioOutput(data []byte, mime string) ([]byte, string, error) {
-	if len(data) == 0 || len(data) > GalleryMaxImageBytes {
+	if len(data) == 0 || len(data) > StudioMaxOutputImageBytes {
 		return nil, "", errStudioImageInvalid
 	}
 	return data, mime, nil
@@ -526,7 +532,7 @@ func encodeStudioWebP(ctx context.Context, img *image.NRGBA, quality int) ([]byt
 		return nil, "", err
 	}
 	defer func() { _ = file.Close() }()
-	data, err := io.ReadAll(io.LimitReader(file, GalleryMaxImageBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, StudioMaxOutputImageBytes+1))
 	if err != nil {
 		return nil, "", err
 	}

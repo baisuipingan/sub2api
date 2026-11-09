@@ -28,7 +28,7 @@ func TestStudioURLOriginalSurvivesExpiredLinkAndRestart(t *testing.T) {
 	require.NoError(t, err)
 	claim := StudioJobClaim{StudioJob: StudioJob{UserID: 7, TaskID: "url-result", Spec: StudioJobSpec{Protocol: "openai"}}}
 	s := &StudioJobService{spoolDir: t.TempDir()}
-	uploader := NewImageResultUploader(nil, "", GalleryMaxImageBytes, server.Client())
+	uploader := NewImageResultUploader(nil, "", StudioMaxOutputImageBytes, server.Client())
 	require.NoError(t, s.cacheStudioURLImages(context.Background(), claim, response, uploader))
 	require.Equal(t, int32(1), downloads.Load())
 	info, err := os.Stat(s.studioImageSpoolPath(claim, 0))
@@ -74,7 +74,7 @@ func TestStudioURLSpoolResumesOnlyMissingOriginals(t *testing.T) {
 	require.NoError(t, err)
 	s := &StudioJobService{spoolDir: t.TempDir()}
 	claim := StudioJobClaim{StudioJob: StudioJob{UserID: 7, TaskID: "batch-url", Spec: StudioJobSpec{Protocol: "grok"}}}
-	uploader := NewImageResultUploader(nil, "", GalleryMaxImageBytes, server.Client())
+	uploader := NewImageResultUploader(nil, "", StudioMaxOutputImageBytes, server.Client())
 	require.Error(t, s.cacheStudioURLImages(context.Background(), claim, response, uploader))
 	available.Store(true)
 	require.NoError(t, s.cacheStudioURLImages(context.Background(), claim, response, uploader))
@@ -112,8 +112,21 @@ func TestStudioSpoolReservesURLBatchBeforePaidDispatch(t *testing.T) {
 	require.Error(t, s.reserveStudioSpool(claim), "a small URL response must not hide the later original-image capacity")
 	require.Zero(t, s.spoolReserved)
 	s.spoolUsed = 0
+	require.Equal(t, int64(512<<20), studioJobMaxTaskSpoolBytes)
+	require.Greater(t, GalleryMaxImageBytes, StudioMaxOutputImageBytes, "reference limits must not enlarge paid output reservations")
+	require.LessOrEqual(t, studioSpoolReservationBytes(claim), studioJobMaxTaskSpoolBytes, "the original ten-image native batch must remain supported")
 	require.NoError(t, s.reserveStudioSpool(claim))
-	require.Equal(t, studioJobMaxResponseBytes+10*int64(GalleryMaxImageBytes), s.spoolReserved)
+	require.Equal(t, studioJobMaxResponseBytes+10*int64(StudioMaxOutputImageBytes), s.spoolReserved)
 	s.releaseStudioReservation(claim)
 	require.Zero(t, s.spoolReserved)
+}
+
+func TestStudioGeneratedResultsKeepSeparateOutputBound(t *testing.T) {
+	data := make([]byte, StudioMaxOutputImageBytes+1)
+	s := &ImageStudioGalleryService{}
+	require.ErrorIs(t, s.PutAcceptedJobAsset(context.Background(), 7, "job", "output", "image/png", data), ErrGalleryInvalid)
+	_, _, err := boundedStudioOutput(data, "image/png")
+	require.ErrorIs(t, err, errStudioImageInvalid)
+	_, _, err = ProcessStudioImage(context.Background(), data, nil, nil, StudioPostprocessNone, "png", nil)
+	require.ErrorIs(t, err, errStudioImageInvalid)
 }

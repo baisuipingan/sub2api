@@ -37,7 +37,7 @@ func (s *StudioJobService) cacheStudioURLImages(ctx context.Context, claim Studi
 		}
 		path := s.studioImageSpoolPath(claim, index)
 		if info, err := os.Stat(path); err == nil {
-			if info.Size() <= 0 || info.Size() > GalleryMaxImageBytes {
+			if info.Size() <= 0 || info.Size() > StudioMaxOutputImageBytes {
 				return ErrGalleryInvalid
 			}
 			continue
@@ -48,7 +48,7 @@ func (s *StudioJobService) cacheStudioURLImages(ctx context.Context, claim Studi
 		if err != nil {
 			return err
 		}
-		if len(data) == 0 || len(data) > GalleryMaxImageBytes {
+		if len(data) == 0 || len(data) > StudioMaxOutputImageBytes {
 			return ErrGalleryInvalid
 		}
 		if err := s.writeStudioImageSpool(path, int64(len(data)), data); err != nil {
@@ -137,14 +137,14 @@ func (s *StudioJobService) studioImageBytes(ctx context.Context, claim StudioJob
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
-	if err != nil || info.Size() <= 0 || info.Size() > GalleryMaxImageBytes {
+	if err != nil || info.Size() <= 0 || info.Size() > StudioMaxOutputImageBytes {
 		return nil, "", ErrGalleryInvalid
 	}
-	data, err := io.ReadAll(io.LimitReader(file, GalleryMaxImageBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, StudioMaxOutputImageBytes+1))
 	if err != nil {
 		return nil, "", err
 	}
-	if len(data) == 0 || len(data) > GalleryMaxImageBytes {
+	if len(data) == 0 || len(data) > StudioMaxOutputImageBytes {
 		return nil, "", ErrGalleryInvalid
 	}
 	return data, detectImageContentType(data), nil
