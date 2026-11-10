@@ -75,6 +75,11 @@ func NotifyMode(v string) predicate.Announcement {
 	return predicate.Announcement(sql.FieldEQ(FieldNotifyMode, v))
 }
 
+// DisplayMode applies equality check predicate on the "display_mode" field. It's identical to DisplayModeEQ.
+func DisplayMode(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldDisplayMode, v))
+}
+
 // StartsAt applies equality check predicate on the "starts_at" field. It's identical to StartsAtEQ.
 func StartsAt(v time.Time) predicate.Announcement {
 	return predicate.Announcement(sql.FieldEQ(FieldStartsAt, v))
@@ -363,6 +368,71 @@ func NotifyModeEqualFold(v string) predicate.Announcement {
 // NotifyModeContainsFold applies the ContainsFold predicate on the "notify_mode" field.
 func NotifyModeContainsFold(v string) predicate.Announcement {
 	return predicate.Announcement(sql.FieldContainsFold(FieldNotifyMode, v))
+}
+
+// DisplayModeEQ applies the EQ predicate on the "display_mode" field.
+func DisplayModeEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldDisplayMode, v))
+}
+
+// DisplayModeNEQ applies the NEQ predicate on the "display_mode" field.
+func DisplayModeNEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNEQ(FieldDisplayMode, v))
+}
+
+// DisplayModeIn applies the In predicate on the "display_mode" field.
+func DisplayModeIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldIn(FieldDisplayMode, vs...))
+}
+
+// DisplayModeNotIn applies the NotIn predicate on the "display_mode" field.
+func DisplayModeNotIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNotIn(FieldDisplayMode, vs...))
+}
+
+// DisplayModeGT applies the GT predicate on the "display_mode" field.
+func DisplayModeGT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGT(FieldDisplayMode, v))
+}
+
+// DisplayModeGTE applies the GTE predicate on the "display_mode" field.
+func DisplayModeGTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGTE(FieldDisplayMode, v))
+}
+
+// DisplayModeLT applies the LT predicate on the "display_mode" field.
+func DisplayModeLT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLT(FieldDisplayMode, v))
+}
+
+// DisplayModeLTE applies the LTE predicate on the "display_mode" field.
+func DisplayModeLTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLTE(FieldDisplayMode, v))
+}
+
+// DisplayModeContains applies the Contains predicate on the "display_mode" field.
+func DisplayModeContains(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContains(FieldDisplayMode, v))
+}
+
+// DisplayModeHasPrefix applies the HasPrefix predicate on the "display_mode" field.
+func DisplayModeHasPrefix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasPrefix(FieldDisplayMode, v))
+}
+
+// DisplayModeHasSuffix applies the HasSuffix predicate on the "display_mode" field.
+func DisplayModeHasSuffix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasSuffix(FieldDisplayMode, v))
+}
+
+// DisplayModeEqualFold applies the EqualFold predicate on the "display_mode" field.
+func DisplayModeEqualFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEqualFold(FieldDisplayMode, v))
+}
+
+// DisplayModeContainsFold applies the ContainsFold predicate on the "display_mode" field.
+func DisplayModeContainsFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContainsFold(FieldDisplayMode, v))
 }
 
 // TargetingIsNil applies the IsNil predicate on the "targeting" field.

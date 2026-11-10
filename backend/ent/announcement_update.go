@@ -86,6 +86,20 @@ func (_u *AnnouncementUpdate) SetNillableNotifyMode(v *string) *AnnouncementUpda
 	return _u
 }
 
+// SetDisplayMode sets the "display_mode" field.
+func (_u *AnnouncementUpdate) SetDisplayMode(v string) *AnnouncementUpdate {
+	_u.mutation.SetDisplayMode(v)
+	return _u
+}
+
+// SetNillableDisplayMode sets the "display_mode" field if the given value is not nil.
+func (_u *AnnouncementUpdate) SetNillableDisplayMode(v *string) *AnnouncementUpdate {
+	if v != nil {
+		_u.SetDisplayMode(*v)
+	}
+	return _u
+}
+
 // SetTargeting sets the "targeting" field.
 func (_u *AnnouncementUpdate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpdate {
 	_u.mutation.SetTargeting(v)
@@ -305,6 +319,11 @@ func (_u *AnnouncementUpdate) check() error {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayMode(); ok {
+		if err := announcement.DisplayModeValidator(v); err != nil {
+			return &ValidationError{Name: "display_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.display_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -331,6 +350,9 @@ func (_u *AnnouncementUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayMode(); ok {
+		_spec.SetField(announcement.FieldDisplayMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)
@@ -488,6 +510,20 @@ func (_u *AnnouncementUpdateOne) SetNotifyMode(v string) *AnnouncementUpdateOne 
 func (_u *AnnouncementUpdateOne) SetNillableNotifyMode(v *string) *AnnouncementUpdateOne {
 	if v != nil {
 		_u.SetNotifyMode(*v)
+	}
+	return _u
+}
+
+// SetDisplayMode sets the "display_mode" field.
+func (_u *AnnouncementUpdateOne) SetDisplayMode(v string) *AnnouncementUpdateOne {
+	_u.mutation.SetDisplayMode(v)
+	return _u
+}
+
+// SetNillableDisplayMode sets the "display_mode" field if the given value is not nil.
+func (_u *AnnouncementUpdateOne) SetNillableDisplayMode(v *string) *AnnouncementUpdateOne {
+	if v != nil {
+		_u.SetDisplayMode(*v)
 	}
 	return _u
 }
@@ -724,6 +760,11 @@ func (_u *AnnouncementUpdateOne) check() error {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayMode(); ok {
+		if err := announcement.DisplayModeValidator(v); err != nil {
+			return &ValidationError{Name: "display_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.display_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -767,6 +808,9 @@ func (_u *AnnouncementUpdateOne) sqlSave(ctx context.Context) (_node *Announceme
 	}
 	if value, ok := _u.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayMode(); ok {
+		_spec.SetField(announcement.FieldDisplayMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)

@@ -7,11 +7,12 @@ import (
 )
 
 type Announcement struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	Status     string `json:"status"`
-	NotifyMode string `json:"notify_mode"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	Status      string `json:"status"`
+	NotifyMode  string `json:"notify_mode"`
+	DisplayMode string `json:"display_mode"`
 
 	Targeting service.AnnouncementTargeting `json:"targeting"`
 
@@ -26,10 +27,11 @@ type Announcement struct {
 }
 
 type UserAnnouncement struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	NotifyMode string `json:"notify_mode"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	NotifyMode  string `json:"notify_mode"`
+	DisplayMode string `json:"display_mode"`
 
 	StartsAt *time.Time `json:"starts_at,omitempty"`
 	EndsAt   *time.Time `json:"ends_at,omitempty"`
@@ -45,18 +47,19 @@ func AnnouncementFromService(a *service.Announcement) *Announcement {
 		return nil
 	}
 	return &Announcement{
-		ID:         a.ID,
-		Title:      a.Title,
-		Content:    a.Content,
-		Status:     a.Status,
-		NotifyMode: a.NotifyMode,
-		Targeting:  a.Targeting,
-		StartsAt:   a.StartsAt,
-		EndsAt:     a.EndsAt,
-		CreatedBy:  a.CreatedBy,
-		UpdatedBy:  a.UpdatedBy,
-		CreatedAt:  a.CreatedAt,
-		UpdatedAt:  a.UpdatedAt,
+		ID:          a.ID,
+		Title:       a.Title,
+		Content:     a.Content,
+		Status:      a.Status,
+		NotifyMode:  a.NotifyMode,
+		DisplayMode: normalizedAnnouncementDisplayMode(a.DisplayMode),
+		Targeting:   a.Targeting,
+		StartsAt:    a.StartsAt,
+		EndsAt:      a.EndsAt,
+		CreatedBy:   a.CreatedBy,
+		UpdatedBy:   a.UpdatedBy,
+		CreatedAt:   a.CreatedAt,
+		UpdatedAt:   a.UpdatedAt,
 	}
 }
 
@@ -65,14 +68,41 @@ func UserAnnouncementFromService(a *service.UserAnnouncement) *UserAnnouncement 
 		return nil
 	}
 	return &UserAnnouncement{
-		ID:         a.Announcement.ID,
-		Title:      a.Announcement.Title,
-		Content:    a.Announcement.Content,
-		NotifyMode: a.Announcement.NotifyMode,
-		StartsAt:   a.Announcement.StartsAt,
-		EndsAt:     a.Announcement.EndsAt,
-		ReadAt:     a.ReadAt,
-		CreatedAt:  a.Announcement.CreatedAt,
-		UpdatedAt:  a.Announcement.UpdatedAt,
+		ID:          a.Announcement.ID,
+		Title:       a.Announcement.Title,
+		Content:     a.Announcement.Content,
+		NotifyMode:  a.Announcement.NotifyMode,
+		DisplayMode: normalizedAnnouncementDisplayMode(a.Announcement.DisplayMode),
+		StartsAt:    a.Announcement.StartsAt,
+		EndsAt:      a.Announcement.EndsAt,
+		ReadAt:      a.ReadAt,
+		CreatedAt:   a.Announcement.CreatedAt,
+		UpdatedAt:   a.Announcement.UpdatedAt,
 	}
+}
+
+func normalizedAnnouncementDisplayMode(value string) string {
+	if value == "notice" {
+		return "notice"
+	}
+	return "timeline"
+}
+
+type AnnouncementCenterSummary struct {
+	NoticeCount         int                `json:"notice_count"`
+	TimelineCount       int                `json:"timeline_count"`
+	TimelineUnreadCount int                `json:"timeline_unread_count"`
+	Snapshot            string             `json:"snapshot"`
+	PopupCandidates     []UserAnnouncement `json:"popup_candidates"`
+}
+
+func AnnouncementCenterSummaryFromService(summary *service.AnnouncementCenterSummary) *AnnouncementCenterSummary {
+	if summary == nil {
+		return nil
+	}
+	popups := make([]UserAnnouncement, 0, len(summary.PopupCandidates))
+	for i := range summary.PopupCandidates {
+		popups = append(popups, *UserAnnouncementFromService(&summary.PopupCandidates[i]))
+	}
+	return &AnnouncementCenterSummary{NoticeCount: summary.NoticeCount, TimelineCount: summary.TimelineCount, TimelineUnreadCount: summary.TimelineUnreadCount, Snapshot: summary.Snapshot, PopupCandidates: popups}
 }

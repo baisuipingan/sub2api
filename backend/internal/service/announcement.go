@@ -16,6 +16,11 @@ const (
 )
 
 const (
+	AnnouncementDisplayNotice   = domain.AnnouncementDisplayNotice
+	AnnouncementDisplayTimeline = domain.AnnouncementDisplayTimeline
+)
+
+const (
 	AnnouncementNotifyModeSilent = domain.AnnouncementNotifyModeSilent
 	AnnouncementNotifyModePopup  = domain.AnnouncementNotifyModePopup
 )
@@ -48,7 +53,9 @@ var (
 		"ANNOUNCEMENT_NOTIFY_MODE_INVALID",
 		"announcement notify_mode is invalid",
 	)
-	ErrAnnouncementInvalidSchedule = infraerrors.BadRequest(
+	ErrAnnouncementInvalidDisplayMode = infraerrors.BadRequest("ANNOUNCEMENT_DISPLAY_MODE_INVALID", "announcement display_mode must be notice or timeline")
+	ErrAnnouncementInvalidSnapshot    = infraerrors.BadRequest("ANNOUNCEMENT_SNAPSHOT_INVALID", "announcement read snapshot is invalid or expired; refresh the announcement center")
+	ErrAnnouncementInvalidSchedule    = infraerrors.BadRequest(
 		"ANNOUNCEMENT_TIME_RANGE_INVALID",
 		"starts_at must be before ends_at",
 	)
@@ -82,4 +89,17 @@ type AnnouncementReadRepository interface {
 	GetReadMapByUser(ctx context.Context, userID int64, announcementIDs []int64) (map[int64]time.Time, error)
 	GetReadMapByUsers(ctx context.Context, announcementID int64, userIDs []int64) (map[int64]time.Time, error)
 	CountByAnnouncementID(ctx context.Context, announcementID int64) (int64, error)
+}
+
+// Center queries use metadata scans and load Markdown only for selected pages.
+type AnnouncementCenterRepository interface {
+	ListCenterCandidates(ctx context.Context, now time.Time) ([]Announcement, error)
+	GetCenterItems(ctx context.Context, ids []int64) ([]Announcement, error)
+}
+type AnnouncementReadRevision struct {
+	ID        int64     `json:"id"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+type AnnouncementCenterReadRepository interface {
+	MarkReadRevisions(ctx context.Context, userID int64, revisions []AnnouncementReadRevision, readAt time.Time) ([]int64, error)
 }

@@ -1,477 +1,109 @@
 <template>
-  <div>
-    <!-- 铃铛按钮 -->
-    <button
-      @click="openModal"
-      class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100 hover:scale-105 dark:text-gray-400 dark:hover:bg-dark-800"
-      :class="{ 'text-blue-600 dark:text-blue-400': unreadCount > 0 }"
-      :aria-label="t('announcements.title')"
-    >
-      <Icon name="bell" size="md" />
-      <!-- 未读红点 -->
-      <span
-        v-if="unreadCount > 0"
-        class="absolute right-1 top-1 flex h-2 w-2"
-      >
-        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span>
-        <span class="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-      </span>
-    </button>
+  <button type="button" class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-dark-300 dark:hover:bg-dark-800" :aria-label="t('announcements.title')" @click="openCenter">
+    <Icon name="bell" size="md" />
+    <span v-if="unreadCount" class="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" :aria-label="t('announcements.newCount', { count: unreadCount })" />
+  </button>
 
-    <!-- 公告列表 Modal -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div
-          v-if="isModalOpen"
-          class="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-gradient-to-br from-black/70 via-black/60 to-black/70 p-4 pt-[8vh] backdrop-blur-md"
-          @click="closeModal"
-        >
-          <div
-            class="w-full max-w-[620px] overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
-            @click.stop
-          >
-            <!-- Header with Gradient -->
-            <div class="relative overflow-hidden border-b border-gray-100/80 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 px-6 py-5 dark:border-dark-700/50 dark:from-blue-900/10 dark:to-indigo-900/5">
-              <div class="relative z-10 flex items-start justify-between">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
-                      <Icon name="bell" size="sm" />
-                    </div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                      {{ t('announcements.title') }}
-                    </h2>
-                  </div>
-                  <p v-if="unreadCount > 0" class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    <span class="font-medium text-blue-600 dark:text-blue-400">{{ unreadCount }}</span>
-                    {{ t('announcements.unread') }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <button
-                    v-if="unreadCount > 0"
-                    @click="markAllAsRead"
-                    :disabled="loading"
-                    class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-                  >
-                    {{ t('announcements.markAllRead') }}
-                  </button>
-                  <button
-                    @click="closeModal"
-                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-white/50 text-gray-500 backdrop-blur-sm transition-all hover:bg-white hover:text-gray-700 dark:bg-dark-700/50 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-gray-300"
-                    :aria-label="t('common.close')"
-                  >
-                    <Icon name="x" size="sm" />
-                  </button>
-                </div>
-              </div>
-              <!-- Decorative gradient -->
-              <div class="absolute right-0 top-0 h-full w-48 bg-gradient-to-l from-indigo-100/20 to-transparent dark:from-indigo-900/10"></div>
+  <BaseDialog :show="centerOpen" :title="t('announcements.systemTitle')" width="reading" :z-index="100" @close="announcementStore.closeCenter()">
+    <div class="sticky -top-3 z-10 -mx-1 bg-white pb-4 pt-1 sm:-top-4 dark:bg-dark-800">
+      <p class="mb-4 text-xs text-gray-500 dark:text-dark-400">{{ t('announcements.centerDescription') }}</p>
+      <div role="tablist" :aria-label="t('announcements.systemTitle')" class="flex rounded-full bg-gray-100 p-1 dark:bg-dark-900">
+        <button id="announcements-notice-tab" type="button" role="tab" :aria-selected="centerTab === 'notice'" aria-controls="announcements-notice-panel" :tabindex="centerTab === 'notice' ? 0 : -1" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary-500" :class="tabClass('notice')" @click="selectTab('notice')" @keydown="navigateTabs($event, 'notice')">
+          <Icon name="bell" size="sm" />{{ t('announcements.noticeTab') }}
+        </button>
+        <button id="announcements-timeline-tab" type="button" role="tab" :aria-selected="centerTab === 'timeline'" aria-controls="announcements-timeline-panel" :tabindex="centerTab === 'timeline' ? 0 : -1" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary-500" :class="tabClass('timeline')" @click="selectTab('timeline')" @keydown="navigateTabs($event, 'timeline')">
+          <Icon name="clock" size="sm" />{{ t('announcements.timelineTab') }}
+          <span v-if="unreadCount" class="rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] leading-none text-red-600 dark:bg-red-500/15 dark:text-red-400">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        </button>
+      </div>
+    </div>
+
+    <section v-if="centerTab === 'notice'" id="announcements-notice-panel" role="tabpanel" aria-labelledby="announcements-notice-tab" class="min-h-32 space-y-4 py-1" :aria-busy="noticeLoading">
+      <LoadingSpinner v-if="noticeLoading && !notices.length" class="mx-auto my-10 block" />
+      <article v-for="item in notices" :key="item.id" class="rounded-2xl border border-gray-200 p-4 sm:p-5 dark:border-dark-600">
+        <h4 class="mb-4 text-base font-semibold text-gray-900 dark:text-white">{{ item.title }}</h4>
+        <AnnouncementContent :content="item.content" />
+      </article>
+      <p v-if="!noticeLoading && !noticeError && !notices.length" class="py-10 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('announcements.emptyNotices') }}</p>
+      <div v-if="noticeError" role="alert" class="flex flex-wrap items-center justify-center gap-3 py-3 text-sm text-gray-500 dark:text-dark-400">
+        {{ t('announcements.loadFailed') }}<button type="button" class="btn btn-secondary !py-1.5 text-xs" @click="announcementStore.loadCenterPage('notice', noticePage < noticePages)">{{ t('common.refresh') }}</button>
+      </div>
+      <button v-else-if="noticePage < noticePages" type="button" class="btn btn-secondary mx-auto !flex" :disabled="noticeLoading" @click="announcementStore.loadCenterPage('notice', true)"><LoadingSpinner v-if="noticeLoading" size="sm" />{{ t('announcements.loadMore') }}</button>
+    </section>
+
+    <section v-else id="announcements-timeline-panel" role="tabpanel" aria-labelledby="announcements-timeline-tab" class="min-h-32 py-1" :aria-busy="timelineLoading">
+      <p class="mb-5 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('announcements.timelineHint') }}</p>
+      <LoadingSpinner v-if="timelineLoading && !announcements.length" class="mx-auto my-10 block" />
+      <ol v-if="announcements.length" class="ml-1 border-l border-gray-200 pl-5 dark:border-dark-600">
+        <li v-for="item in announcements" :key="item.id" class="relative pb-6 last:pb-1">
+          <span class="absolute -left-[25px] top-1 h-2 w-2 rounded-full ring-4 ring-white dark:ring-dark-800" :class="item.read_at ? 'bg-gray-300 dark:bg-dark-500' : 'bg-red-500'" />
+          <time :datetime="item.created_at" class="mb-2 block text-xs tabular-nums text-gray-500 dark:text-dark-400">{{ formatDateTime(item.created_at) }}</time>
+          <article class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/40 dark:border-dark-600 dark:bg-dark-900/20">
+            <button type="button" class="flex w-full items-center gap-2 px-4 py-4 text-left focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500" :aria-expanded="expandedIds.has(item.id)" :aria-controls="`announcement-content-${item.id}`" @click="toggle(item.id)">
+              <span class="min-w-0 flex-1 break-words text-sm font-semibold text-gray-900 dark:text-white">{{ item.title }}</span>
+              <span v-if="!item.read_at" class="shrink-0 rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] text-red-600 dark:bg-red-500/15 dark:text-red-400">{{ t('announcements.unread') }}</span>
+              <Icon name="chevronDown" size="sm" class="shrink-0 text-gray-400 transition-transform" :class="{ 'rotate-180': expandedIds.has(item.id) }" />
+            </button>
+            <div v-if="expandedIds.has(item.id)" :id="`announcement-content-${item.id}`" class="space-y-4 border-t border-gray-100 p-4 dark:border-dark-700">
+              <AnnouncementContent :content="item.content" />
+              <button v-if="!item.read_at" type="button" class="btn btn-secondary !py-1.5 text-xs" :disabled="readingIds.includes(item.id) || markingAll" @click="markAsRead(item.id)"><LoadingSpinner v-if="readingIds.includes(item.id)" size="sm" />{{ t('announcements.markRead') }}</button>
             </div>
-
-            <!-- Body -->
-            <div class="max-h-[65vh] overflow-y-auto">
-              <!-- Loading -->
-              <div v-if="loading" class="flex items-center justify-center py-16">
-                <div class="relative">
-                  <div class="h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600 dark:border-dark-600 dark:border-t-blue-400"></div>
-                  <div class="absolute inset-0 h-12 w-12 animate-pulse rounded-full border-4 border-blue-400/30"></div>
-                </div>
-              </div>
-
-              <!-- Announcements List -->
-              <div v-else-if="announcements.length > 0">
-                <div
-                  v-for="item in announcements"
-                  :key="item.id"
-                  class="group relative flex items-center gap-4 border-b border-gray-100 px-6 py-4 transition-all hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-700/30"
-                  :class="{ 'bg-blue-50/30 dark:bg-blue-900/5': !item.read_at }"
-                  style="min-height: 72px"
-                  @click="openDetail(item)"
-                >
-                  <!-- Status Indicator -->
-                  <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center">
-                    <div
-                      v-if="!item.read_at"
-                      class="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
-                    >
-                      <!-- Pulse ring -->
-                      <span class="absolute inline-flex h-full w-full animate-ping rounded-xl bg-blue-400 opacity-75"></span>
-                      <!-- Icon -->
-                      <svg class="relative z-10 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div
-                      v-else
-                      class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-400 dark:bg-dark-700 dark:text-gray-600"
-                    >
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <!-- Content -->
-                  <div class="flex min-w-0 flex-1 items-center justify-between gap-4">
-                    <div class="min-w-0 flex-1">
-                      <h3 class="truncate text-sm font-medium text-gray-900 dark:text-white">
-                        {{ item.title }}
-                      </h3>
-                      <div class="mt-1 flex items-center gap-2">
-                        <time class="text-xs text-gray-500 dark:text-gray-400">
-                          {{ formatRelativeTime(item.created_at) }}
-                        </time>
-                        <span
-                          v-if="!item.read_at"
-                          class="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                        >
-                          <span class="relative flex h-1.5 w-1.5">
-                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75"></span>
-                            <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-                          </span>
-                          {{ t('announcements.unread') }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- Arrow -->
-                    <div class="flex-shrink-0">
-                      <svg
-                        class="h-5 w-5 text-gray-400 transition-transform group-hover:translate-x-1 dark:text-gray-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  <!-- Unread indicator bar -->
-                  <div
-                    v-if="!item.read_at"
-                    class="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-blue-500 to-indigo-600"
-                  ></div>
-                </div>
-              </div>
-
-              <!-- Empty State -->
-              <div v-else class="flex flex-col items-center justify-center py-16">
-                <div class="relative mb-4">
-                  <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-dark-700 dark:to-dark-600">
-                    <Icon name="inbox" size="xl" class="text-gray-400 dark:text-gray-500" />
-                  </div>
-                  <div class="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white">
-                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('announcements.empty') }}</p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('announcements.emptyDescription') }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- 公告详情 Modal -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div
-          v-if="detailModalOpen && selectedAnnouncement"
-          class="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-gradient-to-br from-black/70 via-black/60 to-black/70 p-4 pt-[6vh] backdrop-blur-md"
-          @click="closeDetail"
-        >
-          <div
-            class="w-full max-w-[780px] overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
-            @click.stop
-          >
-            <!-- Header with Decorative Elements -->
-            <div class="relative overflow-hidden border-b border-gray-100 bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-purple-50/30 px-8 py-6 dark:border-dark-700 dark:from-blue-900/20 dark:via-indigo-900/10 dark:to-purple-900/5">
-              <!-- Decorative background elements -->
-              <div class="absolute right-0 top-0 h-full w-64 bg-gradient-to-l from-indigo-100/30 to-transparent dark:from-indigo-900/20"></div>
-              <div class="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-gradient-to-br from-blue-400/20 to-indigo-500/20 blur-3xl"></div>
-              <div class="absolute -left-4 -bottom-4 h-24 w-24 rounded-full bg-gradient-to-tr from-purple-400/20 to-pink-500/20 blur-2xl"></div>
-
-              <div class="relative z-10 flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <!-- Icon and Category -->
-                  <div class="mb-3 flex items-center gap-2">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
-                      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                        {{ t('announcements.title') }}
-                      </span>
-                      <span
-                        v-if="!selectedAnnouncement.read_at"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-2.5 py-1 text-xs font-medium text-white shadow-lg shadow-blue-500/30"
-                      >
-                        <span class="relative flex h-2 w-2">
-                          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
-                          <span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
-                        </span>
-                        {{ t('announcements.unread') }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Title -->
-                  <h2 class="mb-3 text-2xl font-bold leading-tight text-gray-900 dark:text-white">
-                    {{ selectedAnnouncement.title }}
-                  </h2>
-
-                  <!-- Meta Info -->
-                  <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                    <div class="flex items-center gap-1.5">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <time>{{ formatRelativeWithDateTime(selectedAnnouncement.created_at) }}</time>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      <span>{{ selectedAnnouncement.read_at ? t('announcements.read') : t('announcements.unread') }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Close button -->
-                <button
-                  @click="closeDetail"
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/50 text-gray-500 backdrop-blur-sm transition-all hover:bg-white hover:text-gray-700 hover:shadow-lg dark:bg-dark-700/50 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-gray-300"
-                  :aria-label="t('common.close')"
-                >
-                  <Icon name="x" size="md" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Body with Enhanced Markdown -->
-            <div class="max-h-[60vh] overflow-y-auto bg-white px-8 py-8 dark:bg-dark-800">
-              <!-- Content with decorative border -->
-              <div class="relative">
-                <!-- Decorative left border -->
-                <div class="absolute left-0 top-0 bottom-0 w-1 rounded-full bg-gradient-to-b from-blue-500 via-indigo-500 to-purple-500"></div>
-
-                <div class="pl-6">
-                  <div
-                    class="markdown-body prose prose-sm max-w-none dark:prose-invert"
-                    v-html="renderMarkdown(selectedAnnouncement.content)"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Footer with Actions -->
-            <div class="border-t border-gray-100 bg-gray-50/50 px-8 py-5 dark:border-dark-700 dark:bg-dark-900/30">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{{ selectedAnnouncement.read_at ? t('announcements.readStatus') : t('announcements.markReadHint') }}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                  <button
-                    @click="closeDetail"
-                    class="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:shadow dark:border-dark-600 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
-                  >
-                    {{ t('common.close') }}
-                  </button>
-                  <button
-                    v-if="!selectedAnnouncement.read_at"
-                    @click="markAsReadAndClose(selectedAnnouncement.id)"
-                    class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:scale-105"
-                  >
-                    <span class="flex items-center gap-2">
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      {{ t('announcements.markRead') }}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-  </div>
+          </article>
+        </li>
+      </ol>
+      <p v-if="!timelineLoading && !timelineError && !announcements.length" class="py-10 text-center text-sm text-gray-500 dark:text-dark-400">{{ t('announcements.emptyTimeline') }}</p>
+      <div v-if="timelineError" role="alert" class="flex flex-wrap items-center justify-center gap-3 py-3 text-sm text-gray-500 dark:text-dark-400">
+        {{ t('announcements.loadFailed') }}<button type="button" class="btn btn-secondary !py-1.5 text-xs" @click="announcementStore.loadCenterPage('timeline', timelinePage < timelinePages)">{{ t('common.refresh') }}</button>
+      </div>
+      <button v-else-if="timelinePage < timelinePages" type="button" class="btn btn-secondary mx-auto mt-4 !flex" :disabled="timelineLoading" @click="announcementStore.loadCenterPage('timeline', true)"><LoadingSpinner v-if="timelineLoading" size="sm" />{{ t('announcements.loadMore') }}</button>
+    </section>
+    <template #footer>
+      <div class="flex w-full items-center justify-between gap-3">
+        <button v-if="centerTab === 'timeline'" type="button" class="rounded-lg px-2 py-2 text-sm text-gray-500 transition-colors hover:text-primary-600 disabled:cursor-default disabled:opacity-50 dark:text-dark-400" :disabled="!unreadCount || markingAll || readingIds.length > 0 || !snapshot" @click="markAllAsRead"><LoadingSpinner v-if="markingAll" size="sm" class="mr-1 align-middle" />{{ t('announcements.markAllRead') }}</button>
+        <span v-else />
+        <button type="button" class="btn btn-primary" @click="announcementStore.closeCenter()">{{ t('common.close') }}</button>
+      </div>
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { computed, nextTick, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { useI18n } from 'vue-i18n'
+import BaseDialog from './BaseDialog.vue'
+import LoadingSpinner from './LoadingSpinner.vue'
+import AnnouncementContent from './AnnouncementContent.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import { useAnnouncementStore } from '@/stores/announcements'
-import { formatRelativeTime, formatRelativeWithDateTime } from '@/utils/format'
-import type { UserAnnouncement } from '@/types'
-import Icon from '@/components/icons/Icon.vue'
-import '@/styles/announcement-markdown.css'
+import type { AnnouncementCenterTab } from '@/api/announcements'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 const announcementStore = useAnnouncementStore()
-
-// Configure marked
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-})
-
-// Use store state (storeToRefs for reactivity)
-const { announcements, loading } = storeToRefs(announcementStore)
-const unreadCount = computed(() => announcementStore.unreadCount)
-
-// Local modal state
-const isModalOpen = ref(false)
-const detailModalOpen = ref(false)
-const selectedAnnouncement = ref<UserAnnouncement | null>(null)
-
-// Methods
-function renderMarkdown(content: string): string {
-  if (!content) return ''
-  const html = marked.parse(content) as string
-  return DOMPurify.sanitize(html)
+const { announcements, notices, centerOpen, centerTab, unreadCount, noticeLoading, timelineLoading, noticeError, timelineError, noticePage, timelinePage, noticePages, timelinePages, markingAll, readingIds, snapshot } = storeToRefs(announcementStore)
+const expandedIds = ref(new Set<number>())
+const dateFormatter = computed(() => new Intl.DateTimeFormat(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }))
+function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : dateFormatter.value.format(date) }
+function tabClass(tab: AnnouncementCenterTab) { return centerTab.value === tab ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-gray-500 dark:text-dark-400' }
+function toggle(id: number) { const ids = new Set(expandedIds.value); if (ids.has(id)) ids.delete(id); else ids.add(id); expandedIds.value = ids }
+async function openCenter() { await announcementStore.openCenter() }
+async function selectTab(tab: AnnouncementCenterTab) { await announcementStore.selectCenterTab(tab) }
+function navigateTabs(event: KeyboardEvent, tab: AnnouncementCenterTab) {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const next = event.key === 'Home' ? 'notice' : event.key === 'End' ? 'timeline' : tab === 'notice' ? 'timeline' : 'notice'
+  void selectTab(next)
+  void nextTick(() => document.getElementById(`announcements-${next}-tab`)?.focus())
 }
-
-function openModal() {
-  isModalOpen.value = true
-}
-
-function closeModal() {
-  isModalOpen.value = false
-}
-
-function openDetail(announcement: UserAnnouncement) {
-  selectedAnnouncement.value = announcement
-  detailModalOpen.value = true
-  if (!announcement.read_at) {
-    markAsRead(announcement.id)
-  }
-}
-
-function closeDetail() {
-  detailModalOpen.value = false
-  selectedAnnouncement.value = null
-}
-
-async function markAsRead(id: number) {
-  try {
-    const marked = await announcementStore.markAsRead(id)
-    if (!marked) appStore.showError(t('common.unknownError'))
-    return marked
-  } catch (err: any) {
-    appStore.showError(err?.message || t('common.unknownError'))
-    return false
-  }
-}
-
-async function markAsReadAndClose(id: number) {
-  if (!await markAsRead(id)) return
-  appStore.showSuccess(t('announcements.markedAsRead'))
-  closeDetail()
-}
-
+async function markAsRead(id: number) { if (!await announcementStore.markAsRead(id)) appStore.showError(t('announcements.readFailed')) }
 async function markAllAsRead() {
-  try {
-    await announcementStore.markAllAsRead()
-    appStore.showSuccess(t('announcements.allMarkedAsRead'))
-  } catch (err: any) {
-    appStore.showError(err?.message || t('common.unknownError'))
+  try { await announcementStore.markAllAsRead() }
+  catch (error) {
+    const reason = (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
+    appStore.showError(t(reason === 'ANNOUNCEMENT_SNAPSHOT_INVALID' ? 'announcements.snapshotChanged' : 'announcements.readFailed'))
   }
 }
-
-function handleEscape(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    if (detailModalOpen.value) {
-      closeDetail()
-    } else if (isModalOpen.value) {
-      closeModal()
-    }
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleEscape)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleEscape)
-  document.body.style.overflow = ''
-})
-
-watch(
-  [isModalOpen, detailModalOpen, () => announcementStore.currentPopup],
-  ([modal, detail, popup]) => {
-    document.body.style.overflow = (modal || detail || popup) ? 'hidden' : ''
-  }
-)
+watch(centerOpen, opened => { if (opened) expandedIds.value = new Set() })
 </script>
-
-<style scoped>
-/* Modal Animations */
-.modal-fade-enter-active {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.modal-fade-leave-active {
-  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
-}
-
-.modal-fade-enter-from,
-.modal-fade-leave-to {
-  opacity: 0;
-}
-
-.modal-fade-enter-from > div {
-  transform: scale(0.94) translateY(-12px);
-  opacity: 0;
-}
-
-.modal-fade-leave-to > div {
-  transform: scale(0.96) translateY(-8px);
-  opacity: 0;
-}
-
-/* Scrollbar Styling */
-.overflow-y-auto::-webkit-scrollbar {
-  width: 8px;
-}
-
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #cbd5e1, #94a3b8);
-  border-radius: 4px;
-}
-
-.dark .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #4b5563, #374151);
-}
-
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #94a3b8, #64748b);
-}
-
-.dark .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #6b7280, #4b5563);
-}
-</style>

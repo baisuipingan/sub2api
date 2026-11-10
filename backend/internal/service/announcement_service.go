@@ -16,6 +16,7 @@ type AnnouncementService struct {
 	readRepo         AnnouncementReadRepository
 	userRepo         UserRepository
 	userSubRepo      UserSubscriptionRepository
+	snapshotKey      []byte
 }
 
 func NewAnnouncementService(
@@ -33,25 +34,27 @@ func NewAnnouncementService(
 }
 
 type CreateAnnouncementInput struct {
-	Title      string
-	Content    string
-	Status     string
-	NotifyMode string
-	Targeting  AnnouncementTargeting
-	StartsAt   *time.Time
-	EndsAt     *time.Time
-	ActorID    *int64 // 管理员用户ID
+	Title       string
+	Content     string
+	Status      string
+	NotifyMode  string
+	DisplayMode string
+	Targeting   AnnouncementTargeting
+	StartsAt    *time.Time
+	EndsAt      *time.Time
+	ActorID     *int64 // 管理员用户ID
 }
 
 type UpdateAnnouncementInput struct {
-	Title      *string
-	Content    *string
-	Status     *string
-	NotifyMode *string
-	Targeting  *AnnouncementTargeting
-	StartsAt   **time.Time
-	EndsAt     **time.Time
-	ActorID    *int64 // 管理员用户ID
+	Title       *string
+	Content     *string
+	Status      *string
+	NotifyMode  *string
+	DisplayMode *string
+	Targeting   *AnnouncementTargeting
+	StartsAt    **time.Time
+	EndsAt      **time.Time
+	ActorID     *int64 // 管理员用户ID
 }
 
 type UserAnnouncement struct {
@@ -113,14 +116,22 @@ func (s *AnnouncementService) Create(ctx context.Context, input *CreateAnnouncem
 		}
 	}
 
+	displayMode := strings.TrimSpace(input.DisplayMode)
+	if displayMode == "" {
+		displayMode = AnnouncementDisplayTimeline
+	}
+	if !isValidAnnouncementDisplayMode(displayMode) {
+		return nil, ErrAnnouncementInvalidDisplayMode
+	}
 	a := &Announcement{
-		Title:      title,
-		Content:    content,
-		Status:     status,
-		NotifyMode: notifyMode,
-		Targeting:  targeting,
-		StartsAt:   input.StartsAt,
-		EndsAt:     input.EndsAt,
+		Title:       title,
+		Content:     content,
+		Status:      status,
+		NotifyMode:  notifyMode,
+		DisplayMode: displayMode,
+		Targeting:   targeting,
+		StartsAt:    input.StartsAt,
+		EndsAt:      input.EndsAt,
 	}
 	if input.ActorID != nil && *input.ActorID > 0 {
 		a.CreatedBy = input.ActorID
@@ -178,6 +189,13 @@ func (s *AnnouncementService) Update(ctx context.Context, id int64, input *Updat
 		a.NotifyMode = notifyMode
 	}
 
+	if input.DisplayMode != nil {
+		mode := strings.TrimSpace(*input.DisplayMode)
+		if !isValidAnnouncementDisplayMode(mode) {
+			return nil, ErrAnnouncementInvalidDisplayMode
+		}
+		a.DisplayMode = mode
+	}
 	if input.Targeting != nil {
 		targeting, err := domain.AnnouncementTargeting(*input.Targeting).NormalizeAndValidate()
 		if err != nil {
@@ -412,4 +430,8 @@ func isValidAnnouncementNotifyMode(mode string) bool {
 	default:
 		return false
 	}
+}
+
+func isValidAnnouncementDisplayMode(mode string) bool {
+	return mode == AnnouncementDisplayNotice || mode == AnnouncementDisplayTimeline
 }

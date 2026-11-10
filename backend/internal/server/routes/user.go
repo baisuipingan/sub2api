@@ -147,6 +147,10 @@ func RegisterUserRoutes(
 		announcements := authenticated.Group("/announcements")
 		{
 			announcements.GET("", h.Announcement.List)
+			announcements.GET("/summary", h.Announcement.Summary)
+			announcements.GET("/center", h.Announcement.Center)
+			announcements.POST("/read-all", h.Announcement.MarkAllRead)
+			announcements.GET("/:id", h.Announcement.Get)
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 

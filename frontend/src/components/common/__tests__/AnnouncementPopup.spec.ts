@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -126,4 +126,34 @@ describe('AnnouncementPopup', () => {
     expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
+  it('hides an automatic popup behind the center without marking it read and resumes on close', async () => {
+    const store = useAnnouncementStore()
+    store.currentPopup = announcement
+    const dismiss = vi.spyOn(store, 'dismissPopup')
+    const wrapper = mount(AnnouncementPopup, { global: { stubs: { Transition: true } } })
+    expect(document.body.textContent).toContain('Preview announcement')
+    store.centerOpen = true
+    await wrapper.vm.$nextTick()
+    expect(document.body.textContent).not.toContain('Preview announcement')
+    expect(dismiss).not.toHaveBeenCalled()
+    store.centerOpen = false
+    await wrapper.vm.$nextTick()
+    expect(document.body.textContent).toContain('Preview announcement')
+    expect(dismiss).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps a failed popup read visible so the user can retry', async () => {
+    const store = useAnnouncementStore()
+    store.currentPopup = announcement
+    const dismiss = vi.spyOn(store, 'dismissPopup').mockResolvedValue(false)
+    const wrapper = mount(AnnouncementPopup)
+    document.body.querySelector<HTMLButtonElement>('[data-testid="announcement-popup-dismiss"]')?.click()
+    await flushPromises()
+    expect(dismiss).toHaveBeenCalledOnce()
+    expect(document.body.textContent).toContain('Preview announcement')
+    expect(document.body.textContent).toContain('announcements.readFailed')
+    wrapper.unmount()
+  })
+
 })

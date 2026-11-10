@@ -64,6 +64,20 @@ func (_c *AnnouncementCreate) SetNillableNotifyMode(v *string) *AnnouncementCrea
 	return _c
 }
 
+// SetDisplayMode sets the "display_mode" field.
+func (_c *AnnouncementCreate) SetDisplayMode(v string) *AnnouncementCreate {
+	_c.mutation.SetDisplayMode(v)
+	return _c
+}
+
+// SetNillableDisplayMode sets the "display_mode" field if the given value is not nil.
+func (_c *AnnouncementCreate) SetNillableDisplayMode(v *string) *AnnouncementCreate {
+	if v != nil {
+		_c.SetDisplayMode(*v)
+	}
+	return _c
+}
+
 // SetTargeting sets the "targeting" field.
 func (_c *AnnouncementCreate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementCreate {
 	_c.mutation.SetTargeting(v)
@@ -220,6 +234,10 @@ func (_c *AnnouncementCreate) defaults() {
 		v := announcement.DefaultNotifyMode
 		_c.mutation.SetNotifyMode(v)
 	}
+	if _, ok := _c.mutation.DisplayMode(); !ok {
+		v := announcement.DefaultDisplayMode
+		_c.mutation.SetDisplayMode(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := announcement.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -262,6 +280,14 @@ func (_c *AnnouncementCreate) check() error {
 	if v, ok := _c.mutation.NotifyMode(); ok {
 		if err := announcement.NotifyModeValidator(v); err != nil {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DisplayMode(); !ok {
+		return &ValidationError{Name: "display_mode", err: errors.New(`ent: missing required field "Announcement.display_mode"`)}
+	}
+	if v, ok := _c.mutation.DisplayMode(); ok {
+		if err := announcement.DisplayModeValidator(v); err != nil {
+			return &ValidationError{Name: "display_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.display_mode": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -312,6 +338,10 @@ func (_c *AnnouncementCreate) createSpec() (*Announcement, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
 		_node.NotifyMode = value
+	}
+	if value, ok := _c.mutation.DisplayMode(); ok {
+		_spec.SetField(announcement.FieldDisplayMode, field.TypeString, value)
+		_node.DisplayMode = value
 	}
 	if value, ok := _c.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)
@@ -454,6 +484,18 @@ func (u *AnnouncementUpsert) SetNotifyMode(v string) *AnnouncementUpsert {
 // UpdateNotifyMode sets the "notify_mode" field to the value that was provided on create.
 func (u *AnnouncementUpsert) UpdateNotifyMode() *AnnouncementUpsert {
 	u.SetExcluded(announcement.FieldNotifyMode)
+	return u
+}
+
+// SetDisplayMode sets the "display_mode" field.
+func (u *AnnouncementUpsert) SetDisplayMode(v string) *AnnouncementUpsert {
+	u.Set(announcement.FieldDisplayMode, v)
+	return u
+}
+
+// UpdateDisplayMode sets the "display_mode" field to the value that was provided on create.
+func (u *AnnouncementUpsert) UpdateDisplayMode() *AnnouncementUpsert {
+	u.SetExcluded(announcement.FieldDisplayMode)
 	return u
 }
 
@@ -669,6 +711,20 @@ func (u *AnnouncementUpsertOne) SetNotifyMode(v string) *AnnouncementUpsertOne {
 func (u *AnnouncementUpsertOne) UpdateNotifyMode() *AnnouncementUpsertOne {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.UpdateNotifyMode()
+	})
+}
+
+// SetDisplayMode sets the "display_mode" field.
+func (u *AnnouncementUpsertOne) SetDisplayMode(v string) *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetDisplayMode(v)
+	})
+}
+
+// UpdateDisplayMode sets the "display_mode" field to the value that was provided on create.
+func (u *AnnouncementUpsertOne) UpdateDisplayMode() *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdateDisplayMode()
 	})
 }
 
@@ -1069,6 +1125,20 @@ func (u *AnnouncementUpsertBulk) SetNotifyMode(v string) *AnnouncementUpsertBulk
 func (u *AnnouncementUpsertBulk) UpdateNotifyMode() *AnnouncementUpsertBulk {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.UpdateNotifyMode()
+	})
+}
+
+// SetDisplayMode sets the "display_mode" field.
+func (u *AnnouncementUpsertBulk) SetDisplayMode(v string) *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetDisplayMode(v)
+	})
+}
+
+// UpdateDisplayMode sets the "display_mode" field to the value that was provided on create.
+func (u *AnnouncementUpsertBulk) UpdateDisplayMode() *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdateDisplayMode()
 	})
 }
 

@@ -28,6 +28,7 @@ func (r *announcementRepository) Create(ctx context.Context, a *service.Announce
 		SetContent(a.Content).
 		SetStatus(a.Status).
 		SetNotifyMode(a.NotifyMode).
+		SetDisplayMode(normalizeAnnouncementDisplayMode(a.DisplayMode)).
 		SetTargeting(a.Targeting)
 
 	if a.StartsAt != nil {
@@ -69,6 +70,7 @@ func (r *announcementRepository) Update(ctx context.Context, a *service.Announce
 		SetContent(a.Content).
 		SetStatus(a.Status).
 		SetNotifyMode(a.NotifyMode).
+		SetDisplayMode(normalizeAnnouncementDisplayMode(a.DisplayMode)).
 		SetTargeting(a.Targeting)
 
 	if a.StartsAt != nil {
@@ -228,18 +230,19 @@ func announcementEntityToService(m *dbent.Announcement) *service.Announcement {
 		return nil
 	}
 	return &service.Announcement{
-		ID:         m.ID,
-		Title:      m.Title,
-		Content:    m.Content,
-		Status:     m.Status,
-		NotifyMode: m.NotifyMode,
-		Targeting:  m.Targeting,
-		StartsAt:   m.StartsAt,
-		EndsAt:     m.EndsAt,
-		CreatedBy:  m.CreatedBy,
-		UpdatedBy:  m.UpdatedBy,
-		CreatedAt:  m.CreatedAt,
-		UpdatedAt:  m.UpdatedAt,
+		ID:          m.ID,
+		Title:       m.Title,
+		Content:     m.Content,
+		Status:      m.Status,
+		NotifyMode:  m.NotifyMode,
+		DisplayMode: m.DisplayMode,
+		Targeting:   m.Targeting,
+		StartsAt:    m.StartsAt,
+		EndsAt:      m.EndsAt,
+		CreatedBy:   m.CreatedBy,
+		UpdatedBy:   m.UpdatedBy,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
 	}
 }
 
@@ -251,4 +254,35 @@ func announcementEntitiesToService(models []*dbent.Announcement) []service.Annou
 		}
 	}
 	return out
+}
+
+func normalizeAnnouncementDisplayMode(mode string) string {
+	if mode == service.AnnouncementDisplayNotice {
+		return mode
+	}
+	return service.AnnouncementDisplayTimeline
+}
+
+// Metadata scan avoids loading every Markdown body to calculate audience,
+// exact unread counts and pagination. Target matching remains shared domain code.
+func (r *announcementRepository) ListCenterCandidates(ctx context.Context, now time.Time) ([]service.Announcement, error) {
+	items, err := r.client.Announcement.Query().Where(
+		announcement.StatusEQ(service.AnnouncementStatusActive),
+		announcement.Or(announcement.StartsAtIsNil(), announcement.StartsAtLTE(now)),
+		announcement.Or(announcement.EndsAtIsNil(), announcement.EndsAtGT(now)),
+	).Select(announcement.FieldID, announcement.FieldStatus, announcement.FieldDisplayMode, announcement.FieldNotifyMode, announcement.FieldTargeting, announcement.FieldStartsAt, announcement.FieldEndsAt, announcement.FieldCreatedAt, announcement.FieldUpdatedAt).Order(dbent.Desc(announcement.FieldCreatedAt), dbent.Desc(announcement.FieldID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return announcementEntitiesToService(items), nil
+}
+func (r *announcementRepository) GetCenterItems(ctx context.Context, ids []int64) ([]service.Announcement, error) {
+	if len(ids) == 0 {
+		return []service.Announcement{}, nil
+	}
+	items, err := r.client.Announcement.Query().Where(announcement.IDIn(ids...)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return announcementEntitiesToService(items), nil
 }

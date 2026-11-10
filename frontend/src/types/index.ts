@@ -350,6 +350,7 @@ export interface UpdateSubscriptionRequest {
 
 export type AnnouncementStatus = 'draft' | 'active' | 'archived'
 export type AnnouncementNotifyMode = 'silent' | 'popup'
+export type AnnouncementDisplayMode = 'notice' | 'timeline'
 
 export type AnnouncementConditionType = 'subscription' | 'balance'
 
@@ -376,6 +377,8 @@ export interface Announcement {
   content: string
   status: AnnouncementStatus
   notify_mode: AnnouncementNotifyMode
+  /** Older responses without a location belong to the timeline. */
+  display_mode?: AnnouncementDisplayMode
   targeting: AnnouncementTargeting
   starts_at?: string
   ends_at?: string
@@ -390,6 +393,7 @@ export interface UserAnnouncement {
   title: string
   content: string
   notify_mode: AnnouncementNotifyMode
+  display_mode?: AnnouncementDisplayMode
   starts_at?: string
   ends_at?: string
   read_at?: string
@@ -402,6 +406,7 @@ export interface CreateAnnouncementRequest {
   content: string
   status?: AnnouncementStatus
   notify_mode?: AnnouncementNotifyMode
+  display_mode?: AnnouncementDisplayMode
   targeting: AnnouncementTargeting
   starts_at?: number
   ends_at?: number
@@ -412,6 +417,7 @@ export interface UpdateAnnouncementRequest {
   content?: string
   status?: AnnouncementStatus
   notify_mode?: AnnouncementNotifyMode
+  display_mode?: AnnouncementDisplayMode
   targeting?: AnnouncementTargeting
   starts_at?: number
   ends_at?: number

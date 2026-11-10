@@ -178,7 +178,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 	announcementRepository := repository.NewAnnouncementRepository(client)
 	announcementReadRepository := repository.NewAnnouncementReadRepository(client)
-	announcementService := service.NewAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository)
+	announcementService := service.ProvideAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository, configConfig)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	ticketRepository := repository.NewTicketRepository(db)
 	ticketAttachmentRepository := repository.NewTicketAttachmentRepository(db)

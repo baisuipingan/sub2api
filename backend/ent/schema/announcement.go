@@ -45,6 +45,10 @@ func (Announcement) Fields() []ent.Field {
 			MaxLen(20).
 			Default(domain.AnnouncementNotifyModeSilent).
 			Comment("通知模式: silent(仅铃铛), popup(弹窗提醒)"),
+		field.String("display_mode").
+			MaxLen(20).
+			Default(domain.AnnouncementDisplayTimeline).
+			Comment("展示位置: notice, timeline"),
 		field.JSON("targeting", domain.AnnouncementTargeting{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).

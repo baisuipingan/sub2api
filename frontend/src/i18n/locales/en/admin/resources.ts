@@ -387,6 +387,7 @@ export default {
       columns: {
         title: 'Title',
         status: 'Status',
+        displayMode: 'Display Location',
         notifyMode: 'Notify Mode',
         targeting: 'Targeting',
         timeRange: 'Schedule',
@@ -402,10 +403,16 @@ export default {
         silent: 'Silent',
         popup: 'Popup'
       },
+      displayModeLabels: {
+        notice: 'Notices',
+        timeline: 'Timeline'
+      },
       form: {
         title: 'Title',
         content: 'Content (Markdown supported)',
         status: 'Status',
+        displayMode: 'Display Location',
+        displayModeHint: 'Notices show ongoing information in full; the timeline lists platform updates by date. Location does not enable popup reminders.',
         notifyMode: 'Notify Mode',
         notifyModeHint: 'Popup mode will show a popup notification to users',
         startsAt: 'Starts At',

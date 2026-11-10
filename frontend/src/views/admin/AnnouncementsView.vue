@@ -76,6 +76,12 @@
             </span>
           </template>
 
+          <template #cell-display_mode="{ row }">
+            <span class="badge" :class="row.display_mode === 'notice' ? 'badge-primary' : 'badge-gray'">
+              {{ t(row.display_mode === 'notice' ? 'admin.announcements.displayModeLabels.notice' : 'admin.announcements.displayModeLabels.timeline') }}
+            </span>
+          </template>
+
           <template #cell-notify_mode="{ row }">
             <span
               :class="[
@@ -186,6 +192,17 @@
           <textarea v-model="form.content" rows="6" class="input" required></textarea>
         </div>
 
+        <div>
+          <label for="announcement-display-mode" class="input-label">{{ t('admin.announcements.form.displayMode') }}</label>
+          <Select
+            id="announcement-display-mode"
+            v-model="form.display_mode"
+            :options="displayModeOptions"
+            :aria-label="t('admin.announcements.form.displayMode')"
+          />
+          <p class="input-hint">{{ t('admin.announcements.form.displayModeHint') }}</p>
+        </div>
+
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.announcements.form.status') }}</label>
@@ -263,7 +280,7 @@ import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
-import type { AdminGroup, Announcement, AnnouncementTargeting } from '@/types'
+import type { AdminGroup, Announcement, AnnouncementDisplayMode, AnnouncementTargeting, CreateAnnouncementRequest, UpdateAnnouncementRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -321,9 +338,15 @@ const notifyModeOptions = computed(() => [
   { value: 'popup', label: t('admin.announcements.notifyModeLabels.popup') }
 ])
 
+const displayModeOptions = computed(() => [
+  { value: 'timeline', label: t('admin.announcements.displayModeLabels.timeline') },
+  { value: 'notice', label: t('admin.announcements.displayModeLabels.notice') }
+])
+
 const columns = computed<Column[]>(() => [
   { key: 'title', label: t('admin.announcements.columns.title'), sortable: true },
   { key: 'status', label: t('admin.announcements.columns.status'), sortable: true },
+  { key: 'display_mode', label: t('admin.announcements.columns.displayMode') },
   { key: 'notify_mode', label: t('admin.announcements.columns.notifyMode'), sortable: true },
   { key: 'targeting', label: t('admin.announcements.columns.targeting') },
   { key: 'timeRange', label: t('admin.announcements.columns.timeRange') },
@@ -430,8 +453,9 @@ const isEditing = computed(() => !!editingAnnouncement.value)
 const form = reactive({
   title: '',
   content: '',
-  status: 'draft',
-  notify_mode: 'silent',
+  status: 'draft' as Announcement['status'],
+  notify_mode: 'silent' as Announcement['notify_mode'],
+  display_mode: 'timeline' as AnnouncementDisplayMode,
   starts_at_str: '',
   ends_at_str: '',
   targeting: { any_of: [] } as AnnouncementTargeting
@@ -454,6 +478,7 @@ function resetForm() {
   form.content = ''
   form.status = 'draft'
   form.notify_mode = 'silent'
+  form.display_mode = 'timeline'
   form.starts_at_str = ''
   form.ends_at_str = ''
   form.targeting = { any_of: [] }
@@ -464,6 +489,7 @@ function fillFormFromAnnouncement(a: Announcement) {
   form.content = a.content
   form.status = a.status
   form.notify_mode = a.notify_mode || 'silent'
+  form.display_mode = a.display_mode === 'notice' ? 'notice' : 'timeline'
 
   // Backend returns RFC3339 strings
   form.starts_at_str = a.starts_at ? formatDateTimeLocalInput(Math.floor(new Date(a.starts_at).getTime() / 1000)) : ''
@@ -489,28 +515,30 @@ function closeEdit() {
   editingAnnouncement.value = null
 }
 
-function buildCreatePayload() {
+function buildCreatePayload(): CreateAnnouncementRequest {
   const startsAt = parseDateTimeLocalInput(form.starts_at_str)
   const endsAt = parseDateTimeLocalInput(form.ends_at_str)
 
   return {
     title: form.title,
     content: form.content,
-    status: form.status as any,
-    notify_mode: form.notify_mode as any,
+    status: form.status,
+    notify_mode: form.notify_mode,
+    display_mode: form.display_mode,
     targeting: form.targeting,
     starts_at: startsAt ?? undefined,
     ends_at: endsAt ?? undefined
   }
 }
 
-function buildUpdatePayload(original: Announcement) {
-  const payload: any = {}
+function buildUpdatePayload(original: Announcement): UpdateAnnouncementRequest {
+  const payload: UpdateAnnouncementRequest = {}
 
   if (form.title !== original.title) payload.title = form.title
   if (form.content !== original.content) payload.content = form.content
   if (form.status !== original.status) payload.status = form.status
   if (form.notify_mode !== (original.notify_mode || 'silent')) payload.notify_mode = form.notify_mode
+  if (form.display_mode !== (original.display_mode || 'timeline')) payload.display_mode = form.display_mode
 
   // starts_at / ends_at: distinguish unchanged vs clear(0) vs set
   const originalStarts = original.starts_at ? Math.floor(new Date(original.starts_at).getTime() / 1000) : null

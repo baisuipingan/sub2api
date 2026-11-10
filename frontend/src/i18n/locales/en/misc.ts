@@ -100,6 +100,18 @@ export default {
 
   // Announcements Page
   announcements: {
+    snapshotChanged: 'Announcements have changed. Please confirm mark all as read again.',
+    systemTitle: 'System announcements',
+    centerDescription: 'Platform updates and notices',
+    noticeTab: 'Notices',
+    timelineTab: 'Timeline',
+    timelineHint: 'Platform updates in date order. Select a title to read more.',
+    emptyNotices: 'No notices',
+    emptyTimeline: 'No platform updates',
+    loadMore: 'Load more',
+    loadFailed: 'Failed to load announcements. Please retry.',
+    readFailed: 'Failed to mark as read. Please retry.',
+
     title: 'Announcements',
     description: 'View system announcements',
     unreadOnly: 'Show unread only',

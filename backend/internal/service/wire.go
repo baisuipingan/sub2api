@@ -27,6 +27,12 @@ func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthCli
 	return svc
 }
 
+func ProvideAnnouncementService(repo AnnouncementRepository, reads AnnouncementReadRepository, users UserRepository, subscriptions UserSubscriptionRepository, cfg *config.Config) *AnnouncementService {
+	svc := NewAnnouncementService(repo, reads, users, subscriptions)
+	svc.SetSnapshotKey(cfg.JWT.Secret)
+	return svc
+}
+
 // BuildInfo contains build information
 type BuildInfo struct {
 	Version         string
@@ -910,7 +916,7 @@ var ProviderSet = wire.NewSet(
 	NewBillingService,
 	NewImageStudioPricingService,
 	ProvideBillingCacheService,
-	NewAnnouncementService,
+	ProvideAnnouncementService,
 	ProvideTicketService,
 	ProvideTicketAttachmentService,
 	NewAdminService,

@@ -384,6 +384,7 @@ export default {
       columns: {
         title: '标题',
         status: '状态',
+        displayMode: '展示位置',
         notifyMode: '通知方式',
         targeting: '展示条件',
         timeRange: '有效期',
@@ -399,10 +400,16 @@ export default {
         silent: '静默',
         popup: '弹窗'
       },
+      displayModeLabels: {
+        notice: '通知',
+        timeline: '时间线'
+      },
       form: {
         title: '标题',
         content: '内容（支持 Markdown）',
         status: '状态',
+        displayMode: '展示位置',
+        displayModeHint: '通知完整显示常驻说明；时间线按日期展示平台动态。展示位置不会自动开启弹窗。',
         notifyMode: '通知方式',
         notifyModeHint: '弹窗模式会自动弹出通知给用户',
         startsAt: '开始时间',

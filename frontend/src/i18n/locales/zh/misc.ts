@@ -98,6 +98,18 @@ export default {
 
   // Announcements Page
   announcements: {
+    snapshotChanged: '公告内容已更新，请再次确认全部已读',
+    systemTitle: '系统公告',
+    centerDescription: '最新平台更新和通知',
+    noticeTab: '通知',
+    timelineTab: '时间线',
+    timelineHint: '按时间查看平台动态，点击标题展开详情。',
+    emptyNotices: '暂无通知',
+    emptyTimeline: '暂无平台动态',
+    loadMore: '加载更多',
+    loadFailed: '公告加载失败，请重试',
+    readFailed: '标记已读失败，请重试',
+
     title: '公告',
     description: '查看系统公告',
     unreadOnly: '仅显示未读',
