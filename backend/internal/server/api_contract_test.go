@@ -615,6 +615,8 @@ func TestAPIContracts(t *testing.T) {
 						"total_cost": 0.5,
 						"actual_cost": 0.5,
 						"charge_credits": 0,
+						"charge_credits_string": "0",
+						"credits_per_usd_string": "0",
 						"rate_multiplier": 1,
 						"long_context_billing_applied": false,
 						"billing_type": 0,

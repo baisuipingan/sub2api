@@ -35,7 +35,7 @@ func attachAPIKeyManagementMetadata(ctx context.Context, q sqlExecutor, keys []*
 	if err != nil {
 		return fmt.Errorf("load API key management metadata: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var id int64
 		var typ, purpose string
@@ -81,7 +81,7 @@ func (r *apiKeyRepository) EnsureDesktopAgentKey(ctx context.Context, candidate 
 	if err != nil {
 		return nil, false, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var uid int64
 	var userStatus string
 	var restrict bool
