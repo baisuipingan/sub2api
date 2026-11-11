@@ -129,7 +129,7 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 9
+	idx := len(prepared.args) - 11
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)
@@ -142,4 +142,56 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	require.False(t, nullArg.Valid, "absent upstream request id must be NULL")
 
 	require.Contains(t, usageLogSelectColumns, "upstream_request_id")
+}
+
+func TestUsageLogInsertAndRead_PreserveCreditsAlongsideCacheWriteTTL(t *testing.T) {
+	log := &service.UsageLog{
+		UserID:                 1,
+		APIKeyID:               2,
+		AccountID:              3,
+		RequestID:              "credits-and-cache-ttl",
+		Model:                  "gpt-6-luna",
+		CacheCreationTokens:    2399,
+		CacheCreation30mTokens: 9,
+		CacheCreation12hTokens: 2390,
+		ChargeCredits:          17023,
+		BillingCurrency:        "CNY",
+		CreditsPerUSD:          1000000,
+		USDToCNYRate:           7.123456,
+		BillingVersion:         4,
+		CreatedAt:              time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC),
+	}
+	prepared := prepareUsageLogInsert(log)
+	args := anySliceToDriverValues(prepared.args)
+	var captured []string
+	db, mock := newSQLCapturingMock(t, &captured)
+	repo := &usageLogRepository{sql: db}
+	mock.ExpectQuery("INSERT INTO usage_logs").WithArgs(args...).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(42), log.CreatedAt))
+	inserted, err := repo.Create(context.Background(), log)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	requireStaticInsertMatchesArgTypes(t, captured[0])
+
+	insertShape := usageLogStaticInsertShapeRe.FindStringSubmatch(captured[0])
+	insertColumns := strings.FieldsFunc(insertShape[1], func(r rune) bool { return r == ',' })
+	for i := range insertColumns {
+		insertColumns[i] = strings.TrimSpace(insertColumns[i])
+	}
+	require.Equal(t, strings.Split(usageLogSelectColumns, ", ")[1:], insertColumns,
+		"read and write column order must preserve both the credit snapshot and TTL buckets")
+	rows := sqlmock.NewRows(strings.Split(usageLogSelectColumns, ", "))
+	row := append(anySliceToDriverValues([]any{int64(42)}), args...)
+	mock.ExpectQuery("SELECT").WithArgs(int64(42)).WillReturnRows(rows.AddRow(row...))
+	stored, err := repo.GetByID(context.Background(), 42)
+	require.NoError(t, err)
+	require.Equal(t, log.ChargeCredits, stored.ChargeCredits)
+	require.Equal(t, log.BillingCurrency, stored.BillingCurrency)
+	require.Equal(t, log.CreditsPerUSD, stored.CreditsPerUSD)
+	require.Equal(t, log.USDToCNYRate, stored.USDToCNYRate)
+	require.Equal(t, log.BillingVersion, stored.BillingVersion)
+	require.Equal(t, log.CacheCreationTokens, stored.CacheCreationTokens)
+	require.Equal(t, log.CacheCreation30mTokens, stored.CacheCreation30mTokens)
+	require.Equal(t, log.CacheCreation12hTokens, stored.CacheCreation12hTokens)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

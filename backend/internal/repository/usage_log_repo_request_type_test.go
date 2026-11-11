@@ -107,6 +107,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // credits_per_usd
 			sqlmock.AnyArg(), // usd_to_cny_rate
 			sqlmock.AnyArg(), // billing_version
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
@@ -207,6 +209,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // credits_per_usd
 			sqlmock.AnyArg(), // usd_to_cny_rate
 			sqlmock.AnyArg(), // billing_version
+			log.CacheCreation30mTokens,
+			log.CacheCreation12hTokens,
 			createdAt,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
@@ -288,8 +292,8 @@ func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestT
 	prepared := prepareUsageLogInsert(log)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-7])
-	require.Equal(t, true, prepared.args[len(prepared.args)-7])
+	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-9])
+	require.Equal(t, true, prepared.args[len(prepared.args)-9])
 	require.Equal(t, int16(service.RequestTypeStream), prepared.args[30])
 	require.Equal(t, service.RequestTypeStream, log.RequestType)
 	require.True(t, log.Stream)
@@ -975,6 +979,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0), // credits_per_usd
 			0.0,      // usd_to_cny_rate
 			int64(0), // billing_version
+			0,        // cache_creation_30m_tokens
+			0,        // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1060,6 +1066,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // credits_per_usd
 			0.0,               // usd_to_cny_rate
 			int64(0),          // billing_version
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1128,6 +1136,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // credits_per_usd
 			0.0,               // usd_to_cny_rate
 			int64(0),          // billing_version
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
@@ -1197,6 +1207,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			int64(0),          // credits_per_usd
 			0.0,               // usd_to_cny_rate
 			int64(0),          // billing_version
+			0,                 // cache_creation_30m_tokens
+			0,                 // cache_creation_12h_tokens
 			now,
 		}})
 		require.NoError(t, err)
