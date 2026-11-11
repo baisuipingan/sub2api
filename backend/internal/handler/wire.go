@@ -162,6 +162,12 @@ func ProvideBatchImageHandler(
 	return h
 }
 
+// ProvideDesktopAgentHandler keeps policy configuration separate from the
+// credential implementation; an absent provider cannot make bootstrap ready.
+func ProvideDesktopAgentHandler(settings *service.SettingService, users *service.UserService, groups *service.GroupService, keys *service.APIKeyService) *DesktopAgentHandler {
+	return NewDesktopAgentHandler(service.NewDesktopAgentService(settings, users, groups, keys))
+}
+
 // ProvideImageStudioHandler 装配生图工作台 handler。
 //
 // 依赖 APIKey / Setting / Group 三个服务：
@@ -224,6 +230,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	desktopAgentHandler *DesktopAgentHandler,
 	imageStudioHandler *ImageStudioHandler,
 	imageStudioGalleryHandler *ImageStudioGalleryHandler,
 	studioJobHandler *StudioJobHandler,
@@ -255,6 +262,7 @@ func ProvideHandlers(
 		ModelPlaza:         modelPlazaHandler,
 		AsyncImage:         asyncImageHandler,
 		BatchImage:         batchImageHandler,
+		DesktopAgent:       desktopAgentHandler,
 		ImageStudio:        imageStudioHandler,
 		ImageStudioGallery: imageStudioGalleryHandler,
 		ImageStudioJobs:    studioJobHandler,
@@ -286,6 +294,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	ProvideDesktopAgentHandler,
 	ProvideImageStudioHandler,
 	ProvideImageStudioGalleryHandler,
 	NewStudioJobHandler,

@@ -39,6 +39,7 @@ func RegisterAdminRoutes(
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 		registerWorkbenchRoutes(admin, h, stepUpAuth, panelRateLimiter)
+		registerDesktopAgentAdminRoutes(admin, h, stepUpAuth)
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)

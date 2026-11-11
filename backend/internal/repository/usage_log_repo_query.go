@@ -390,6 +390,13 @@ func (r *usageLogRepository) loadAPIKeys(ctx context.Context, ids []int64) (map[
 	for _, m := range models {
 		out[m.ID] = apiKeyEntityToService(m)
 	}
+	keys := make([]*service.APIKey, 0, len(out))
+	for _, key := range out {
+		keys = append(keys, key)
+	}
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, keys); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 

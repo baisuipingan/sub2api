@@ -1360,6 +1360,11 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		return nil, err
 	}
 
+	// Agent 组由桌面配置唯一维护，通用管理员接口不能与 bootstrap 交替覆盖。
+	if apiKey.Purpose == APIKeyPurposeDesktopAgent && groupID != nil {
+		return nil, ErrSystemKeyProtected
+	}
+
 	if groupID == nil {
 		// nil 表示不修改，直接返回
 		return &AdminUpdateAPIKeyGroupIDResult{APIKey: apiKey}, nil

@@ -13,6 +13,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -86,7 +87,11 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	key := apiKeyEntityToService(m)
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, []*service.APIKey{key}); err != nil {
+		return nil, err
+	}
+	return key, nil
 }
 
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
@@ -487,6 +492,10 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 		return nil, nil, err
 	}
 
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, apiKeyPointers(outKeys)); err != nil {
+		return nil, nil, err
+	}
+
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
 }
 
@@ -506,6 +515,10 @@ func (r *apiKeyRepository) ListAllByUserID(ctx context.Context, userID int64, fi
 	if err := r.attachLastUsedIPs(ctx, outKeys); err != nil {
 		return nil, err
 	}
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, apiKeyPointers(outKeys)); err != nil {
+		return nil, err
+	}
+
 	return outKeys, nil
 }
 
@@ -648,6 +661,10 @@ func (r *apiKeyRepository) ListByGroupID(ctx context.Context, groupID int64, par
 		outKeys = append(outKeys, *apiKeyEntityToService(keys[i]))
 	}
 
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, apiKeyPointers(outKeys)); err != nil {
+		return nil, nil, err
+	}
+
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
 }
 
@@ -718,6 +735,10 @@ func (r *apiKeyRepository) SearchAPIKeys(ctx context.Context, userID int64, keyw
 	for i := range keys {
 		outKeys = append(outKeys, *apiKeyEntityToService(keys[i]))
 	}
+	if err := attachAPIKeyManagementMetadata(ctx, r.sql, apiKeyPointers(outKeys)); err != nil {
+		return nil, err
+	}
+
 	return outKeys, nil
 }
 
@@ -734,7 +755,10 @@ func (r *apiKeyRepository) ClearGroupIDByGroupID(ctx context.Context, groupID in
 func (r *apiKeyRepository) UpdateGroupIDByUserAndGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (int64, error) {
 	client := clientFromContext(ctx, r.client)
 	n, err := client.APIKey.Update().
-		Where(apikey.UserIDEQ(userID), apikey.GroupIDEQ(oldGroupID), apikey.DeletedAtIsNil()).
+		// Agent 分组由桌面配置维护，批量“替换用户分组”不能绕过专用入口。
+		Where(apikey.UserIDEQ(userID), apikey.GroupIDEQ(oldGroupID), apikey.DeletedAtIsNil(), predicate.APIKey(func(sel *entsql.Selector) {
+			sel.Where(entsql.Or(entsql.IsNull(sel.C("purpose")), entsql.NEQ(sel.C("purpose"), service.APIKeyPurposeDesktopAgent)))
+		})).
 		SetGroupID(newGroupID).
 		Save(ctx)
 	return int64(n), err

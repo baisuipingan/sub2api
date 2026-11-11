@@ -1,0 +1,344 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+type desktopAgentSettingsStub struct {
+	SettingRepository
+	values  map[string]string
+	written map[string]string
+	err     error
+}
+
+func (r *desktopAgentSettingsStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	return r.values, r.err
+}
+func (r *desktopAgentSettingsStub) SetMultiple(_ context.Context, values map[string]string) error {
+	r.written = values
+	if r.err != nil {
+		return r.err
+	}
+	for k, v := range values {
+		r.values[k] = v
+	}
+	return nil
+}
+
+type desktopAgentUserStub struct {
+	user  *User
+	err   error
+	calls int
+}
+
+func (r *desktopAgentUserStub) GetByID(context.Context, int64) (*User, error) {
+	r.calls++
+	return r.user, r.err
+}
+
+type desktopAgentGroupStub struct {
+	group *Group
+	err   error
+	calls int
+}
+
+func (r *desktopAgentGroupStub) GetByID(context.Context, int64) (*Group, error) {
+	r.calls++
+	return r.group, r.err
+}
+
+type desktopAgentKeyStub struct {
+	onEnsure func()
+	key      *APIKey
+	err      error
+	calls    int
+}
+
+func (r *desktopAgentKeyStub) GetDesktopAgentCredential(_ context.Context, userID, groupID int64) (*APIKey, string, error) {
+	r.calls++
+	if r.onEnsure != nil {
+		r.onEnsure()
+	}
+	return r.key, APIKeyPurposeDesktopAgent, r.err
+}
+func desktopBool(v bool) *bool { return &v }
+func validDesktopConfig() DesktopAgentConfig {
+	return DesktopAgentConfig{Enabled: true, GroupID: 12, BaseURL: "https://gateway.example.test/v1", Model: &DesktopAgentModel{
+		ID: "verified-responses-model", DisplayName: "Verified model", ContextWindow: 100000, MaxOutputTokens: 20000, DefaultMaxOutputTokens: 10000,
+		ReasoningLevels: []string{"low", "medium", "high"}, DefaultReasoning: "medium", SupportsReasoning: desktopBool(true), SupportsStreaming: desktopBool(true), RequiresMFJSToolSchema: desktopBool(false),
+		Input: &DesktopAgentInput{Text: desktopBool(true), Image: desktopBool(true), Video: desktopBool(false), Audio: desktopBool(false), PDF: desktopBool(false)}, Output: &DesktopAgentOutput{Text: desktopBool(true)},
+		SupportsToolCall: desktopBool(true), SupportsJSONSchemaOutput: desktopBool(false), SupportsNativeWebSearch: desktopBool(false), SupportsMidConversationSystem: desktopBool(true),
+	}}
+}
+func desktopFixture(t *testing.T) (*DesktopAgentService, *desktopAgentSettingsStub, *desktopAgentUserStub, *desktopAgentGroupStub, *desktopAgentKeyStub) {
+	t.Helper()
+	cfg := validDesktopConfig()
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	repo := &desktopAgentSettingsStub{values: map[string]string{SettingKeyDesktopAgentConfig: string(raw), "unrelated": "keep"}}
+	user := &desktopAgentUserStub{user: &User{ID: 7, Status: StatusActive}}
+	groups := &desktopAgentGroupStub{group: &Group{ID: 12, Platform: PlatformComposite, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard}}
+	id := int64(12)
+	keys := &desktopAgentKeyStub{key: &APIKey{ID: 9007199254740993, UserID: 7, Key: "private-fixture-only", GroupID: &id, Status: StatusActive, KeyType: APIKeyTypeSystem, Purpose: APIKeyPurposeDesktopAgent}}
+	return NewDesktopAgentService(NewSettingService(repo, nil), user, groups, keys), repo, user, groups, keys
+}
+func TestDesktopAgentDefaultsDisabledAndNeverTouchesCredentials(t *testing.T) {
+	svc, repo, users, groups, keys := desktopFixture(t)
+	delete(repo.values, SettingKeyDesktopAgentConfig)
+	result, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, "disabled", result.ServiceStatus)
+	require.Nil(t, result.Credential)
+	require.Zero(t, keys.calls)
+	require.Zero(t, users.calls)
+	require.Zero(t, groups.calls)
+	again, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, result.ConfigRevision, again.ConfigRevision)
+}
+func TestDesktopAgentConfigRequiresCompleteExplicitSafePolicy(t *testing.T) {
+	cases := map[string]func(*DesktopAgentConfig){
+		"missing model":          func(c *DesktopAgentConfig) { c.Model = nil },
+		"http":                   func(c *DesktopAgentConfig) { c.BaseURL = "http://gateway.example.test/v1" },
+		"query":                  func(c *DesktopAgentConfig) { c.BaseURL += "?token=secret" },
+		"userinfo":               func(c *DesktopAgentConfig) { c.BaseURL = "https://secret@gateway.example.test/v1" },
+		"responses path":         func(c *DesktopAgentConfig) { c.BaseURL += "/responses" },
+		"no group":               func(c *DesktopAgentConfig) { c.GroupID = 0 },
+		"missing bool":           func(c *DesktopAgentConfig) { c.Model.SupportsJSONSchemaOutput = nil },
+		"no tools":               func(c *DesktopAgentConfig) { c.Model.SupportsToolCall = desktopBool(false) },
+		"no streaming":           func(c *DesktopAgentConfig) { c.Model.SupportsStreaming = desktopBool(false) },
+		"default outside budget": func(c *DesktopAgentConfig) { c.Model.DefaultMaxOutputTokens = c.Model.MaxOutputTokens + 1 },
+		"limit exceeds context":  func(c *DesktopAgentConfig) { c.Model.MaxOutputTokens = c.Model.ContextWindow },
+		"reasoning duplicate":    func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"low", "low"} },
+		"reasoning out of order": func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"high", "low"} },
+		"reasoning unknown":      func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"guessed"} },
+		"default absent":         func(c *DesktopAgentConfig) { c.Model.DefaultReasoning = "max" },
+		"unsupported reasoning":  func(c *DesktopAgentConfig) { c.Model.SupportsReasoning = desktopBool(false) },
+		"model wildcard":         func(c *DesktopAgentConfig) { c.Model.ID = "model-*" },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			cfg := validDesktopConfig()
+			mutate(&cfg)
+			require.ErrorIs(t, validateDesktopAgentConfig(cfg), ErrDesktopAgentInvalid)
+		})
+	}
+	cfg := validDesktopConfig()
+	cfg.Model.SupportsReasoning = desktopBool(false)
+	cfg.Model.ReasoningLevels = []string{"none"}
+	cfg.Model.DefaultReasoning = "none"
+	require.NoError(t, validateDesktopAgentConfig(cfg))
+	// 模型 ID 是网关标识而不是路径；保留合法命名空间 alias。
+	cfg.Model.ID = "openai/verified-responses-model"
+	require.NoError(t, validateDesktopAgentConfig(cfg))
+}
+func TestDesktopAgentStrictRequestRejectsAmbiguityAndAuthorityFields(t *testing.T) {
+	valid := `{"client_version":"0.1.0","protocol_version":1,"platform":"darwin"}`
+	for _, raw := range []string{`{}`, `null`, `[]`, valid + ` {}`,
+		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","Platform":"win32"`, 1),
+		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":2`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
+		_, err := ParseDesktopAgentRequest([]byte(raw))
+		require.ErrorIs(t, err, ErrDesktopAgentInvalid, raw)
+	}
+	req, err := ParseDesktopAgentRequest([]byte(valid))
+	require.NoError(t, err)
+	require.Equal(t, "darwin", req.Platform)
+	for _, raw := range []string{`{}`, `{"enabled":false,"enabled":true}`, `{"enabled":null}`, `{"enabled":false,"key":"no"}`} {
+		_, err := ParseDesktopAgentConfig([]byte(raw))
+		require.ErrorIs(t, err, ErrDesktopAgentInvalid)
+	}
+}
+func TestDesktopAgentBootstrapFailuresNeverReturnSecretsOrCreateKeys(t *testing.T) {
+	for _, name := range []string{"invalid config", "user inactive", "wrong user", "deleted user", "user missing", "group inactive", "subscription", "wrong platform", "exclusive", "restricted public", "model forbidden", "group missing", "reasoning capped", "reasoning denied"} {
+		t.Run(name, func(t *testing.T) {
+			svc, repo, users, groups, keys := desktopFixture(t)
+			switch name {
+			case "invalid config":
+				repo.values[SettingKeyDesktopAgentConfig] = `{"enabled":true}`
+			case "user inactive":
+				users.user.Status = "disabled"
+			case "wrong user":
+				users.user.ID = 8
+			case "deleted user":
+				now := time.Now()
+				users.user.DeletedAt = &now
+			case "user missing":
+				users.err = ErrUserNotFound
+			case "group inactive":
+				groups.group.Status = "disabled"
+			case "subscription":
+				groups.group.SubscriptionType = SubscriptionTypeSubscription
+			case "wrong platform":
+				groups.group.Platform = PlatformGemini
+			case "exclusive":
+				groups.group.IsExclusive = true
+			case "restricted public":
+				users.user.RestrictPublicGroups = true
+			case "model forbidden":
+				groups.group.ModelAllowlist = GroupModelAllowlist{Enabled: true, Models: []string{"another-model"}}
+			case "group missing":
+				groups.err = ErrGroupNotFound
+			case "reasoning capped":
+				groups.group.MaxReasoningEffort = "low"
+			case "reasoning denied":
+				groups.group.MaxReasoningEffort = "low"
+				groups.group.MaxReasoningEffortOverLimit = "deny"
+			}
+			result, err := svc.Bootstrap(context.Background(), 7)
+			require.NoError(t, err)
+			require.NotEqual(t, "ready", result.ServiceStatus)
+			raw, err := json.Marshal(result)
+			require.NoError(t, err)
+			for _, field := range []string{"credential", "models", "provider", "selection_policy", "private-fixture"} {
+				require.NotContains(t, string(raw), field)
+			}
+			require.Zero(t, keys.calls)
+		})
+	}
+}
+func TestDesktopAgentBootstrapReadyAndRevokedCredentialNotReactivated(t *testing.T) {
+	svc, _, _, _, keys := desktopFixture(t)
+	ready, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, "ready", ready.ServiceStatus)
+	require.Equal(t, "9007199254740993", ready.Credential.ID)
+	require.Nil(t, ready.Credential.ExpiresAt)
+	require.Equal(t, 10000, ready.SelectionPolicy.MaxOutputTokens)
+	require.Equal(t, "inherit-main", ready.SelectionPolicy.Auxiliary)
+	require.Len(t, ready.Models, 1)
+	for _, reason := range []string{"disabled", "expired", "quota_exhausted"} {
+		t.Run(reason, func(t *testing.T) {
+			svc, _, _, _, keys := desktopFixture(t)
+			switch reason {
+			case "disabled":
+				keys.key.Status = StatusAPIKeyDisabled
+			case "expired":
+				past := time.Now().Add(-time.Second)
+				keys.key.ExpiresAt = &past
+			case "quota_exhausted":
+				keys.key.Quota = 1
+				keys.key.QuotaUsed = 1
+			}
+			result, err := svc.Bootstrap(context.Background(), 7)
+			require.NoError(t, err)
+			require.Equal(t, "credential_blocked", result.ServiceStatus)
+			require.Equal(t, "credential_"+reason, result.ReasonCode)
+			require.Nil(t, result.Credential)
+			require.Equal(t, 1, keys.calls)
+		})
+	}
+	keys.err = errors.New("secret infrastructure detail")
+	result, err := svc.Bootstrap(context.Background(), 7)
+	require.Error(t, err)
+	require.Nil(t, result)
+}
+
+func TestDesktopAgentReasoningValidationMatchesClientRequestShape(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		from string
+		to   string
+		deny bool
+	}{
+		{name: "omitted none ignores explicit none mapping", from: "none", to: "low"},
+		{name: "omitted none ignores explicit none deny", from: "none", to: ReasoningEffortMappingDeny},
+		{name: "explicit low mapping still rejected", from: "low", to: "medium", deny: true},
+		{name: "explicit low deny still rejected", from: "low", to: ReasoningEffortMappingDeny, deny: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo, _, groups, keys := desktopFixture(t)
+			cfg := validDesktopConfig()
+			cfg.Model.ReasoningLevels = []string{"none", "low"}
+			cfg.Model.DefaultReasoning = "none"
+			groups.group.ReasoningEffortMappings = []ReasoningEffortMapping{{From: tc.from, To: tc.to}}
+			// 同时覆盖保存配置和既有配置的 bootstrap 校验，避免只修其中一条链路。
+			raw, err := json.Marshal(cfg)
+			require.NoError(t, err)
+			repo.values[SettingKeyDesktopAgentConfig] = string(raw)
+			_, err = svc.UpdateConfig(context.Background(), cfg)
+			if tc.deny {
+				require.ErrorIs(t, err, ErrDesktopAgentInvalid)
+			} else {
+				require.NoError(t, err)
+			}
+			result, err := svc.Bootstrap(context.Background(), 7)
+			require.NoError(t, err)
+			if tc.deny {
+				require.Equal(t, "configuration_invalid", result.ReasonCode)
+				require.Nil(t, result.Credential)
+				require.Zero(t, keys.calls)
+			} else {
+				require.Equal(t, "ready", result.ServiceStatus)
+				require.Equal(t, "none", result.SelectionPolicy.ReasoningLevel)
+				require.NotNil(t, result.Credential)
+				require.Equal(t, 1, keys.calls)
+			}
+		})
+	}
+}
+func TestDesktopAgentUpdateOnlyOwnSettingAndValidatesGroup(t *testing.T) {
+	svc, repo, _, groups, _ := desktopFixture(t)
+	cfg := validDesktopConfig()
+	_, err := svc.UpdateConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	require.Len(t, repo.written, 1)
+	require.Equal(t, "keep", repo.values["unrelated"])
+	first, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	cfg.Model.DefaultMaxOutputTokens--
+	_, err = svc.UpdateConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	second, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	require.NotEqual(t, first.ConfigRevision, second.ConfigRevision)
+	groups.group.Status = "disabled"
+	_, err = svc.UpdateConfig(context.Background(), cfg)
+	require.ErrorIs(t, err, ErrDesktopAgentInvalid)
+	cfg.Enabled = false
+	_, err = svc.UpdateConfig(context.Background(), cfg)
+	require.NoError(t, err)
+}
+
+func TestDesktopAgentDoesNotReturnReadyAfterConfigurationChangesDuringEnsure(t *testing.T) {
+	svc, repo, _, _, keys := desktopFixture(t)
+	keys.onEnsure = func() {
+		cfg := validDesktopConfig()
+		cfg.Enabled = false
+		raw, _ := json.Marshal(cfg)
+		repo.values[SettingKeyDesktopAgentConfig] = string(raw)
+	}
+	result, err := svc.Bootstrap(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, "configuration_changed", result.ReasonCode)
+	require.Nil(t, result.Credential)
+	require.Nil(t, result.Provider)
+}
+
+func TestDesktopAgentDoesNotReturnReadyAfterAuthorizationChangesDuringEnsure(t *testing.T) {
+	for _, kind := range []string{"user", "group permission", "model permission"} {
+		t.Run(kind, func(t *testing.T) {
+			svc, _, users, groups, keys := desktopFixture(t)
+			keys.onEnsure = func() {
+				switch kind {
+				case "user":
+					users.user.Status = StatusDisabled
+				case "group permission":
+					users.user.RestrictPublicGroups = true
+				case "model permission":
+					groups.group.Status = StatusDisabled
+				}
+			}
+			result, err := svc.Bootstrap(context.Background(), 7)
+			require.NoError(t, err)
+			require.NotEqual(t, "ready", result.ServiceStatus)
+			require.Nil(t, result.Credential)
+		})
+	}
+}

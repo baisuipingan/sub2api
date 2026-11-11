@@ -72,6 +72,7 @@ type Handlers struct {
 	ModelPlaza         *ModelPlazaHandler
 	AsyncImage         *AsyncImageHandler
 	BatchImage         *BatchImageHandler
+	DesktopAgent       *DesktopAgentHandler
 	ImageStudio        *ImageStudioHandler
 	ImageStudioGallery *ImageStudioGalleryHandler
 	ImageStudioJobs    *StudioJobHandler

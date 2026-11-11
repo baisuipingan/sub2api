@@ -30,8 +30,9 @@ func IsWindowExpired(windowStart *time.Time, duration time.Duration) bool {
 // 密钥类型。用户自建密钥与系统托管密钥在权限上不同：
 // 系统密钥（生图工作台等）只能由系统创建，用户不可删除或改分组。
 const (
-	APIKeyTypeUser   = "user"
-	APIKeyTypeSystem = "system"
+	APIKeyTypeUser            = "user"
+	APIKeyTypeSystem          = "system"
+	APIKeyPurposeDesktopAgent = "desktop_agent"
 )
 
 type APIKey struct {
@@ -42,7 +43,9 @@ type APIKey struct {
 	GroupID *int64
 	Status  string
 	// KeyType 区分用户自建与系统托管，见 APIKeyType* 常量
-	KeyType     string
+	KeyType string
+	// Purpose 是系统管理身份；不限制网关协议权限。历史密钥保持空值。
+	Purpose     string
 	IPWhitelist []string
 	IPBlacklist []string
 	// 预编译的 IP 规则，用于认证热路径避免重复 ParseIP/ParseCIDR。

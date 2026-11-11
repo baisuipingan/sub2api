@@ -631,13 +631,16 @@ type UsageLog struct {
 	CacheCreation30mTokens int `json:"cache_creation_30m_tokens"`
 	CacheCreation12hTokens int `json:"cache_creation_12h_tokens"`
 
-	InputCost                 float64 `json:"input_cost"`
-	OutputCost                float64 `json:"output_cost"`
-	CacheCreationCost         float64 `json:"cache_creation_cost"`
-	CacheReadCost             float64 `json:"cache_read_cost"`
-	TotalCost                 float64 `json:"total_cost"`
-	ActualCost                float64 `json:"actual_cost"`
-	ChargeCredits             int64   `json:"charge_credits"`
+	InputCost         float64 `json:"input_cost"`
+	OutputCost        float64 `json:"output_cost"`
+	CacheCreationCost float64 `json:"cache_creation_cost"`
+	CacheReadCost     float64 `json:"cache_read_cost"`
+	TotalCost         float64 `json:"total_cost"`
+	ActualCost        float64 `json:"actual_cost"`
+	ChargeCredits     int64   `json:"charge_credits"`
+	// 十进制投影保留 int64 精度；旧数值字段继续兼容现有消费者。
+	ChargeCreditsString       string  `json:"charge_credits_string"`
+	CreditsPerUSDString       string  `json:"credits_per_usd_string"`
 	BillingCurrency           string  `json:"billing_currency,omitempty"`
 	CreditsPerUSD             int64   `json:"credits_per_usd,omitempty"`
 	USDToCNYRate              float64 `json:"usd_to_cny_rate,omitempty"`

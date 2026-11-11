@@ -25,6 +25,8 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
+		registerDesktopAgentUserRoutes(authenticated, h)
+
 		// 生图工作台：返回（或按需创建）用户专属系统密钥
 		//
 		// 放在 JWT 认证组下而不是网关组：用户不需要知道自己有这把密钥，

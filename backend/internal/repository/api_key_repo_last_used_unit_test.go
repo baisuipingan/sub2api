@@ -31,6 +31,11 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	drv := entsql.OpenDB(dialect.SQLite, db)
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
+	// Ent schema 尚未包含迁移249/256的管理列；fixture 应匹配生产迁移，不能在查询失败时绕过脱敏。
+	_, err = db.Exec("ALTER TABLE api_keys ADD COLUMN key_type VARCHAR(20) NOT NULL DEFAULT 'user'")
+	require.NoError(t, err)
+	_, err = db.Exec("ALTER TABLE api_keys ADD COLUMN purpose VARCHAR(32)")
+	require.NoError(t, err)
 
 	return &apiKeyRepository{client: client, sql: db}, client
 }

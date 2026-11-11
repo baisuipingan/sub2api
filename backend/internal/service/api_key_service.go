@@ -700,25 +700,7 @@ func (s *APIKeyService) List(ctx context.Context, userID int64, params paginatio
 		return nil, nil, fmt.Errorf("list api keys: %w", err)
 	}
 	s.fillCurrentConcurrency(ctx, keys)
-	s.markSystemKeys(ctx, userID, keys)
 	return keys, pagination, nil
-}
-
-// markSystemKeys 给系统托管密钥打上 key_type，供前端禁用编辑/删除/换分组。
-// 失败不影响列表本身，最多是前端多显示几个可点按钮（后端仍会拦）。
-func (s *APIKeyService) markSystemKeys(ctx context.Context, userID int64, keys []APIKey) {
-	if len(keys) == 0 {
-		return
-	}
-	ids, err := s.apiKeyRepo.ListSystemKeyIDs(ctx, userID)
-	if err != nil || len(ids) == 0 {
-		return
-	}
-	for i := range keys {
-		if _, ok := ids[keys[i].ID]; ok {
-			keys[i].KeyType = APIKeyTypeSystem
-		}
-	}
 }
 
 func (s *APIKeyService) listByCurrentConcurrency(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
@@ -915,7 +897,15 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 
 	// 系统托管密钥只允许改「名称」这类无害字段，分组/状态由系统维护：
 	// 用户把分组改走后，工作台请求会打到错误的分组上。
-	if isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id); err == nil && isSystem && req.GroupID != nil {
+	// 用途身份禁止通用编辑，避免名称变更、配额重置或清过期绕过停用。
+	if apiKey.Purpose == APIKeyPurposeDesktopAgent {
+		return nil, ErrSystemKeyProtected
+	}
+	isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load API key management type: %w", err)
+	}
+	if isSystem && req.GroupID != nil {
 		return nil, ErrSystemKeyProtected
 	}
 
@@ -1072,7 +1062,11 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
 
 	// 系统托管密钥（生图工作台专用）不允许用户删除：
 	// 删掉会让工作台立即不可用，而用户通常不知道自己依赖它。
-	if isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id); err == nil && isSystem {
+	isSystem, err := s.apiKeyRepo.IsSystemKey(ctx, id)
+	if err != nil {
+		return fmt.Errorf("load API key management type: %w", err)
+	}
+	if isSystem {
 		return ErrSystemKeyProtected
 	}
 

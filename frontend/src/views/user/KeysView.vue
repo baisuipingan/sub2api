@@ -117,10 +117,14 @@
 
           <template #cell-key="{ value, row }">
             <div class="flex items-center gap-2">
-              <code class="code text-xs">
-                {{ maskApiKey(value) }}
+              <code
+                class="code text-xs"
+                :title="!value && isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
+              >
+                {{ value ? maskApiKey(value) : '—' }}
               </code>
               <button
+                v-if="value"
                 @click="copyToClipboard(value, row.id)"
                 class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                 :class="
