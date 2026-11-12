@@ -183,6 +183,8 @@ export interface UserBreakdownParams {
   stream?: boolean
   native_compaction_v2?: boolean | null
   billing_type?: number | null
+  billing_mode?: string
+  upstream_model_mismatch?: boolean
 }
 
 export interface UserBreakdownResponse {
@@ -191,9 +193,13 @@ export interface UserBreakdownResponse {
   end_date: string
 }
 
-export async function getUserBreakdown(params: UserBreakdownParams): Promise<UserBreakdownResponse> {
+export async function getUserBreakdown(
+  params: UserBreakdownParams,
+  options?: { signal?: AbortSignal }
+): Promise<UserBreakdownResponse> {
   const { data } = await apiClient.get<UserBreakdownResponse>('/admin/dashboard/user-breakdown', {
-    params
+    params,
+    signal: options?.signal
   })
   return data
 }

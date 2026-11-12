@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
+import DistributionBars from '@/components/charts/DistributionBars.vue'
 
 const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
@@ -96,7 +97,8 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
-vi.mock('@/utils/format', () => ({
+vi.mock('@/utils/format', async () => ({
+  ...await vi.importActual<typeof import('@/utils/format')>('@/utils/format'),
   formatReasoningEffort: (value: string | null | undefined) => value ?? '-',
 }))
 
@@ -170,6 +172,7 @@ const mountRouteFilteredUsageView = () => mount(UsageView, {
     UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
     UserBalanceHistoryModal: true, Pagination: true, Select: true,
     DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+    DistributionBars: true,
     ModelDistributionChart: true, GroupDistributionChart: true,
     EndpointDistributionChart: true, UserTokenRanking: true,
   } },
@@ -371,6 +374,136 @@ describe('admin UsageView distribution metric toggles', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('enables administrator user breakdown with the selected dates and shared usage filters', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    ;(wrapper.vm as any).filters = {
+      start_date: '2026-11-01',
+      end_date: '2026-11-12',
+      user_id: 42,
+      api_key_id: 17,
+      account_id: 23,
+      group_id: 5,
+      request_type: 'sync',
+      stream: true,
+      native_compaction_v2: false,
+      billing_type: 0,
+      upstream_model_mismatch: false,
+    }
+    await flushPromises()
+
+    const distribution = wrapper.findComponent(DistributionBars)
+    expect(distribution.props('enableBreakdown')).toBe(true)
+    expect(distribution.props('startDate')).toBe('2026-11-01')
+    expect(distribution.props('endDate')).toBe('2026-11-12')
+    expect(distribution.props('filters')).toEqual({
+      user_id: 42,
+      api_key_id: 17,
+      account_id: 23,
+      group_id: 5,
+      request_type: 'sync',
+      stream: false,
+      native_compaction_v2: false,
+      billing_type: 0,
+      upstream_model_mismatch: false,
+    })
+
+    delete (wrapper.vm as any).filters.start_date
+    delete (wrapper.vm as any).filters.end_date
+    await flushPromises()
+    expect(distribution.props('startDate')).toBe((wrapper.vm as any).startDate)
+    expect(distribution.props('endDate')).toBe((wrapper.vm as any).endDate)
+    wrapper.unmount()
+  })
+
+  it('keeps model and billing mode filters in the endpoint scope without narrowing other distributions', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    ;(wrapper.vm as any).filters.model = 'gpt-image-2'
+    ;(wrapper.vm as any).filters.billing_mode = 'image'
+    ;(wrapper.vm as any).filters.group_id = 5
+    await flushPromises()
+
+    const distribution = wrapper.findComponent(DistributionBars)
+    expect(distribution.props('endpointFilters')).toEqual(expect.objectContaining({
+      model: 'gpt-image-2',
+      billing_mode: 'image',
+    }))
+    expect(distribution.props('filters')).toMatchObject({ group_id: 5 })
+    expect(distribution.props('filters')).not.toHaveProperty('model')
+    expect(distribution.props('filters')).not.toHaveProperty('billing_mode')
+
+    ;(wrapper.vm as any).filters.model = undefined
+    ;(wrapper.vm as any).filters.billing_mode = undefined
+    await flushPromises()
+    expect(distribution.props('endpointFilters').model).toBeUndefined()
+    expect(distribution.props('endpointFilters').billing_mode).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['sync', false],
+    ['stream', true],
+    ['ws_v2', true],
+    ['cyber', undefined],
+    ['live', undefined],
+    ['unknown', undefined],
+  ])('passes request type %s without an incompatible legacy stream constraint', async (requestType, stream) => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    ;(wrapper.vm as any).filters.request_type = requestType
+    ;(wrapper.vm as any).filters.stream = !stream
+    await flushPromises()
+
+    const passedFilters = wrapper.findComponent(DistributionBars).props('filters')
+    expect(passedFilters.request_type).toBe(requestType)
+    if (stream === undefined) expect(passedFilters).not.toHaveProperty('stream')
+    else expect(passedFilters.stream).toBe(stream)
+    wrapper.unmount()
+  })
+
+  it('preserves an explicit legacy stream filter when no request type is selected', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    ;(wrapper.vm as any).filters.request_type = undefined
+    ;(wrapper.vm as any).filters.stream = false
+    await flushPromises()
+
+    const distribution = wrapper.findComponent(DistributionBars)
+    expect(distribution.props('filters').stream).toBe(false)
+    expect(distribution.props('filters')).not.toHaveProperty('request_type')
+    wrapper.unmount()
+  })
+
+  it('invalidates expanded breakdowns when refreshing unchanged filters or reapplying them', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    const distribution = wrapper.findComponent(DistributionBars)
+    const originalFilters = structuredClone(distribution.props('filters'))
+    const initialRefreshKey = distribution.props('breakdownRefreshKey')
+
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect(distribution.props('filters')).toEqual(originalFilters)
+    expect(distribution.props('breakdownRefreshKey')).toBe(initialRefreshKey + 1)
+
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect(distribution.props('filters')).toEqual(originalFilters)
+    expect(distribution.props('breakdownRefreshKey')).toBe(initialRefreshKey + 2)
+
+    ;(wrapper.vm as any).applyFilters()
+    await flushPromises()
+    expect(distribution.props('breakdownRefreshKey')).toBe(initialRefreshKey + 3)
+    wrapper.unmount()
   })
 
   it('keeps previous model stats visible during refresh until new data arrives', async () => {

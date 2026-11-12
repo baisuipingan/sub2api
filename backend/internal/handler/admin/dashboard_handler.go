@@ -734,6 +734,13 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 			dim.BillingType = &btVal
 		}
 	}
+	dim.BillingMode = strings.TrimSpace(c.Query("billing_mode"))
+	upstreamModelMismatch, err := parseOptionalBoolDashboardFilter(c, "upstream_model_mismatch")
+	if err != nil {
+		response.BadRequest(c, "Invalid upstream_model_mismatch value, use true or false")
+		return
+	}
+	dim.UpstreamModelMismatch = upstreamModelMismatch
 
 	// sort_by 由 repo 层 allowlist 校验;非法值静默回退默认排序(actual_cost)。
 	dim.SortBy = strings.TrimSpace(c.Query("sort_by"))

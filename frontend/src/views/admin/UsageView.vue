@@ -52,6 +52,12 @@
               :endpoint-path-stats="endpointPathStats"
               :loading="chartsLoading || modelStatsLoading || endpointStatsLoading"
               :show-source-toggle="true"
+              enable-breakdown
+              :start-date="filters.start_date || startDate"
+              :end-date="filters.end_date || endDate"
+              :filters="breakdownFilters"
+              :endpoint-filters="endpointBreakdownFilters"
+              :breakdown-refresh-key="breakdownRefreshKey"
               default-tab="model"
             />
           </div>
@@ -216,6 +222,7 @@ const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
   mapping: false,
 })
 const distributionMetric = ref<'tokens' | 'actual_cost'>('tokens')
+const breakdownRefreshKey = ref(0)
 
 /** 趋势图头部显示的总 Token */
 const totalTokens = computed(() =>
@@ -254,10 +261,19 @@ const breakdownFilters = computed(() => {
   if (filters.value.account_id) f.account_id = filters.value.account_id
   if (filters.value.group_id) f.group_id = filters.value.group_id
   if (filters.value.request_type != null) f.request_type = filters.value.request_type
+  const stream = filters.value.request_type ? requestTypeToLegacyStream(filters.value.request_type) : filters.value.stream
+  if (stream != null) f.stream = stream
   if (filters.value.native_compaction_v2 != null) f.native_compaction_v2 = filters.value.native_compaction_v2
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
+  if (filters.value.upstream_model_mismatch != null) f.upstream_model_mismatch = filters.value.upstream_model_mismatch
   return f
 })
+
+// 端点来自 getStats，保留其模型和计费模式范围；模型/分组图沿用各自原有范围。
+const endpointBreakdownFilters = computed(() => ({
+  model: filters.value.model || undefined,
+  billing_mode: filters.value.billing_mode || undefined,
+}))
 
 const modelNameOptions = computed(() =>
   Array.from(new Set(requestedModelStats.value.map((m) => m.model).filter(Boolean))).sort()
@@ -526,6 +542,7 @@ const loadChartData = async () => {
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
 }
 const applyFilters = () => {
+  breakdownRefreshKey.value++
   pagination.page = 1
   invalidateModelStatsCache()
   loadLogs()
@@ -540,6 +557,7 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
+  breakdownRefreshKey.value++
   invalidateModelStatsCache()
   loadLogs()
   loadStats(true)

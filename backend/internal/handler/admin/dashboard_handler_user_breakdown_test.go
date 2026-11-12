@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -279,4 +280,90 @@ func TestGetUserBreakdown_InvalidRequestType(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetUserBreakdown_UpstreamModelMismatchPreservesDimensionFilters(t *testing.T) {
+	for _, dimension := range []struct {
+		name, model, source, endpoint string
+	}{
+		{name: "group"},
+		{name: "requested", model: "public-model", source: usagestats.ModelSourceRequested},
+		{name: "upstream", model: "provider-model", source: usagestats.ModelSourceUpstream},
+		{name: "mapping", model: "public-model -> provider-model", source: usagestats.ModelSourceMapping},
+		{name: "endpoint", endpoint: "/v1/responses"},
+	} {
+		for _, mismatch := range []string{"true", "false", ""} {
+			t.Run(dimension.name+"/"+mismatch, func(t *testing.T) {
+				repo := &userBreakdownRepoCapture{}
+				params := url.Values{
+					"group_id": {"42"}, "user_id": {"7"}, "api_key_id": {"8"}, "account_id": {"9"},
+					"request_type": {"stream"}, "native_compaction_v2": {"true"}, "billing_type": {"1"},
+					"sort_by": {"requests"}, "model": {dimension.model}, "endpoint": {dimension.endpoint},
+					"endpoint_type": {"upstream"}, "upstream_model_mismatch": {mismatch},
+				}
+				if dimension.source != "" {
+					params.Set("model_source", dimension.source)
+				}
+				w := httptest.NewRecorder()
+				newUserBreakdownRouter(repo).ServeHTTP(w, httptest.NewRequest(http.MethodGet,
+					"/admin/dashboard/user-breakdown?"+params.Encode(), nil))
+
+				require.Equal(t, http.StatusOK, w.Code)
+				require.Equal(t, dimension.model, repo.capturedDim.Model)
+				if dimension.source != "" {
+					require.Equal(t, dimension.source, repo.capturedDim.ModelType)
+				}
+				require.Equal(t, dimension.endpoint, repo.capturedDim.Endpoint)
+				require.Equal(t, "upstream", repo.capturedDim.EndpointType)
+				require.Equal(t, int64(42), repo.capturedDim.GroupID)
+				require.Equal(t, int64(7), repo.capturedDim.UserID)
+				require.Equal(t, int64(8), repo.capturedDim.APIKeyID)
+				require.Equal(t, int64(9), repo.capturedDim.AccountID)
+				require.NotNil(t, repo.capturedDim.RequestType)
+				require.Equal(t, int16(service.RequestTypeStream), *repo.capturedDim.RequestType)
+				require.NotNil(t, repo.capturedDim.NativeCompactionV2)
+				require.True(t, *repo.capturedDim.NativeCompactionV2)
+				require.NotNil(t, repo.capturedDim.BillingType)
+				require.Equal(t, int8(1), *repo.capturedDim.BillingType)
+				require.Equal(t, "requests", repo.capturedDim.SortBy)
+				if mismatch == "" {
+					require.Nil(t, repo.capturedDim.UpstreamModelMismatch)
+				} else {
+					require.NotNil(t, repo.capturedDim.UpstreamModelMismatch)
+					require.Equal(t, mismatch == "true", *repo.capturedDim.UpstreamModelMismatch)
+				}
+			})
+		}
+	}
+}
+
+func TestGetUserBreakdown_InvalidUpstreamModelMismatch(t *testing.T) {
+	repo := &userBreakdownRepoCapture{}
+	w := httptest.NewRecorder()
+	newUserBreakdownRouter(repo).ServeHTTP(w, httptest.NewRequest(http.MethodGet,
+		"/admin/dashboard/user-breakdown?upstream_model_mismatch=invalid", nil))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Invalid upstream_model_mismatch")
+	require.Zero(t, repo.capturedLimit)
+}
+
+func TestGetUserBreakdown_EndpointBillingModeFilterMatchesUsageStats(t *testing.T) {
+	for _, mode := range []string{"image", "token", "video", "per_request", "custom-mode", ""} {
+		t.Run(mode, func(t *testing.T) {
+			repo := &userBreakdownRepoCapture{}
+			params := url.Values{
+				"model": {"public-model"}, "endpoint": {"/v1/responses"}, "billing_mode": {" " + mode + " "},
+			}
+			w := httptest.NewRecorder()
+			newUserBreakdownRouter(repo).ServeHTTP(w, httptest.NewRequest(http.MethodGet,
+				"/admin/dashboard/user-breakdown?"+params.Encode(), nil))
+
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, mode, repo.capturedDim.BillingMode)
+			require.Equal(t, "public-model", repo.capturedDim.Model)
+			require.Equal(t, usagestats.ModelSourceRequested, repo.capturedDim.ModelType)
+			require.Equal(t, "/v1/responses", repo.capturedDim.Endpoint)
+		})
+	}
 }

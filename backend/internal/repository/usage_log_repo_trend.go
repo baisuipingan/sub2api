@@ -676,6 +676,10 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 		query += fmt.Sprintf(" AND ul.billing_type = $%d", len(args)+1)
 		args = append(args, *dim.BillingType)
 	}
+	query, args = appendUsageLogBillingModeQueryFilter(query, args, dim.BillingMode, "ul")
+	if dim.UpstreamModelMismatch != nil {
+		query += " AND " + upstreamModelMismatchCondition("ul.upstream_model_mismatch", *dim.UpstreamModelMismatch)
+	}
 
 	// ORDER BY 列来自固定 allowlist(非用户原样字符串),避免 SQL 注入。
 	orderBy := "actual_cost"

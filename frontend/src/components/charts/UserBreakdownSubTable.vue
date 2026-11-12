@@ -6,34 +6,46 @@
     <div v-else-if="items.length === 0" class="py-2 text-center text-xs text-gray-400">
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
-    <table v-else class="w-full text-xs">
-      <tbody>
-        <tr
-          v-for="user in items"
-          :key="user.user_id"
-          class="border-t border-gray-100/50 dark:border-dark-700/50"
-        >
-          <td class="max-w-[120px] truncate py-1 pl-6 text-gray-600 dark:text-gray-300" :title="user.email">
-            {{ user.email || `User #${user.user_id}` }}
-          </td>
-          <td class="py-1 text-right text-gray-500 dark:text-gray-400">
-            {{ user.requests.toLocaleString() }}
-          </td>
-          <td class="py-1 text-right text-gray-500 dark:text-gray-400">
-            {{ formatTokens(user.total_tokens) }}
-          </td>
-          <td class="py-1 text-right text-green-600 dark:text-green-400">
-            {{ formatCost(user.actual_cost) }}
-          </td>
-          <td v-if="showAccountCost" class="py-1 text-right text-orange-500 dark:text-orange-400">
-            {{ formatCost(user.account_cost) }}
-          </td>
-          <td class="py-1 pr-1 text-right text-gray-400 dark:text-gray-500">
-            {{ formatCost(user.cost) }}
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-else class="overflow-x-auto">
+      <table class="w-full text-xs" :class="{ 'min-w-[480px]': showHeader }">
+        <thead v-if="showHeader">
+          <tr class="border-b border-gray-100 text-[10px] text-gray-500 dark:border-dark-700 dark:text-gray-400">
+            <th scope="col" class="px-2 py-2 text-left font-medium">{{ t('usage.distribution.user') }}</th>
+            <th scope="col" class="py-2 text-right font-medium">{{ t('admin.dashboard.requests') }}</th>
+            <th scope="col" class="py-2 text-right font-medium">{{ t('admin.dashboard.tokens') }}</th>
+            <th scope="col" class="py-2 text-right font-medium">{{ t('admin.dashboard.actual') }}</th>
+            <th v-if="showAccountCost" scope="col" class="py-2 text-right font-medium">{{ t('usage.accountCost') }}</th>
+            <th scope="col" class="px-2 py-2 text-right font-medium">{{ t('admin.dashboard.standard') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="user in items"
+            :key="user.user_id"
+            class="border-t border-gray-100/50 dark:border-dark-700/50"
+          >
+            <td class="max-w-[120px] truncate py-1 text-gray-600 dark:text-gray-300" :class="showHeader ? 'pl-2' : 'pl-6'" :title="user.email">
+              {{ user.email || `User #${user.user_id}` }}
+            </td>
+            <td class="py-1 text-right text-gray-500 dark:text-gray-400">
+              {{ user.requests.toLocaleString() }}
+            </td>
+            <td class="py-1 text-right text-gray-500 dark:text-gray-400">
+              {{ formatTokens(user.total_tokens) }}
+            </td>
+            <td class="py-1 text-right text-green-600 dark:text-green-400">
+              {{ formatCost(user.actual_cost) }}
+            </td>
+            <td v-if="showAccountCost" class="py-1 text-right text-orange-500 dark:text-orange-400">
+              {{ formatCost(user.account_cost) }}
+            </td>
+            <td class="py-1 pr-1 text-right text-gray-400 dark:text-gray-500">
+              {{ formatCost(user.cost) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -51,9 +63,11 @@ const props = withDefaults(defineProps<{
   items: UserBreakdownItem[]
   loading?: boolean
   showAccountCost?: boolean
+  showHeader?: boolean
 }>(), {
   loading: false,
   showAccountCost: true,
+  showHeader: false,
 })
 
 const showAccountCost = computed(() => props.showAccountCost)

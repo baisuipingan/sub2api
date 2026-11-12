@@ -100,3 +100,85 @@ func TestGetUserBreakdownStatsFiltersNativeCompactionV2(t *testing.T) {
 	require.Empty(t, rows)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestGetUserBreakdownStatsFiltersUpstreamModelMismatch(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		mismatch  bool
+		condition string
+	}{
+		{name: "mismatch", mismatch: true, condition: "ul.upstream_model_mismatch IS TRUE"},
+		{name: "matching", condition: "ul.upstream_model_mismatch IS FALSE"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock := newSQLMock(t)
+			repo := &usageLogRepository{sql: db}
+			start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+			end := start.Add(24 * time.Hour)
+			billingType := int8(1)
+			// Keep the selected mapping intact while applying the same mismatch
+			// semantics as the parent chart; NULL historical rows are not FALSE.
+			filter := "AND ul.group_id = $3 AND " + resolveModelDimensionExpression(usagestats.ModelSourceMapping) +
+				" = $4 AND ul.upstream_endpoint = $5 AND ul.user_id = $6 AND ul.api_key_id = $7" +
+				" AND ul.account_id = $8 AND ul.billing_type = $9 AND " + tc.condition +
+				" GROUP BY ul.user_id, u.email ORDER BY requests DESC LIMIT 50"
+			mock.ExpectQuery(regexp.QuoteMeta(filter)).
+				WithArgs(start, end, int64(42), "public -> provider", "/v1/responses", int64(7), int64(8), int64(9), billingType).
+				WillReturnRows(sqlmock.NewRows([]string{
+					"user_id", "email", "requests", "input_tokens", "output_tokens",
+					"cache_tokens", "total_tokens", "cost", "actual_cost", "account_cost",
+				}).AddRow(int64(7), "user@example.test", int64(2), int64(10), int64(20), int64(3), int64(33), 0.2, 0.1, 0.08))
+
+			rows, err := repo.GetUserBreakdownStats(context.Background(), start, end, usagestats.UserBreakdownDimension{
+				GroupID: 42, Model: "public -> provider", ModelType: usagestats.ModelSourceMapping,
+				Endpoint: "/v1/responses", EndpointType: "upstream", UserID: 7, APIKeyID: 8, AccountID: 9,
+				BillingType: &billingType, UpstreamModelMismatch: &tc.mismatch, SortBy: "requests",
+			}, 50)
+
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			require.Equal(t, int64(7), rows[0].UserID)
+			require.Equal(t, int64(2), rows[0].Requests)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestGetUserBreakdownStatsEndpointBillingModeKeepsLegacyUsageSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		mode, condition string
+	}{
+		{mode: "image", condition: "(ul.billing_mode = $5 OR ((ul.billing_mode IS NULL OR ul.billing_mode = '') AND COALESCE(ul.image_count, 0) > 0))"},
+		{mode: "token", condition: "(ul.billing_mode = $5 OR ((ul.billing_mode IS NULL OR ul.billing_mode = '') AND COALESCE(ul.image_count, 0) <= 0))"},
+		{mode: "video", condition: "ul.billing_mode = $5"},
+		{mode: "per_request", condition: "ul.billing_mode = $5"},
+		{mode: "custom-mode", condition: "ul.billing_mode = $5"},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			db, mock := newSQLMock(t)
+			repo := &usageLogRepository{sql: db}
+			start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+			end := start.Add(24 * time.Hour)
+			mismatch := true
+			filter := "AND " + resolveModelDimensionExpression(usagestats.ModelSourceRequested) +
+				" = $3 AND ul.inbound_endpoint = $4 AND " + tc.condition +
+				" AND ul.upstream_model_mismatch IS TRUE GROUP BY ul.user_id, u.email ORDER BY actual_cost DESC"
+			mock.ExpectQuery(regexp.QuoteMeta(filter)).
+				WithArgs(start, end, "public-model", "/v1/responses", tc.mode).
+				WillReturnRows(sqlmock.NewRows([]string{
+					"user_id", "email", "requests", "input_tokens", "output_tokens",
+					"cache_tokens", "total_tokens", "cost", "actual_cost", "account_cost",
+				}))
+
+			rows, err := repo.GetUserBreakdownStats(context.Background(), start, end, usagestats.UserBreakdownDimension{
+				Model: "public-model", ModelType: usagestats.ModelSourceRequested,
+				Endpoint: "/v1/responses", EndpointType: "inbound", BillingMode: tc.mode,
+				UpstreamModelMismatch: &mismatch,
+			}, 0)
+
+			require.NoError(t, err)
+			require.Empty(t, rows)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

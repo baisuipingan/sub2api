@@ -59,16 +59,57 @@
       <template v-else>
         <div
           v-for="(bar, i) in bars"
-          :key="bar.name"
-          class="cbar"
-          :class="{ 'cbar-top': i === 0 }"
-          :title="`${bar.name} · ${bar.displayValue}`"
+          :key="bar.key"
         >
-          <span class="cbar-name">{{ bar.name }}</span>
-          <div class="cbar-track">
-            <div class="cbar-fill" :style="{ width: bar.width + '%' }" />
+          <component
+            :is="canExpand(bar) ? 'button' : 'div'"
+            :type="canExpand(bar) ? 'button' : undefined"
+            class="cbar"
+            :class="{ 'cbar-top': i === 0, 'cbar-button': canExpand(bar) }"
+            :title="`${bar.name} · ${bar.displayValue}`"
+            :aria-expanded="canExpand(bar) ? expandedKey === bar.key : undefined"
+            :aria-controls="canExpand(bar) && expandedKey === bar.key ? breakdownId : undefined"
+            @click="canExpand(bar) && toggleBreakdown(bar)"
+          >
+            <span class="cbar-name flex items-center gap-1.5">
+              <Icon
+                v-if="canExpand(bar)"
+                :name="expandedKey === bar.key ? 'chevronDown' : 'chevronRight'"
+                size="sm"
+                class="shrink-0 text-primary-500"
+                aria-hidden="true"
+              />
+              <span class="truncate">{{ bar.name }}</span>
+            </span>
+            <span class="cbar-track">
+              <span class="cbar-fill block" :style="{ width: bar.width + '%' }" />
+            </span>
+            <span class="cbar-val">{{ bar.displayValue }}</span>
+          </component>
+          <div
+            v-if="expandedKey === bar.key"
+            :id="breakdownId"
+            role="region"
+            :aria-label="t('usage.distribution.userBreakdown', { name: bar.name })"
+            class="my-1 overflow-hidden rounded-md border border-gray-100 dark:border-dark-700"
+          >
+            <div class="bg-gray-50 px-2 py-1.5 text-[10px] text-gray-500 dark:bg-dark-800 dark:text-gray-400">
+              {{ t('usage.distribution.topUsers', { limit: breakdownLimit }) }}
+              · {{ metric === 'tokens' ? t('usage.distribution.byTokens') : t('usage.distribution.byCost') }}
+            </div>
+            <div v-if="breakdownError" role="alert" class="flex items-center justify-between gap-2 p-3 text-xs text-gray-500 dark:text-gray-400">
+              <span>{{ t('usage.distribution.breakdownFailed') }}</span>
+              <button type="button" class="btn btn-secondary btn-sm shrink-0" @click="loadBreakdown(bar)">
+                {{ t('usage.distribution.retry') }}
+              </button>
+            </div>
+            <UserBreakdownSubTable
+              v-else
+              :items="breakdownItems"
+              :loading="breakdownLoading"
+              show-header
+            />
           </div>
-          <span class="cbar-val">{{ bar.displayValue }}</span>
         </div>
       </template>
     </div>
@@ -76,10 +117,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ModelStat, GroupStat, EndpointStat } from '@/types'
+import type { ModelStat, GroupStat, EndpointStat, UserBreakdownItem } from '@/types'
 import { useBillingCurrency } from '@/composables/useBillingCurrency'
+import { formatCompactNumber } from '@/utils/format'
+import { getUserBreakdown, type UserBreakdownParams } from '@/api/admin/dashboard'
+import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
+import Icon from '@/components/icons/Icon.vue'
 
 /** 与三个分布组件内部保持一致的局部类型 */
 type DistributionMetric = 'tokens' | 'actual_cost'
@@ -87,7 +132,9 @@ type DistTab = 'model' | 'group' | 'endpoint'
 
 /** 三种分布的最小公共结构 */
 interface DistItem {
+  key: string
   name: string
+  groupId?: number
   requests: number
   total_tokens: number
   actual_cost: number
@@ -114,6 +161,14 @@ const props = withDefaults(
     /** 来源选择 */
     modelSource?: 'requested' | 'upstream' | 'mapping'
     endpointSource?: 'inbound' | 'upstream' | 'path'
+    /** 只在管理员使用记录页开启，用户页不请求管理员接口。 */
+    enableBreakdown?: boolean
+    startDate?: string
+    endDate?: string
+    filters?: UserBreakdownParams
+    /** 端点总量来自使用统计接口，另包含页面的模型与计费模式筛选。 */
+    endpointFilters?: UserBreakdownParams
+    breakdownRefreshKey?: number
   }>(),
   {
     modelStats: () => [],
@@ -132,6 +187,10 @@ const props = withDefaults(
     showSourceToggle: false,
     modelSource: 'requested',
     endpointSource: 'inbound',
+    enableBreakdown: false,
+    filters: () => ({}),
+    endpointFilters: () => ({}),
+    breakdownRefreshKey: 0,
   },
 )
 
@@ -146,6 +205,85 @@ const { formatCompact } = useBillingCurrency()
 
 const activeTab = ref<DistTab>(props.defaultTab)
 const scrollRef = ref<HTMLElement | null>(null)
+const breakdownId = useId()
+const breakdownLimit = 50
+const expandedKey = ref<string | null>(null)
+const breakdownItems = ref<UserBreakdownItem[]>([])
+const breakdownLoading = ref(false)
+const breakdownError = ref(false)
+let breakdownRequest = 0
+let breakdownController: AbortController | undefined
+
+function resetBreakdown() {
+  breakdownRequest++
+  breakdownController?.abort()
+  breakdownController = undefined
+  expandedKey.value = null
+  breakdownItems.value = []
+  breakdownLoading.value = false
+  breakdownError.value = false
+}
+
+function canExpand(item: DistItem) {
+  return props.enableBreakdown && (activeTab.value !== 'group' || (item.groupId ?? 0) > 0)
+}
+
+async function loadBreakdown(item: DistItem) {
+  breakdownController?.abort()
+  const controller = new AbortController()
+  breakdownController = controller
+  const request = ++breakdownRequest
+  breakdownLoading.value = true
+  breakdownError.value = false
+  breakdownItems.value = []
+  const params: UserBreakdownParams = {
+    ...props.filters,
+    ...(activeTab.value === 'endpoint' ? props.endpointFilters : {}),
+    start_date: props.startDate,
+    end_date: props.endDate,
+    limit: breakdownLimit,
+    sort_by: props.metric === 'tokens' ? 'total_tokens' : 'actual_cost',
+  }
+  if (activeTab.value === 'model') {
+    params.model = item.name
+    params.model_source = props.modelSource
+  } else if (activeTab.value === 'group') {
+    params.group_id = item.groupId
+  } else {
+    params.endpoint = item.name
+    params.endpoint_type = props.endpointSource
+  }
+  try {
+    const result = await getUserBreakdown(params, { signal: controller.signal })
+    if (request === breakdownRequest) breakdownItems.value = result.users || []
+  } catch {
+    if (request === breakdownRequest) breakdownError.value = true
+  } finally {
+    if (request === breakdownRequest) breakdownLoading.value = false
+  }
+}
+
+function toggleBreakdown(item: DistItem) {
+  if (expandedKey.value === item.key) {
+    resetBreakdown()
+    return
+  }
+  expandedKey.value = item.key
+  void loadBreakdown(item)
+}
+
+// 相同筛选的手动刷新也失效；旧请求不能覆盖新行、新来源或新日期的数据。
+watch(
+  () => JSON.stringify([
+    activeTab.value, props.modelSource, props.endpointSource, props.metric,
+    props.startDate, props.endDate, props.filters, props.endpointFilters,
+    props.breakdownRefreshKey, props.enableBreakdown,
+  ]),
+  resetBreakdown,
+  { flush: 'sync' },
+)
+watch(() => props.loading, (loading) => { if (loading) resetBreakdown() }, { flush: 'sync' })
+onUnmounted(resetBreakdown)
 
 const tabs = computed(() => {
   const list: { key: DistTab; label: string }[] = [
@@ -208,6 +346,7 @@ function normalize(): DistItem[] {
           ? props.mappingModelStats
           : props.modelStats
     return src.map((s) => ({
+      key: `model-${props.modelSource}-${s.model}`,
       name: s.model,
       requests: s.requests,
       total_tokens: s.total_tokens,
@@ -216,7 +355,9 @@ function normalize(): DistItem[] {
   }
   if (activeTab.value === 'group') {
     return props.groupStats.map((s) => ({
+      key: `group-${s.group_id}`,
       name: s.group_name,
+      groupId: s.group_id,
       requests: s.requests,
       total_tokens: s.total_tokens,
       actual_cost: s.actual_cost,
@@ -229,6 +370,7 @@ function normalize(): DistItem[] {
         ? props.endpointPathStats
         : props.endpointStats
   return epSrc.map((s) => ({
+    key: `endpoint-${props.endpointSource}-${s.endpoint}`,
     name: s.endpoint,
     requests: s.requests,
     total_tokens: s.total_tokens,
@@ -245,7 +387,7 @@ function metricValue(d: DistItem): number {
 function displayValue(d: DistItem): string {
   return props.metric === 'actual_cost'
     ? formatCompact(d.actual_cost)
-    : formatCompact(d.total_tokens)
+    : formatCompactNumber(d.total_tokens, { allowBillions: true })
 }
 
 /** 当前 Tab 的数据，按指标降序 */
@@ -270,10 +412,17 @@ const bars = computed(() => {
   return items.map((d) => {
     const ratio = Math.sqrt(metricValue(d) / max)
     return {
-      name: d.name,
+      ...d,
       displayValue: displayValue(d),
       width: Math.max(2, ratio * 100),
     }
   })
 })
 </script>
+
+<style scoped>
+.cbar-button {
+  @apply w-full rounded px-1 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-dark-700/50;
+  height: 28px;
+}
+</style>
