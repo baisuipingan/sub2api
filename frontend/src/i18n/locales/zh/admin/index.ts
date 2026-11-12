@@ -9,6 +9,7 @@ import promptAudit from './promptAudit'
 import plugins from './plugins'
 import workbench from './workbench'
 import workbenchSettings from './workbenchSettings'
+import agentSettings from './agentSettings'
 
 export default {
   ...overview,
@@ -22,4 +23,5 @@ export default {
   ...plugins,
   ...workbench,
   ...workbenchSettings,
+  ...agentSettings,
 }

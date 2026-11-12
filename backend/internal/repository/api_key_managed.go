@@ -11,8 +11,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
-// attachAPIKeyManagementMetadata 不使用 best-effort 标记：缺失元数据时不得向普通 API 返回秘密。
-// 保持认证热路径不变；用途仅控制管理与脱敏，不增加网关协议授权规则。
+// attachAPIKeyManagementMetadata 必须完整加载托管身份，避免缺失元数据时丢失写保护。
+// 保持认证热路径不变；用途仅控制托管管理，不增加网关协议授权规则。
 func attachAPIKeyManagementMetadata(ctx context.Context, q sqlExecutor, keys []*service.APIKey) error {
 	if len(keys) == 0 {
 		return nil

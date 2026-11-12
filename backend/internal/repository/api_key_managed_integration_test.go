@@ -104,7 +104,8 @@ func TestDesktopAgentManagedKeyConcurrentEnsureAndMetadata(t *testing.T) {
 	require.Equal(t, image.GroupID, gotImage.GroupID)
 	detail, err := f.repo.GetByID(ctx, agent.ID)
 	require.NoError(t, err)
-	require.Empty(t, dto.APIKeyFromService(detail).Key)
+	require.Equal(t, agent.Key, dto.APIKeyFromService(detail).Key)
+	require.True(t, dto.APIKeyFromService(detail).IsSystem)
 	svc := service.NewAPIKeyService(f.repo, nil, nil, nil, nil, nil, nil)
 	for _, sort := range []string{"id", "group", "current_concurrency"} {
 		keys, _, err := svc.List(ctx, f.userID, pagination.PaginationParams{Page: 1, PageSize: 50, SortBy: sort}, service.APIKeyListFilters{})
@@ -113,14 +114,16 @@ func TestDesktopAgentManagedKeyConcurrentEnsureAndMetadata(t *testing.T) {
 		for i := range keys {
 			if keys[i].ID == agent.ID {
 				require.Equal(t, service.APIKeyPurposeDesktopAgent, keys[i].Purpose)
-				require.Empty(t, dto.APIKeyFromService(&keys[i]).Key)
+				require.Equal(t, agent.Key, dto.APIKeyFromService(&keys[i]).Key)
+				require.True(t, dto.APIKeyFromService(&keys[i]).IsSystem)
 			}
 		}
 	}
 	usageRepo := newUsageLogRepositoryWithSQL(testEntClient(t), integrationDB)
 	nested, err := usageRepo.loadAPIKeys(ctx, []int64{agent.ID, image.ID})
 	require.NoError(t, err)
-	require.Empty(t, dto.UsageLogFromService(&service.UsageLog{APIKey: nested[agent.ID]}).APIKey.Key)
+	require.Equal(t, agent.Key, dto.UsageLogFromService(&service.UsageLog{APIKey: nested[agent.ID]}).APIKey.Key)
+	require.True(t, dto.UsageLogFromService(&service.UsageLog{APIKey: nested[agent.ID]}).APIKey.IsSystem)
 	require.Equal(t, image.Key, dto.APIKeyFromService(nested[image.ID]).Key)
 }
 func TestDesktopAgentManagedKeyBlockedRowsNeverRecreatedOrReset(t *testing.T) {

@@ -8948,8 +8948,13 @@
           <BackupSettings />
         </div>
 
+        <!-- Agent 配置独立保存，不能由通用设置的全量提交覆盖。 -->
+        <div v-show="activeTab === 'agent'" role="tabpanel" aria-labelledby="settings-tab-agent">
+          <AgentSettings :active="activeTab === 'agent'" />
+        </div>
+
         <!-- Save dock — sticky so long tabs never require scrolling to the end -->
-        <div v-show="activeTab !== 'backup'" class="settings-save-dock">
+        <div v-show="activeTab !== 'backup' && activeTab !== 'agent'" class="settings-save-dock">
           <button
             type="submit"
             :disabled="saving || loadFailed"
@@ -9023,6 +9028,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
@@ -9099,6 +9105,7 @@ import {
   stepUpBlockReason,
 } from "@/composables/useStepUp";
 import AdminAccessKeysSettings from "@/components/admin/settings/AdminAccessKeysSettings.vue";
+import AgentSettings from "@/components/admin/settings/AgentSettings.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
@@ -9154,6 +9161,7 @@ type SettingsTab =
   | "security"
   | "users"
   | "gateway"
+  | "agent"
   | "payment"
   | "email"
   | "backup";
@@ -9165,10 +9173,23 @@ const settingsTabs = [
   { key: "security" as SettingsTab, icon: "shield" as const },
   { key: "users" as SettingsTab, icon: "user" as const },
   { key: "gateway" as SettingsTab, icon: "server" as const },
+  { key: "agent" as SettingsTab, icon: "bolt" as const },
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
 ];
+
+const settingsRoute = useRoute();
+const settingsRouter = useRouter();
+watch(
+  () => settingsRoute.hash,
+  (hash) => {
+    const tab = hash.slice(1);
+    if (!hash) activeTab.value = "general";
+    else if (settingsTabs.some((item) => item.key === tab)) activeTab.value = tab as SettingsTab;
+  },
+  { immediate: true },
+);
 
 const settingsTabKeyboardActions = {
   ArrowLeft: -1,
@@ -9181,6 +9202,7 @@ const settingsTabKeyboardActions = {
 
 function selectSettingsTab(tab: SettingsTab): void {
   activeTab.value = tab;
+  void settingsRouter.replace({ hash: `#${tab}` });
 }
 
 function focusSettingsTab(tab: SettingsTab): void {
@@ -11379,6 +11401,8 @@ const siteBillingModeHint = computed(() =>
 );
 
 async function saveSettings() {
+  // 原因：独立Agent区域位于现有外层form中，Enter不能误提交其他系统设置。
+  if (activeTab.value === "agent") return;
   saving.value = true;
   try {
     const normalizedTableDefaultPageSize = Math.floor(

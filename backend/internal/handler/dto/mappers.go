@@ -113,10 +113,6 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		Group:              GroupFromServiceShallow(k.Group),
 		IsSystem:           k.KeyType == service.APIKeyTypeSystem,
 	}
-	// Agent Key 只能通过私有 bootstrap 下发；列表、详情和 usage 嵌套均不暴露。
-	if k.Purpose == service.APIKeyPurposeDesktopAgent {
-		out.Key = ""
-	}
 	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
 		t := k.Window5hStart.Add(service.RateLimitWindow5h)
 		out.Reset5hAt = &t

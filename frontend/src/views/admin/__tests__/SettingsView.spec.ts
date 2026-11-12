@@ -8,6 +8,26 @@ import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
 
+const { settingsRoute, replaceSettingsRoute } = vi.hoisted(() => ({
+  settingsRoute: { hash: "" },
+  replaceSettingsRoute: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("vue-router", async (importOriginal) => ({
+  ...await importOriginal<typeof import("vue-router")>(),
+  useRoute: () => settingsRoute,
+  useRouter: () => ({ replace: replaceSettingsRoute }),
+}));
+vi.mock("@/components/admin/settings/AgentSettings.vue", () => ({
+  default: {
+    props: ["active"],
+    template: '<section data-testid="agent-settings-stub" :data-active="active" />',
+  },
+}));
+beforeEach(() => {
+  settingsRoute.hash = "";
+  replaceSettingsRoute.mockClear();
+});
+
 const {
   getSettings,
   updateSettings,
@@ -608,6 +628,44 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
   await usersTabButton?.trigger("click");
   await flushPromises();
 }
+
+describe("admin SettingsView independent Agent tab", () => {
+  beforeEach(() => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    getGroups.mockResolvedValue([]);
+    getProviders.mockResolvedValue([]);
+    listProxies.mockResolvedValue({ items: [] });
+    getAdminApiKey.mockResolvedValue({ exists: false });
+    updateSettings.mockClear();
+  });
+
+  it("opens the Agent deep link and never submits the general settings form", async () => {
+    settingsRoute.hash = "#agent";
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.get("#settings-tab-agent").attributes("aria-selected")).toBe("true");
+    expect(wrapper.get('[data-testid="agent-settings-stub"]').attributes("data-active")).toBe("true");
+    expect(wrapper.get(".settings-save-dock").isVisible()).toBe(false);
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("selects Agent by keyboard through the same tab and preserves its component", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const agent = wrapper.get('[data-testid="agent-settings-stub"]').element;
+    await wrapper.get("#settings-tab-gateway").trigger("keydown", { key: "ArrowRight" });
+    expect(wrapper.get("#settings-tab-agent").attributes("aria-selected")).toBe("true");
+    expect(replaceSettingsRoute).toHaveBeenLastCalledWith({ hash: "#agent" });
+    await wrapper.get("#settings-tab-general").trigger("click");
+    expect(wrapper.get('[data-testid="agent-settings-stub"]').element).toBe(agent);
+    expect(wrapper.get('[data-testid="agent-settings-stub"]').attributes("data-active")).toBe("false");
+    expect(wrapper.get(".settings-save-dock").isVisible()).toBe(true);
+    wrapper.unmount();
+  });
+});
 
 describe("admin SettingsView email domain quota copy", () => {
   it("documents the email domain quota and empty-whitelist behavior in both locales", () => {
