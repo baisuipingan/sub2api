@@ -143,7 +143,7 @@ func TestDesktopAgentStrictRequestRejectsAmbiguityAndAuthorityFields(t *testing.
 	valid := `{"client_version":"0.1.0","protocol_version":1,"platform":"darwin"}`
 	for _, raw := range []string{`{}`, `null`, `[]`, valid + ` {}`,
 		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","Platform":"win32"`, 1),
-		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":3`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
+		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":4`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
 		_, err := ParseDesktopAgentRequest([]byte(raw))
 		require.ErrorIs(t, err, ErrDesktopAgentInvalid, raw)
 	}
@@ -522,4 +522,178 @@ func TestDesktopAgentDisableRetriesAgainstLatestSavedConfiguration(t *testing.T)
 	require.False(t, result.Enabled)
 	require.Equal(t, "Concurrent saved model", result.Models[0].DisplayName)
 	require.Equal(t, 1234, result.Models[0].DefaultMaxOutputTokens)
+}
+
+// 目录变化和授权变化分离：运行期下架单模型不能让所有其它模型不可用。
+func TestDesktopAgentProtocolThreeIsolatesUnavailableModels(t *testing.T) {
+	for _, kind := range []string{"second removed", "default removed", "all removed", "reasoning changed", "allowlist changed"} {
+		t.Run(kind, func(t *testing.T) {
+			svc, _, _, groups, _ := desktopFixture(t)
+			cfg, err := normalizeDesktopAgentConfig(validDesktopConfig())
+			require.NoError(t, err)
+			second := cfg.Models[0]
+			second.ID, second.DisplayName = "second-model", "Second model"
+			second.SupportsReasoning, second.ReasoningLevels, second.DefaultReasoning = desktopBool(false), []string{"none"}, "none"
+			cfg.Models = append(cfg.Models, second)
+			_, err = svc.UpdateConfig(context.Background(), cfg)
+			require.NoError(t, err)
+			before, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+			require.NoError(t, err)
+			require.Equal(t, "ready", before.ServiceStatus)
+			require.Len(t, before.Models, 2)
+			catalog := svc.catalog.(*desktopCatalogStub)
+			wantUnavailable, wantDefault, wantReason := "second-model", true, "model_unavailable"
+			switch kind {
+			case "second removed":
+				catalog.models = []string{cfg.Models[0].ID}
+			case "default removed":
+				catalog.models = []string{"second-model"}
+				wantUnavailable, wantDefault = cfg.DefaultModelID, false
+			case "all removed":
+				catalog.models = nil
+				wantUnavailable, wantDefault = cfg.DefaultModelID, false
+			case "reasoning changed":
+				groups.group.MaxReasoningEffort = "low"
+				wantUnavailable, wantDefault, wantReason = cfg.DefaultModelID, false, "reasoning_policy_changed"
+			case "allowlist changed":
+				groups.group.ModelAllowlist = GroupModelAllowlist{Enabled: true, Models: []string{"second-model"}}
+				wantUnavailable, wantDefault = cfg.DefaultModelID, false
+			}
+			after, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+			require.NoError(t, err)
+			require.Equal(t, "ready", after.ServiceStatus)
+			require.Equal(t, before.ConfigRevision, after.ConfigRevision)
+			require.Equal(t, before.Credential.AuthorizationScope, after.Credential.AuthorizationScope)
+			require.Equal(t, wantUnavailable, after.UnavailableModels[0].ModelID)
+			require.Equal(t, wantReason, after.UnavailableModels[0].ReasonCode)
+			require.Equal(t, wantDefault, after.SelectionPolicyV3.Default != nil)
+			wantCount := 1
+			if kind == "all removed" {
+				wantCount = 0
+				require.Len(t, after.UnavailableModels, 2)
+			}
+			require.Len(t, after.Models, wantCount)
+			raw, err := json.Marshal(after)
+			require.NoError(t, err)
+			var wire map[string]any
+			require.NoError(t, json.Unmarshal(raw, &wire))
+			require.IsType(t, []any{}, wire["models"])
+			require.IsType(t, []any{}, wire["unavailable_models"])
+			policy := wire["selection_policy"].(map[string]any)
+			require.Equal(t, "inherit-main", policy["auxiliary"])
+			if !wantDefault {
+				require.Nil(t, policy["default"])
+			}
+			// 管理保存仍严格拒绝失效项，旧客户端仍维持整体拒绝合同。
+			_, err = svc.UpdateConfig(context.Background(), cfg)
+			require.ErrorIs(t, err, ErrDesktopAgentInvalid)
+			for _, legacy := range []int{1, 2} {
+				result, err := svc.BootstrapForProtocol(context.Background(), 7, legacy)
+				require.NoError(t, err)
+				require.Equal(t, "not_configured", result.ServiceStatus)
+				require.Nil(t, result.Credential)
+			}
+		})
+	}
+}
+
+func TestDesktopAgentProtocolThreeAuthorizationScopeOnlyTracksCredentialRoute(t *testing.T) {
+	svc, repo, _, groups, keys := desktopFixture(t)
+	first, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+	require.NoError(t, err)
+	require.Len(t, first.Credential.AuthorizationScope, 64)
+	cfg, err := normalizeDesktopAgentConfig(validDesktopConfig())
+	require.NoError(t, err)
+	second := cfg.Models[0]
+	second.ID = "second-model"
+	cfg.Models = append(cfg.Models, second)
+	cfg.DefaultModelID = second.ID
+	cfg.Models[0].DisplayName = "Changed label"
+	cfg.Models[0].DefaultMaxOutputTokens--
+	_, err = svc.UpdateConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	changed, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+	require.NoError(t, err)
+	require.NotEqual(t, first.ConfigRevision, changed.ConfigRevision)
+	require.Equal(t, first.Credential.AuthorizationScope, changed.Credential.AuthorizationScope)
+	priorScope := changed.Credential.AuthorizationScope
+	for _, kind := range []string{"gateway", "key identity", "group"} {
+		switch kind {
+		case "gateway":
+			cfg.BaseURL = "https://second.example.test/v1"
+		case "key identity":
+			keys.key.ID++
+		case "group":
+			cfg.GroupID++
+			groups.group.ID = cfg.GroupID
+			keys.key.GroupID = &cfg.GroupID
+		}
+		raw, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		repo.values[SettingKeyDesktopAgentConfig] = string(raw)
+		result, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+		require.NoError(t, err)
+		require.Equal(t, "ready", result.ServiceStatus)
+		require.NotEqual(t, priorScope, result.Credential.AuthorizationScope, kind)
+		priorScope = result.Credential.AuthorizationScope
+	}
+	for _, protocol := range []int{1, 2} {
+		result, err := svc.BootstrapForProtocol(context.Background(), 7, protocol)
+		require.NoError(t, err)
+		raw, err := json.Marshal(result)
+		require.NoError(t, err)
+		require.NotContains(t, string(raw), "authorization_scope")
+		require.NotContains(t, string(raw), "unavailable_models")
+		require.NotNil(t, result.SelectionPolicy)
+	}
+}
+
+func TestDesktopAgentProtocolThreeUnavailableStateAndReadFailures(t *testing.T) {
+	for _, kind := range []string{"unconfigured", "disabled", "user", "group", "key", "catalog error", "group error", "second catalog error"} {
+		t.Run(kind, func(t *testing.T) {
+			svc, repo, users, groups, keys := desktopFixture(t)
+			switch kind {
+			case "unconfigured":
+				delete(repo.values, SettingKeyDesktopAgentConfig)
+			case "disabled":
+				cfg := validDesktopConfig()
+				cfg.Enabled = false
+				raw, err := json.Marshal(cfg)
+				require.NoError(t, err)
+				repo.values[SettingKeyDesktopAgentConfig] = string(raw)
+			case "user":
+				users.user.Status = "disabled"
+			case "group":
+				groups.group.Status = "disabled"
+			case "key":
+				keys.key.Status = "disabled"
+			case "catalog error":
+				svc.catalog.(*desktopCatalogStub).err = errors.New("private catalog failure")
+			case "group error":
+				groups.err = errors.New("private database failure")
+			case "second catalog error":
+				keys.onEnsure = func() { svc.catalog.(*desktopCatalogStub).err = errors.New("private late catalog failure") }
+			}
+			result, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
+			if strings.Contains(kind, "error") {
+				require.Error(t, err)
+				require.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEqual(t, "ready", result.ServiceStatus)
+			if kind == "unconfigured" {
+				require.Equal(t, "not_configured", result.ServiceStatus)
+				require.Equal(t, "configuration_missing", result.ReasonCode)
+			}
+			if kind == "disabled" {
+				require.Equal(t, "disabled", result.ServiceStatus)
+			}
+			raw, err := json.Marshal(result)
+			require.NoError(t, err)
+			for _, absent := range []string{"provider", "models", "selection_policy", "credential"} {
+				require.NotContains(t, string(raw), `"`+absent+`"`)
+			}
+		})
+	}
 }

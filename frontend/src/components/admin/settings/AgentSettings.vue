@@ -17,11 +17,8 @@
         <div class="card">
           <h3 class="border-b border-gray-100 px-6 py-4 font-semibold dark:border-dark-700">{{ t('admin.agentSettings.connectionTitle') }}</h3>
           <div class="space-y-5 p-6">
-            <label class="flex items-start gap-3">
-              <input v-model="draft.enabled" data-test="agent-enabled" type="checkbox" class="mt-1 rounded" />
-              <span><span class="block font-medium">{{ t('admin.agentSettings.enabled') }}</span><span class="mt-1 block text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.enabledHint') }}</span></span>
-            </label>
-            <p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">{{ t('admin.agentSettings.revocationHint') }}</p>
+            <p data-test="agent-config-status" class="rounded-xl bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">{{ t(`admin.agentSettings.${savedState}`) }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.managedKeyHint') }}</p>
             <div>
               <label for="agent-group" class="input-label">{{ t('admin.agentSettings.group') }}</label>
               <Select id="agent-group" v-model="draft.group_id" data-test="agent-group" :options="groupOptions" :placeholder="t('admin.agentSettings.groupPlaceholder')" :aria-label="t('admin.agentSettings.group')" :disabled="loading || saving" :error="selectedGroupUnavailable" />
@@ -59,10 +56,6 @@
       <div class="card space-y-4 p-6">
         <ul v-if="submitted && validationCodes.length" role="alert" class="list-inside list-disc space-y-1 text-sm text-red-600 dark:text-red-400"><li v-for="code in validationCodes" :key="code">{{ t(`admin.agentSettings.validation.${code}`) }}</li></ul>
         <button type="button" data-test="agent-save" class="btn btn-primary" :disabled="loading || saving" @click="save">{{ saving ? t('common.saving') : t('admin.agentSettings.save') }}</button>
-        <div class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.disableHint') }}</p>
-          <button type="button" data-test="agent-disable" class="btn btn-secondary" :disabled="loading || saving" @click="disableConnections">{{ t('admin.agentSettings.disable') }}</button>
-        </div>
       </div>
     </template>
     <TotpStepUpDialog :controller="stepUp" />
@@ -72,7 +65,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, updateDesktopAgentConfig } from '@/api/admin/desktopAgent'
+import { getDesktopAgentConfig, getDesktopAgentModels, updateDesktopAgentConfig } from '@/api/admin/desktopAgent'
 import type { DesktopAgentConfig, DesktopAgentModel } from '@/api/admin/desktopAgent'
 import { getAllIncludingInactive } from '@/api/admin/groups'
 import type { AdminGroup } from '@/types'
@@ -89,6 +82,7 @@ const stepUp = useStepUp()
 const loading = ref(false)
 const saving = ref(false)
 const loaded = ref(false)
+const savedState = ref<'unconfigured' | 'unpublished' | 'configured'>('unconfigured')
 const submitted = ref(false)
 const errorKey = ref('')
 const noticeKey = ref('')
@@ -124,7 +118,7 @@ const catalogMessageKey = computed(() => {
   return 'admin.agentSettings.catalogHint'
 })
 const validationCodes = computed(() => {
-  const codes: string[] = validateDesktopAgentConfig(draft.value).map(issue => issue.code)
+  const codes: string[] = validateDesktopAgentConfig({ ...draft.value, enabled: true }).map(issue => issue.code)
   if (selectedGroupUnavailable.value) codes.push('group_required')
   if (draft.value.models.length > 0) {
     if (!catalogCurrentReady.value) codes.push('catalog_required')
@@ -187,6 +181,7 @@ function makeDefault(id: string) {
   if (canEdit() && draft.value.models.some(model => model.id === id)) draft.value.default_model_id = id
 }
 function applyConfig(config: DesktopAgentConfig) {
+  savedState.value = config.group_id === 0 && config.models.length === 0 ? 'unconfigured' : config.enabled ? 'configured' : 'unpublished'
   draft.value = JSON.parse(JSON.stringify(config)) as DesktopAgentConfig
   submitted.value = false
 }
@@ -259,11 +254,8 @@ function save() {
   noticeKey.value = ''
   if (validationCodes.value.length) return
   // 原因：二次验证会暂停后重试；本次payload独立于可编辑草稿，避免验证期间被改写。
-  const payload = JSON.parse(JSON.stringify(draft.value)) as DesktopAgentConfig
+  const payload = { ...JSON.parse(JSON.stringify(draft.value)) as DesktopAgentConfig, enabled: true }
   return persist(() => updateDesktopAgentConfig(payload), 'admin.agentSettings.saved')
-}
-function disableConnections() {
-  return persist(disableDesktopAgentConfig, 'admin.agentSettings.disabled')
 }
 watch(() => [props.active, loaded.value, loading.value, draft.value.group_id] as const, () => {
   resetCatalog()

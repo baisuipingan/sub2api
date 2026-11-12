@@ -1,5 +1,62 @@
 # Desktop Agent bootstrap（W3）
 
+## 2026-11-12：目录刷新 v3 与配置页收口（当前合同）
+
+本节替代下文历史“连接开关/关闭 Agent 连接”的管理界面及 protocol 2 新客户端规则；protocol 1/2 的请求与响应合同保持兼容。未部署、未发真实推理请求或支付。源码验证结果见本节末尾。
+
+- **管理规则**：系统设置 → Agent 仅维护分组、网关、模型目录、能力和默认模型，不展示“允许连接”或“关闭连接”。完整有效保存携带 `enabled:true`，保存前仍逐项严格校验全部模型，不能以空配置启用。旧 `enabled` 字段和专用 disable API 保留兼容；首次无配置明确为“尚未配置”，旧完整但 `enabled:false` 明确为“尚未发布，保存后启用”，不能显示已启用。配置开关不承诺关闭已有 Key 或停止已运行的 Agent。
+- **运行目录规则**：v3 将已保存模型与当前组目录、白名单、推理策略逐项验证。单模型失效进入 `unavailable_models`，其他模型继续可用。允许 `ready + models:[]`，表达账户/分组/凭据正常但当前无可用模型。默认模型失效时 `selection_policy.default:null`，不得偷偷切到另一个模型。管理保存保持整体严格拒绝，不自动删除持久模型配置。
+- **失败边界**：组不存在/停用、用户无权限、Key停用/过期/耗尽仍整体 nonready；分组/目录/数据库的读取失败返回 HTTP 503，不能冒充成功空目录。新客户端暂时网络失败保留上次成功快照，明确失效事实则按最新事实处理。相同 `config_revision` 也须读取全部响应状态：hash不包含组内部路由、用户和Key状态。
+- **凭据边界**：`authorization_scope` 为 SHA256(规范 JSON `{group_id,base_url,key_id}`)，不含模型目录、能力、展示名或默认模型；改目录不得废弃在途请求，仅分组/网关/凭据身份变化才切换授权边界。它是客户端竞态隔离标识，不是网关授权令牌。Key照常使用现有余额/分组策略，不增加按 Agent 模型目录拦截的网关规则。
+
+`POST /api/v1/desktop/bootstrap` 新增 `protocol_version:3`，返回 schema 3。ready 的精确增量合同：
+
+```json
+{
+  "schema_version": 3,
+  "config_revision": "saved-config-sha256",
+  "service_status": "ready",
+  "reason_code": "ready",
+  "provider": {"id":"milorouter-managed","api_type":"openai-responses","base_url":"https://account.example.test/v1"},
+  "models": [],
+  "unavailable_models": [{"model_id":"configured-model","display_name":"Configured model","reason_code":"model_unavailable"}],
+  "selection_policy": {"default":null,"auxiliary":"inherit-main"},
+  "credential": {"id":"123","key":"private-current-user-credential","scope":"desktop_agent","expires_at":null,"authorization_scope":"authorization-sha256"}
+}
+```
+
+`models` 与 `unavailable_models` 在 ready 时始终是数组；前者保留原完整模型策略。单模型原因包括 `model_unavailable`（目录/白名单失效）及 `reasoning_policy_changed`（组档位发生改写/拒绝）。默认模型仍有效时 `selection_policy.default` 为 `{model_id,reasoning_level,max_output_tokens}`；`auxiliary` 始终 `inherit-main`，不额外选择辅助模型。nonready 不返回 provider/models/unavailable_models/selection_policy/credential。v3首次零配置为 `not_configured/configuration_missing`；历史完整配置关闭仍为 `disabled/disabled`。protocol 1/2 继续整体严格校验、原 selection_policy 形状、不增加 authorization_scope/unavailable_models。
+
+```mermaid
+sequenceDiagram
+  participant A as 管理页唯一草稿
+  participant S as sub2api设置/目录/Key
+  participant H as Desktop Host配置所有者
+  participant C as CLI原执行器
+  A->>S: 完整配置(enabled=true)，严格验证后保存
+  H->>S: bootstrap protocol 3（登录JWT）
+  S->>S: 整体用户/分组/Key校验，逐模型有效性分类
+  S-->>H: 全目录事实+unavailable+nullable默认+授权scope
+  H->>H: 一次替换目录快照，同scope不取消在途请求
+  H->>C: 发布有效模型目录，新attempt按当前目录验证
+  Note over H,C: 已移除/失效模型明确报错；不静默回落
+```
+
+验收场景：单模型下架保留其余模型；默认下架得到null；全下架仍ready空目录；目录读取失败503且无凭据泄露；同revision组策略变化仍生效；目录/能力/默认变化scope稳定、组/网关/KeyID变化scope改变；旧protocol1/2保持整体拒绝；未配置页不能提交空启用、旧关闭配置保存后启用；step-up/迟到响应/草稿隔离保留。
+
+本轮本地验证：
+
+| 范围 | 执行与结果 |
+| --- | --- |
+| Go 行为 | `go test -p 2 -tags=unit ./internal/service ./internal/handler ./internal/server/routes -run 'TestDesktopAgent' -count=1` 三包通过，包含v3失效隔离、nullable默认、同revision重验、scope边界、暂时读取失败与旧协议兼容 |
+| Server 编译 | `go test -p 2 ./cmd/server -run '^$'` 通过，仅编译/无匹配测试 |
+| 前端回归 | 7文件148项通过：AgentSettings(30)、admin.desktopAgent API、desktopAgentConfig helper、SettingsView、localeKeyCompleteness、localesNoKeyCollision、localesMessageCompile |
+| 完整类型检查 | 从frontend执行 `node node_modules/vue-tsc/bin/vue-tsc.js -b` 通过 |
+| 完整Lint | 从frontend执行 `node node_modules/eslint/bin/eslint.js .` 通过，保留既有UsageView.spec.ts未使用formatLocalDate的1项warning（0 errors） |
+| 差异检查 | `git diff --check` 通过 |
+
+前端测试从frontend使用 `node node_modules/vitest/vitest.mjs run` 加上述7个实际路径执行。SettingsView夹具仍输出既有router-link/watch/jsdom请求诊断，全部断言通过；没有将这些提示记为无告警。未进行生产修改、付费请求、真实账号联调、数据库迁移或本轮真实浏览器验收。管理页收口保留原Select、卡片和step-up交互；测试包含中英文与真实Select键盘选择。
+
 ## 2026-11-12 追加合同：按组选择多个模型与保留配置停用
 
 本节为当前用户修正规则，替代下文历史的“单模型手输 ID”与“仅 `{enabled:false}` 清空配置”交互。基线 `3844d81b2`；本轮经复核后按用户授权发布，真实生产设置保持原值，正式发布状态以 CI 和发布记录为准。

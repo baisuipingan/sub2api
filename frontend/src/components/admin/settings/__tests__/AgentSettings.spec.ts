@@ -109,6 +109,20 @@ describe('system Agent multiple model settings', () => {
     expect(modelInput(wrapper, 'model-default').element.checked).toBe(false); expect(modelInput(wrapper, 'context').element.value).toBe('0')
     expect(input(wrapper, 'gateway').element.value).toBe(`${window.location.origin}/v1`)
   })
+  it('does not publish an empty initial configuration and exposes no connection switches', async () => {
+    mocks.getConfig.mockResolvedValueOnce({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })
+    const { wrapper } = setup(); await flushPromises()
+    expect(wrapper.get('[data-test="agent-config-status"]').text()).toBe(enMessages.agentSettings.unconfigured)
+    expect(wrapper.find('[data-test="agent-enabled"]').exists()).toBe(false); expect(wrapper.find('[data-test="agent-disable"]').exists()).toBe(false)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); expect(mocks.updateConfig).not.toHaveBeenCalled()
+  })
+  it('shows an unpublished legacy configuration and enables it only on valid complete save', async () => {
+    mocks.getConfig.mockResolvedValueOnce({ ...fixture(), enabled: false })
+    const { wrapper } = setup(); await flushPromises()
+    expect(wrapper.get('[data-test="agent-config-status"]').text()).toBe(enMessages.agentSettings.unpublished)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig).toHaveBeenCalledWith(fixture()); expect(wrapper.get('[data-test="agent-config-status"]').text()).toBe(enMessages.agentSettings.configured)
+  })
   it('preserves cards after changing group and blocks models outside the new catalog', async () => {
     mocks.getModels.mockImplementation(async groupId => ({ group_id: groupId, models: groupId === 7 ? ['verified-model'] : ['second-model'] }))
     const { wrapper } = setup(); await flushPromises(); await modelInput(wrapper, 'model-name').setValue('Keep draft')
@@ -121,13 +135,13 @@ describe('system Agent multiple model settings', () => {
     const { wrapper } = setup(); await flushPromises(); expect(card(wrapper).text()).toContain('verified-model'); expect(card(wrapper).find('[data-test="agent-model-unavailable"]').exists()).toBe(true)
     await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); expect(mocks.updateConfig).not.toHaveBeenCalled()
   })
-  it.each(['failure', 'empty', 'wrong-group'])('blocks complete save for catalog %s but allows preserved-config disable', async state => {
+  it.each(['failure', 'empty', 'wrong-group'])('blocks complete save for catalog %s without a misleading disable control', async state => {
     if (state === 'failure') mocks.getModels.mockRejectedValueOnce(new Error('private upstream'))
     if (state === 'empty') mocks.getModels.mockResolvedValueOnce({ group_id: 7, models: [] })
     if (state === 'wrong-group') mocks.getModels.mockResolvedValueOnce({ group_id: 8, models: ['verified-model'] })
     const { wrapper } = setup(); await flushPromises(); await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); expect(mocks.updateConfig).not.toHaveBeenCalled()
-    await modelInput(wrapper, 'model-name').setValue('Unsaved change'); await wrapper.get('[data-test="agent-disable"]').trigger('click'); await flushPromises()
-    expect(mocks.disable).toHaveBeenCalledWith(); expect(mocks.updateConfig).not.toHaveBeenCalled(); expect(modelInput(wrapper, 'model-name').element.value).toBe('Display verified-model'); expect(input(wrapper, 'enabled').element.checked).toBe(false)
+    await modelInput(wrapper, 'model-name').setValue('Unsaved change')
+    expect(wrapper.find('[data-test="agent-disable"]').exists()).toBe(false); expect(mocks.disable).not.toHaveBeenCalled(); expect(modelInput(wrapper, 'model-name').element.value).toBe('Unsaved change')
   })
   it('rejects late group A responses after switching to B and allows retry after a failure', async () => {
     const first = deferred<{ group_id: number; models: string[] }>(); mocks.getModels.mockReturnValueOnce(first.promise)
@@ -164,10 +178,10 @@ describe('system Agent multiple model settings', () => {
     mocks.updateConfig.mockRejectedValueOnce({ reason: 'STEP_UP_REQUIRED' }); const { wrapper } = setup(); await flushPromises(); await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); await wrapper.get('[data-test="step-up-cancel"]').trigger('click'); await flushPromises()
     expect(mocks.updateConfig).toHaveBeenCalledTimes(1); expect(wrapper.find('[role="alert"]').exists()).toBe(false); expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
-  it.each(['save', 'disable'])('does not prompt after leaving while the first %s response is pending', async operation => {
-    const request = deferred<DesktopAgentConfig>(); (operation === 'save' ? mocks.updateConfig : mocks.disable).mockReturnValueOnce(request.promise)
-    const { wrapper } = setup(); await flushPromises(); await wrapper.get(`[data-test="agent-${operation}"]`).trigger('click'); await flushPromises(); await wrapper.setProps({ active: false }); request.reject({ reason: 'STEP_UP_REQUIRED' }); await flushPromises()
-    expect(wrapper.find('[data-test="step-up"]').exists()).toBe(false); expect((operation === 'save' ? mocks.updateConfig : mocks.disable)).toHaveBeenCalledTimes(1)
+  it('does not prompt after leaving while the first save response is pending', async () => {
+    const request = deferred<DesktopAgentConfig>(); mocks.updateConfig.mockReturnValueOnce(request.promise)
+    const { wrapper } = setup(); await flushPromises(); await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); await wrapper.setProps({ active: false }); request.reject({ reason: 'STEP_UP_REQUIRED' }); await flushPromises()
+    expect(wrapper.find('[data-test="step-up"]').exists()).toBe(false); expect(mocks.updateConfig).toHaveBeenCalledTimes(1)
   })
   it('reloads the catalog after returning while a pending save is cancelled', async () => {
     const request = deferred<DesktopAgentConfig>(); mocks.updateConfig.mockReturnValueOnce(request.promise)

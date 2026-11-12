@@ -116,20 +116,60 @@ type DesktopAgentSelection struct {
 	Auxiliary       string `json:"auxiliary"`
 }
 type DesktopAgentCredential struct {
-	ID        string     `json:"id"`
-	Key       string     `json:"key"`
-	Scope     string     `json:"scope"`
-	ExpiresAt *time.Time `json:"expires_at"`
+	ID                 string     `json:"id"`
+	Key                string     `json:"key"`
+	Scope              string     `json:"scope"`
+	AuthorizationScope string     `json:"authorization_scope,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at"`
 }
+type DesktopAgentUnavailableModel struct {
+	ModelID     string `json:"model_id"`
+	DisplayName string `json:"display_name"`
+	ReasonCode  string `json:"reason_code"`
+}
+type DesktopAgentDefaultSelection struct {
+	ModelID         string `json:"model_id"`
+	ReasoningLevel  string `json:"reasoning_level"`
+	MaxOutputTokens int    `json:"max_output_tokens"`
+}
+type DesktopAgentSelectionV3 struct {
+	Default   *DesktopAgentDefaultSelection `json:"default"`
+	Auxiliary string                        `json:"auxiliary"`
+}
+
 type DesktopAgentBootstrap struct {
-	SchemaVersion   int                     `json:"schema_version"`
-	ConfigRevision  string                  `json:"config_revision"`
-	ServiceStatus   string                  `json:"service_status"`
-	ReasonCode      string                  `json:"reason_code"`
-	Provider        *DesktopAgentProvider   `json:"provider,omitempty"`
-	Models          []DesktopAgentModel     `json:"models,omitempty"`
-	SelectionPolicy *DesktopAgentSelection  `json:"selection_policy,omitempty"`
-	Credential      *DesktopAgentCredential `json:"credential,omitempty"`
+	SchemaVersion     int                            `json:"schema_version"`
+	ConfigRevision    string                         `json:"config_revision"`
+	ServiceStatus     string                         `json:"service_status"`
+	ReasonCode        string                         `json:"reason_code"`
+	Provider          *DesktopAgentProvider          `json:"provider,omitempty"`
+	Models            []DesktopAgentModel            `json:"models,omitempty"`
+	SelectionPolicy   *DesktopAgentSelection         `json:"selection_policy,omitempty"`
+	Credential        *DesktopAgentCredential        `json:"credential,omitempty"`
+	UnavailableModels []DesktopAgentUnavailableModel `json:"-"`
+	SelectionPolicyV3 *DesktopAgentSelectionV3       `json:"-"`
+}
+
+// v3 的空目录和空默认值是有效事实；不能被 omitempty 误编码成“未下发策略”。
+func (result DesktopAgentBootstrap) MarshalJSON() ([]byte, error) {
+	type legacy DesktopAgentBootstrap
+	if result.SchemaVersion != 3 || result.ServiceStatus != "ready" {
+		return json.Marshal(legacy(result))
+	}
+	models := result.Models
+	if models == nil {
+		models = []DesktopAgentModel{}
+	}
+	unavailable := result.UnavailableModels
+	if unavailable == nil {
+		unavailable = []DesktopAgentUnavailableModel{}
+	}
+	return json.Marshal(struct {
+		*legacy
+		Models            []DesktopAgentModel            `json:"models"`
+		UnavailableModels []DesktopAgentUnavailableModel `json:"unavailable_models"`
+		SelectionPolicy   *DesktopAgentSelectionV3       `json:"selection_policy"`
+	}{(*legacy)(&result), models, unavailable, result.SelectionPolicyV3})
 }
 
 type desktopAgentUserReader interface {
@@ -285,7 +325,7 @@ func ParseDesktopAgentRequest(data []byte) (DesktopAgentRequest, error) {
 	if err := decodeDesktopJSON(data, &req); err != nil {
 		return req, err
 	}
-	if !desktopAgentString(req.ClientVersion, 128) || (req.ProtocolVersion != 1 && req.ProtocolVersion != 2) || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
+	if !desktopAgentString(req.ClientVersion, 128) || (req.ProtocolVersion != 1 && req.ProtocolVersion != 2 && req.ProtocolVersion != 3) || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
 		return req, ErrDesktopAgentInvalid
 	}
 	var fields map[string]json.RawMessage
@@ -434,48 +474,85 @@ func (s *DesktopAgentService) GetConfig(ctx context.Context) (*DesktopAgentConfi
 	}
 	return &cfg, nil
 }
-func (s *DesktopAgentService) validateGroup(ctx context.Context, cfg DesktopAgentConfig) (*Group, string, error) {
+
+// 组/目录读取错误保持传输失败，不能当作“当前没有模型”成功下发。
+func (s *DesktopAgentService) readGroupCatalog(ctx context.Context, cfg DesktopAgentConfig) (*Group, []string, string, error) {
 	group, err := s.groups.GetByID(ctx, cfg.GroupID)
 	if err != nil {
 		if errors.Is(err, ErrGroupNotFound) {
-			return nil, "group_unavailable", nil
+			return nil, nil, "group_unavailable", nil
 		}
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	if group == nil || group.ID != cfg.GroupID || !group.IsActive() || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
-		return nil, "group_unavailable", nil
+		return nil, nil, "group_unavailable", nil
 	}
 	if s.catalog == nil {
-		return nil, "", errors.New("desktop model catalog unavailable")
+		return nil, nil, "", errors.New("desktop model catalog unavailable")
 	}
 	models, err := s.catalog.ModelsForGroup(ctx, group)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
+	}
+	return group, models, "", nil
+}
+
+func desktopAgentModelPolicyReason(group *Group, models []string, model *DesktopAgentModel) string {
+	if !group.ModelAllowlist.Allows(model.ID) || !slices.Contains(models, model.ID) {
+		return "model_unavailable"
+	}
+	if *model.SupportsReasoning {
+		for _, effort := range model.ReasoningLevels {
+			request := map[string]any{"model": model.ID}
+			// 客户端 none 表示省略 effort，避免误套显式 none 的拒绝或映射。
+			if effort != "none" {
+				request["reasoning"] = map[string]string{"effort": effort}
+			}
+			body, _ := json.Marshal(request)
+			_, changed, err := ApplyReasoningEffortPolicy(body, group.MaxReasoningEffort, group.ReasoningEffortMappings, group.MaxReasoningEffortOverLimit)
+			if err != nil || changed {
+				return "reasoning_policy_changed"
+			}
+		}
+	}
+	return ""
+}
+
+func (s *DesktopAgentService) validateGroup(ctx context.Context, cfg DesktopAgentConfig) (*Group, string, error) {
+	group, models, reason, err := s.readGroupCatalog(ctx, cfg)
+	if err != nil || reason != "" {
+		return nil, reason, err
 	}
 	for i := range cfg.Models {
-		model := &cfg.Models[i]
-		if !group.ModelAllowlist.Allows(model.ID) || !slices.Contains(models, model.ID) {
+		switch desktopAgentModelPolicyReason(group, models, &cfg.Models[i]) {
+		case "model_unavailable":
 			return nil, "model_forbidden", nil
-		}
-		if *model.SupportsReasoning {
-			for _, effort := range model.ReasoningLevels {
-				request := map[string]any{"model": model.ID}
-				// 客户端 none 表示沿用上游默认，实际不会发送 effort；按相同
-				// 请求形状校验，避免误命中分组对显式 none 设置的映射或拒绝。
-				if effort != "none" {
-					request["reasoning"] = map[string]string{"effort": effort}
-				}
-				body, _ := json.Marshal(request)
-				_, changed, err := ApplyReasoningEffortPolicy(body, group.MaxReasoningEffort, group.ReasoningEffortMappings, group.MaxReasoningEffortOverLimit)
-				if err != nil || changed {
-					// 下发档位必须和网关实际执行一致，不把静默降档当作已支持。
-					return nil, "configuration_invalid", nil
-				}
-			}
+		case "reasoning_policy_changed":
+			return nil, "configuration_invalid", nil
 		}
 	}
 	return group, "", nil
 }
+
+// 运行期目录隔离单模型失效；管理员保存仍调用严格 validateGroup。
+func (s *DesktopAgentService) effectiveGroupModels(ctx context.Context, cfg DesktopAgentConfig) (*Group, []DesktopAgentModel, []DesktopAgentUnavailableModel, string, error) {
+	group, catalog, reason, err := s.readGroupCatalog(ctx, cfg)
+	if err != nil || reason != "" {
+		return nil, nil, nil, reason, err
+	}
+	models := make([]DesktopAgentModel, 0, len(cfg.Models))
+	unavailable := make([]DesktopAgentUnavailableModel, 0)
+	for i := range cfg.Models {
+		model := &cfg.Models[i]
+		if reason := desktopAgentModelPolicyReason(group, catalog, model); reason != "" {
+			unavailable = append(unavailable, DesktopAgentUnavailableModel{ModelID: model.ID, DisplayName: model.DisplayName, ReasonCode: reason})
+		} else {
+			models = append(models, *model)
+		}
+	}
+	return group, models, unavailable, "", nil
+}
+
 func (s *DesktopAgentService) GetModels(ctx context.Context, groupID int64) ([]string, error) {
 	if groupID <= 0 {
 		return nil, ErrDesktopAgentInvalid
@@ -523,7 +600,7 @@ func (s *DesktopAgentService) Bootstrap(ctx context.Context, userID int64) (*Des
 	return s.BootstrapForProtocol(ctx, userID, 1)
 }
 func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID int64, protocol int) (*DesktopAgentBootstrap, error) {
-	if protocol != 1 && protocol != 2 {
+	if protocol != 1 && protocol != 2 && protocol != 3 {
 		return nil, ErrDesktopAgentInvalid
 	}
 	cfg, err := s.GetConfig(ctx)
@@ -537,6 +614,9 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	hash := sha256.Sum256(raw)
 	result := &DesktopAgentBootstrap{SchemaVersion: protocol, ConfigRevision: hex.EncodeToString(hash[:]), ServiceStatus: "disabled", ReasonCode: "disabled"}
 	if !cfg.Enabled {
+		if protocol == 3 && cfg.GroupID == 0 && len(cfg.Models) == 0 {
+			result.ServiceStatus, result.ReasonCode = "not_configured", "configuration_missing"
+		}
 		return result, nil
 	}
 	unavailable := func(status, reason string) (*DesktopAgentBootstrap, error) {
@@ -557,7 +637,17 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	if user == nil || user.ID != userID || !user.IsActive() || user.DeletedAt != nil {
 		return unavailable("forbidden", "user_forbidden")
 	}
-	group, reason, err := s.validateGroup(ctx, *cfg)
+	var effectiveModels []DesktopAgentModel
+	var unavailableModels []DesktopAgentUnavailableModel
+	validateBootstrapGroup := func() (*Group, string, error) {
+		if protocol != 3 {
+			return s.validateGroup(ctx, *cfg)
+		}
+		group, models, unavailable, reason, err := s.effectiveGroupModels(ctx, *cfg)
+		effectiveModels, unavailableModels = models, unavailable
+		return group, reason, err
+	}
+	group, reason, err := validateBootstrapGroup()
 	if err != nil {
 		return nil, err
 	}
@@ -596,7 +686,7 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	if user == nil || user.ID != userID || !user.IsActive() || user.DeletedAt != nil {
 		return unavailable("forbidden", "user_forbidden")
 	}
-	group, reason, err = s.validateGroup(ctx, *cfg)
+	group, reason, err = validateBootstrapGroup()
 	if err != nil {
 		return nil, err
 	}
@@ -643,6 +733,25 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	}
 	result.SelectionPolicy = &DesktopAgentSelection{ModelID: selected.ID, ReasoningLevel: selected.DefaultReasoning, MaxOutputTokens: selected.DefaultMaxOutputTokens, Auxiliary: "inherit-main"}
 	result.Credential = &DesktopAgentCredential{ID: strconv.FormatInt(key.ID, 10), Key: key.Key, Scope: scope, ExpiresAt: key.ExpiresAt}
+	if protocol == 3 {
+		result.Models, result.UnavailableModels = effectiveModels, unavailableModels
+		result.SelectionPolicy = nil
+		result.SelectionPolicyV3 = &DesktopAgentSelectionV3{Auxiliary: "inherit-main"}
+		for _, model := range effectiveModels {
+			if model.ID == cfg.DefaultModelID {
+				result.SelectionPolicyV3.Default = &DesktopAgentDefaultSelection{ModelID: model.ID, ReasoningLevel: model.DefaultReasoning, MaxOutputTokens: model.DefaultMaxOutputTokens}
+				break
+			}
+		}
+		// 授权边界与目录版本分离，目录更新不能取消已有流或工具运行。
+		authorization, _ := json.Marshal(struct {
+			GroupID int64  `json:"group_id"`
+			BaseURL string `json:"base_url"`
+			KeyID   string `json:"key_id"`
+		}{group.ID, cfg.BaseURL, result.Credential.ID})
+		authorizationHash := sha256.Sum256(authorization)
+		result.Credential.AuthorizationScope = hex.EncodeToString(authorizationHash[:])
+	}
 	return result, nil
 }
 

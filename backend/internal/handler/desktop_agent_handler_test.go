@@ -202,3 +202,28 @@ func TestDesktopAgentHandlerPassesProtocolTwo(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"schema_version":2`)
 }
+
+func TestDesktopAgentHandlerProtocolThreeWireAndTemporaryFailure(t *testing.T) {
+	repo := &desktopHandlerSettings{raw: desktopHandlerConfig}
+	users, keys := &desktopHandlerUsers{}, &desktopHandlerKeys{}
+	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), users, desktopHandlerGroups{}, keys, desktopHandlerCatalog{})
+	router := desktopHandlerRouter(NewDesktopAgentHandler(svc), true, false)
+	body := strings.Replace(desktopBootstrapBody, `"protocol_version":1`, `"protocol_version":3`, 1)
+	rec := desktopRequest(t, router, http.MethodPost, "/bootstrap", body)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+	require.Equal(t, float64(3), envelope.Data["schema_version"])
+	require.Empty(t, envelope.Data["unavailable_models"])
+	policy := envelope.Data["selection_policy"].(map[string]any)
+	require.Equal(t, "verified-model", policy["default"].(map[string]any)["model_id"])
+	require.Equal(t, "inherit-main", policy["auxiliary"])
+	require.Len(t, envelope.Data["credential"].(map[string]any)["authorization_scope"], 64)
+	repo.err = errors.New("private database detail")
+	rec = desktopRequest(t, router, http.MethodPost, "/bootstrap", body)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.NotContains(t, rec.Body.String(), "private database detail")
+	require.NotContains(t, rec.Body.String(), "credential")
+}
