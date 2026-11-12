@@ -541,7 +541,8 @@ func TestDesktopAgentProtocolThreeIsolatesUnavailableModels(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "ready", before.ServiceStatus)
 			require.Len(t, before.Models, 2)
-			catalog := svc.catalog.(*desktopCatalogStub)
+			catalog, ok := svc.catalog.(*desktopCatalogStub)
+			require.True(t, ok)
 			wantUnavailable, wantDefault, wantReason := "second-model", true, "model_unavailable"
 			switch kind {
 			case "second removed":
@@ -579,7 +580,8 @@ func TestDesktopAgentProtocolThreeIsolatesUnavailableModels(t *testing.T) {
 			require.NoError(t, json.Unmarshal(raw, &wire))
 			require.IsType(t, []any{}, wire["models"])
 			require.IsType(t, []any{}, wire["unavailable_models"])
-			policy := wire["selection_policy"].(map[string]any)
+			policy, ok := wire["selection_policy"].(map[string]any)
+			require.True(t, ok)
 			require.Equal(t, "inherit-main", policy["auxiliary"])
 			if !wantDefault {
 				require.Nil(t, policy["default"])
@@ -652,6 +654,8 @@ func TestDesktopAgentProtocolThreeUnavailableStateAndReadFailures(t *testing.T) 
 	for _, kind := range []string{"unconfigured", "disabled", "user", "group", "key", "catalog error", "group error", "second catalog error"} {
 		t.Run(kind, func(t *testing.T) {
 			svc, repo, users, groups, keys := desktopFixture(t)
+			catalog, ok := svc.catalog.(*desktopCatalogStub)
+			require.True(t, ok)
 			switch kind {
 			case "unconfigured":
 				delete(repo.values, SettingKeyDesktopAgentConfig)
@@ -668,11 +672,11 @@ func TestDesktopAgentProtocolThreeUnavailableStateAndReadFailures(t *testing.T) 
 			case "key":
 				keys.key.Status = "disabled"
 			case "catalog error":
-				svc.catalog.(*desktopCatalogStub).err = errors.New("private catalog failure")
+				catalog.err = errors.New("private catalog failure")
 			case "group error":
 				groups.err = errors.New("private database failure")
 			case "second catalog error":
-				keys.onEnsure = func() { svc.catalog.(*desktopCatalogStub).err = errors.New("private late catalog failure") }
+				keys.onEnsure = func() { catalog.err = errors.New("private late catalog failure") }
 			}
 			result, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
 			if strings.Contains(kind, "error") {
