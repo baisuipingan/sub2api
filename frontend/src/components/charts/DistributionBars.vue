@@ -79,7 +79,7 @@
                 class="shrink-0 text-primary-500"
                 aria-hidden="true"
               />
-              <span class="truncate">{{ bar.name }}</span>
+              <span class="min-w-0 truncate">{{ bar.name }}</span>
             </span>
             <span class="cbar-track">
               <span class="cbar-fill block" :style="{ width: bar.width + '%' }" />
@@ -93,10 +93,6 @@
             :aria-label="t('usage.distribution.userBreakdown', { name: bar.name })"
             class="my-1 overflow-hidden rounded-md border border-gray-100 dark:border-dark-700"
           >
-            <div class="bg-gray-50 px-2 py-1.5 text-[10px] text-gray-500 dark:bg-dark-800 dark:text-gray-400">
-              {{ t('usage.distribution.topUsers', { limit: breakdownLimit }) }}
-              · {{ metric === 'tokens' ? t('usage.distribution.byTokens') : t('usage.distribution.byCost') }}
-            </div>
             <div v-if="breakdownError" role="alert" class="flex items-center justify-between gap-2 p-3 text-xs text-gray-500 dark:text-gray-400">
               <span>{{ t('usage.distribution.breakdownFailed') }}</span>
               <button type="button" class="btn btn-secondary btn-sm shrink-0" @click="loadBreakdown(bar)">
