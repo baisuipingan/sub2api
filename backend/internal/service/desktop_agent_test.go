@@ -410,6 +410,8 @@ func TestDesktopAgentMultipleModelsRejectInvalidMembershipAndPolicy(t *testing.T
 	for _, kind := range []string{"duplicate", "default missing", "default unknown", "over limit", "second model forbidden", "second model missing capability", "second model reasoning", "catalog failure"} {
 		t.Run(kind, func(t *testing.T) {
 			svc, repo, _, groups, keys := desktopFixture(t)
+			catalog, ok := svc.catalog.(*desktopCatalogStub)
+			require.True(t, ok)
 			cfg, err := normalizeDesktopAgentConfig(validDesktopConfig())
 			require.NoError(t, err)
 			second := cfg.Models[0]
@@ -425,7 +427,7 @@ func TestDesktopAgentMultipleModelsRejectInvalidMembershipAndPolicy(t *testing.T
 			case "over limit":
 				cfg.Models = make([]DesktopAgentModel, 33)
 			case "second model forbidden":
-				svc.catalog.(*desktopCatalogStub).models = []string{cfg.Models[0].ID}
+				catalog.models = []string{cfg.Models[0].ID}
 			case "second model missing capability":
 				cfg.Models[1].SupportsToolCall = nil
 			case "second model reasoning":
@@ -433,7 +435,7 @@ func TestDesktopAgentMultipleModelsRejectInvalidMembershipAndPolicy(t *testing.T
 				cfg.Models[1].DefaultReasoning = "max"
 				groups.group.MaxReasoningEffort = "high"
 			case "catalog failure":
-				svc.catalog.(*desktopCatalogStub).err = errors.New("catalog private detail")
+				catalog.err = errors.New("catalog private detail")
 			}
 			_, err = svc.UpdateConfig(context.Background(), cfg)
 			require.Error(t, err)
