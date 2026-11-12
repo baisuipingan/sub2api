@@ -73,6 +73,8 @@ func desktopHandlerRouter(h *DesktopAgentHandler, authenticated, restricted bool
 	r.POST("/bootstrap", h.Bootstrap)
 	r.GET("/config", h.GetConfig)
 	r.PUT("/config", h.UpdateConfig)
+	r.GET("/models", h.GetModels)
+	r.POST("/config/disable", h.DisableConfig)
 	return r
 }
 func desktopRequest(t *testing.T, r *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
@@ -104,7 +106,7 @@ func TestDesktopAgentHandlerUsesAuthenticatedUserAndReadyEnvelope(t *testing.T) 
 	repo := &desktopHandlerSettings{raw: desktopHandlerConfig}
 	users := &desktopHandlerUsers{}
 	keys := &desktopHandlerKeys{}
-	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), users, desktopHandlerGroups{}, keys)
+	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), users, desktopHandlerGroups{}, keys, desktopHandlerCatalog{})
 	router := desktopHandlerRouter(NewDesktopAgentHandler(svc), true, false)
 	rec := desktopRequest(t, router, http.MethodPost, "/bootstrap", desktopBootstrapBody)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -131,15 +133,72 @@ func TestDesktopAgentAdminRejectsRestrictedKeysAndInvalidConfiguration(t *testin
 		require.Equal(t, http.StatusForbidden, rec.Code)
 	}
 	repo := &desktopHandlerSettings{}
-	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), nil, desktopHandlerGroups{}, nil)
+	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), nil, desktopHandlerGroups{}, nil, desktopHandlerCatalog{})
 	router := desktopHandlerRouter(NewDesktopAgentHandler(svc), true, false)
 	for _, body := range []string{`{}`, `{"enabled":false,"enabled":true}`, strings.Replace(desktopHandlerConfig, `"supports_tool_call":true,`, "", 1), desktopHandlerConfig + `{}`, strings.Replace(desktopHandlerConfig, `"enabled":true`, `"enabled":true,"key":"override"`, 1)} {
 		rec := desktopRequest(t, router, http.MethodPut, "/config", body)
 		require.Equal(t, http.StatusBadRequest, rec.Code)
 	}
 	require.Zero(t, repo.writes)
-	rec := desktopRequest(t, router, http.MethodPut, "/config", desktopHandlerConfig)
+	legacy := desktopRequest(t, router, http.MethodPut, "/config", desktopHandlerConfig)
+	require.Equal(t, http.StatusBadRequest, legacy.Code)
+	cfg, err := service.ParseDesktopAgentConfig([]byte(desktopHandlerConfig))
+	require.NoError(t, err)
+	body, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	rec := desktopRequest(t, router, http.MethodPut, "/config", string(body))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, 1, repo.writes)
 	require.NotContains(t, rec.Body.String(), "private-managed-fixture")
+}
+
+type desktopHandlerCatalog struct{}
+
+func (desktopHandlerCatalog) ModelsForGroup(context.Context, *service.Group) ([]string, error) {
+	return []string{"verified-model"}, nil
+}
+func (r *desktopHandlerSettings) CompareAndSwapDesktopAgentConfig(_ context.Context, before, after string) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	if r.raw != before {
+		return false, nil
+	}
+	r.raw = after
+	r.writes++
+	return true, nil
+}
+func TestDesktopAgentModelsAndDisableHandlers(t *testing.T) {
+	repo := &desktopHandlerSettings{raw: desktopHandlerConfig}
+	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), nil, desktopHandlerGroups{}, nil, desktopHandlerCatalog{})
+	r := desktopHandlerRouter(NewDesktopAgentHandler(svc), true, false)
+	for _, query := range []string{"", "?group_id=0", "?group_id=-1", "?group_id=12&group_id=13", "?group_id=abc"} {
+		rec := desktopRequest(t, r, http.MethodGet, "/models"+query, "")
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
+	rec := desktopRequest(t, r, http.MethodGet, "/models?group_id=12", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"models":["verified-model"]`)
+	require.Zero(t, repo.writes)
+	rec = desktopRequest(t, r, http.MethodPost, "/config/disable", `{"enabled":false}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	rec = desktopRequest(t, r, http.MethodPost, "/config/disable", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"enabled":false`)
+	require.Contains(t, rec.Body.String(), `"models":[`)
+	require.Contains(t, rec.Body.String(), `"default_model_id":"verified-model"`)
+	for _, endpoint := range []struct{ method, path string }{{http.MethodGet, "/models?group_id=12"}, {http.MethodPost, "/config/disable"}} {
+		rec := desktopRequest(t, desktopHandlerRouter(NewDesktopAgentHandler(nil), true, true), endpoint.method, endpoint.path, "")
+		require.Equal(t, http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestDesktopAgentHandlerPassesProtocolTwo(t *testing.T) {
+	repo := &desktopHandlerSettings{raw: desktopHandlerConfig}
+	svc := service.NewDesktopAgentService(service.NewSettingService(repo, nil), &desktopHandlerUsers{}, desktopHandlerGroups{}, &desktopHandlerKeys{}, desktopHandlerCatalog{})
+	router := desktopHandlerRouter(NewDesktopAgentHandler(svc), true, false)
+	body := strings.Replace(desktopBootstrapBody, `"protocol_version":1`, `"protocol_version":2`, 1)
+	rec := desktopRequest(t, router, http.MethodPost, "/bootstrap", body)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"schema_version":2`)
 }

@@ -87,7 +87,7 @@ func desktopFixture(t *testing.T) (*DesktopAgentService, *desktopAgentSettingsSt
 	groups := &desktopAgentGroupStub{group: &Group{ID: 12, Platform: PlatformComposite, Status: StatusActive, SubscriptionType: SubscriptionTypeStandard}}
 	id := int64(12)
 	keys := &desktopAgentKeyStub{key: &APIKey{ID: 9007199254740993, UserID: 7, Key: "private-fixture-only", GroupID: &id, Status: StatusActive, KeyType: APIKeyTypeSystem, Purpose: APIKeyPurposeDesktopAgent}}
-	return NewDesktopAgentService(NewSettingService(repo, nil), user, groups, keys), repo, user, groups, keys
+	return NewDesktopAgentService(NewSettingService(repo, nil), user, groups, keys, &desktopCatalogStub{models: []string{"verified-responses-model", "second-model"}}), repo, user, groups, keys
 }
 func TestDesktopAgentDefaultsDisabledAndNeverTouchesCredentials(t *testing.T) {
 	svc, repo, users, groups, keys := desktopFixture(t)
@@ -143,7 +143,7 @@ func TestDesktopAgentStrictRequestRejectsAmbiguityAndAuthorityFields(t *testing.
 	valid := `{"client_version":"0.1.0","protocol_version":1,"platform":"darwin"}`
 	for _, raw := range []string{`{}`, `null`, `[]`, valid + ` {}`,
 		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","Platform":"win32"`, 1),
-		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":2`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
+		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":3`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
 		_, err := ParseDesktopAgentRequest([]byte(raw))
 		require.ErrorIs(t, err, ErrDesktopAgentInvalid, raw)
 	}
@@ -303,7 +303,11 @@ func TestDesktopAgentUpdateOnlyOwnSettingAndValidatesGroup(t *testing.T) {
 	require.ErrorIs(t, err, ErrDesktopAgentInvalid)
 	cfg.Enabled = false
 	_, err = svc.UpdateConfig(context.Background(), cfg)
+	require.ErrorIs(t, err, ErrDesktopAgentInvalid)
+	disabled, err := svc.DisableConfig(context.Background())
 	require.NoError(t, err)
+	require.False(t, disabled.Enabled)
+	require.Equal(t, cfg.Model.ID, disabled.DefaultModelID)
 }
 
 func TestDesktopAgentDoesNotReturnReadyAfterConfigurationChangesDuringEnsure(t *testing.T) {
@@ -341,4 +345,179 @@ func TestDesktopAgentDoesNotReturnReadyAfterAuthorizationChangesDuringEnsure(t *
 			require.Nil(t, result.Credential)
 		})
 	}
+}
+
+type desktopCatalogStub struct {
+	models []string
+	err    error
+	calls  int
+}
+
+func (c *desktopCatalogStub) ModelsForGroup(context.Context, *Group) ([]string, error) {
+	c.calls++
+	return c.models, c.err
+}
+func (r *desktopAgentSettingsStub) CompareAndSwapDesktopAgentConfig(_ context.Context, before, after string) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	if r.values[SettingKeyDesktopAgentConfig] != before {
+		return false, nil
+	}
+	r.values[SettingKeyDesktopAgentConfig] = after
+	return true, nil
+}
+
+func TestDesktopAgentMultipleModelsProtocolAndLegacyRead(t *testing.T) {
+	svc, repo, _, _, _ := desktopFixture(t)
+	legacy := validDesktopConfig()
+	// Existing persisted model is accepted on read, but all responses and writes are canonical.
+	rawModel, err := json.Marshal(legacy.Model)
+	require.NoError(t, err)
+	repo.values[SettingKeyDesktopAgentConfig] = `{"enabled":true,"group_id":12,"base_url":"https://gateway.example.test/v1","model":` + string(rawModel) + `}`
+	cfg, err := svc.GetConfig(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, cfg.Model)
+	require.Len(t, cfg.Models, 1)
+	require.Equal(t, legacy.Model.ID, cfg.DefaultModelID)
+	second := *legacy.Model
+	second.ID = "second-model"
+	second.DefaultMaxOutputTokens = 1234
+	second.ReasoningLevels = []string{"none"}
+	second.DefaultReasoning = "none"
+	second.SupportsReasoning = desktopBool(false)
+	cfg.Models = append(cfg.Models, second)
+	cfg.DefaultModelID = second.ID
+	_, err = svc.UpdateConfig(context.Background(), *cfg)
+	require.NoError(t, err)
+	require.NotContains(t, repo.values[SettingKeyDesktopAgentConfig], `"model":`)
+	for _, protocol := range []int{1, 2} {
+		result, err := svc.BootstrapForProtocol(context.Background(), 7, protocol)
+		require.NoError(t, err)
+		require.Equal(t, protocol, result.SchemaVersion)
+		require.Equal(t, "ready", result.ServiceStatus)
+		require.Len(t, result.Models, protocol)
+		require.Equal(t, second.ID, result.SelectionPolicy.ModelID)
+		require.Equal(t, 1234, result.SelectionPolicy.MaxOutputTokens)
+		if protocol == 1 {
+			require.Equal(t, second.ID, result.Models[0].ID)
+		} else {
+			require.Equal(t, legacy.Model.DefaultMaxOutputTokens, result.Models[0].DefaultMaxOutputTokens)
+		}
+	}
+}
+func TestDesktopAgentMultipleModelsRejectInvalidMembershipAndPolicy(t *testing.T) {
+	for _, kind := range []string{"duplicate", "default missing", "default unknown", "over limit", "second model forbidden", "second model missing capability", "second model reasoning", "catalog failure"} {
+		t.Run(kind, func(t *testing.T) {
+			svc, repo, _, groups, keys := desktopFixture(t)
+			cfg, err := normalizeDesktopAgentConfig(validDesktopConfig())
+			require.NoError(t, err)
+			second := cfg.Models[0]
+			second.ID = "second-model"
+			cfg.Models = append(cfg.Models, second)
+			switch kind {
+			case "duplicate":
+				cfg.Models[1].ID = cfg.Models[0].ID
+			case "default missing":
+				cfg.DefaultModelID = ""
+			case "default unknown":
+				cfg.DefaultModelID = "unknown"
+			case "over limit":
+				cfg.Models = make([]DesktopAgentModel, 33)
+			case "second model forbidden":
+				svc.catalog.(*desktopCatalogStub).models = []string{cfg.Models[0].ID}
+			case "second model missing capability":
+				cfg.Models[1].SupportsToolCall = nil
+			case "second model reasoning":
+				cfg.Models[1].ReasoningLevels = []string{"max"}
+				cfg.Models[1].DefaultReasoning = "max"
+				groups.group.MaxReasoningEffort = "high"
+			case "catalog failure":
+				svc.catalog.(*desktopCatalogStub).err = errors.New("catalog private detail")
+			}
+			_, err = svc.UpdateConfig(context.Background(), cfg)
+			require.Error(t, err)
+			raw, err := json.Marshal(cfg)
+			require.NoError(t, err)
+			repo.values[SettingKeyDesktopAgentConfig] = string(raw)
+			result, err := svc.BootstrapForProtocol(context.Background(), 7, 2)
+			if kind == "catalog failure" {
+				require.Error(t, err)
+				require.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+				require.NotEqual(t, "ready", result.ServiceStatus)
+				require.Nil(t, result.Credential)
+			}
+			require.Zero(t, keys.calls)
+		})
+	}
+}
+func TestDesktopAgentAdminCanonicalOnlyAndMixedShapeRejected(t *testing.T) {
+	cfg := validDesktopConfig()
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	_, err = ParseDesktopAgentAdminConfig(raw)
+	require.NoError(t, err)
+	for _, body := range []string{`{"enabled":false}`, `{"enabled":false,"model":{},"models":[],"default_model_id":""}`, `{"enabled":false,"group_id":12,"base_url":"","models":[],"default_model_id":""}`} {
+		_, err = ParseDesktopAgentAdminConfig([]byte(body))
+		require.Error(t, err, body)
+	}
+	_, err = ParseDesktopAgentRequest([]byte(`{"client_version":"fixture","protocol_version":2,"platform":"win32"}`))
+	require.NoError(t, err)
+}
+func TestDesktopAgentDisableRetainsSavedFieldsAndNeverCreatesCredential(t *testing.T) {
+	svc, repo, _, groups, keys := desktopFixture(t)
+	before := repo.values[SettingKeyDesktopAgentConfig]
+	groups.group.Status = StatusDisabled
+	cfg, err := svc.DisableConfig(context.Background())
+	require.NoError(t, err)
+	require.False(t, cfg.Enabled)
+	var old, updated map[string]any
+	require.NoError(t, json.Unmarshal([]byte(before), &old))
+	require.NoError(t, json.Unmarshal([]byte(repo.values[SettingKeyDesktopAgentConfig]), &updated))
+	old["enabled"] = false
+	require.Equal(t, old, updated)
+	require.Zero(t, keys.calls)
+	result, err := svc.BootstrapForProtocol(context.Background(), 7, 2)
+	require.NoError(t, err)
+	require.Equal(t, "disabled", result.ServiceStatus)
+	require.Equal(t, 2, result.SchemaVersion)
+	delete(repo.values, SettingKeyDesktopAgentConfig)
+	cfg, err = svc.DisableConfig(context.Background())
+	require.NoError(t, err)
+	require.False(t, cfg.Enabled)
+	_, exists := repo.values[SettingKeyDesktopAgentConfig]
+	require.False(t, exists)
+}
+
+type desktopDisableRaceSettings struct {
+	desktopAgentSettingsStub
+	concurrent string
+	attempts   int
+}
+
+func (r *desktopDisableRaceSettings) CompareAndSwapDesktopAgentConfig(ctx context.Context, before, after string) (bool, error) {
+	r.attempts++
+	if r.attempts == 1 {
+		r.values[SettingKeyDesktopAgentConfig] = r.concurrent
+		return false, nil
+	}
+	return r.desktopAgentSettingsStub.CompareAndSwapDesktopAgentConfig(ctx, before, after)
+}
+func TestDesktopAgentDisableRetriesAgainstLatestSavedConfiguration(t *testing.T) {
+	svc, repo, _, _, _ := desktopFixture(t)
+	newer := validDesktopConfig()
+	newer.Model.DisplayName = "Concurrent saved model"
+	newer.Model.DefaultMaxOutputTokens = 1234
+	raw, err := json.Marshal(newer)
+	require.NoError(t, err)
+	race := &desktopDisableRaceSettings{desktopAgentSettingsStub: *repo, concurrent: string(raw)}
+	svc.settings.settingRepo = race
+	result, err := svc.DisableConfig(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, race.attempts)
+	require.False(t, result.Enabled)
+	require.Equal(t, "Concurrent saved model", result.Models[0].DisplayName)
+	require.Equal(t, 1234, result.Models[0].DefaultMaxOutputTokens)
 }

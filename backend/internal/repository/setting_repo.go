@@ -146,3 +146,10 @@ func (r *settingRepository) Delete(ctx context.Context, key string) error {
 	_, err := r.client.Setting.Delete().Where(setting.KeyEQ(key)).Exec(ctx)
 	return err
 }
+
+// CompareAndSwapDesktopAgentConfig never upserts: a stale disable cannot replace
+// a newer policy or resurrect a configuration removed by another administrator.
+func (r *settingRepository) CompareAndSwapDesktopAgentConfig(ctx context.Context, previous, next string) (bool, error) {
+	count, err := r.client.Setting.Update().Where(setting.KeyEQ(service.SettingKeyDesktopAgentConfig), setting.ValueEQ(previous)).SetValue(next).SetUpdatedAt(time.Now()).Save(ctx)
+	return count == 1, err
+}

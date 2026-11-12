@@ -38,55 +38,30 @@
 
         <div class="card">
           <h3 class="border-b border-gray-100 px-6 py-4 font-semibold dark:border-dark-700">{{ t('admin.agentSettings.modelTitle') }}</h3>
-          <div v-if="!draft.model" class="space-y-4 p-6">
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.unconfigured') }}</p>
-            <button type="button" data-test="agent-configure-model" class="btn btn-secondary" @click="configureModel">{{ t('admin.agentSettings.configureModel') }}</button>
-          </div>
-          <div v-else class="space-y-5 p-6">
-            <div class="grid min-w-0 gap-4 sm:grid-cols-2">
-              <div><label for="agent-model-id" class="input-label">{{ t('admin.agentSettings.modelId') }}</label><input id="agent-model-id" v-model="draft.model.id" data-test="agent-model-id" class="input" maxlength="128" autocomplete="off" /></div>
-              <div><label for="agent-model-name" class="input-label">{{ t('admin.agentSettings.displayName') }}</label><input id="agent-model-name" v-model="draft.model.display_name" data-test="agent-model-name" class="input" maxlength="128" /></div>
-            </div>
-            <div class="grid min-w-0 gap-4 md:grid-cols-3">
-              <div><label for="agent-context" class="input-label">{{ t('admin.agentSettings.contextWindow') }}</label><input id="agent-context" v-model.number="draft.model.context_window" data-test="agent-context" type="number" min="1" max="100000000" step="1" class="input" /></div>
-              <div><label for="agent-max-output" class="input-label">{{ t('admin.agentSettings.maxOutputTokens') }}</label><input id="agent-max-output" v-model.number="draft.model.max_output_tokens" data-test="agent-max-output" type="number" min="1" step="1" class="input" /></div>
-              <div><label for="agent-default-output" class="input-label">{{ t('admin.agentSettings.defaultMaxOutputTokens') }}</label><input id="agent-default-output" v-model.number="draft.model.default_max_output_tokens" data-test="agent-default-output" type="number" min="1" step="1" class="input" /></div>
-            </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.budgetHint') }}</p>
-            <details class="rounded-xl border border-gray-200 dark:border-dark-700" open>
-              <summary class="cursor-pointer px-4 py-3 font-medium">{{ t('admin.agentSettings.advanced') }}</summary>
-              <div class="space-y-5 border-t border-gray-100 p-4 dark:border-dark-700">
-                <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.capabilitiesHint') }}</p>
-                <div class="grid gap-3 sm:grid-cols-2">
-                  <label v-for="item in capabilityFields" :key="item.key" class="flex items-start gap-2 text-sm">
-                    <input :checked="capabilityValue(item.key)" :data-test="`agent-cap-${item.key}`" type="checkbox" class="mt-0.5 rounded" @change="setCapability(item.key, $event)" />
-                    {{ t(`admin.agentSettings.capabilities.${item.label}`) }}
-                  </label>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.requiredCapabilitiesHint') }}</p>
-                <fieldset class="space-y-3">
-                  <legend class="input-label">{{ t('admin.agentSettings.reasoningLevels') }}</legend>
-                  <div class="flex flex-wrap gap-x-5 gap-y-3">
-                    <label v-for="level in DESKTOP_AGENT_REASONING_LEVELS" :key="level" class="flex items-center gap-2 text-sm"><input :checked="draft.model.reasoning_levels.includes(level)" :data-test="`agent-reasoning-${level}`" type="checkbox" :value="level" @change="setReasoningLevel(level, $event)" />{{ level }}</label>
-                  </div>
-                </fieldset>
-                <div>
-                  <label for="agent-default-reasoning" class="input-label">{{ t('admin.agentSettings.defaultReasoning') }}</label>
-                  <Select id="agent-default-reasoning" v-model="draft.model.default_reasoning" data-test="agent-default-reasoning" :options="reasoningOptions" :aria-label="t('admin.agentSettings.defaultReasoning')" :disabled="loading || saving" />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.reasoningHint') }}</p>
-                </div>
+          <div class="space-y-4 p-6">
+            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.modelHint') }}</p>
+            <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
+              <div class="min-w-0 flex-1">
+                <label for="agent-model-picker" class="input-label">{{ t('admin.agentSettings.addModelLabel') }}</label>
+                <Select :key="pickerKey" id="agent-model-picker" :model-value="pickerSelection" data-test="agent-model-picker" :options="modelOptions" :placeholder="t('admin.agentSettings.modelPlaceholder')" :aria-label="t('admin.agentSettings.addModelLabel')" :searchable="true" :creatable="false" :loading="catalog.status === 'loading'" :disabled="loading || saving || !catalogCurrentReady || modelOptions.length === 0" @update:model-value="selectModel" />
               </div>
-            </details>
+              <button type="button" data-test="agent-add-model" class="btn btn-secondary shrink-0" :disabled="loading || saving || !canAddModel" @click="addModel">{{ t('admin.agentSettings.addModel') }}</button>
+              <button type="button" data-test="agent-refresh-models" class="btn btn-secondary shrink-0" :disabled="loading || saving || catalog.status === 'loading' || !selectedGroupEligible" @click="refreshModels">{{ t('admin.agentSettings.refreshModels') }}</button>
+            </div>
+            <p data-test="agent-model-catalog-status" class="text-sm" :class="catalog.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'">{{ t(catalogMessageKey) }}</p>
+            <p v-if="draft.models.length === 0" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.noModels') }}</p>
           </div>
         </div>
+
+        <AgentModelSettingsCard v-for="(model, index) in draft.models" :key="model.id" :model-value="model" :index="index" :is-default="draft.default_model_id === model.id" :unavailable="catalogCurrentReady && !catalog.models.includes(model.id)" :disabled="loading || saving" @update:model-value="updateModel(index, $event)" @remove="removeModel(index)" @make-default="makeDefault(model.id)" />
       </fieldset>
 
       <div class="card space-y-4 p-6">
         <ul v-if="submitted && validationCodes.length" role="alert" class="list-inside list-disc space-y-1 text-sm text-red-600 dark:text-red-400"><li v-for="code in validationCodes" :key="code">{{ t(`admin.agentSettings.validation.${code}`) }}</li></ul>
         <button type="button" data-test="agent-save" class="btn btn-primary" :disabled="loading || saving" @click="save">{{ saving ? t('common.saving') : t('admin.agentSettings.save') }}</button>
-        <div v-if="validationCodes.length || selectedGroupUnavailable" class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.disableOnlyHint') }}</p>
-          <button type="button" data-test="agent-disable-only" class="btn btn-secondary" :disabled="loading || saving" @click="disableOnly">{{ t('admin.agentSettings.disableOnly') }}</button>
+        <div class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.disableHint') }}</p>
+          <button type="button" data-test="agent-disable" class="btn btn-secondary" :disabled="loading || saving" @click="disableConnections">{{ t('admin.agentSettings.disable') }}</button>
         </div>
       </div>
     </template>
@@ -97,8 +72,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getDesktopAgentConfig, updateDesktopAgentConfig, DESKTOP_AGENT_REASONING_LEVELS } from '@/api/admin/desktopAgent'
-import type { DesktopAgentConfig, DesktopAgentModel, DesktopAgentReasoningLevel, DesktopAgentUpdateRequest } from '@/api/admin/desktopAgent'
+import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, updateDesktopAgentConfig } from '@/api/admin/desktopAgent'
+import type { DesktopAgentConfig, DesktopAgentModel } from '@/api/admin/desktopAgent'
 import { getAllIncludingInactive } from '@/api/admin/groups'
 import type { AdminGroup } from '@/types'
 import { isDesktopAgentGroupEligible, validateDesktopAgentConfig } from '@/utils/desktopAgentConfig'
@@ -106,6 +81,7 @@ import { extractApiErrorCode } from '@/utils/apiError'
 import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, StepUpCancelledError, useStepUp } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Select from '@/components/common/Select.vue'
+import AgentModelSettingsCard from './AgentModelSettingsCard.vue'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const { t } = useI18n()
@@ -116,14 +92,19 @@ const loaded = ref(false)
 const submitted = ref(false)
 const errorKey = ref('')
 const noticeKey = ref('')
-const draft = ref<DesktopAgentConfig>({ enabled: false, group_id: 0, base_url: '' })
+const draft = ref<DesktopAgentConfig>({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })
 const groups = ref<AdminGroup[]>([])
+const catalog = ref<{ status: 'idle' | 'loading' | 'ready' | 'error'; groupId: number; models: string[] }>({ status: 'idle', groupId: 0, models: [] })
+const pickerSelection = ref<string | null>(null)
+const pickerKey = ref(0)
 const suggestedGateway = `${window.location.origin}/v1`
 let alive = true
 let loadGeneration = 0
 let saveGeneration = 0
+let catalogGeneration = 0
 
-const selectedGroupUnavailable = computed(() => draft.value.group_id > 0 && !groups.value.some(group => group.id === draft.value.group_id && isDesktopAgentGroupEligible(group)))
+const selectedGroupEligible = computed(() => groups.value.some(group => group.id === draft.value.group_id && isDesktopAgentGroupEligible(group)))
+const selectedGroupUnavailable = computed(() => draft.value.group_id > 0 && !selectedGroupEligible.value)
 const groupOptions = computed(() => {
   const options = groups.value.filter(isDesktopAgentGroupEligible).map(group => ({ value: group.id, label: group.name, disabled: false }))
   if (selectedGroupUnavailable.value) {
@@ -132,59 +113,78 @@ const groupOptions = computed(() => {
   }
   return options
 })
+const catalogCurrentReady = computed(() => catalog.value.status === 'ready' && catalog.value.groupId === draft.value.group_id)
+const modelOptions = computed(() => catalogCurrentReady.value ? catalog.value.models.filter(id => !draft.value.models.some(model => model.id === id)).map(id => ({ value: id, label: id })) : [])
+const canAddModel = computed(() => draft.value.models.length < 32 && modelOptions.value.some(option => option.value === pickerSelection.value))
+const catalogMessageKey = computed(() => {
+  if (!selectedGroupEligible.value) return 'admin.agentSettings.catalogChooseGroup'
+  if (catalog.value.status === 'loading') return 'admin.agentSettings.catalogLoading'
+  if (catalog.value.status === 'error') return 'admin.agentSettings.catalogFailed'
+  if (catalogCurrentReady.value && catalog.value.models.length === 0) return 'admin.agentSettings.catalogEmpty'
+  return 'admin.agentSettings.catalogHint'
+})
 const validationCodes = computed(() => {
-  const codes = validateDesktopAgentConfig(draft.value).map(issue => issue.code)
-  if (draft.value.enabled && selectedGroupUnavailable.value) codes.push('group_required')
+  const codes: string[] = validateDesktopAgentConfig(draft.value).map(issue => issue.code)
+  if (selectedGroupUnavailable.value) codes.push('group_required')
+  if (draft.value.models.length > 0) {
+    if (!catalogCurrentReady.value) codes.push('catalog_required')
+    else if (draft.value.models.some(model => !catalog.value.models.includes(model.id))) codes.push('model_unavailable')
+  }
   return [...new Set(codes)]
 })
-const reasoningOptions = computed(() => DESKTOP_AGENT_REASONING_LEVELS.map(level => ({ value: level, label: level, disabled: !draft.value.model?.reasoning_levels.includes(level) })))
-const capabilityFields = [
-  { key: 'input.text', label: 'inputText' }, { key: 'input.image', label: 'inputImage' },
-  { key: 'input.video', label: 'inputVideo' }, { key: 'input.audio', label: 'inputAudio' },
-  { key: 'input.pdf', label: 'inputPdf' }, { key: 'output.text', label: 'outputText' },
-  { key: 'supports_streaming', label: 'supportsStreaming' }, { key: 'supports_tool_call', label: 'supportsToolCall' },
-  { key: 'supports_reasoning', label: 'supportsReasoning' }, { key: 'requires_mfjs_tool_schema', label: 'requiresMfjsToolSchema' },
-  { key: 'supports_json_schema_output', label: 'supportsJsonSchemaOutput' },
-  { key: 'supports_native_web_search', label: 'supportsNativeWebSearch' },
-  { key: 'supports_mid_conversation_system', label: 'supportsMidConversationSystem' },
-] as const
-
-type CapabilityKey = typeof capabilityFields[number]['key']
-function capabilityValue(key: CapabilityKey): boolean {
-  const model = draft.value.model
-  if (!model) return false
-  const [parent, child] = key.split('.')
-  if (parent === 'input') return model.input[child as keyof DesktopAgentModel['input']]
-  if (parent === 'output') return model.output.text
-  return model[key as Exclude<CapabilityKey, `input.${string}` | 'output.text'>]
+function canEdit() { return alive && props.active && loaded.value && !loading.value && !saving.value }
+function resetCatalog() {
+  catalogGeneration += 1
+  catalog.value = { status: 'idle', groupId: 0, models: [] }
+  pickerSelection.value = null
+  // 原因：Select的下拉挂载到body；重建能关闭旧分组的下拉和搜索，防止选入过期候选。
+  pickerKey.value += 1
 }
-function setCapability(key: CapabilityKey, event: Event) {
-  const model = draft.value.model
-  if (!model || saving.value || loading.value) return
-  const value = (event.target as HTMLInputElement).checked
-  const [parent, child] = key.split('.')
-  if (parent === 'input') model.input[child as keyof DesktopAgentModel['input']] = value
-  else if (parent === 'output') model.output.text = value
-  else model[key as Exclude<CapabilityKey, `input.${string}` | 'output.text'>] = value
+async function refreshModels() {
+  if (!alive || !props.active || !loaded.value || loading.value || saving.value || !selectedGroupEligible.value) return
+  resetCatalog()
+  const generation = catalogGeneration
+  const groupId = draft.value.group_id
+  catalog.value = { status: 'loading', groupId, models: [] }
+  try {
+    const result = await getDesktopAgentModels(groupId)
+    // 原因：分组切换、刷新和隐藏不会取消网络响应；仅当前激活分组的本代目录可以成为保存依据。
+    if (!alive || !props.active || generation !== catalogGeneration || draft.value.group_id !== groupId) return
+    if (result.group_id !== groupId || !Array.isArray(result.models) || !result.models.every(id => typeof id === 'string' && id.length > 0) || new Set(result.models).size !== result.models.length) throw new Error('Invalid model catalog')
+    catalog.value = { status: 'ready', groupId, models: [...result.models] }
+  } catch {
+    if (alive && props.active && generation === catalogGeneration && draft.value.group_id === groupId) catalog.value = { status: 'error', groupId, models: [] }
+  }
 }
-function setReasoningLevel(level: DesktopAgentReasoningLevel, event: Event) {
-  const model = draft.value.model
-  if (!model || saving.value || loading.value) return
-  const selected = new Set(model.reasoning_levels)
-  if ((event.target as HTMLInputElement).checked) selected.add(level)
-  else selected.delete(level)
-  model.reasoning_levels = DESKTOP_AGENT_REASONING_LEVELS.filter(item => selected.has(item))
+function selectModel(value: string | number | boolean | null) {
+  if (canEdit()) pickerSelection.value = typeof value === 'string' && modelOptions.value.some(option => option.value === value) ? value : null
 }
-function configureModel() {
-  if (saving.value || loading.value || draft.value.model) return
-  if (!draft.value.base_url) draft.value.base_url = suggestedGateway
-  draft.value.model = {
-    id: '', display_name: '', context_window: 0, max_output_tokens: 0, default_max_output_tokens: 0,
+function addModel() {
+  if (!canEdit() || !canAddModel.value || !pickerSelection.value) return
+  const id = pickerSelection.value
+  // 新模型从显式空预算和基础必需能力开始，不能复制其他模型能力或擅自成为默认模型。
+  draft.value.models.push({
+    id, display_name: id, context_window: 0, max_output_tokens: 0, default_max_output_tokens: 0,
     reasoning_levels: ['none'], default_reasoning: 'none', supports_reasoning: false,
     supports_streaming: true, supports_tool_call: true, requires_mfjs_tool_schema: false,
     input: { text: true, image: false, video: false, audio: false, pdf: false }, output: { text: true },
     supports_json_schema_output: false, supports_native_web_search: false, supports_mid_conversation_system: false,
-  }
+  })
+  if (!draft.value.base_url) draft.value.base_url = suggestedGateway
+  pickerSelection.value = null
+}
+function updateModel(index: number, model: DesktopAgentModel) {
+  if (canEdit() && draft.value.models[index]?.id === model.id) draft.value.models[index] = model
+}
+function removeModel(index: number) {
+  if (!canEdit()) return
+  const model = draft.value.models[index]
+  if (!model) return
+  draft.value.models.splice(index, 1)
+  if (draft.value.default_model_id === model.id) draft.value.default_model_id = ''
+}
+function makeDefault(id: string) {
+  if (canEdit() && draft.value.models.some(model => model.id === id)) draft.value.default_model_id = id
 }
 function applyConfig(config: DesktopAgentConfig) {
   draft.value = JSON.parse(JSON.stringify(config)) as DesktopAgentConfig
@@ -193,6 +193,7 @@ function applyConfig(config: DesktopAgentConfig) {
 async function load() {
   if (!props.active || loading.value || saving.value) return
   const generation = ++loadGeneration
+  resetCatalog()
   loading.value = true
   loaded.value = false
   errorKey.value = ''
@@ -218,18 +219,17 @@ function reportSaveError(error: unknown) {
   const code = extractApiErrorCode(error)
   errorKey.value = code === 'DESKTOP_AGENT_INVALID' ? 'admin.agentSettings.configRejected' : code === 'FORBIDDEN' ? 'admin.agentSettings.adminRequired' : 'admin.agentSettings.saveFailed'
 }
-async function persist(payload: DesktopAgentUpdateRequest, notice: string) {
-  if (!loaded.value || saving.value || loading.value || !props.active) return
+async function persist(action: () => Promise<DesktopAgentConfig>, notice: string) {
+  if (!canEdit()) return
   const generation = ++saveGeneration
   saving.value = true
   errorKey.value = ''
   noticeKey.value = ''
   try {
-    // 原因：二次验证会暂停后重试；本次payload独立于可编辑草稿，避免验证期间被改写。
     const result = await stepUp.run(async () => {
       if (!alive || !props.active || generation !== saveGeneration) throw new StepUpCancelledError()
       try {
-        return await updateDesktopAgentConfig(payload)
+        return await action()
       } catch (error) {
         // 原因：离开后才返回的403不能重新唤起隐藏栏的验证弹窗或重试旧操作。
         if (!alive || !props.active || generation !== saveGeneration) throw new StepUpCancelledError()
@@ -249,19 +249,26 @@ async function persist(payload: DesktopAgentUpdateRequest, notice: string) {
     if (alive) {
       saving.value = false
       if (props.active && !loaded.value) void load()
+      else if (props.active && catalog.value.status === 'idle') void refreshModels()
     }
   }
 }
 function save() {
-  if (!loaded.value || saving.value || loading.value || !props.active) return
+  if (!canEdit()) return
   submitted.value = true
   noticeKey.value = ''
   if (validationCodes.value.length) return
-  return persist(JSON.parse(JSON.stringify(draft.value)) as DesktopAgentConfig, 'admin.agentSettings.saved')
+  // 原因：二次验证会暂停后重试；本次payload独立于可编辑草稿，避免验证期间被改写。
+  const payload = JSON.parse(JSON.stringify(draft.value)) as DesktopAgentConfig
+  return persist(() => updateDesktopAgentConfig(payload), 'admin.agentSettings.saved')
 }
-function disableOnly() {
-  return persist({ enabled: false }, 'admin.agentSettings.disabledOnly')
+function disableConnections() {
+  return persist(disableDesktopAgentConfig, 'admin.agentSettings.disabled')
 }
+watch(() => [props.active, loaded.value, loading.value, draft.value.group_id] as const, () => {
+  resetCatalog()
+  if (props.active && loaded.value && !loading.value && selectedGroupEligible.value) void refreshModels()
+})
 watch(() => props.active, active => {
   if (active) {
     if (!loaded.value && !loading.value) void load()
@@ -276,6 +283,8 @@ watch(() => props.active, active => {
 onBeforeUnmount(() => {
   alive = false
   loadGeneration += 1
+  saveGeneration += 1
+  resetCatalog()
   stepUp.onCancel()
 })
 </script>

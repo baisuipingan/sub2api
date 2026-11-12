@@ -1,6 +1,84 @@
 # Desktop Agent bootstrap（W3）
 
-状态：2026-11-12 已完成独立系统 Agent 配置页面与本人托管 Key 可读调整；前版已发布为 `0.2.21-ds.3`，本轮正式发布状态以 CI 和发布记录为准。本轮基线 `codex/desktop-managed-agent@2c95996ca65b209632e6f418e6b2ff2493e51cac`，早期后端实施基线为 `d5555fb24e207250958965bfd227009870c8d5f0`。复用 JWT、网关、用户余额和 usage；不部署云端 Agent，不自动创建支付订单，不发付费探测请求。
+## 2026-11-12 追加合同：按组选择多个模型与保留配置停用
+
+本节为当前用户修正规则，替代下文历史的“单模型手输 ID”与“仅 `{enabled:false}` 清空配置”交互。基线 `3844d81b2`；本轮经复核后按用户授权发布，真实生产设置保持原值，正式发布状态以 CI 和发布记录为准。
+
+- 管理配置唯一源仍为 `desktop_agent_config_v1`；规范形状改为 `{enabled,group_id,base_url,models:DesktopAgentModel[],default_model_id}`。最多 32 个模型，ID 唯一，开启/完整配置时至少一个且默认 ID 必须属于列表。每个模型有自己的完整能力、上下文/输出预算和默认推理档位；不从 ID 猜能力。旧持久化 `{model}` 读取时归一为单项列表和该默认模型，不创建第二份配置源；同一请求不得同时提供旧新模型形状。
+- 新完整管理员 `GET /api/v1/admin/desktop/models?group_id=<positive>` 返回 `{group_id,models:string[]}`，无 Key、no-store，只读本地已持久配置，不探测/调用上游、不创建凭据。只支持 active standard OpenAI/composite 组。候选来源为组内账号原始映射的客户端 ID、渠道级精确公开映射、Responses/any 聚合精确公开路由、启用白名单的具体 ID 和已持久 upstream model metadata 的具体 ID；全部再经真实分组路由、账号支持、白名单与既有 Codex 媒体/自动模型规则过滤（保留显式白名单启用 auto 的既有语义）。不把平台全量默认、通配或仅作映射目标的私有名称当成具体可选 ID；返回已验证 ID 原大小写，避免改变区分大小写的公开别名。账号临时限流不应删除其已配置候选。服务端保存/启用与 bootstrap 重验同一目录；失败不返回伪造/空成功，不 silently fallback 平台默认。目录只证明配置可路由，能力和实时容量仍需人工确认。
+- 页面先选分组，再从可搜索、禁止创建任意项的下拉选 ID，点击“添加模型”，逐张卡编辑独立能力及预算，可逐项删除并显式指定默认。默认项删除后要求重新选择默认，不偷偷替换；添加时展示名可先取 ID，能力/预算不继承另一个模型。切组保留模型草稿，但不在新组目录的项标为失效，禁止完整保存。没有分组、目录加载中/失败/空列表须明确提示、可重试，不能退回自由输入或旧组目录。父组件为唯一草稿所有者；按 active、group、请求代次丢弃迟到目录，切换及刷新关闭旧下拉。
+- bootstrap 请求支持 protocol 1/2。旧 protocol 1 保持 schema 1、只下发默认模型，兼容已发行桌面；新 protocol 2 返回 schema 2 全部模型及默认 selection_policy。新桌面请求 2，严格校验全部模型及默认成员，Registry 全量应用并确认，逐 attempt 仅允许本次策略成员；每模型输出预算独立，不回落官方/个人配置。账号、Key、扣费归属与所有者/epoch/revision 屏障保留。
+- 新完整管理员 `POST /api/v1/admin/desktop/config/disable` 复用 step-up 和 no-store，不接收草稿，只将最新已保存值的 enabled 原子改 false，其余字段原样保留；与保存并发不以旧快照覆盖新模型配置。无配置时保持未配置关闭。不禁用/重建 Key，不撤销已发凭据。UI 改为“关闭 Agent 连接”，说明保留已保存配置、未保存草稿不提交；成功后以返回服务器事实重读草稿。不再展示有清空语义的“仅关闭服务”。
+
+```mermaid
+sequenceDiagram
+  participant UI as Agent唯一草稿
+  participant API as Agent管理API
+  participant DB as 分组/账号/路由与设置
+  participant Host as Desktop Host
+  participant CLI as 原Registry/执行器
+  UI->>API: GET models(group_id)
+  API->>DB: 只读有效公开ID与分组策略
+  API-->>UI: 带group_id的候选
+  UI->>UI: 按本代分组接收；添加/删除/默认/独立能力预算
+  UI->>API: PUT config（不可变快照+step-up）
+  API->>DB: 重验所有成员；保存唯一配置
+  Host->>API: bootstrap protocol 2
+  API-->>Host: schema 2 全模型+默认+本人私有Key
+  Host->>CLI: 非秘密完整策略；确认全量应用
+  Note over UI,DB: 关闭操作只原子改enabled，不提交草稿或清空配置
+```
+
+验收：旧配置读取/旧桌面兼容、新多模型全字段roundtrip、重复/无默认/跨组/媒体及无路由拒绝、目录失败与A→B迟到保护、增删默认/搜索不能造ID、每模型预算/推理隔离、删除模型不能再授权、step-up取消与失败、关闭保留/并发不覆盖、真实浏览器两模型新增删除保存及375px布局。真实生产联调与部署另由用户安排。
+
+### 本轮本地验证（多模型版本）
+
+| 检查 | 结果 |
+| --- | --- |
+| 后端 | `TestDesktopAgent` service/handler/routes 定向回归通过；目录追加的有限来源/私有目标/路由/大小写回归通过；真实 PostgreSQL/Redis CAS 并发保留验证通过；server 编译通过 |
+| 前端 | 10 文件 220 项通过，覆盖组件/API/helper、SettingsView、Key 既有回归和三项 i18n 检查；完整 vue-tsc、ESLint、Vite build 通过。ESLint 1 项既有 warning；既有测试 stub 和构建大小/Browserslist 提示保留记录 |
+| 浏览器 | 本地真实 Vue 界面、合成 API 下 59/59，error/warning/意外请求 0；两模型独立配置、增删/默认、目录失败/迟到、关闭保留、step-up 和 375px 中英文明暗布局；已查看截图 |
+| ZCode 消费端 | Host/RPC 37/37；CLI 6 文件 42/42；根类型检查与 lint、直接 CLI bootstrap tsc 通过，包含每模型默认推理档位完整传递 |
+
+日志为 `output/research/agent-multimodel-*-2026-11-12.log`；[浏览器说明](../output/playwright/agent-multimodel-2026-11-12/README.md)、[断言及合成请求](../output/playwright/agent-multimodel-2026-11-12/results.json)、[中文桌面效果](../output/playwright/agent-multimodel-2026-11-12/desktop-zh-light.png)。源码与本地验收不是生产模型真实可用性、原生新版 Desktop 安装包或扣费验证；这些尚未执行。
+
+前端依赖入口的 overrides/lock 校验不一致，本轮没有改依赖或 lock；使用已安装 Node 24.14.0 的 Vitest、vue-tsc、ESLint 和 Vite 入口运行实际检查。重放可从 `frontend` 执行：
+
+```sh
+node node_modules/vitest/vitest.mjs run \
+  src/components/admin/settings/__tests__/AgentSettings.spec.ts \
+  src/views/admin/__tests__/SettingsView.spec.ts \
+  src/api/__tests__/admin.desktopAgent.spec.ts \
+  src/utils/__tests__/desktopAgentConfig.spec.ts \
+  src/views/user/__tests__/KeysView.spec.ts \
+  src/components/keys/__tests__/UseKeyModal.spec.ts \
+  src/components/keys/__tests__/BulkEditKeysModal.spec.ts \
+  src/i18n/__tests__/localeKeyCompleteness.spec.ts \
+  src/i18n/__tests__/localesNoKeyCollision.spec.ts \
+  src/i18n/__tests__/localesMessageCompile.spec.ts
+node node_modules/vue-tsc/bin/vue-tsc.js -b
+node node_modules/eslint/bin/eslint.js .
+node node_modules/vite/bin/vite.js build
+```
+
+后端从 `backend` 执行（未显式设置 GOFLAGS，保留环境）：
+
+```sh
+go test -p 2 -tags=unit ./internal/service ./internal/handler ./internal/server/routes -run 'TestDesktopAgent' -count=1
+go test -p 2 -tags=unit ./internal/service -run '^TestDesktopAgentModelCatalog' -count=1
+go test -p 2 -tags=integration ./internal/repository -run '^TestDesktopAgentSettingCompareAndSwapPreservesConcurrentSave$' -count=1 -v
+go test -p 2 ./cmd/server -run '^$'
+```
+
+最后一条仅证明 server 编译，未执行其全部测试或制作发布包。集成测试使用临时 PostgreSQL 18.1 与 Redis 8.4 容器，结束后由测试清理。本轮必要 Go 检查结束后清理了可再生编译缓存，磁盘可用由约 5.9GiB 恢复至 9.7GiB，未删源码、依赖、凭据或用户数据。
+
+状态：用户已部署此前独立 Agent 设置/本人 Key 可读版本，截图版本为 `0.2.21-ds.4`。本轮多模型修正以干净的 `codex/desktop-managed-agent@3844d81b2` 为基线，复核修正与正式发布状态以 CI 和发布记录为准。复用 JWT、网关、用户余额和 usage；不部署云端 Agent，不自动创建支付订单，不发付费探测请求。此前实施记录保留在文末，以本节与下列当前合同为准。
+
+### 发布复核补充（2026-11-12）
+
+复核补齐模型目录的三类持久配置判断：渠道级映射（按 OpenAI/native 实际选号与转发顺序处理）、分组隐私约束和 Antigravity 混合调度。候选仍只来自已配置的公开 ID，不按临时限流或过载删模型；复用既有映射与限制函数，不修改网关执行路径。目录读取渠道失败时拒绝验证。
+
+前端 10 文件 220 项、类型检查及改动文件 ESLint 通过；真实 PostgreSQL/Redis 下的 32 并发领取、真实账号/目录 bootstrap 和配置 CAS 保留测试通过。原有真实 provider 集成夹具已补入账号与目录，避免遗漏新依赖。最终后端检查与发布结果以 CI 为准。无新增数据库迁移；保存多模型配置后，旧二进制不能读取该新格式，回退必须恢复匹配的设置备份。
 
 ## 所有者与边界
 
@@ -24,7 +102,7 @@ sequenceDiagram
 
 - 登录 JWT 与推理 Key 分开；客户端不能提交 user/group/key/base/enable 参数。
 - 桌面 bootstrap 将 Key 下发给本机 Host，客户端不将其写入 Renderer、普通 Provider JSON、任务快照或日志。用户可在已登录网站的本人 Key 列表/详情查看并复制 Agent Key，与既有工作台 Key 一致；这不扩大跨用户或公开访问权限。
-- 默认关闭。运营必须配置标准余额分组、与账户站点同源的 HTTPS `/v1` 网关地址、经过验证的一条 Responses 模型及完整能力、reasoning/输出预算。首片客户端拒绝 bootstrap 将推理材料导向另一个 origin；本地 HTTP loopback 只用于开发 fixture。
+- 默认关闭。运营必须配置标准余额分组、与账户站点同源的 HTTPS `/v1` 网关地址，从该组目录选择一个或多个 Responses 模型，逐项确认完整能力、reasoning/输出预算并指定默认模型。客户端拒绝 bootstrap 将推理材料导向另一个 origin；本地 HTTP loopback 只用于开发 fixture。
 - `enabled=false` 是 bootstrap 准入开关，不是已发 Key 的全局撤销；Host 刷新到 disabled 后停止本机授权。立即撤销仍需停用凭据并使认证缓存失效；Agent 与生图工作台分别持有 Key，停用 Agent Key 不影响生图 Key。
 - 主任务与标题、压缩、校验、子 Agent 共用授权模型；保留原执行器和权限语义，不自动切官方供应商。
 - ready 表示静态配置和凭据可尝试执行，不保证此刻上游容量，不在 bootstrap 中试扣费。
@@ -34,18 +112,18 @@ sequenceDiagram
 
 `POST /api/v1/desktop/bootstrap` 位于既有 JWT 用户路由组，保留原面板限流与审计。
 
-严格 JSON body：`client_version`（1–128 字符）、`protocol_version: 1`、`platform: win32 | darwin`，可选 `installation_id`（诊断标识，非设备授权）。拒绝未知字段、null、重复字段、尾随 JSON、超限 body 和其他平台。版本不兼容返回 400，不创建 Key。
+严格 JSON body：`client_version`（1–128 字符）、`protocol_version: 1 | 2`、`platform: win32 | darwin`，可选 `installation_id`（诊断标识，非设备授权）。拒绝未知字段、null、重复字段、尾随 JSON、超限 body 和其他平台。版本不兼容返回 400，不创建 Key。protocol 1 是已发行单模型兼容协议；新版桌面请求 2。
 
 沿原 `{code:0,message:"success",data:...}` envelope。所有 handler 结果带 `Cache-Control: no-store`。HTTP 未认证与业务不可用分开。`data` 包含：
 
 | 字段 | 规则 |
 | --- | --- |
-| schema_version | 固定 1 |
+| schema_version | 请求 protocol 1 返回 1；protocol 2 返回 2 |
 | config_revision | 当前服务端配置的稳定内容 hash；不是递增序号或秘密 |
 | service_status | ready / disabled / not_configured / forbidden / credential_blocked |
 | reason_code | 稳定机器码；ready 时为 ready |
 | provider | 仅 ready；id=milorouter-managed，api_type=openai-responses，base_url |
-| models | 仅 ready；恰好一条，下表完整策略 |
+| models | 仅 ready；schema 1 仅默认模型，schema 2 全部 1–32 条，下表完整策略 |
 | selection_policy | 仅 ready；model_id、reasoning_level、max_output_tokens、auxiliary=inherit-main |
 | credential | 仅 ready；id 为十进制字符串、key、scope（不透明受控标识）、expires_at（RFC3339 或 null） |
 
@@ -59,7 +137,7 @@ reasoning 枚举按强度顺序排列：`none,minimal,low,medium,high,xhigh,max`
 
 `GET/PUT /api/v1/admin/desktop/config`：既有完整管理员边界，写入沿既有 step-up。只读写 `desktop_agent_config_v1` 一条 JSON settings，不加入公开 settings，不回写其他设置，无密钥。无此记录等价 disabled。
 
-配置 `{enabled, group_id, base_url, model}`；关闭时允许保留完整配置。开启时要求模型能力完整、支持文本输入/文本输出/工具调用/流式、有效 active OpenAI 或 composite 标准余额组，模型命中该组白名单；每档 reasoning 不能被当前分组策略改写/降档/拒绝。运行 bootstrap 再次验证用户状态和组权限。模型能力由运营确认，不能从 `/v1/models` 名单猜测。管理入口为 **系统设置 → Agent**（`/admin/settings#agent`），复用受保护配置 API，独立保存，不要求普通桌面用户参与。
+配置 `{enabled, group_id, base_url, models, default_model_id}`；GET 将旧持久 `{model}` 归一，PUT 拒绝旧/混合/不完整形状，避免旧页面把多模型覆盖成一项。开启或保留完整配置时要求全部模型能力完整、支持文本输入/文本输出/工具调用/流式、有效 active OpenAI 或 composite 标准余额组；模型必须在当前目录且命中白名单，每档 reasoning 不能被当前分组策略改写/降档/拒绝。运行 bootstrap 再次验证目录、用户状态和组权限。模型能力由运营确认，不能从模型名单猜测。管理入口为 **系统设置 → Agent**（`/admin/settings#agent`），独立保存，不要求普通桌面用户参与。关闭已有连接使用独立无 body POST，保留最新已保存配置。
 
 ## 2026-11-12：独立系统 Agent 配置合同（用户最终决定）
 
@@ -68,10 +146,10 @@ reasoning 枚举按强度顺序排列：`none,minimal,low,medium,high,xhigh,max`
 - **单一所有者**：服务端setting是已保存事实；独立Agent组件拥有加载快照、唯一未提交草稿和保存方法。通用设置、工作台、图片存储的读取/保存各自独立，Agent栏不出现通用保存按钮；不能因页面外层form/Enter冒泡意外提交通用设置。离开/重新加载期间的迟到读取不能覆盖后续草稿，保存中冻结，二次验证完成前不能改变本次payload。
 - **集中管理**：当前服务开关、分组、网关、模型ID/展示名、reasoning档位/默认档、上下文/模型输出上限/默认输出预算、全部输入/输出与工具能力、JSON schema/native web search/mid-system/MFJS能力均在此完整维护。未来Agent独立设置沿此入口扩展；本轮不发明未实现的设备撤销、支付或执行配置。
 - **分组**：只可选择active、standard余额计费OpenAI/composite分组；已保存的失效选择要可见且给出修正提示，不能静默换组。可以手动选择与工作台相同的聚合分组，但不读取图片配置、不提供跨区快捷写入或联动；分组权限仍由现有用户AllowedGroups/公开组限制判断。
-- **模型与预算**：管理员填写真实模型和能力，不按模型名猜测。必须支持文本输入/输出、工具和stream；上下文与预算为安全正整数、输出小于上下文、默认不超过上限。所有bool显式保存，reasoning按既有none→minimal→low→medium→high→xhigh→max顺序无重复，默认属于候选；none仍省略effort。服务端继续最终验证分组白名单和思考策略，不绕过验证或静默替换模型。
+- **模型与预算**：管理员从当前分组下拉逐项添加真实模型，支持逐项移除和指定一个默认模型；不提供手输 ID。各卡独立确认能力及预算，不按模型名猜测。必须支持文本输入/输出、工具和stream；上下文与预算为安全正整数、输出小于上下文、默认不超过上限。所有bool显式保存，reasoning按既有none→minimal→low→medium→high→xhigh→max顺序无重复，默认属于候选；none仍省略effort。服务端继续最终验证目录、分组白名单和思考策略，不绕过验证或静默替换模型。
 - **网关**：默认账户站点同源HTTPS `/v1`；保存校验无query/hash/userinfo、精确/v1路径，并提醒桌面要求与其账户站点同源。独立站点/反代管理地址可以明确填写实际客户端账户站点，不把浏览器地址误当服务器固定域名。本轮页面不发付费探测、不调用bootstrap、不创建Key。
 - **加载与保存**：完整管理员GET/PUT，复用已有step-up。配置/分组加载失败禁用保存，不能以默认值覆盖；取消二次验证不保存不提示成功。成功采用返回的已保存配置，失败保留草稿并展示安全错误；刷新和保存互斥，同一payload二次验证重试一次。首次未配置明确保持关闭，模型留待管理员填写，不臆造真实参数。
-- **关闭**：完整有效配置关闭时保留所有字段；关闭允许在现有值无效时显式提交仅 `{enabled:false}`，界面须明确这是只关闭而非保存未提交草稿，不静默丢失配置。关闭只阻断后续bootstrap，不撤销已发Key；已连接桌面需要重连应用配置，非立即全设备撤权开关。
+- **关闭**：完整保存关闭状态保留所有字段；草稿无效时也可调用独立无 body `POST /admin/desktop/config/disable`，只对最新已保存配置原子改开关，保留模型和其余字段，不提交未保存草稿。弃用旧 `{enabled:false}` 覆盖式保存，CAS 防止并发新配置被旧快照覆盖。关闭只阻断后续bootstrap，不撤销已发Key；已连接桌面需要重连应用配置，非立即全设备撤权开关。
 - **Key可读且托管**：用户明确允许本人网站列表、详情、使用配置、复制和CCSwitch取得原始Agent Key，与现有工作台一致；取消DTO按desktop_agent特殊置空，不额外增加匿名/跨用户入口。现有本人归属权限保持，普通Key读取缓存合同沿用。Agent仍禁止通用编辑/改名/状态/限额/有效期/分组变更和删除，管理员单Key改组继续拒绝；用途幂等领取、不复活停用/过期Key、组同步与缓存失效不改。桌面Renderer仍不接触推理Key，不把网站可读等同于桌面落盘或日志可读。
 
 ```mermaid
@@ -93,11 +171,12 @@ sequenceDiagram
 
 ### 配置和发布顺序
 
-1. 发布包含本轮前端资源和后端 DTO 的同一版本。只替换旧前端所连接的后端，不会出现新增标签。本轮没有新增数据库迁移，仍依赖前版迁移 256；不修改已有工作台配置或 Key。
+1. 先发布包含本轮目录、canonical 多模型、protocol 1/2 和独立停用接口的后端与配套前端。只替换后端不会更新页面。没有新增数据库迁移，仍依赖已部署的迁移 256；不修改已有工作台配置或 Key。旧持久单模型自动读取归一；已打开的旧管理页需刷新，旧 PUT 会被拒绝以保护多模型。
 2. 打开 **系统设置 → Agent**，选择有效的标准余额计费 OpenAI/聚合分组。需要共用工作台分组时由管理员手动选择同一组，保持两把 Key 独立；确认目标用户允许使用该组。
-3. 填写与桌面账户站点同源的 HTTPS `/v1`，配置一个经过验证的 Responses 模型，填写完整能力、上下文与输出预算、推理档位。初次无配置保持关闭，页面不会猜测参数。
+3. 填写与桌面账户站点同源的 HTTPS `/v1`；从所选分组目录添加需要开放的 Responses 模型，逐个确认完整能力、上下文、输出预算和推理档位，指定一个默认模型。初次无配置保持关闭；空目录应检查该组的账号映射/聚合路由/白名单或持久模型元数据，不回退自由输入，不要求普通用户处理这些设置。
 4. 开启并“保存 Agent 配置”，完成既有二次验证。保存只修改 Agent setting，不领取 Key，不发模型请求；普通“保存设置”不会覆盖它。
 5. 桌面重新连接后读取策略，在首次成功 bootstrap 时幂等领取本人 Agent Key；后续复用，不重复创建。本人网站 API 密钥页可以查看、复制、使用及 CCSwitch 导入，系统托管写保护继续生效。修改分组后也在后续 bootstrap 同步该用户可用 Agent Key，并非立即改写所有用户 Key。
+6. 新版 Desktop/CLI 需重新构建才会请求 protocol 2 并展示完整模型集合。已发行旧桌面继续使用默认单模型；不能仅发布管理页就宣称旧桌面已支持多模型。管理变更在客户端重新连接后应用，未提供后台推送。完成生产模型工具调用和账单对账后再确认真实可用性。
 
 当前“关闭服务”仅控制 bootstrap，不代表立即撤销所有已发凭据；不改动原工作台、余额账本、网关或支付流程。上线后的真实登录、工具调用和实际余额/usage 对账仍需由用户安排联调，本轮只使用本地夹具。
 

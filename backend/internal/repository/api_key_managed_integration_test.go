@@ -225,7 +225,20 @@ func TestDesktopAgentRealProviderBootstrapUsesIndependentPurpose(t *testing.T) {
 	users := NewUserRepository(client, integrationDB)
 	groups := NewGroupRepository(client, integrationDB)
 	keys := service.NewAPIKeyService(f.repo, users, groups, nil, nil, nil, &config.Config{})
-	svc := service.NewDesktopAgentService(service.NewSettingService(NewSettingRepository(client), nil), users, groups, keys)
+	accounts := newAccountRepositoryWithSQL(client, integrationDB, nil)
+	account := &service.Account{
+		Name: fmt.Sprintf("desktop-bootstrap-%d", f.userID), Platform: service.PlatformOpenAI,
+		Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true,
+		Credentials: map[string]any{"model_mapping": map[string]any{"fixture-model": "fixture-upstream"}}, Extra: map[string]any{},
+	}
+	require.NoError(t, accounts.CreateWithAccountGroups(ctx, account, []service.AccountGroup{{GroupID: f.groupID}}))
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM scheduler_outbox WHERE account_id=$1", account.ID)
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM account_groups WHERE account_id=$1", account.ID)
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM accounts WHERE id=$1", account.ID)
+	})
+	catalog := service.NewDesktopAgentModelCatalog(accounts, NewCompositeModelRouteRepository(client))
+	svc := service.NewDesktopAgentService(service.NewSettingService(NewSettingRepository(client), nil), users, groups, keys, catalog)
 	boolp := func(v bool) *bool { return &v }
 	cfg := service.DesktopAgentConfig{Enabled: true, GroupID: f.groupID, BaseURL: "https://gateway.example.test/v1", Model: &service.DesktopAgentModel{
 		ID: "fixture-model", DisplayName: "Fixture", ContextWindow: 100000, MaxOutputTokens: 20000, DefaultMaxOutputTokens: 10000, ReasoningLevels: []string{"none"}, DefaultReasoning: "none", SupportsReasoning: boolp(false), SupportsStreaming: boolp(true), RequiresMFJSToolSchema: boolp(false),

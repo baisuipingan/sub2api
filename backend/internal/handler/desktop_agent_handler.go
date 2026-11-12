@@ -4,6 +4,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/adminaccess"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -46,11 +48,12 @@ func (h *DesktopAgentHandler) Bootstrap(c *gin.Context) {
 		desktopAgentError(c, err)
 		return
 	}
-	if _, err = service.ParseDesktopAgentRequest(raw); err != nil {
+	req, err := service.ParseDesktopAgentRequest(raw)
+	if err != nil {
 		desktopAgentError(c, err)
 		return
 	}
-	result, err := h.service.Bootstrap(c.Request.Context(), subject.UserID)
+	result, err := h.service.BootstrapForProtocol(c.Request.Context(), subject.UserID, req.ProtocolVersion)
 	if err != nil {
 		desktopAgentError(c, err)
 		return
@@ -80,17 +83,56 @@ func (h *DesktopAgentHandler) UpdateConfig(c *gin.Context) {
 	if !allowDesktopAgentAdmin(c) {
 		return
 	}
-	raw, err := readDesktopBody(c, 16384)
+	raw, err := readDesktopBody(c, 131072)
 	if err != nil {
 		desktopAgentError(c, err)
 		return
 	}
-	cfg, err := service.ParseDesktopAgentConfig(raw)
+	cfg, err := service.ParseDesktopAgentAdminConfig(raw)
 	if err != nil {
 		desktopAgentError(c, err)
 		return
 	}
 	result, err := h.service.UpdateConfig(c.Request.Context(), cfg)
+	if err != nil {
+		desktopAgentError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *DesktopAgentHandler) GetModels(c *gin.Context) {
+	if !allowDesktopAgentAdmin(c) {
+		return
+	}
+	values, present := c.Request.URL.Query()["group_id"]
+	if !present || len(values) != 1 || values[0] == "" || strings.TrimSpace(values[0]) != values[0] {
+		desktopAgentError(c, service.ErrDesktopAgentInvalid)
+		return
+	}
+	groupID, err := strconv.ParseInt(values[0], 10, 64)
+	if err != nil || groupID <= 0 {
+		desktopAgentError(c, service.ErrDesktopAgentInvalid)
+		return
+	}
+	models, err := h.service.GetModels(c.Request.Context(), groupID)
+	if err != nil {
+		desktopAgentError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"group_id": groupID, "models": models})
+}
+func (h *DesktopAgentHandler) DisableConfig(c *gin.Context) {
+	if !allowDesktopAgentAdmin(c) {
+		return
+	}
+	// 关闭不是表单保存：拒绝任何携带草稿的body，避免操作者误以为修改已保存。
+	raw, err := readDesktopBody(c, 1)
+	if err != nil || len(raw) != 0 {
+		desktopAgentError(c, service.ErrDesktopAgentInvalid)
+		return
+	}
+	result, err := h.service.DisableConfig(c.Request.Context())
 	if err != nil {
 		desktopAgentError(c, err)
 		return

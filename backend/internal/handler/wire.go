@@ -164,8 +164,8 @@ func ProvideBatchImageHandler(
 
 // ProvideDesktopAgentHandler keeps policy configuration separate from the
 // credential implementation; an absent provider cannot make bootstrap ready.
-func ProvideDesktopAgentHandler(settings *service.SettingService, users *service.UserService, groups *service.GroupService, keys *service.APIKeyService) *DesktopAgentHandler {
-	return NewDesktopAgentHandler(service.NewDesktopAgentService(settings, users, groups, keys))
+func ProvideDesktopAgentHandler(settings *service.SettingService, users *service.UserService, groups *service.GroupService, keys *service.APIKeyService, accounts service.AccountRepository, routes service.CompositeModelRouteRepository, channels *service.ChannelService) *DesktopAgentHandler {
+	return NewDesktopAgentHandler(service.NewDesktopAgentService(settings, users, groups, keys, service.NewDesktopAgentModelCatalog(accounts, routes, channels)))
 }
 
 // ProvideImageStudioHandler 装配生图工作台 handler。

@@ -65,11 +65,45 @@ type DesktopAgentModel struct {
 }
 
 type DesktopAgentConfig struct {
-	Enabled bool               `json:"enabled"`
-	GroupID int64              `json:"group_id"`
-	BaseURL string             `json:"base_url"`
-	Model   *DesktopAgentModel `json:"model,omitempty"`
+	Enabled        bool                `json:"enabled"`
+	GroupID        int64               `json:"group_id"`
+	BaseURL        string              `json:"base_url"`
+	Models         []DesktopAgentModel `json:"models"`
+	DefaultModelID string              `json:"default_model_id"`
+	// Model only accepts historical persisted records and existing Go fixtures.
+	// Administrative writes and every serialized response use the canonical list.
+	Model *DesktopAgentModel `json:"model,omitempty"`
 }
+
+func normalizeDesktopAgentConfig(cfg DesktopAgentConfig) (DesktopAgentConfig, error) {
+	if cfg.Model != nil {
+		if cfg.Models != nil || cfg.DefaultModelID != "" {
+			return cfg, ErrDesktopAgentInvalid
+		}
+		cfg.Models = []DesktopAgentModel{*cfg.Model}
+		cfg.DefaultModelID = cfg.Model.ID
+		cfg.Model = nil
+	}
+	if cfg.Models == nil {
+		cfg.Models = []DesktopAgentModel{}
+	}
+	return cfg, nil
+}
+
+func (cfg DesktopAgentConfig) MarshalJSON() ([]byte, error) {
+	cfg, err := normalizeDesktopAgentConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(struct {
+		Enabled        bool                `json:"enabled"`
+		GroupID        int64               `json:"group_id"`
+		BaseURL        string              `json:"base_url"`
+		Models         []DesktopAgentModel `json:"models"`
+		DefaultModelID string              `json:"default_model_id"`
+	}{cfg.Enabled, cfg.GroupID, cfg.BaseURL, cfg.Models, cfg.DefaultModelID})
+}
+
 type DesktopAgentProvider struct {
 	ID      string `json:"id"`
 	APIType string `json:"api_type"`
@@ -113,10 +147,15 @@ type DesktopAgentService struct {
 	users       desktopAgentUserReader
 	groups      desktopAgentGroupReader
 	credentials DesktopAgentCredentialProvider
+	catalog     DesktopAgentModelCatalog
 }
 
-func NewDesktopAgentService(settings *SettingService, users desktopAgentUserReader, groups desktopAgentGroupReader, credentials DesktopAgentCredentialProvider) *DesktopAgentService {
-	return &DesktopAgentService{settings: settings, users: users, groups: groups, credentials: credentials}
+func NewDesktopAgentService(settings *SettingService, users desktopAgentUserReader, groups desktopAgentGroupReader, credentials DesktopAgentCredentialProvider, catalogs ...DesktopAgentModelCatalog) *DesktopAgentService {
+	s := &DesktopAgentService{settings: settings, users: users, groups: groups, credentials: credentials}
+	if len(catalogs) > 0 {
+		s.catalog = catalogs[0]
+	}
+	return s
 }
 
 func desktopAgentString(value string, max int) bool {
@@ -246,7 +285,7 @@ func ParseDesktopAgentRequest(data []byte) (DesktopAgentRequest, error) {
 	if err := decodeDesktopJSON(data, &req); err != nil {
 		return req, err
 	}
-	if !desktopAgentString(req.ClientVersion, 128) || req.ProtocolVersion != 1 || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
+	if !desktopAgentString(req.ClientVersion, 128) || (req.ProtocolVersion != 1 && req.ProtocolVersion != 2) || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
 		return req, ErrDesktopAgentInvalid
 	}
 	var fields map[string]json.RawMessage
@@ -258,7 +297,7 @@ func ParseDesktopAgentRequest(data []byte) (DesktopAgentRequest, error) {
 }
 func ParseDesktopAgentConfig(data []byte) (DesktopAgentConfig, error) {
 	var cfg DesktopAgentConfig
-	if len(data) > 16384 {
+	if len(data) > 131072 {
 		return cfg, ErrDesktopAgentInvalid
 	}
 	if err := decodeDesktopJSON(data, &cfg); err != nil {
@@ -270,23 +309,80 @@ func ParseDesktopAgentConfig(data []byte) (DesktopAgentConfig, error) {
 	if _, ok := fields["enabled"]; !ok {
 		return cfg, ErrDesktopAgentInvalid
 	}
+	if _, legacy := fields["model"]; legacy {
+		if _, mixed := fields["models"]; mixed {
+			return cfg, ErrDesktopAgentInvalid
+		}
+		if _, mixed := fields["default_model_id"]; mixed {
+			return cfg, ErrDesktopAgentInvalid
+		}
+	}
+	cfg, err := normalizeDesktopAgentConfig(cfg)
+	if err != nil {
+		return cfg, err
+	}
 	if err := validateDesktopAgentConfig(cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
 }
+
+// ParseDesktopAgentAdminConfig rejects old UI payloads rather than collapsing a
+// multi-model policy into the historical single-model shape.
+func ParseDesktopAgentAdminConfig(data []byte) (DesktopAgentConfig, error) {
+	cfg, err := ParseDesktopAgentConfig(data)
+	if err != nil {
+		return cfg, err
+	}
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(data, &fields)
+	if _, legacy := fields["model"]; legacy {
+		return cfg, ErrDesktopAgentInvalid
+	}
+	for _, name := range []string{"enabled", "group_id", "base_url", "models", "default_model_id"} {
+		if _, ok := fields[name]; !ok {
+			return cfg, ErrDesktopAgentInvalid
+		}
+	}
+	return cfg, nil
+}
 func validateDesktopAgentConfig(cfg DesktopAgentConfig) error {
+	var err error
+	cfg, err = normalizeDesktopAgentConfig(cfg)
+	if err != nil {
+		return err
+	}
 	if cfg.GroupID < 0 {
 		return ErrDesktopAgentInvalid
 	}
-	if !cfg.Enabled && cfg.BaseURL == "" && cfg.Model == nil {
+	if !cfg.Enabled && cfg.GroupID == 0 && cfg.BaseURL == "" && len(cfg.Models) == 0 && cfg.DefaultModelID == "" {
 		return nil
 	}
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || u.Path != "/v1" || u.ForceQuery || cfg.GroupID <= 0 {
 		return ErrDesktopAgentInvalid
 	}
-	m := cfg.Model
+	if len(cfg.Models) == 0 || len(cfg.Models) > 32 {
+		return ErrDesktopAgentInvalid
+	}
+	seen := make(map[string]bool, len(cfg.Models))
+	for i := range cfg.Models {
+		m := &cfg.Models[i]
+		if seen[m.ID] {
+			return ErrDesktopAgentInvalid
+		}
+		seen[m.ID] = true
+		if err := validateDesktopAgentModel(m); err != nil {
+			return err
+		}
+	}
+	if !seen[cfg.DefaultModelID] {
+		return ErrDesktopAgentInvalid
+	}
+	return nil
+}
+
+func validateDesktopAgentModel(m *DesktopAgentModel) error {
 	if m == nil || !desktopAgentString(m.ID, 128) || strings.ContainsAny(m.ID, " *?\\") || !desktopAgentString(m.DisplayName, 128) || m.ContextWindow <= 0 || m.ContextWindow > 100000000 || m.MaxOutputTokens <= 0 || m.MaxOutputTokens >= m.ContextWindow || m.DefaultMaxOutputTokens <= 0 || m.DefaultMaxOutputTokens > m.MaxOutputTokens {
 		return ErrDesktopAgentInvalid
 	}
@@ -346,35 +442,66 @@ func (s *DesktopAgentService) validateGroup(ctx context.Context, cfg DesktopAgen
 		}
 		return nil, "", err
 	}
-	if group == nil || !group.IsActive() || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
+	if group == nil || group.ID != cfg.GroupID || !group.IsActive() || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
 		return nil, "group_unavailable", nil
 	}
-	if !group.ModelAllowlist.Allows(cfg.Model.ID) {
-		return nil, "model_forbidden", nil
+	if s.catalog == nil {
+		return nil, "", errors.New("desktop model catalog unavailable")
 	}
-	if *cfg.Model.SupportsReasoning {
-		for _, effort := range cfg.Model.ReasoningLevels {
-			request := map[string]any{"model": cfg.Model.ID}
-			// 客户端 none 表示沿用上游默认，实际不会发送 effort；按相同
-			// 请求形状校验，避免误命中分组对显式 none 设置的映射或拒绝。
-			if effort != "none" {
-				request["reasoning"] = map[string]string{"effort": effort}
-			}
-			body, _ := json.Marshal(request)
-			_, changed, err := ApplyReasoningEffortPolicy(body, group.MaxReasoningEffort, group.ReasoningEffortMappings, group.MaxReasoningEffortOverLimit)
-			if err != nil || changed {
-				// 下发档位必须和网关实际执行一致，不把静默降档当作已支持。
-				return nil, "configuration_invalid", nil
+	models, err := s.catalog.ModelsForGroup(ctx, group)
+	if err != nil {
+		return nil, "", err
+	}
+	for i := range cfg.Models {
+		model := &cfg.Models[i]
+		if !group.ModelAllowlist.Allows(model.ID) || !slices.Contains(models, model.ID) {
+			return nil, "model_forbidden", nil
+		}
+		if *model.SupportsReasoning {
+			for _, effort := range model.ReasoningLevels {
+				request := map[string]any{"model": model.ID}
+				// 客户端 none 表示沿用上游默认，实际不会发送 effort；按相同
+				// 请求形状校验，避免误命中分组对显式 none 设置的映射或拒绝。
+				if effort != "none" {
+					request["reasoning"] = map[string]string{"effort": effort}
+				}
+				body, _ := json.Marshal(request)
+				_, changed, err := ApplyReasoningEffortPolicy(body, group.MaxReasoningEffort, group.ReasoningEffortMappings, group.MaxReasoningEffortOverLimit)
+				if err != nil || changed {
+					// 下发档位必须和网关实际执行一致，不把静默降档当作已支持。
+					return nil, "configuration_invalid", nil
+				}
 			}
 		}
 	}
 	return group, "", nil
 }
+func (s *DesktopAgentService) GetModels(ctx context.Context, groupID int64) ([]string, error) {
+	if groupID <= 0 {
+		return nil, ErrDesktopAgentInvalid
+	}
+	group, err := s.groups.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if group == nil || group.ID != groupID || !group.IsActive() || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
+		return nil, ErrDesktopAgentInvalid
+	}
+	if s.catalog == nil {
+		return nil, errors.New("desktop model catalog unavailable")
+	}
+	return s.catalog.ModelsForGroup(ctx, group)
+}
 func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgentConfig) (*DesktopAgentConfig, error) {
+	var err error
+	cfg, err = normalizeDesktopAgentConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateDesktopAgentConfig(cfg); err != nil {
 		return nil, err
 	}
-	if cfg.Enabled {
+	if cfg.Enabled || len(cfg.Models) > 0 {
 		_, reason, err := s.validateGroup(ctx, cfg)
 		if err != nil {
 			return nil, err
@@ -393,16 +520,22 @@ func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgent
 	return &cfg, nil
 }
 func (s *DesktopAgentService) Bootstrap(ctx context.Context, userID int64) (*DesktopAgentBootstrap, error) {
+	return s.BootstrapForProtocol(ctx, userID, 1)
+}
+func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID int64, protocol int) (*DesktopAgentBootstrap, error) {
+	if protocol != 1 && protocol != 2 {
+		return nil, ErrDesktopAgentInvalid
+	}
 	cfg, err := s.GetConfig(ctx)
 	if err != nil {
 		if errors.Is(err, ErrDesktopAgentInvalid) {
-			return &DesktopAgentBootstrap{SchemaVersion: 1, ConfigRevision: "invalid", ServiceStatus: "not_configured", ReasonCode: "configuration_invalid"}, nil
+			return &DesktopAgentBootstrap{SchemaVersion: protocol, ConfigRevision: "invalid", ServiceStatus: "not_configured", ReasonCode: "configuration_invalid"}, nil
 		}
 		return nil, err
 	}
 	raw, _ := json.Marshal(cfg)
 	hash := sha256.Sum256(raw)
-	result := &DesktopAgentBootstrap{SchemaVersion: 1, ConfigRevision: hex.EncodeToString(hash[:]), ServiceStatus: "disabled", ReasonCode: "disabled"}
+	result := &DesktopAgentBootstrap{SchemaVersion: protocol, ConfigRevision: hex.EncodeToString(hash[:]), ServiceStatus: "disabled", ReasonCode: "disabled"}
 	if !cfg.Enabled {
 		return result, nil
 	}
@@ -411,7 +544,7 @@ func (s *DesktopAgentService) Bootstrap(ctx context.Context, userID int64) (*Des
 		result.ReasonCode = reason
 		return result, nil
 	}
-	if cfg.Model == nil || cfg.GroupID <= 0 {
+	if len(cfg.Models) == 0 || cfg.GroupID <= 0 {
 		return unavailable("not_configured", "configuration_missing")
 	}
 	user, err := s.users.GetByID(ctx, userID)
@@ -497,8 +630,61 @@ func (s *DesktopAgentService) Bootstrap(ctx context.Context, userID int64) (*Des
 	result.ServiceStatus = "ready"
 	result.ReasonCode = "ready"
 	result.Provider = &DesktopAgentProvider{ID: DesktopAgentProviderID, APIType: "openai-responses", BaseURL: cfg.BaseURL}
-	result.Models = []DesktopAgentModel{*cfg.Model}
-	result.SelectionPolicy = &DesktopAgentSelection{ModelID: cfg.Model.ID, ReasoningLevel: cfg.Model.DefaultReasoning, MaxOutputTokens: cfg.Model.DefaultMaxOutputTokens, Auxiliary: "inherit-main"}
+	var selected DesktopAgentModel
+	for _, model := range cfg.Models {
+		if model.ID == cfg.DefaultModelID {
+			selected = model
+			break
+		}
+	}
+	result.Models = cfg.Models
+	if protocol == 1 {
+		result.Models = []DesktopAgentModel{selected}
+	}
+	result.SelectionPolicy = &DesktopAgentSelection{ModelID: selected.ID, ReasoningLevel: selected.DefaultReasoning, MaxOutputTokens: selected.DefaultMaxOutputTokens, Auxiliary: "inherit-main"}
 	result.Credential = &DesktopAgentCredential{ID: strconv.FormatInt(key.ID, 10), Key: key.Key, Scope: scope, ExpiresAt: key.ExpiresAt}
 	return result, nil
+}
+
+// DisableConfig changes only the latest persisted switch. CAS retries preserve
+// a concurrent save; unsaved browser fields never participate in this operation.
+func (s *DesktopAgentService) DisableConfig(ctx context.Context) (*DesktopAgentConfig, error) {
+	repo, ok := s.settings.settingRepo.(interface {
+		CompareAndSwapDesktopAgentConfig(context.Context, string, string) (bool, error)
+	})
+	if !ok {
+		return nil, errors.New("desktop configuration atomic update unavailable")
+	}
+	for attempt := 0; attempt < 4; attempt++ {
+		values, err := s.settings.settingRepo.GetMultiple(ctx, []string{SettingKeyDesktopAgentConfig})
+		if err != nil {
+			return nil, err
+		}
+		raw := values[SettingKeyDesktopAgentConfig]
+		if raw == "" {
+			return &DesktopAgentConfig{Models: []DesktopAgentModel{}}, nil
+		}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal([]byte(raw), &fields) != nil || fields == nil {
+			return nil, ErrDesktopAgentInvalid
+		}
+		fields["enabled"] = json.RawMessage("false")
+		data, err := json.Marshal(fields)
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := ParseDesktopAgentConfig(data)
+		if err != nil {
+			return nil, err
+		}
+		// CAS防止读取后有新模型配置保存时，旧快照关闭覆盖新集合。
+		changed, err := repo.CompareAndSwapDesktopAgentConfig(ctx, raw, string(data))
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			return &cfg, nil
+		}
+	}
+	return nil, errors.New("desktop configuration changed concurrently")
 }

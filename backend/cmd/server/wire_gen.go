@@ -343,7 +343,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	batchImageCleanupService := service.ProvideBatchImageCleanupService(batchImageRepository, accountRepository, configConfig)
 	batchImageHandler := handler.ProvideBatchImageHandler(batchImagePublicService, batchImageDownloadService, batchImageCleanupService, openAIGatewayHandler)
 	groupService := service.NewGroupService(groupRepository, apiKeyAuthCacheInvalidator)
-	desktopAgentHandler := handler.ProvideDesktopAgentHandler(settingService, userService, groupService, apiKeyService)
+	desktopAgentHandler := handler.ProvideDesktopAgentHandler(settingService, userService, groupService, apiKeyService, accountRepository, compositeModelRouteRepository, channelService)
 	imageStudioPricingService := service.NewImageStudioPricingService(billingService, modelPricingResolver, userGroupRateRepository)
 	imageStudioHandler := handler.ProvideImageStudioHandler(apiKeyService, settingService, groupService, imageStudioPricingService, gatewayService)
 	studioJobService := service.NewStudioJobService(studioJobRepository, imageStudioGalleryService, imageStorageSettingService, apiKeyService, gatewayService)

@@ -15,6 +15,10 @@ func registerDesktopAgentUserRoutes(authenticated *gin.RouterGroup, h *handler.H
 func registerDesktopAgentAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp middleware.StepUpAuthMiddleware) {
 	if h.DesktopAgent != nil {
 		admin.GET("/desktop/config", h.DesktopAgent.GetConfig)
-		admin.PUT("/desktop/config", gin.HandlerFunc(stepUp), h.DesktopAgent.UpdateConfig)
+		admin.GET("/desktop/models", h.DesktopAgent.GetModels)
+		admin.POST("/desktop/config/disable", desktopAgentNoStore, gin.HandlerFunc(stepUp), h.DesktopAgent.DisableConfig)
+		admin.PUT("/desktop/config", desktopAgentNoStore, gin.HandlerFunc(stepUp), h.DesktopAgent.UpdateConfig)
 	}
 }
+
+func desktopAgentNoStore(c *gin.Context) { c.Header("Cache-Control", "no-store") }

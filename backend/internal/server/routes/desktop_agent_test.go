@@ -72,6 +72,26 @@ func TestDesktopAgentAdminRoutesRequireAdminAndStepUp(t *testing.T) {
 			router.ServeHTTP(rec, req)
 			require.Equal(t, http.StatusForbidden, rec.Code)
 			require.Zero(t, repo.writes)
+			for _, endpoint := range []struct{ method, path string }{{http.MethodGet, "/api/v1/admin/desktop/models?group_id=0"}, {http.MethodPost, "/api/v1/admin/desktop/config/disable"}} {
+				unauth := httptest.NewRecorder()
+				router.ServeHTTP(unauth, httptest.NewRequest(endpoint.method, endpoint.path, nil))
+				require.Equal(t, http.StatusUnauthorized, unauth.Code)
+				request := httptest.NewRequest(endpoint.method, endpoint.path, nil)
+				request.Header.Set("Authorization", "Bearer "+token)
+				result := httptest.NewRecorder()
+				router.ServeHTTP(result, request)
+				if endpoint.method == http.MethodPost {
+					require.Equal(t, http.StatusForbidden, result.Code)
+					if role == service.RoleAdmin {
+						require.Equal(t, "no-store", result.Header().Get("Cache-Control"))
+					}
+				} else if role == service.RoleUser {
+					require.Equal(t, http.StatusForbidden, result.Code)
+				} else {
+					require.Equal(t, http.StatusBadRequest, result.Code)
+				}
+			}
+			require.Zero(t, repo.writes)
 		})
 	}
 }

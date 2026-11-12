@@ -26,20 +26,31 @@ export interface DesktopAgentConfig {
   enabled: boolean
   group_id: number
   base_url: string
-  model?: DesktopAgentModel
+  models: DesktopAgentModel[]
+  default_model_id: string
 }
 
-// 仅关闭是明确操作，不能把无效草稿伪装成一次完整保存。
-export interface DesktopAgentDisableRequest { enabled: false }
-export type DesktopAgentUpdateRequest = DesktopAgentConfig | DesktopAgentDisableRequest
+export interface DesktopAgentModels { group_id: number; models: string[] }
 
 export async function getDesktopAgentConfig(): Promise<DesktopAgentConfig> {
   const { data } = await apiClient.get<DesktopAgentConfig>('/admin/desktop/config')
   return data
 }
 
-export async function updateDesktopAgentConfig(config: DesktopAgentUpdateRequest): Promise<DesktopAgentConfig> {
+export async function updateDesktopAgentConfig(config: DesktopAgentConfig): Promise<DesktopAgentConfig> {
   const { data } = await apiClient.put<DesktopAgentConfig>('/admin/desktop/config', config)
+  return data
+}
+
+/** 只读已保存分组目录，不发上游探测或领取推理凭据。 */
+export async function getDesktopAgentModels(groupId: number): Promise<DesktopAgentModels> {
+  const { data } = await apiClient.get<DesktopAgentModels>('/admin/desktop/models', { params: { group_id: groupId } })
+  return data
+}
+
+/** 关闭只提交动作，不把未保存草稿带到服务器。 */
+export async function disableDesktopAgentConfig(): Promise<DesktopAgentConfig> {
+  const { data } = await apiClient.post<DesktopAgentConfig>('/admin/desktop/config/disable')
   return data
 }
 
