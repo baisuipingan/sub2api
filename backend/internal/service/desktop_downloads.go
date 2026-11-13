@@ -118,7 +118,11 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 		if result.Err != nil {
 			return nil, ErrDesktopReleaseStorageUnavailable
 		}
-		value := cloneDesktopDownloads(result.Val.(DesktopDownloads))
+		downloads, ok := result.Val.(DesktopDownloads)
+		if !ok {
+			return nil, ErrDesktopReleaseStorageUnavailable
+		}
+		value := cloneDesktopDownloads(downloads)
 		return &value, nil
 	}
 }

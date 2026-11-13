@@ -269,7 +269,9 @@ func validateDesktopReleaseUpload(in DesktopReleaseUploadRequest) (string, error
 		if in.Size > 4<<20 {
 			return "", ErrDesktopReleaseStorageInvalid
 		}
-		if !((in.IfNoneMatch == "*" && in.IfMatch == "") || (in.IfNoneMatch == "" && desktopReleaseETagPattern.MatchString(in.IfMatch))) {
+		isCreate := in.IfNoneMatch == "*" && in.IfMatch == ""
+		isReplace := in.IfNoneMatch == "" && desktopReleaseETagPattern.MatchString(in.IfMatch)
+		if !isCreate && !isReplace {
 			return "", ErrDesktopReleaseStorageInvalid
 		}
 	}
