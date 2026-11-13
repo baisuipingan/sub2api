@@ -8,6 +8,7 @@ import KeysView from '../KeysView.vue'
 
 const {
   listKeys,
+  manageCredential,
   updateKey,
   getPublicSettings,
   getDashboardApiKeysUsage,
@@ -21,6 +22,7 @@ const {
   nextStep,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
+  manageCredential: vi.fn(),
   updateKey: vi.fn(),
   getPublicSettings: vi.fn(),
   getDashboardApiKeysUsage: vi.fn(),
@@ -56,9 +58,12 @@ const messages: Record<string, string> = {
   'keys.status.active': 'Active',
   'keys.status.expired': 'Expired',
   'keys.status.inactive': 'Inactive',
+  'desktop.revokedState': 'Revoked',
   'keys.status.quota_exhausted': 'Quota exhausted',
   'keys.usage': 'Usage',
 }
+
+vi.mock('@/api/desktop', () => ({ manageDesktopCredential: manageCredential }))
 
 vi.mock('@/api', () => ({
   keysAPI: {
@@ -178,6 +183,7 @@ const DataTableStub = {
         <slot name="cell-name" :value="row.name" :row="row" />
         <slot name="cell-group" :row="row" />
         <slot name="cell-actions" :row="row" />
+        <div data-test="key-status"><slot name="cell-status" :value="row.status" :row="row" /></div>
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
@@ -278,6 +284,7 @@ describe('user KeysView column settings', () => {
     localStorage.clear()
 
     listKeys.mockReset()
+    manageCredential.mockReset()
     updateKey.mockReset()
     vi.mocked(keysAPI.create).mockReset()
     getPublicSettings.mockReset()
@@ -731,4 +738,107 @@ describe('user KeysView column settings', () => {
       consoleError.mockRestore()
     })
   })
+  it('shows dedicated actions only for the Agent purpose, never a mutable matching name', async () => {
+    listKeys.mockResolvedValueOnce({ items: [
+      { ...createApiKey(), id: 11, is_system: true, purpose: 'desktop_agent' },
+      { ...createApiKey(), id: 12, is_system: true, name: 'Desktop Agent (managed)' },
+      { ...createApiKey(), id: 13, purpose: 'desktop_agent' },
+    ], total: 3, pages: 1 })
+    const wrapper = await mountView()
+    expect(wrapper.findAll('[data-test="desktop-key-revoke"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-test="desktop-key-reset"]')).toHaveLength(1)
+    expect(manageCredential).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it.each(['revoke', 'reset'] as const)('confirms %s for the exact displayed Agent key and reloads authoritative state', async action => {
+    const key = { ...createApiKey(), id: 42, is_system: true, purpose: 'desktop_agent' }
+    listKeys.mockResolvedValue({ items: [key], total: 1, pages: 1 })
+    manageCredential.mockResolvedValue({ status: action === 'revoke' ? 'revoked' : 'active', key_id: 42 })
+    const wrapper = await mountView()
+    await wrapper.get(`[data-test="desktop-key-${action}"]`).trigger('click')
+    expect(manageCredential).not.toHaveBeenCalled()
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find(item => item.props('title') === `desktop.${action}`)!
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('message')).toBe(`desktop.${action}Confirm`)
+    dialog.vm.$emit('confirm'); await flushPromises()
+    expect(manageCredential).toHaveBeenCalledWith(action, 42)
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    expect(showSuccess).toHaveBeenCalledWith(action === 'revoke' ? 'desktop.revoked' : 'desktop.resetDone')
+    expect(vi.mocked(keysAPI.delete)).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it.each(['disabled', 'inactive', 'expired', 'quota_exhausted'] as const)('never offers user rotation or restoration for an Agent key in %s status', async status => {
+    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), status, is_system: true, purpose: 'desktop_agent' }], total: 1, pages: 1 })
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-test="desktop-key-reset"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="desktop-key-revoke"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="desktop-key-revoked-hint"]').exists()).toBe(status === 'disabled')
+    if (status === 'disabled') expect(wrapper.text()).toContain('desktop.revokedNeedsAdmin')
+    expect(manageCredential).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('keeps revoked Agent filtering distinct from ordinary inactive keys', async () => {
+    const revoked = { ...createApiKey(), id: 42, status: 'disabled' as const, is_system: true, purpose: 'desktop_agent' }
+    const inactive = { ...createApiKey(), id: 43, status: 'inactive' as const }
+    listKeys.mockImplementation(async (_page, _size, filters) => ({
+      items: filters.status === 'disabled' ? [revoked] : filters.status === 'inactive' ? [inactive] : [revoked, inactive],
+      total: filters.status ? 1 : 2, pages: 1,
+    }))
+    const wrapper = await mountView()
+    expect(wrapper.findAll('[data-test="key-status"]').map(item => item.text())).toEqual(['Revoked', 'Inactive'])
+    const statusSelect = wrapper.findAllComponents({ name: 'Select' })[1]
+    expect(statusSelect.props('options')).toEqual(expect.arrayContaining([
+      { value: 'disabled', label: 'Revoked' }, { value: 'inactive', label: 'Inactive' },
+    ]))
+    await statusSelect.vm.$emit('update:modelValue', 'disabled'); await flushPromises()
+    expect(listKeys).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({ status: 'disabled' }), expect.any(Object))
+    expect(wrapper.findAll('[data-test="key-status"]').map(item => item.text())).toEqual(['Revoked'])
+    await statusSelect.vm.$emit('update:modelValue', 'inactive'); await flushPromises()
+    expect(listKeys).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({ status: 'inactive' }), expect.any(Object))
+    expect(wrapper.findAll('[data-test="key-status"]').map(item => item.text())).toEqual(['Inactive'])
+    expect(manageCredential).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('keeps an unsuccessful credential action explicit and never mutates ordinary key state', async () => {
+    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), is_system: true, purpose: 'desktop_agent' }], total: 1, pages: 1 })
+    manageCredential.mockRejectedValueOnce(new Error('private detail'))
+    const wrapper = await mountView()
+    await wrapper.get('[data-test="desktop-key-revoke"]').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find(item => item.props('title') === 'desktop.revoke')!
+    dialog.vm.$emit('confirm'); await flushPromises()
+    expect(showError).toHaveBeenCalledWith('desktop.credentialFailed')
+    expect(dialog.props('show')).toBe(true)
+    expect(updateKey).not.toHaveBeenCalled()
+    dialog.vm.$emit('cancel'); await flushPromises()
+    expect(dialog.props('show')).toBe(false)
+    wrapper.unmount()
+  })
+  it('rejects a stale confirmation after the displayed Agent key becomes disabled', async () => {
+    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), is_system: true, purpose: 'desktop_agent' }], total: 1, pages: 1 })
+    const wrapper = await mountView()
+    await wrapper.get('[data-test="desktop-key-reset"]').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find(item => item.props('title') === 'desktop.reset')!
+    wrapper.findComponent(DataTableStub).props('data')[0].status = 'disabled'
+    await nextTick()
+    dialog.vm.$emit('confirm'); await flushPromises()
+    expect(manageCredential).not.toHaveBeenCalled()
+    expect(showWarning).toHaveBeenCalledWith('desktop.activeKeyRequired')
+    expect(dialog.props('show')).toBe(false)
+    wrapper.unmount()
+  })
+  it('explains administrator restoration when the server rejects a concurrently disabled key', async () => {
+    const key = { ...createApiKey(), is_system: true, purpose: 'desktop_agent' }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, pages: 1 })
+      .mockResolvedValueOnce({ items: [{ ...key, status: 'disabled' }], total: 1, pages: 1 })
+    manageCredential.mockRejectedValueOnce({ status: 403, reason: 'DESKTOP_CREDENTIAL_RESTORE_ADMIN_REQUIRED' })
+    const wrapper = await mountView()
+    await wrapper.get('[data-test="desktop-key-reset"]').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ConfirmDialog' }).find(item => item.props('title') === 'desktop.reset')!
+    dialog.vm.$emit('confirm'); await flushPromises()
+    expect(showWarning).toHaveBeenCalledWith('desktop.revokedNeedsAdmin')
+    expect(wrapper.find('[data-test="desktop-key-reset"]').exists()).toBe(false)
+    expect(listKeys).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
 })

@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { post } = vi.hoisted(() => ({
+const { post, get } = vi.hoisted(() => ({
   post: vi.fn(),
+  get: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: {
     post,
+    get,
   },
 }))
 
 import {
   batchUpdateLimits,
+  getUserApiKeys,
   bindUserAuthIdentity,
   type AdminBindAuthIdentityRequest,
   type AdminBoundAuthIdentity,
@@ -80,6 +83,18 @@ const batchRequestContractExact: Assert<
 const batchResponseContractExact: Assert<
   IsExact<BatchUpdateUserLimitsResponse, { affected: number }>
 > = true
+
+describe('admin user key pages', () => {
+  beforeEach(() => get.mockReset())
+  it('preserves default reads and passes explicit pagination for older keys', async () => {
+    const value = { items: [], total: 0 }
+    get.mockResolvedValue({ data: value })
+    await expect(getUserApiKeys(8)).resolves.toBe(value)
+    expect(get).toHaveBeenLastCalledWith('/admin/users/8/api-keys')
+    await getUserApiKeys(8, { page: 2, page_size: 20 })
+    expect(get).toHaveBeenLastCalledWith('/admin/users/8/api-keys', { params: { page: 2, page_size: 20 } })
+  })
+})
 
 describe('admin users api auth identity binding', () => {
   beforeEach(() => {

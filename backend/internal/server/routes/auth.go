@@ -24,6 +24,12 @@ func RegisterAuthRoutes(
 ) {
 	// 创建速率限制器
 	rateLimiter := middleware.NewRateLimiter(redisClient)
+	if h.DesktopAuth != nil {
+		// 换证不使用网页cookie，code只在该公开端点原子消费；Redis故障时拒绝放行。
+		v1.POST("/desktop/auth/token", desktopAgentNoStore, gin.HandlerFunc(auditLog), rateLimiter.LimitWithOptions("desktop-auth-token", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.DesktopAuth.Token)
+	}
 
 	// 公开接口
 	auth := v1.Group("/auth")
@@ -254,6 +260,14 @@ func RegisterAuthRoutes(
 	// 面板全局按用户限流
 	authenticated.Use(panelRateLimiter.Global())
 	{
+		// 明确仅挂真实JWT路由，不能借管理MCP权限派生普通账户或推理凭据。
+		if h.DesktopAuth != nil {
+			authenticated.POST("/desktop/auth/authorize", desktopAgentNoStore, gin.HandlerFunc(auditLog), h.DesktopAuth.Authorize)
+		}
+		if h.DesktopAgent != nil {
+			authenticated.POST("/desktop/credential/revoke", desktopAgentNoStore, gin.HandlerFunc(auditLog), h.DesktopAgent.RevokeCredential)
+			authenticated.POST("/desktop/credential/reset", desktopAgentNoStore, gin.HandlerFunc(auditLog), h.DesktopAgent.ResetCredential)
+		}
 		authenticated.GET("/auth/me", h.Auth.GetCurrentUser)
 		// 撤销所有会话（需要认证）
 		authenticated.POST("/auth/revoke-all-sessions", h.Auth.RevokeAllSessions)

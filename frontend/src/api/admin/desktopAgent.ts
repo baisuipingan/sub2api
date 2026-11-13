@@ -28,9 +28,30 @@ export interface DesktopAgentConfig {
   base_url: string
   models: DesktopAgentModel[]
   default_model_id: string
+  model_profiles?: Record<string, DesktopAgentModelProfileBinding>
 }
 
 export interface DesktopAgentModels { group_id: number; models: string[] }
+export interface DesktopAgentModelProfileBinding { profile_id: string; override: boolean }
+export interface DesktopAgentProfile {
+  id: string
+  display_name: string
+  model: DesktopAgentModel
+  source: 'official_openai'
+  source_url: string
+  reviewed_at: string
+  revision: string
+  aliases: string[]
+  official_context_window: number
+  max_input_tokens: number
+  official_reasoning_levels: DesktopAgentReasoningLevel[]
+  notes: string[]
+}
+
+export async function getDesktopAgentProfiles(): Promise<{ profiles: DesktopAgentProfile[] }> {
+  const { data } = await apiClient.get<{ profiles: DesktopAgentProfile[] }>('/admin/desktop/profiles')
+  return data
+}
 
 export async function getDesktopAgentConfig(): Promise<DesktopAgentConfig> {
   const { data } = await apiClient.get<DesktopAgentConfig>('/admin/desktop/config')

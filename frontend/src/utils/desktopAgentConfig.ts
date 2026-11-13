@@ -1,5 +1,5 @@
 import type { AdminGroup } from '@/types'
-import { DESKTOP_AGENT_REASONING_LEVELS, type DesktopAgentConfig, type DesktopAgentModel } from '@/api/admin/desktopAgent'
+import { DESKTOP_AGENT_REASONING_LEVELS, type DesktopAgentConfig, type DesktopAgentModel, type DesktopAgentModelProfileBinding, type DesktopAgentProfile } from '@/api/admin/desktopAgent'
 
 export function isDesktopAgentGroupEligible(group: Pick<AdminGroup, 'status' | 'subscription_type' | 'platform'>): boolean {
   return group.status === 'active' && group.subscription_type === 'standard' &&
@@ -12,6 +12,7 @@ export type DesktopAgentValidationCode =
   | 'default_output_invalid' | 'capability_required' | 'required_capability'
   | 'reasoning_levels_invalid' | 'default_reasoning_invalid' | 'reasoning_unsupported'
   | 'models_limit' | 'model_duplicate' | 'default_model_invalid'
+  | 'profile_required' | 'profile_invalid'
 
 export interface DesktopAgentValidationIssue { field: string; code: DesktopAgentValidationCode }
 
@@ -31,8 +32,73 @@ function validGateway(value: string): boolean {
 
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0
 
+export function getDesktopAgentProfileBinding(config: DesktopAgentConfig, publicID: string): DesktopAgentModelProfileBinding | undefined {
+  return config.model_profiles && Object.prototype.hasOwnProperty.call(config.model_profiles, publicID) ? config.model_profiles[publicID] : undefined
+}
+
+export function resolveDesktopAgentProfile(profiles: DesktopAgentProfile[], publicID: string, binding?: DesktopAgentModelProfileBinding): DesktopAgentProfile | undefined {
+  const official = profiles.find(profile => profile.aliases.includes(publicID))
+  if (official && binding && binding.profile_id !== official.id) return undefined
+  return profiles.find(profile => binding ? profile.id === binding.profile_id : profile.aliases.includes(publicID))
+}
+
+/** Profile application never changes the public identity or the parent default-model choice. */
+export function applyDesktopAgentProfile(model: DesktopAgentModel, profile: DesktopAgentProfile, preserveDefaults = true): DesktopAgentModel {
+  const next = { ...JSON.parse(JSON.stringify(profile.model)) as DesktopAgentModel, id: model.id, display_name: model.display_name }
+  if (preserveDefaults) {
+    if (next.reasoning_levels.includes(model.default_reasoning)) next.default_reasoning = model.default_reasoning
+    if (positiveInteger(model.default_max_output_tokens) && model.default_max_output_tokens <= next.max_output_tokens) next.default_max_output_tokens = model.default_max_output_tokens
+  }
+  return next
+}
+
+export function normalizeDesktopAgentProfiles(config: DesktopAgentConfig, profiles: DesktopAgentProfile[]): DesktopAgentConfig {
+  const next = JSON.parse(JSON.stringify(config)) as DesktopAgentConfig
+  const bindings: Record<string, DesktopAgentModelProfileBinding> = Object.create(null)
+  next.models = next.models.map(model => {
+    const oldBinding = getDesktopAgentProfileBinding(next, model.id)
+    const profile = resolveDesktopAgentProfile(profiles, model.id, oldBinding)
+    if (!profile) {
+      if (oldBinding) bindings[model.id] = oldBinding
+      return model
+    }
+    const binding = oldBinding || { profile_id: profile.id, override: false }
+    bindings[model.id] = binding
+    return binding.override ? model : applyDesktopAgentProfile(model, profile)
+  })
+  if (Object.keys(bindings).length) next.model_profiles = bindings
+  else delete next.model_profiles
+  return next
+}
+
+/** Fail closed on a malformed registry rather than publish guessed capabilities. */
+export function validDesktopAgentProfiles(value: unknown): value is DesktopAgentProfile[] {
+  if (!Array.isArray(value) || value.length === 0) return false
+  const ids = new Set<string>()
+  const aliases = new Set<string>()
+  return value.every((profile: DesktopAgentProfile) => {
+    if (!profile || !validModelString(profile.id) || ids.has(profile.id) || !validModelString(profile.display_name) || profile.source !== 'official_openai') return false
+    ids.add(profile.id)
+    try {
+      const source = new URL(profile.source_url)
+      if (source.protocol !== 'https:' || !['developers.openai.com', 'platform.openai.com'].includes(source.hostname) || source.username || source.password) return false
+    } catch { return false }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(profile.reviewed_at) || typeof profile.revision !== 'string' || !profile.revision ||
+      !positiveInteger(profile.official_context_window) || !positiveInteger(profile.max_input_tokens) || profile.max_input_tokens > profile.official_context_window ||
+      !Array.isArray(profile.aliases) || !profile.aliases.includes(profile.id) || !profile.aliases.every(alias => {
+        if (!validModelString(alias) || aliases.has(alias)) return false
+        aliases.add(alias)
+        return true
+      }) || !Array.isArray(profile.official_reasoning_levels) || profile.official_reasoning_levels.length === 0 ||
+      !profile.official_reasoning_levels.every(level => DESKTOP_AGENT_REASONING_LEVELS.includes(level)) ||
+      !Array.isArray(profile.notes) || !profile.notes.every(note => typeof note === 'string') ||
+      !profile.model || profile.model.id !== profile.id || validateDesktopAgentModel(profile.model, 'profile').length > 0) return false
+    return true
+  })
+}
+
 /** 编辑前置提示；服务端仍最终验证分组授权、模型白名单及reasoning策略。 */
-export function validateDesktopAgentConfig(config: DesktopAgentConfig): DesktopAgentValidationIssue[] {
+export function validateDesktopAgentConfig(config: DesktopAgentConfig, profiles?: DesktopAgentProfile[]): DesktopAgentValidationIssue[] {
   const issues: DesktopAgentValidationIssue[] = []
   const add = (field: string, code: DesktopAgentValidationCode) => issues.push({ field, code })
   if (!Number.isSafeInteger(config.group_id) || config.group_id < 0) add('group_id', 'group_required')
@@ -50,7 +116,13 @@ export function validateDesktopAgentConfig(config: DesktopAgentConfig): DesktopA
     if (ids.has(model.id)) add(`${path}.id`, 'model_duplicate')
     ids.add(model.id)
     issues.push(...validateDesktopAgentModel(model, path))
+    if (profiles) {
+      const binding = getDesktopAgentProfileBinding(config, model.id)
+      if (binding && (typeof binding.override !== 'boolean' || typeof binding.profile_id !== 'string')) add(`${path}.profile`, 'profile_invalid')
+      else if (!resolveDesktopAgentProfile(profiles, model.id, binding)) add(`${path}.profile`, binding ? 'profile_invalid' : 'profile_required')
+    }
   })
+  if (profiles && config.model_profiles && Object.keys(config.model_profiles).some(id => !ids.has(id))) add('model_profiles', 'profile_invalid')
   if (!validModelString(config.default_model_id) || !ids.has(config.default_model_id)) add('default_model_id', 'default_model_invalid')
   return issues
 }

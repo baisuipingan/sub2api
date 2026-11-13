@@ -94,6 +94,8 @@ type APIKey struct {
 	// IsSystem 标记系统托管密钥（如生图工作台专用）。
 	// 前端据此禁用编辑/删除/换分组等入口，避免点完才收到 403。
 	IsSystem bool `json:"is_system"`
+	// Purpose identifies dedicated managed actions without relying on a mutable name.
+	Purpose string `json:"purpose,omitempty"`
 }
 
 type Group struct {

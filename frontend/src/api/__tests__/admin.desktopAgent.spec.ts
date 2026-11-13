@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { get, put, post } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn() }))
 vi.mock('@/api/client', () => ({ apiClient: { get, put, post } }))
 
-import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, updateDesktopAgentConfig, type DesktopAgentConfig } from '@/api/admin/desktopAgent'
+import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, getDesktopAgentProfiles, updateDesktopAgentConfig, type DesktopAgentConfig } from '@/api/admin/desktopAgent'
 
 const initial = (): DesktopAgentConfig => ({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })
 
@@ -73,4 +73,12 @@ describe('independent desktop Agent admin API', () => {
     expect(post).toHaveBeenCalledTimes(1)
     expect(put).not.toHaveBeenCalled()
   })
+  it('loads saved capability profiles without creating credentials or probing the upstream', async () => {
+    const profiles = { profiles: [] }
+    get.mockResolvedValueOnce({ data: profiles })
+    await expect(getDesktopAgentProfiles()).resolves.toBe(profiles)
+    expect(get).toHaveBeenCalledWith('/admin/desktop/profiles')
+    expect(post).not.toHaveBeenCalled()
+  })
+
 })

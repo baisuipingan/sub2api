@@ -25,11 +25,14 @@
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.groupHint') }}</p>
               <p v-if="selectedGroupUnavailable" data-test="agent-group-warning" class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ t('admin.agentSettings.groupUnavailable') }}</p>
             </div>
-            <div>
+            <details class="rounded-xl border border-gray-200 dark:border-dark-700">
+              <summary class="cursor-pointer px-4 py-3 text-sm font-medium">{{ t('admin.agentSettings.advancedConnection') }}</summary>
+              <div class="border-t border-gray-100 p-4 dark:border-dark-700">
               <label for="agent-gateway" class="input-label">{{ t('admin.agentSettings.gateway') }}</label>
               <input id="agent-gateway" v-model="draft.base_url" data-test="agent-gateway" type="url" class="input" :placeholder="suggestedGateway" autocomplete="off" />
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.gatewayHint') }}</p>
-            </div>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -47,15 +50,20 @@
             </div>
             <p data-test="agent-model-catalog-status" class="text-sm" :class="catalog.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'">{{ t(catalogMessageKey) }}</p>
             <p v-if="draft.models.length === 0" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.noModels') }}</p>
+            <div v-if="profilesFailed" class="flex flex-wrap items-center gap-3">
+              <p data-test="agent-profiles-failed" role="alert" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.agentSettings.profilesFailed') }}</p>
+              <button type="button" data-test="agent-retry-profiles" class="btn btn-secondary btn-sm" :disabled="loading || saving" @click="retryProfiles">{{ t('admin.agentSettings.retryProfiles') }}</button>
+            </div>
+          </div>
+          <div class="divide-y divide-gray-100 dark:divide-dark-700">
+            <AgentModelSettingsCard v-for="(model, index) in draft.models" :key="model.id" :model-value="model" :profiles="profiles" :binding="getDesktopAgentProfileBinding(draft, model.id)" :profiles-ready="profilesReady" :index="index" :is-default="draft.default_model_id === model.id" :unavailable="catalogCurrentReady && !catalog.models.includes(model.id)" :disabled="loading || saving" @update:model-value="updateModel(index, $event)" @profile-change="chooseProfile(index, $event)" @override-change="setOverride(index, $event)" @restore-profile="restoreProfile(index)" @remove="removeModel(index)" @make-default="makeDefault(model.id)" />
           </div>
         </div>
-
-        <AgentModelSettingsCard v-for="(model, index) in draft.models" :key="model.id" :model-value="model" :index="index" :is-default="draft.default_model_id === model.id" :unavailable="catalogCurrentReady && !catalog.models.includes(model.id)" :disabled="loading || saving" @update:model-value="updateModel(index, $event)" @remove="removeModel(index)" @make-default="makeDefault(model.id)" />
       </fieldset>
 
       <div class="card space-y-4 p-6">
         <ul v-if="submitted && validationCodes.length" role="alert" class="list-inside list-disc space-y-1 text-sm text-red-600 dark:text-red-400"><li v-for="code in validationCodes" :key="code">{{ t(`admin.agentSettings.validation.${code}`) }}</li></ul>
-        <button type="button" data-test="agent-save" class="btn btn-primary" :disabled="loading || saving" @click="save">{{ saving ? t('common.saving') : t('admin.agentSettings.save') }}</button>
+        <button type="button" data-test="agent-save" class="btn btn-primary" :disabled="loading || saving || !profilesReady" @click="save">{{ saving ? t('common.saving') : t('admin.agentSettings.save') }}</button>
       </div>
     </template>
     <TotpStepUpDialog :controller="stepUp" />
@@ -65,11 +73,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getDesktopAgentConfig, getDesktopAgentModels, updateDesktopAgentConfig } from '@/api/admin/desktopAgent'
-import type { DesktopAgentConfig, DesktopAgentModel } from '@/api/admin/desktopAgent'
+import { getDesktopAgentConfig, getDesktopAgentModels, getDesktopAgentProfiles, updateDesktopAgentConfig } from '@/api/admin/desktopAgent'
+import type { DesktopAgentConfig, DesktopAgentModel, DesktopAgentProfile } from '@/api/admin/desktopAgent'
 import { getAllIncludingInactive } from '@/api/admin/groups'
 import type { AdminGroup } from '@/types'
-import { isDesktopAgentGroupEligible, validateDesktopAgentConfig } from '@/utils/desktopAgentConfig'
+import { applyDesktopAgentProfile, getDesktopAgentProfileBinding, isDesktopAgentGroupEligible, normalizeDesktopAgentProfiles, resolveDesktopAgentProfile, validDesktopAgentProfiles, validateDesktopAgentConfig } from '@/utils/desktopAgentConfig'
 import { extractApiErrorCode } from '@/utils/apiError'
 import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, StepUpCancelledError, useStepUp } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
@@ -88,6 +96,10 @@ const errorKey = ref('')
 const noticeKey = ref('')
 const draft = ref<DesktopAgentConfig>({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })
 const groups = ref<AdminGroup[]>([])
+const profiles = ref<DesktopAgentProfile[]>([])
+const profileStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
+const profilesReady = computed(() => profileStatus.value === 'ready')
+const profilesFailed = computed(() => profileStatus.value === 'error')
 const catalog = ref<{ status: 'idle' | 'loading' | 'ready' | 'error'; groupId: number; models: string[] }>({ status: 'idle', groupId: 0, models: [] })
 const pickerSelection = ref<string | null>(null)
 const pickerKey = ref(0)
@@ -96,6 +108,7 @@ let alive = true
 let loadGeneration = 0
 let saveGeneration = 0
 let catalogGeneration = 0
+let profileGeneration = 0
 
 const selectedGroupEligible = computed(() => groups.value.some(group => group.id === draft.value.group_id && isDesktopAgentGroupEligible(group)))
 const selectedGroupUnavailable = computed(() => draft.value.group_id > 0 && !selectedGroupEligible.value)
@@ -118,7 +131,8 @@ const catalogMessageKey = computed(() => {
   return 'admin.agentSettings.catalogHint'
 })
 const validationCodes = computed(() => {
-  const codes: string[] = validateDesktopAgentConfig({ ...draft.value, enabled: true }).map(issue => issue.code)
+  const codes: string[] = validateDesktopAgentConfig({ ...draft.value, enabled: true }, profiles.value).map(issue => issue.code)
+  if (!profilesReady.value) codes.push('profiles_required')
   if (selectedGroupUnavailable.value) codes.push('group_required')
   if (draft.value.models.length > 0) {
     if (!catalogCurrentReady.value) codes.push('catalog_required')
@@ -164,17 +178,48 @@ function addModel() {
     input: { text: true, image: false, video: false, audio: false, pdf: false }, output: { text: true },
     supports_json_schema_output: false, supports_native_web_search: false, supports_mid_conversation_system: false,
   })
+  if (profilesReady.value) draft.value = normalizeDesktopAgentProfiles(draft.value, profiles.value)
   if (!draft.value.base_url) draft.value.base_url = suggestedGateway
   pickerSelection.value = null
 }
 function updateModel(index: number, model: DesktopAgentModel) {
   if (canEdit() && draft.value.models[index]?.id === model.id) draft.value.models[index] = model
 }
+function chooseProfile(index: number, profileID: string, restore = false) {
+  if (!canEdit() || !profilesReady.value) return
+  const model = draft.value.models[index]
+  const profile = profiles.value.find(item => item.id === profileID)
+  if (!model || !profile) return
+  const official = resolveDesktopAgentProfile(profiles.value, model.id)
+  if (official && official.id !== profile.id) return
+  // A single owner updates identity-preserving capabilities and their trust binding together.
+  draft.value = {
+    ...draft.value,
+    models: draft.value.models.map((item, position) => position === index ? applyDesktopAgentProfile(item, profile, !restore) : item),
+    model_profiles: { ...draft.value.model_profiles, [model.id]: { profile_id: profile.id, override: false } },
+  }
+}
+function setOverride(index: number, enabled: boolean) {
+  if (!canEdit() || !profilesReady.value) return
+  const model = draft.value.models[index]
+  if (!model) return
+  const profile = resolveDesktopAgentProfile(profiles.value, model.id, getDesktopAgentProfileBinding(draft.value, model.id))
+  if (!profile) return
+  if (!enabled) { chooseProfile(index, profile.id); return }
+  draft.value.model_profiles = { ...draft.value.model_profiles, [model.id]: { profile_id: profile.id, override: true } }
+}
+function restoreProfile(index: number) {
+  const model = draft.value.models[index]
+  if (!model) return
+  const profile = resolveDesktopAgentProfile(profiles.value, model.id, getDesktopAgentProfileBinding(draft.value, model.id))
+  if (profile) chooseProfile(index, profile.id, true)
+}
 function removeModel(index: number) {
   if (!canEdit()) return
   const model = draft.value.models[index]
   if (!model) return
   draft.value.models.splice(index, 1)
+  if (draft.value.model_profiles) delete draft.value.model_profiles[model.id]
   if (draft.value.default_model_id === model.id) draft.value.default_model_id = ''
 }
 function makeDefault(id: string) {
@@ -182,7 +227,7 @@ function makeDefault(id: string) {
 }
 function applyConfig(config: DesktopAgentConfig) {
   savedState.value = config.group_id === 0 && config.models.length === 0 ? 'unconfigured' : config.enabled ? 'configured' : 'unpublished'
-  draft.value = JSON.parse(JSON.stringify(config)) as DesktopAgentConfig
+  draft.value = profilesReady.value ? normalizeDesktopAgentProfiles(config, profiles.value) : JSON.parse(JSON.stringify(config)) as DesktopAgentConfig
   submitted.value = false
 }
 async function load() {
@@ -193,16 +238,37 @@ async function load() {
   loaded.value = false
   errorKey.value = ''
   noticeKey.value = ''
+  const profileLoad = ++profileGeneration
+  profileStatus.value = 'loading'
   try {
-    const [config, allGroups] = await Promise.all([getDesktopAgentConfig(), getAllIncludingInactive()])
+    const [config, allGroups, profileResult] = await Promise.all([getDesktopAgentConfig(), getAllIncludingInactive(), getDesktopAgentProfiles().then(result => ({ result, failed: false })).catch(() => ({ result: { profiles: [] }, failed: true }))])
     if (!alive || generation !== loadGeneration || !props.active) return
     groups.value = allGroups
+    if (profileLoad !== profileGeneration) return
+    const validProfiles = !profileResult.failed && validDesktopAgentProfiles(profileResult.result.profiles)
+    profiles.value = validProfiles ? profileResult.result.profiles : []
+    profileStatus.value = validProfiles ? 'ready' : 'error'
     applyConfig(config)
     loaded.value = true
   } catch {
     if (alive && generation === loadGeneration) errorKey.value = 'admin.agentSettings.loadFailed'
   } finally {
     if (alive && generation === loadGeneration) loading.value = false
+  }
+}
+async function retryProfiles() {
+  if (!canEdit()) return
+  const generation = ++profileGeneration
+  profileStatus.value = 'loading'
+  try {
+    const result = await getDesktopAgentProfiles()
+    if (!alive || !props.active || generation !== profileGeneration) return
+    if (!validDesktopAgentProfiles(result.profiles)) throw new Error('Invalid profile registry')
+    profiles.value = result.profiles
+    profileStatus.value = 'ready'
+    draft.value = normalizeDesktopAgentProfiles(draft.value, profiles.value)
+  } catch {
+    if (alive && props.active && generation === profileGeneration) profileStatus.value = 'error'
   }
 }
 function reportSaveError(error: unknown) {
@@ -249,7 +315,7 @@ async function persist(action: () => Promise<DesktopAgentConfig>, notice: string
   }
 }
 function save() {
-  if (!canEdit()) return
+  if (!canEdit() || !profilesReady.value) return
   submitted.value = true
   noticeKey.value = ''
   if (validationCodes.value.length) return
@@ -268,6 +334,8 @@ watch(() => props.active, active => {
     // 原因：v-show不会卸载，离开时废弃在途读取，防止回来后旧响应覆盖新草稿。
     loadGeneration += 1
     saveGeneration += 1
+    profileGeneration += 1
+    if (profileStatus.value === 'loading') profileStatus.value = 'error'
     loading.value = false
     stepUp.onCancel()
   }
@@ -276,6 +344,7 @@ onBeforeUnmount(() => {
   alive = false
   loadGeneration += 1
   saveGeneration += 1
+  profileGeneration += 1
   resetCatalog()
   stepUp.onCancel()
 })

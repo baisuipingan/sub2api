@@ -391,7 +391,7 @@
               value === 'expired' ? 'badge-danger' :
               'badge-gray'
             ]">
-              {{ t('keys.status.' + value) }}
+              {{ value === 'disabled' ? t('desktop.revokedState') : t('keys.status.' + value) }}
             </span>
           </template>
 
@@ -432,8 +432,18 @@
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
               </button>
+              <template v-if="isDesktopAgentKey(row) && row.status === 'active'">
+                <button type="button" data-test="desktop-key-revoke" :disabled="row.status !== 'active' || credentialSubmitting" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-amber-700 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-amber-400 dark:hover:bg-amber-900/20" @click="openDesktopCredentialAction(row, 'revoke')">
+                  <Icon name="ban" size="sm" /><span class="text-xs">{{ t('desktop.revoke') }}</span>
+                </button>
+                <button type="button" data-test="desktop-key-reset" :disabled="credentialSubmitting" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-dark-700" @click="openDesktopCredentialAction(row, 'reset')">
+                  <Icon name="refresh" size="sm" /><span class="text-xs">{{ t('desktop.reset') }}</span>
+                </button>
+              </template>
+              <span v-if="isDesktopAgentKey(row) && row.status === 'disabled'" data-test="desktop-key-revoked-hint" class="max-w-36 text-xs text-amber-700 dark:text-amber-400">{{ t('desktop.revokedNeedsAdmin') }}</span>
               <!-- Toggle Status Button -->
               <button
+                v-if="!isDesktopAgentKey(row)"
                 @click="toggleKeyStatus(row)"
                 :disabled="isSystemManaged(row)"
                 :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
@@ -452,6 +462,7 @@
               </button>
               <!-- Edit Button -->
               <button
+                v-if="!isDesktopAgentKey(row)"
                 @click="editKey(row)"
                 :disabled="isSystemManaged(row)"
                 :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
@@ -467,6 +478,7 @@
               </button>
               <!-- Delete Button -->
               <button
+                v-if="!isDesktopAgentKey(row)"
                 @click="confirmDelete(row)"
                 :disabled="isSystemManaged(row)"
                 :title="isSystemManaged(row) ? t('keys.systemKeyManaged') : undefined"
@@ -1074,6 +1086,16 @@
       @updated="handleBulkUpdated"
     />
 
+    <ConfirmDialog
+      :show="desktopCredentialAction !== null"
+      :title="t(desktopCredentialAction === 'revoke' ? 'desktop.revoke' : 'desktop.reset')"
+      :message="t(desktopCredentialAction === 'revoke' ? 'desktop.revokeConfirm' : 'desktop.resetConfirm')"
+      :danger="desktopCredentialAction === 'revoke'"
+      :loading="credentialSubmitting"
+      @confirm="confirmDesktopCredentialAction"
+      @cancel="cancelDesktopCredentialAction"
+    />
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteDialog"
@@ -1245,10 +1267,12 @@
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
+import { extractApiErrorCode } from '@/utils/apiError'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
+import { manageDesktopCredential } from '@/api/desktop'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
@@ -1442,6 +1466,9 @@ const filterGroupId = ref<string | number>('')
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const desktopCredentialAction = ref<'revoke' | 'reset' | null>(null)
+const desktopCredentialKeyId = ref<number | null>(null)
+const credentialSubmitting = ref(false)
 const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
@@ -1534,6 +1561,7 @@ const statusFilterOptions = computed(() => [
   { value: '', label: t('keys.allStatus') },
   { value: 'active', label: t('keys.status.active') },
   { value: 'inactive', label: t('keys.status.inactive') },
+  { value: 'disabled', label: t('desktop.revokedState') },
   { value: 'quota_exhausted', label: t('keys.status.quota_exhausted') },
   { value: 'expired', label: t('keys.status.expired') }
 ])
@@ -1746,7 +1774,50 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadApiKeys()
 }
 
-/** 系统托管密钥（生图工作台专用）：后端会拒绝一切修改，前端直接禁用入口 */
+/** 普通用户仅能撤销或轮换使用中的 Agent Key；恢复权限由管理员掌握。 */
+const isDesktopAgentKey = (key: ApiKey | null | undefined) => key?.is_system === true && key.purpose === 'desktop_agent'
+function openDesktopCredentialAction(key: ApiKey, action: 'revoke' | 'reset') {
+  if (!isDesktopAgentKey(key) || key.status !== 'active' || credentialSubmitting.value) return
+  desktopCredentialKeyId.value = key.id
+  desktopCredentialAction.value = action
+}
+function cancelDesktopCredentialAction() {
+  if (credentialSubmitting.value) return
+  desktopCredentialAction.value = null
+  desktopCredentialKeyId.value = null
+}
+async function confirmDesktopCredentialAction() {
+  const action = desktopCredentialAction.value
+  const keyId = desktopCredentialKeyId.value
+  if (!action || keyId === null || credentialSubmitting.value) return
+  const key = apiKeys.value.find(item => item.id === keyId)
+  if (!isDesktopAgentKey(key) || key?.status !== 'active') {
+    cancelDesktopCredentialAction()
+    appStore.showWarning(t('desktop.activeKeyRequired'))
+    return
+  }
+  credentialSubmitting.value = true
+  try {
+    await manageDesktopCredential(action, keyId)
+    desktopCredentialAction.value = null
+    desktopCredentialKeyId.value = null
+    appStore.showSuccess(t(action === 'revoke' ? 'desktop.revoked' : 'desktop.resetDone'))
+    // 原因：操作完成后以服务器事实重读，不把旧Key或猜测状态回填到列表。
+    await loadApiKeys()
+  } catch (error) {
+    if (extractApiErrorCode(error) === 'DESKTOP_CREDENTIAL_RESTORE_ADMIN_REQUIRED') {
+      desktopCredentialAction.value = null
+      desktopCredentialKeyId.value = null
+      appStore.showWarning(t('desktop.revokedNeedsAdmin'))
+      await loadApiKeys()
+    } else {
+      appStore.showError(t('desktop.credentialFailed'))
+    }
+  } finally {
+    credentialSubmitting.value = false
+  }
+}
+
 const isSystemManaged = (key: ApiKey | null | undefined) => key?.is_system === true
 
 /** 后端对系统密钥的拒绝信息是英文原文，这里统一翻成面向用户的一句话 */
@@ -1771,7 +1842,7 @@ const editKey = (key: ApiKey) => {
   formData.value = {
     name: key.name,
     group_id: key.group_id,
-    status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
+    status: key.status === 'active' ? 'active' : 'inactive',
     use_custom_key: false,
     custom_key: '',
     enable_ip_restriction: hasIPRestriction,

@@ -72,7 +72,7 @@ func TestDesktopAgentAdminRoutesRequireAdminAndStepUp(t *testing.T) {
 			router.ServeHTTP(rec, req)
 			require.Equal(t, http.StatusForbidden, rec.Code)
 			require.Zero(t, repo.writes)
-			for _, endpoint := range []struct{ method, path string }{{http.MethodGet, "/api/v1/admin/desktop/models?group_id=0"}, {http.MethodPost, "/api/v1/admin/desktop/config/disable"}} {
+			for _, endpoint := range []struct{ method, path string }{{http.MethodGet, "/api/v1/admin/desktop/models?group_id=0"}, {http.MethodPost, "/api/v1/admin/desktop/config/disable"}, {http.MethodPost, "/api/v1/admin/desktop/users/9/credential/revoke"}, {http.MethodPost, "/api/v1/admin/desktop/users/9/credential/reset"}} {
 				unauth := httptest.NewRecorder()
 				router.ServeHTTP(unauth, httptest.NewRequest(endpoint.method, endpoint.path, nil))
 				require.Equal(t, http.StatusUnauthorized, unauth.Code)

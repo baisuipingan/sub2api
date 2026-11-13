@@ -1,5 +1,6 @@
 import adminAccessKeys from './adminAccessKeys'
 import mcp from './mcp'
+import desktop from './desktop'
 import landing from './landing'
 import common from './common'
 import dashboard from './dashboard'
@@ -13,6 +14,7 @@ import tickets from './tickets'
 export default {
   adminAccessKeys,
   mcp,
+  desktop,
   ...landing,
   ...common,
   ...dashboard,

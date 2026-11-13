@@ -69,8 +69,17 @@ func (r *desktopAgentKeyStub) GetDesktopAgentCredential(_ context.Context, userI
 	return r.key, APIKeyPurposeDesktopAgent, r.err
 }
 func desktopBool(v bool) *bool { return &v }
+func desktopTestProfileBindings(ids ...string) map[string]DesktopAgentModelProfileBinding {
+	bindings := make(map[string]DesktopAgentModelProfileBinding, len(ids))
+	for _, id := range ids {
+		// These fixtures exercise bespoke group policies; their non-official
+		// capabilities are intentionally and explicitly administrator-overridden.
+		bindings[id] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6.1-sol", Override: true}
+	}
+	return bindings
+}
 func validDesktopConfig() DesktopAgentConfig {
-	return DesktopAgentConfig{Enabled: true, GroupID: 12, BaseURL: "https://gateway.example.test/v1", Model: &DesktopAgentModel{
+	return DesktopAgentConfig{Enabled: true, GroupID: 12, BaseURL: "https://gateway.example.test/v1", ModelProfiles: desktopTestProfileBindings("verified-responses-model"), Model: &DesktopAgentModel{
 		ID: "verified-responses-model", DisplayName: "Verified model", ContextWindow: 100000, MaxOutputTokens: 20000, DefaultMaxOutputTokens: 10000,
 		ReasoningLevels: []string{"low", "medium", "high"}, DefaultReasoning: "medium", SupportsReasoning: desktopBool(true), SupportsStreaming: desktopBool(true), RequiresMFJSToolSchema: desktopBool(false),
 		Input: &DesktopAgentInput{Text: desktopBool(true), Image: desktopBool(true), Video: desktopBool(false), Audio: desktopBool(false), PDF: desktopBool(false)}, Output: &DesktopAgentOutput{Text: desktopBool(true)},
@@ -137,6 +146,7 @@ func TestDesktopAgentConfigRequiresCompleteExplicitSafePolicy(t *testing.T) {
 	require.NoError(t, validateDesktopAgentConfig(cfg))
 	// 模型 ID 是网关标识而不是路径；保留合法命名空间 alias。
 	cfg.Model.ID = "openai/verified-responses-model"
+	cfg.ModelProfiles = desktopTestProfileBindings(cfg.Model.ID)
 	require.NoError(t, validateDesktopAgentConfig(cfg))
 }
 func TestDesktopAgentStrictRequestRejectsAmbiguityAndAuthorityFields(t *testing.T) {
@@ -388,6 +398,7 @@ func TestDesktopAgentMultipleModelsProtocolAndLegacyRead(t *testing.T) {
 	second.SupportsReasoning = desktopBool(false)
 	cfg.Models = append(cfg.Models, second)
 	cfg.DefaultModelID = second.ID
+	cfg.ModelProfiles = desktopTestProfileBindings(cfg.Models[0].ID, second.ID)
 	_, err = svc.UpdateConfig(context.Background(), *cfg)
 	require.NoError(t, err)
 	require.NotContains(t, repo.values[SettingKeyDesktopAgentConfig], `"model":`)
@@ -417,6 +428,7 @@ func TestDesktopAgentMultipleModelsRejectInvalidMembershipAndPolicy(t *testing.T
 			second := cfg.Models[0]
 			second.ID = "second-model"
 			cfg.Models = append(cfg.Models, second)
+			cfg.ModelProfiles[second.ID] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6.1-sol", Override: true}
 			switch kind {
 			case "duplicate":
 				cfg.Models[1].ID = cfg.Models[0].ID
@@ -535,6 +547,7 @@ func TestDesktopAgentProtocolThreeIsolatesUnavailableModels(t *testing.T) {
 			second.ID, second.DisplayName = "second-model", "Second model"
 			second.SupportsReasoning, second.ReasoningLevels, second.DefaultReasoning = desktopBool(false), []string{"none"}, "none"
 			cfg.Models = append(cfg.Models, second)
+			cfg.ModelProfiles[second.ID] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6.1-sol", Override: true}
 			_, err = svc.UpdateConfig(context.Background(), cfg)
 			require.NoError(t, err)
 			before, err := svc.BootstrapForProtocol(context.Background(), 7, 3)
@@ -609,6 +622,7 @@ func TestDesktopAgentProtocolThreeAuthorizationScopeOnlyTracksCredentialRoute(t 
 	second := cfg.Models[0]
 	second.ID = "second-model"
 	cfg.Models = append(cfg.Models, second)
+	cfg.ModelProfiles[second.ID] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6.1-sol", Override: true}
 	cfg.DefaultModelID = second.ID
 	cfg.Models[0].DisplayName = "Changed label"
 	cfg.Models[0].DefaultMaxOutputTokens--

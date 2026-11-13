@@ -4,9 +4,79 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 var ErrDesktopAgentPolicyChanged = errors.New("desktop agent policy changed")
+var ErrDesktopAgentRestoreAdminRequired = errors.New("disabled desktop credential requires administrator restoration")
+
+// DesktopAgentCredentialCaller is populated only from authenticated server
+// context, never decoded from an action body. The repository rechecks the
+// caller's current account/role while holding the same transaction locks as the
+// credential mutation. StepUpAuthorized means the existing site step-up gate
+// allowed this request, following the site's global step-up setting.
+type DesktopAgentCredentialCaller struct {
+	UserID           int64
+	Administrator    bool
+	StepUpAuthorized bool
+}
+
+func (c DesktopAgentCredentialCaller) Validate(targetUserID int64, reset bool) error {
+	if c.UserID <= 0 || (!c.Administrator && c.UserID != targetUserID) || (c.Administrator && reset && !c.StepUpAuthorized) {
+		return ErrInsufficientPerms
+	}
+	return nil
+}
+
+// DesktopAgentCredentialMutation deliberately contains no secret. The ordinary
+// bootstrap remains the only place that delivers a user's managed credential.
+type DesktopAgentCredentialMutation struct {
+	Status string `json:"status"`
+	KeyID  int64  `json:"key_id"`
+}
+
+type desktopAgentCredentialMutator interface {
+	MutateDesktopAgentCredential(context.Context, DesktopAgentCredentialCaller, int64, int64, string) (oldKey, newKey string, err error)
+}
+
+// ManageDesktopAgentCredential performs an explicit user/admin action. A disabled
+// purpose row is retained so a later automatic bootstrap cannot resurrect it.
+func (s *APIKeyService) ManageDesktopAgentCredential(ctx context.Context, caller DesktopAgentCredentialCaller, userID, keyID int64, reset bool) (*DesktopAgentCredentialMutation, error) {
+	if userID <= 0 || keyID <= 0 {
+		return nil, ErrDesktopAgentInvalid
+	}
+	if err := caller.Validate(userID, reset); err != nil {
+		return nil, err
+	}
+	repo, ok := s.apiKeyRepo.(desktopAgentCredentialMutator)
+	if !ok {
+		return nil, errors.New("managed credential mutation unavailable")
+	}
+	replacement := ""
+	if reset {
+		var err error
+		replacement, err = s.GenerateKey()
+		if err != nil {
+			return nil, err
+		}
+	}
+	oldKey, newKey, err := repo.MutateDesktopAgentCredential(ctx, caller, userID, keyID, replacement)
+	if err != nil {
+		return nil, err
+	}
+	// 原因：客户端可能在事务提交后断开；认证失效不能沿用已经取消的HTTP上下文。
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	s.InvalidateAuthCacheByKey(cleanup, oldKey)
+	if newKey != "" && newKey != oldKey {
+		s.InvalidateAuthCacheByKey(cleanup, newKey)
+	}
+	status := "revoked"
+	if reset {
+		status = "active"
+	}
+	return &DesktopAgentCredentialMutation{Status: status, KeyID: keyID}, nil
+}
 
 type desktopAgentKeyRepository interface {
 	EnsureDesktopAgentKey(context.Context, *APIKey) (*APIKey, bool, error)

@@ -43,6 +43,7 @@ func TestDesktopManagedCredentialRemainsReadableWithSystemProtectionMetadata(t *
 				require.Equal(t, key.Key, mapped.Key)
 				require.Equal(t, key.UserID, mapped.UserID)
 				require.Equal(t, tc.keyType == service.APIKeyTypeSystem, mapped.IsSystem)
+				require.Equal(t, tc.purpose, mapped.Purpose)
 			}
 		})
 	}

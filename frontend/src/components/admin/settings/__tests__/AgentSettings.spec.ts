@@ -3,14 +3,14 @@ import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import AgentSettings from '../AgentSettings.vue'
-import type { DesktopAgentConfig, DesktopAgentModel } from '@/api/admin/desktopAgent'
+import type { DesktopAgentConfig, DesktopAgentModel, DesktopAgentProfile } from '@/api/admin/desktopAgent'
 import enMessages from '@/i18n/locales/en/admin/agentSettings'
 import zhMessages from '@/i18n/locales/zh/admin/agentSettings'
 import enCommon from '@/i18n/locales/en/common'
 import zhCommon from '@/i18n/locales/zh/common'
 
-const mocks = vi.hoisted(() => ({ getConfig: vi.fn(), updateConfig: vi.fn(), getGroups: vi.fn(), getModels: vi.fn(), disable: vi.fn() }))
-vi.mock('@/api/admin/desktopAgent', async importOriginal => ({ ...(await importOriginal<typeof import('@/api/admin/desktopAgent')>()), getDesktopAgentConfig: mocks.getConfig, updateDesktopAgentConfig: mocks.updateConfig, getDesktopAgentModels: mocks.getModels, disableDesktopAgentConfig: mocks.disable }))
+const mocks = vi.hoisted(() => ({ getConfig: vi.fn(), updateConfig: vi.fn(), getGroups: vi.fn(), getModels: vi.fn(), disable: vi.fn(), getProfiles: vi.fn() }))
+vi.mock('@/api/admin/desktopAgent', async importOriginal => ({ ...(await importOriginal<typeof import('@/api/admin/desktopAgent')>()), getDesktopAgentConfig: mocks.getConfig, updateDesktopAgentConfig: mocks.updateConfig, getDesktopAgentModels: mocks.getModels, disableDesktopAgentConfig: mocks.disable, getDesktopAgentProfiles: mocks.getProfiles }))
 vi.mock('@/api/admin/groups', async importOriginal => ({ ...(await importOriginal<typeof import('@/api/admin/groups')>()), getAllIncludingInactive: mocks.getGroups }))
 const SelectStub = defineComponent({
   inheritAttrs: false, props: ['modelValue', 'options', 'disabled', 'searchable', 'creatable'], emits: ['update:modelValue'],
@@ -23,8 +23,11 @@ const wrappers: ReturnType<typeof mount>[] = []
 function model(id = 'verified-model', overrides: Partial<DesktopAgentModel> = {}): DesktopAgentModel {
   return { id, display_name: `Display ${id}`, context_window: 128000, max_output_tokens: 16000, default_max_output_tokens: 4096, reasoning_levels: ['none', 'low', 'high'], default_reasoning: 'low', supports_reasoning: true, supports_streaming: true, supports_tool_call: true, requires_mfjs_tool_schema: false, input: { text: true, image: true, video: false, audio: false, pdf: true }, output: { text: true }, supports_json_schema_output: true, supports_native_web_search: false, supports_mid_conversation_system: true, ...overrides }
 }
+function profile(): DesktopAgentProfile {
+  return { id: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol', source: 'official_openai', source_url: 'https://developers.openai.com/api/docs/models/gpt-6.1-sol', reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-6.1-sol'], official_context_window: 1050000, max_input_tokens: 922000, official_reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], notes: ['input_budget_compatibility', 'native_web_search_unavailable'], model: model('gpt-6.1-sol', { context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' }) }
+}
 function fixture(): DesktopAgentConfig {
-  return { enabled: true, group_id: 7, base_url: 'https://account.example.invalid/v1', models: [model()], default_model_id: 'verified-model' }
+  return { enabled: true, group_id: 7, base_url: 'https://account.example.invalid/v1', models: [model()], default_model_id: 'verified-model', model_profiles: { 'verified-model': { profile_id: 'gpt-6.1-sol', override: true } } }
 }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
 function setup(active = true, locale: 'en' | 'zh' = 'en', realSelect = false) {
@@ -38,7 +41,7 @@ const input = (wrapper: Wrapper, key: string) => wrapper.get<HTMLInputElement>(`
 const modelInput = (wrapper: Wrapper, key: string, index = 0) => card(wrapper, index).get<HTMLInputElement>(`[data-test="agent-${key}"]`)
 async function add(wrapper: Wrapper, id = 'second-model') { await wrapper.get('[data-test="agent-model-picker"]').setValue(id); await wrapper.get('[data-test="agent-add-model"]').trigger('click') }
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.getConfig.mockResolvedValue(fixture())
+  vi.clearAllMocks(); mocks.getProfiles.mockResolvedValue({ profiles: [profile()] }); mocks.getConfig.mockResolvedValue(fixture())
   mocks.getGroups.mockResolvedValue([{ id: 7, name: 'Composite balance', status: 'active', platform: 'composite', subscription_type: 'standard' }, { id: 8, name: 'OpenAI balance', status: 'active', platform: 'openai', subscription_type: 'standard' }, { id: 9, name: 'Inactive', status: 'inactive', platform: 'openai', subscription_type: 'standard' }, { id: 10, name: 'Subscription', status: 'active', platform: 'openai', subscription_type: 'subscription' }, { id: 11, name: 'Anthropic', status: 'active', platform: 'anthropic', subscription_type: 'standard' }])
   mocks.getModels.mockImplementation(async groupId => ({ group_id: groupId, models: ['verified-model', 'second-model', 'third-model'] }))
   mocks.updateConfig.mockImplementation(async config => config)
@@ -85,7 +88,7 @@ describe('system Agent multiple model settings', () => {
     await wrapper.get('[data-test="agent-add-model"]').trigger('click'); expect(wrapper.findAll('[data-test="agent-model-card"]')).toHaveLength(32)
   })
   it('saves separate model capabilities, budgets and the selected default with all fields', async () => {
-    const cfg = fixture(); cfg.models.push(model('second-model', { default_max_output_tokens: 2048, input: { text: true, image: false, video: false, audio: false, pdf: false } })); mocks.getConfig.mockResolvedValueOnce(cfg)
+    const cfg = fixture(); cfg.models.push(model('second-model', { default_max_output_tokens: 2048, input: { text: true, image: false, video: false, audio: false, pdf: false } })); cfg.model_profiles!['second-model'] = { profile_id: 'gpt-6.1-sol', override: true }; mocks.getConfig.mockResolvedValueOnce(cfg)
     const { wrapper } = setup(); await flushPromises()
     await modelInput(wrapper, 'model-name', 0).setValue('First display'); await modelInput(wrapper, 'default-output', 1).setValue('8192')
     await modelInput(wrapper, 'cap-input.audio', 1).setValue(true); await modelInput(wrapper, 'cap-requires_mfjs_tool_schema', 1).setValue(true); await modelInput(wrapper, 'model-default', 1).setValue(true)
@@ -94,12 +97,12 @@ describe('system Agent multiple model settings', () => {
     expect(mocks.updateConfig).toHaveBeenCalledWith(expected); expect(wrapper.get('[role="status"]').text()).toBe(enMessages.agentSettings.saved)
   })
   it('deletes models individually and requires an explicit default after removing the default model', async () => {
-    const cfg = fixture(); cfg.models.push(model('second-model')); mocks.getConfig.mockResolvedValueOnce(cfg)
+    const cfg = fixture(); cfg.models.push(model('second-model')); cfg.model_profiles!['second-model'] = { profile_id: 'gpt-6.1-sol', override: true }; mocks.getConfig.mockResolvedValueOnce(cfg)
     const { wrapper } = setup(); await flushPromises(); await card(wrapper).get('[data-test="agent-model-remove"]').trigger('click')
     expect(wrapper.findAll('[data-test="agent-model-card"]')).toHaveLength(1); expect(modelInput(wrapper, 'model-default').element.checked).toBe(false)
     await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); expect(mocks.updateConfig).not.toHaveBeenCalled()
     await modelInput(wrapper, 'model-default').setValue(true); await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
-    expect(mocks.updateConfig).toHaveBeenCalledWith({ ...cfg, models: [cfg.models[1]], default_model_id: 'second-model' })
+    expect(mocks.updateConfig).toHaveBeenCalledWith({ ...cfg, models: [cfg.models[1]], default_model_id: 'second-model', model_profiles: { 'second-model': cfg.model_profiles!['second-model'] } })
   })
   it('shows natural empty state, needs a group first, and does not create model settings automatically', async () => {
     const empty = { enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' }; mocks.getConfig.mockResolvedValueOnce(empty)
@@ -208,5 +211,83 @@ describe('system Agent multiple model settings', () => {
   })
   it('translates all visible labels without raw keys', async () => {
     const { wrapper, i18n } = setup(true, 'zh'); await flushPromises(); expect(wrapper.text()).toContain(zhMessages.agentSettings.gateway); i18n.global.locale.value = 'en'; await flushPromises(); expect(wrapper.text()).not.toMatch(/admin\.agentSettings\./); expect(wrapper.text()).not.toMatch(/[\u3400-\u9fff]/u)
+  })
+  it('keeps frequently used defaults outside the collapsed capability and connection overrides', async () => {
+    const { wrapper } = setup(); await flushPromises()
+    expect(modelInput(wrapper, 'default-output').element.closest('details')).toBeNull()
+    expect(card(wrapper).get('[data-test="agent-default-reasoning"]').element.closest('details')).toBeNull()
+    expect(modelInput(wrapper, 'context').element.closest('details')).not.toBeNull()
+    expect(input(wrapper, 'gateway').element.closest('details')).not.toBeNull()
+    expect(card(wrapper).get('[data-test="agent-capability-summary"]').text()).toContain('128,000')
+    expect(card(wrapper).text()).toContain(enMessages.agentSettings.defaultMaxOutputTokens)
+  })
+  it('applies a trusted profile atomically without renaming an alias or changing the default model', async () => {
+    const { wrapper } = setup(); await flushPromises(); await add(wrapper)
+    expect(card(wrapper, 1).get('[data-test="agent-profile-required"]').exists()).toBe(true)
+    await card(wrapper, 1).get('[data-test="agent-profile"]').setValue('gpt-6.1-sol')
+    expect(card(wrapper, 1).attributes('data-model-id')).toBe('second-model')
+    expect(modelInput(wrapper, 'model-name', 1).element.value).toBe('second-model')
+    expect(modelInput(wrapper, 'context', 1).element.value).toBe('922000')
+    expect(modelInput(wrapper, 'context', 1).element.disabled || modelInput(wrapper, 'context', 1).element.matches(':disabled')).toBe(true)
+    expect(modelInput(wrapper, 'default-output', 1).element.value).toBe('16384')
+    expect(modelInput(wrapper, 'model-default', 0).element.checked).toBe(true)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig.mock.calls[0][0].model_profiles['second-model']).toEqual({ profile_id: 'gpt-6.1-sol', override: false })
+    expect(mocks.updateConfig.mock.calls[0][0].models[1].input.image).toBe(true)
+  })
+  it('blocks unknown public IDs until a profile is chosen', async () => {
+    const { wrapper } = setup(); await flushPromises(); await add(wrapper)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(wrapper.text()).toContain(enMessages.agentSettings.validation.profile_required)
+    expect(mocks.updateConfig).not.toHaveBeenCalled()
+  })
+  it('shows no trusted capability summary for a legacy custom ID without a binding', async () => {
+    const cfg = fixture(); delete cfg.model_profiles; mocks.getConfig.mockResolvedValueOnce(cfg)
+    const { wrapper } = setup(); await flushPromises()
+    expect(card(wrapper).get('[data-test="agent-capability-summary"]').text()).toBe(enMessages.agentSettings.unverifiedSummary)
+    expect(card(wrapper).get('[data-test="agent-capability-summary"]').text()).not.toContain('128,000')
+    expect(modelInput(wrapper, 'context').element.value).toBe('128000')
+    expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(true)
+  })
+  it('normalizes known official IDs automatically while preserving valid operator defaults', async () => {
+    const cfg = fixture(); cfg.models = [model('gpt-6.1-sol', { context_window: 42, max_output_tokens: 40 })]; cfg.default_model_id = 'gpt-6.1-sol'; delete cfg.model_profiles
+    mocks.getConfig.mockResolvedValueOnce(cfg); mocks.getModels.mockResolvedValueOnce({ group_id: 7, models: ['gpt-6.1-sol'] })
+    const { wrapper } = setup(); await flushPromises()
+    expect(modelInput(wrapper, 'context').element.value).toBe('922000')
+    expect(modelInput(wrapper, 'default-output').element.value).toBe('4096')
+    expect(card(wrapper).get('[data-test="agent-default-reasoning"]').element.value).toBe('low')
+    expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(true)
+    expect(card(wrapper).get('[data-test="agent-profile"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig.mock.calls[0][0].model_profiles['gpt-6.1-sol']).toEqual({ profile_id: 'gpt-6.1-sol', override: false })
+  })
+  it('requires explicit overrides and restores profile defaults in one draft', async () => {
+    const { wrapper } = setup(); await flushPromises()
+    await modelInput(wrapper, 'default-output').setValue('8192')
+    await modelInput(wrapper, 'context').setValue('256000')
+    await modelInput(wrapper, 'profile-override').setValue(false)
+    expect(modelInput(wrapper, 'context').element.value).toBe('922000')
+    expect(modelInput(wrapper, 'default-output').element.value).toBe('8192')
+    expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(true)
+    await modelInput(wrapper, 'profile-override').setValue(true)
+    expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(false)
+    await card(wrapper).get('[data-test="agent-restore-profile"]').trigger('click')
+    expect(modelInput(wrapper, 'default-output').element.value).toBe('16384')
+    expect(modelInput(wrapper, 'profile-override').element.checked).toBe(false)
+    expect(card(wrapper).get('[data-test="agent-default-reasoning"]').element.value).toBe('medium')
+  })
+  it.each(['network', 'malformed'])('blocks publish on %s profile failure and retries without discarding edits', async failure => {
+    if (failure === 'network') mocks.getProfiles.mockRejectedValueOnce(new Error('profile unavailable'))
+    else mocks.getProfiles.mockResolvedValueOnce({ profiles: [{ id: 'saved-config', source: 'saved_configuration' }] })
+    const { wrapper } = setup(); await flushPromises()
+    expect(wrapper.get('[data-test="agent-profiles-failed"]').text()).toBe(enMessages.agentSettings.profilesFailed)
+    await modelInput(wrapper, 'model-name').setValue('Unsaved identity')
+    expect(wrapper.get('[data-test="agent-save"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises(); expect(mocks.updateConfig).not.toHaveBeenCalled()
+    await wrapper.get('[data-test="agent-retry-profiles"]').trigger('click'); await flushPromises()
+    expect(modelInput(wrapper, 'model-name').element.value).toBe('Unsaved identity')
+    expect(mocks.getConfig).toHaveBeenCalledTimes(1)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig.mock.calls[0][0].models[0].display_name).toBe('Unsaved identity')
   })
 })

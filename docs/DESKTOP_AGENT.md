@@ -1,5 +1,11 @@
 # Desktop Agent bootstrap（W3）
 
+## 2026-11-13：桌面客户端配置与登录整理
+
+当前增量规则见 [桌面集成合同](./DESKTOP_CLIENT_INTEGRATION.md)、[浏览器授权合同](./DESKTOP_BROWSER_AUTH.md)、[前端体验合同](./DESKTOP_CLIENT_EXPERIENCE.md)及[官方模型档案](./DESKTOP_MODEL_PROFILES.md)。本节新规则覆盖下文历史提案：保留 protocol 1/2/3 线协议；旧随填能力不再当作模板，已知 ID 按官方档案和执行器限制校准，未知别名须显式关联；高级声明必须明确启用覆盖。`default_max_output_tokens` 准确显示为单次输出上限。本人仅可轮换 active Key，disabled 仅完整管理员按现有 step-up 规则恢复；不改变普通Key、生图Key、原钱包与网关计费。授权登录使用外部浏览器PKCE，账户token仍复用原账户会话，未增加设备级推理授权。
+
+本轮实现范围、验证证据、发布顺序与尚未完成的验收见 [交付说明](./DESKTOP_CLIENT_IMPLEMENTATION.md)。
+
 ## 2026-11-12：目录刷新 v3 与配置页收口（当前合同）
 
 本节替代下文历史“连接开关/关闭 Agent 连接”的管理界面及 protocol 2 新客户端规则；protocol 1/2 的请求与响应合同保持兼容。未部署、未发真实推理请求或支付。源码验证结果见本节末尾。

@@ -771,7 +771,9 @@ export interface ApiKey {
   group_id: number | null
   /** 系统托管密钥（如生图工作台专用）：不能编辑/删除/换分组 */
   is_system?: boolean
-  status: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
+  /** 托管用途，仅用于显示专用管理操作，不是网关权限。 */
+  purpose?: string
+  status: 'active' | 'inactive' | 'disabled' | 'quota_exhausted' | 'expired'
   ip_whitelist: string[]
   ip_blacklist: string[]
   last_used_at: string | null

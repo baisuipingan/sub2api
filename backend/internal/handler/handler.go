@@ -73,6 +73,7 @@ type Handlers struct {
 	AsyncImage         *AsyncImageHandler
 	BatchImage         *BatchImageHandler
 	DesktopAgent       *DesktopAgentHandler
+	DesktopAuth        *DesktopAuthHandler
 	ImageStudio        *ImageStudioHandler
 	ImageStudioGallery *ImageStudioGalleryHandler
 	ImageStudioJobs    *StudioJobHandler

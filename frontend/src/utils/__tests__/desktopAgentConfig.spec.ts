@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/api/client', () => ({ apiClient: {} }))
-import type { DesktopAgentConfig, DesktopAgentModel } from '@/api/admin/desktopAgent'
-import { isDesktopAgentGroupEligible, validateDesktopAgentConfig } from '@/utils/desktopAgentConfig'
+import type { DesktopAgentConfig, DesktopAgentModel, DesktopAgentProfile } from '@/api/admin/desktopAgent'
+import { applyDesktopAgentProfile, getDesktopAgentProfileBinding, isDesktopAgentGroupEligible, normalizeDesktopAgentProfiles, resolveDesktopAgentProfile, validDesktopAgentProfiles, validateDesktopAgentConfig } from '@/utils/desktopAgentConfig'
 
 const valid = (): DesktopAgentConfig => ({
   enabled: true, group_id: 7, base_url: 'https://accounts.example.invalid/v1',
@@ -17,7 +17,66 @@ const valid = (): DesktopAgentConfig => ({
 })
 const model = (config: DesktopAgentConfig) => config.models[0]!
 
+const profile = (): DesktopAgentProfile => ({
+  id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol', source: 'official_openai', source_url: 'https://developers.openai.com/api/docs/models/gpt-5.6-sol',
+  reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-5.6-sol', 'gpt-5.6'], official_context_window: 1050000, max_input_tokens: 922000,
+  official_reasoning_levels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], notes: ['input_budget_compatibility', 'native_web_search_unavailable', 'reasoning_none_unavailable'],
+  model: { ...model(valid()), id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol', context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' },
+})
+
 describe('desktop Agent config preflight', () => {
+  it('matches only exact official IDs, explicit aliases or a valid chosen profile', () => {
+    const profiles = [profile(), { ...profile(), id: 'gpt-6.1-sol', aliases: ['gpt-6.1-sol'] }]
+    expect(resolveDesktopAgentProfile(profiles, 'gpt-5.6')?.id).toBe('gpt-5.6-sol')
+    expect(resolveDesktopAgentProfile(profiles, 'gpt-5.6-sol-custom')).toBeUndefined()
+    expect(resolveDesktopAgentProfile(profiles, 'custom', { profile_id: 'gpt-5.6-sol', override: false })?.id).toBe('gpt-5.6-sol')
+    expect(resolveDesktopAgentProfile(profiles, 'gpt-5.6', { profile_id: 'other', override: true })).toBeUndefined()
+    expect(resolveDesktopAgentProfile(profiles, 'gpt-5.6', { profile_id: 'gpt-6.1-sol', override: true })).toBeUndefined()
+  })
+  it.each(['__proto__', 'constructor', 'toString'])('keeps custom aliases as own JSON bindings: %s', id => {
+    const cfg = valid(); model(cfg).id = id; cfg.default_model_id = id
+    expect(getDesktopAgentProfileBinding({ ...cfg, model_profiles: {} }, id)).toBeUndefined()
+    cfg.model_profiles = JSON.parse(JSON.stringify({ [id]: { profile_id: 'gpt-5.6-sol', override: false } }))
+    const normalized = normalizeDesktopAgentProfiles(cfg, [profile()])
+    expect(getDesktopAgentProfileBinding(normalized, id)).toEqual({ profile_id: 'gpt-5.6-sol', override: false })
+    expect(JSON.parse(JSON.stringify(normalized)).model_profiles[id]).toEqual({ profile_id: 'gpt-5.6-sol', override: false })
+    expect(validateDesktopAgentConfig(normalized, [profile()])).toEqual([])
+  })
+  it('repairs known legacy physical fields but keeps identity and valid operator defaults', () => {
+    const cfg = valid(); model(cfg).id = 'gpt-5.6'; cfg.default_model_id = 'gpt-5.6'
+    const before = JSON.stringify(cfg)
+    const normalized = normalizeDesktopAgentProfiles(cfg, [profile()])
+    expect(JSON.stringify(cfg)).toBe(before)
+    expect(normalized.models[0]).toMatchObject({ id: 'gpt-5.6', display_name: 'Fixture Model', context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 4096, default_reasoning: 'low' })
+    expect(normalized.model_profiles).toEqual({ 'gpt-5.6': { profile_id: 'gpt-5.6-sol', override: false } })
+    expect(normalized.default_model_id).toBe('gpt-5.6')
+    expect(validateDesktopAgentConfig(normalized, [profile()])).toEqual([])
+  })
+  it('retains only explicit advanced overrides and removes orphan bindings', () => {
+    const cfg = valid(); cfg.model_profiles = { 'fixture-model': { profile_id: 'gpt-5.6-sol', override: true }, orphan: { profile_id: 'gpt-5.6-sol', override: false } }
+    const normalized = normalizeDesktopAgentProfiles(cfg, [profile()])
+    expect(normalized.models[0]).toEqual(model(cfg))
+    expect(normalized.model_profiles).not.toHaveProperty('orphan')
+    expect(validateDesktopAgentConfig(cfg, [profile()])).toContainEqual({ field: 'model_profiles', code: 'profile_invalid' })
+  })
+  it('requires a profile for unknown public IDs and rejects invalid known bindings', () => {
+    const cfg = valid()
+    expect(validateDesktopAgentConfig(cfg, [profile()])).toContainEqual({ field: 'models.0.profile', code: 'profile_required' })
+    model(cfg).id = 'gpt-5.6'; cfg.default_model_id = 'gpt-5.6'; cfg.model_profiles = { 'gpt-5.6': { profile_id: 'other', override: false } }
+    expect(validateDesktopAgentConfig(cfg, [profile()])).toContainEqual({ field: 'models.0.profile', code: 'profile_invalid' })
+  })
+  it('restores invalid defaults, or all defaults when explicitly requested', () => {
+    const old = model(valid()); old.default_reasoning = 'none'; old.default_max_output_tokens = 128001
+    expect(applyDesktopAgentProfile(old, profile())).toMatchObject({ default_reasoning: 'medium', default_max_output_tokens: 16384 })
+    old.default_reasoning = 'low'; old.default_max_output_tokens = 4096
+    expect(applyDesktopAgentProfile(old, profile(), false)).toMatchObject({ default_reasoning: 'medium', default_max_output_tokens: 16384 })
+  })
+  it('rejects empty, saved-derived, unsafe and incomplete capability registries', () => {
+    expect(validDesktopAgentProfiles([profile()])).toBe(true)
+    for (const value of [[], [null], [{ ...profile(), source: 'saved_configuration' }], [{ ...profile(), source_url: 'https://attacker.invalid' }], [{ ...profile(), aliases: ['gpt-5.6'] }], [{ ...profile(), model: { ...profile().model, input: {} } }], [profile(), profile()]]) {
+      expect(validDesktopAgentProfiles(value)).toBe(false)
+    }
+  })
   it('accepts unconfigured disabled, full enabled and complete disabled without mutation', () => {
     expect(validateDesktopAgentConfig({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })).toEqual([])
     const config = valid()

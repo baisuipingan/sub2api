@@ -304,6 +304,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/desktop/authorize',
+    name: 'DesktopAuthorize',
+    component: () => import('@/views/auth/DesktopAuthorizeView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Connect ZCode',
+      titleKey: 'desktop.authorizeTitle'
+    }
+  },
+  {
     path: '/oauth/mcp/authorize',
     name: 'MCPOAuthAuthorize',
     component: () => import('@/views/auth/MCPOAuthAuthorizeView.vue'),
