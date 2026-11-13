@@ -244,6 +244,18 @@ func TestDesktopAgentRealProviderBootstrapUsesIndependentPurpose(t *testing.T) {
 		ID: "fixture-model", DisplayName: "Fixture", ContextWindow: 100000, MaxOutputTokens: 20000, DefaultMaxOutputTokens: 10000, ReasoningLevels: []string{"none"}, DefaultReasoning: "none", SupportsReasoning: boolp(false), SupportsStreaming: boolp(true), RequiresMFJSToolSchema: boolp(false),
 		Input: &service.DesktopAgentInput{Text: boolp(true), Image: boolp(false), Video: boolp(false), Audio: boolp(false), PDF: boolp(false)}, Output: &service.DesktopAgentOutput{Text: boolp(true)}, SupportsToolCall: boolp(true), SupportsJSONSchemaOutput: boolp(false), SupportsNativeWebSearch: boolp(false), SupportsMidConversationSystem: boolp(true)}}
 	_, err := svc.UpdateConfig(ctx, cfg)
+	// This synthetic public alias has no official capability identity. Saving
+	// it must fail until the administrator explicitly binds its test policy.
+	require.ErrorIs(t, err, service.ErrDesktopAgentInvalid)
+	var keyCount int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_keys WHERE user_id=$1 AND purpose='desktop_agent'`, f.userID).Scan(&keyCount))
+	require.Zero(t, keyCount)
+	// Keep the fixture's non-reasoning policy, rather than silently adopting
+	// official capabilities or weakening the provider/purpose assertions below.
+	cfg.ModelProfiles = map[string]service.DesktopAgentModelProfileBinding{
+		"fixture-model": {ProfileID: "gpt-6.1-sol", Override: true},
+	}
+	_, err = svc.UpdateConfig(ctx, cfg)
 	require.NoError(t, err)
 	first, err := svc.Bootstrap(ctx, f.userID)
 	require.NoError(t, err)
