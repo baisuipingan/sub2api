@@ -66,6 +66,7 @@
         <button type="button" data-test="agent-save" class="btn btn-primary" :disabled="loading || saving || !profilesReady" @click="save">{{ saving ? t('common.saving') : t('admin.agentSettings.save') }}</button>
       </div>
     </template>
+    <DesktopReleaseStorageSettings :active="props.active" />
     <TotpStepUpDialog :controller="stepUp" />
   </section>
 </template>
@@ -83,6 +84,7 @@ import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, StepUpCancelledE
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Select from '@/components/common/Select.vue'
 import AgentModelSettingsCard from './AgentModelSettingsCard.vue'
+import DesktopReleaseStorageSettings from './DesktopReleaseStorageSettings.vue'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const { t } = useI18n()

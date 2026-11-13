@@ -3205,6 +3205,64 @@ func TestOpenAIBuildUpstreamRequestOpenAIPassthroughPreservesExplicitAPIKeyBetaH
 	require.Equal(t, "api-key-specific-beta", req.Header.Get("OpenAI-Beta"), "OAuth-only backport must not alter API-key passthrough headers")
 }
 
+func TestOpenAIAPIKeyForwardingPreservesExplicitSessionAffinity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{Security: config.SecurityConfig{
+		URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+	}}}
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	builders := map[string]func(*gin.Context, *Account, []byte) (*http.Request, error){
+		"normal": func(c *gin.Context, a *Account, body []byte) (*http.Request, error) {
+			return svc.buildUpstreamRequest(c.Request.Context(), c, a, body, "upstream-test-token", false, "", false)
+		},
+		"passthrough": func(c *gin.Context, a *Account, body []byte) (*http.Request, error) {
+			return svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, a, body, "upstream-test-token")
+		},
+	}
+	for name, build := range builders {
+		t.Run(name, func(t *testing.T) {
+			for _, alias := range []string{"X-Session-ID", "session-id", "x-session-affinity", "x-opencode-session", "x-conversation-id"} {
+				t.Run(alias, func(t *testing.T) {
+					for _, input := range []string{"first question", "changed history and tools"} {
+						body := []byte(`{"model":"gpt-6.1-sol","input":"` + input + `"}`)
+						c, _ := newCyberBlockTestCtx(map[string]string{alias: "stable-session", "Authorization": "Bearer inbound-test-token"}, string(body))
+						req, err := build(c, account, body)
+						require.NoError(t, err)
+						require.Equal(t, "stable-session", req.Header.Get("session_id"))
+						require.Equal(t, "stable-session", req.Header.Get("X-Session-ID"))
+						require.Equal(t, "Bearer upstream-test-token", req.Header.Get("Authorization"))
+						inner, _ := gin.CreateTestContext(httptest.NewRecorder())
+						inner.Request = req
+						require.Equal(t, svc.GenerateSessionHash(c, body), svc.GenerateSessionHash(inner, body), "a second gateway must keep the explicit session despite body changes")
+						inner.Request.Header.Del("session_id")
+						require.Equal(t, svc.GenerateSessionHash(c, body), svc.GenerateSessionHash(inner, body), "affinity must also survive a proxy stripping underscore headers")
+					}
+				})
+			}
+			for _, canonical := range []string{"session_id", "conversation_id"} {
+				c, body := newCyberBlockTestCtx(map[string]string{canonical: "canonical-session", "X-Session-ID": "lower-priority-alias"}, `{"input":"hello"}`)
+				req, err := build(c, account, body)
+				require.NoError(t, err)
+				require.Equal(t, "canonical-session", req.Header.Get(canonical))
+				if canonical == "conversation_id" {
+					require.Empty(t, req.Header.Get("session_id"))
+				}
+			}
+			c, body := newCyberBlockTestCtx(map[string]string{"X-Request-ID": "rotating-request"}, `{"input":"hello"}`)
+			req, err := build(c, account, body)
+			require.NoError(t, err)
+			require.Empty(t, req.Header.Get("session_id"), "request IDs must not become cache identities")
+
+			oauth := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "test-account"}}
+			c.Request.Header.Set("X-Session-ID", "raw-client-session")
+			oauthReq, err := build(c, oauth, body)
+			require.NoError(t, err)
+			require.NotEqual(t, "raw-client-session", oauthReq.Header.Get("session_id"), "OAuth must retain its existing scoped session handling")
+			require.Empty(t, oauthReq.Header.Get("X-Session-ID"))
+		})
+	}
+}
+
 func TestOpenAIBuildUpstreamRequestCompactForcesJSONAcceptForOAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

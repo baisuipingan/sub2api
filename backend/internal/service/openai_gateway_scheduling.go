@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,6 +54,25 @@ func explicitOpenAIHeaderSessionID(c *gin.Context) string {
 		}
 	}
 	return ""
+}
+
+// preserveOpenAIAPIKeySessionHeader keeps the session signal understood by
+// this gateway available to an OpenAI-compatible gateway in the next hop.
+func preserveOpenAIAPIKeySessionHeader(c *gin.Context, account *Account, headers http.Header) {
+	if account == nil || account.Type != AccountTypeAPIKey || account.UsesOpenAICodexProtocol() || headers == nil {
+		return
+	}
+	if strings.TrimSpace(headers.Get("session_id")) != "" || strings.TrimSpace(headers.Get("conversation_id")) != "" {
+		return
+	}
+	// 原因：x-session-id 等别名在入站能固定会话，却被出站白名单过滤，
+	// 导致回接兼容网关按变化的请求内容重新选号。只补已有会话信号，
+	// OAuth/Codex 仍走原隔离逻辑，不向上游暴露原始别名。
+	if sessionID := explicitOpenAIHeaderSessionID(c); sessionID != "" {
+		headers.Set("session_id", sessionID)
+		// 兼容默认会丢弃下划线请求头的反向代理；下一跳仍能识别同一信号。
+		headers.Set(openCodeSessionIDHeader, sessionID)
+	}
 }
 
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.

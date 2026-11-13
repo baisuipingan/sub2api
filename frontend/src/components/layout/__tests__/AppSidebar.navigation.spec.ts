@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import AppSidebar from '../AppSidebar.vue'
 import { withWorkspaceMeta } from '@/router/workspace'
 import { workbenchRoutes } from '@/router/workbenchRoutes'
+import { desktopDownloadRoutes } from '@/router/desktopDownloadRoutes'
 import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
 
 const appState = reactive({
@@ -37,6 +38,7 @@ async function setup(path: string) {
   const pinia = createPinia(); setActivePinia(pinia)
   const component = { template: '<div />' }
   const router = createRouter({ history: createMemoryHistory(), routes: withWorkspaceMeta([
+    ...desktopDownloadRoutes.map(route => ({ ...route, component })),
     ...workbenchRoutes.map(route => route.redirect ? route : { ...route, component }),
     ...['/dashboard', '/keys', '/usage', '/profile', '/tickets', '/custom/:id', '/batch-image', '/available-channels', '/monitor', '/subscriptions', '/purchase', '/orders', '/redeem', '/affiliate', '/settings/mcp'].map(path => ({ path, component })),
     ...['/admin/dashboard', '/admin/accounts', '/admin/settings', '/admin/ops', '/admin/users', '/admin/groups', '/admin/subscriptions', '/admin/plugins', '/admin/announcements', '/admin/proxies', '/admin/redeem', '/admin/promo-codes', '/admin/usage', '/admin/tickets', '/admin/audit-logs'].map(path => ({ path, component, meta: { requiresAdmin: true } })),
@@ -58,6 +60,24 @@ describe('workspace sidebar interactions', () => {
     appState.cachedPublicSettings = { custom_menu_items: [], payment_enabled: true }
     adminState.customMenuItems = []
     authState.isAdmin = true; authState.isSimpleMode = false; authState.user = { id: 7 }
+  })
+
+  it.each([
+    ['/dashboard', false, '/downloads'],
+    ['/workbench/image', false, '/workbench/downloads'],
+    ['/admin/dashboard', true, '/admin/downloads'],
+    ['/admin/workbench', true, '/admin/workbench/downloads'],
+  ] as const)('keeps the MiloCode download entry last from %s', async (path, admin, destination) => {
+    authState.isAdmin = admin
+    const { wrapper, router } = await setup(path)
+    const links = wrapper.findAll('.sidebar-nav a')
+    expect(links.at(-1)?.attributes('href')).toBe(destination)
+    await wrapper.get('[data-testid="milocode-download-nav"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe(destination)
+    expect(router.currentRoute.value.meta.workspaceArea).toBe(path.includes('workbench') ? 'workbench' : 'console')
+    expect(router.currentRoute.value.meta.requiresAdmin).toBe(admin)
+    expect(wrapper.get('[data-testid="milocode-download-nav"]').classes()).toContain('sidebar-link-active')
   })
 
   it('shows workbench management above personal generation, with only the exact active management entry selected', async () => {

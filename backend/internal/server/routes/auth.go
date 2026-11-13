@@ -24,6 +24,7 @@ func RegisterAuthRoutes(
 ) {
 	// 创建速率限制器
 	rateLimiter := middleware.NewRateLimiter(redisClient)
+	registerDesktopDownloadRoutes(v1, h, panelRateLimiter)
 	if h.DesktopAuth != nil {
 		// 换证不使用网页cookie，code只在该公开端点原子消费；Redis故障时拒绝放行。
 		v1.POST("/desktop/auth/token", desktopAgentNoStore, gin.HandlerFunc(auditLog), rateLimiter.LimitWithOptions("desktop-auth-token", 20, time.Minute, middleware.RateLimitOptions{

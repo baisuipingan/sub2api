@@ -18,14 +18,14 @@
       </div>
       <form v-else class="space-y-5" @submit.prevent="approve">
         <dl class="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-dark-700 dark:bg-dark-900">
-          <div><dt class="text-gray-500 dark:text-gray-400">{{ t('desktop.application') }}</dt><dd class="mt-1 font-semibold text-gray-900 dark:text-white">ZCode</dd></div>
+          <div><dt class="text-gray-500 dark:text-gray-400">{{ t('desktop.application') }}</dt><dd data-test="desktop-client" class="mt-1 font-semibold text-gray-900 dark:text-white">MiloCode</dd></div>
           <div><dt class="text-gray-500 dark:text-gray-400">{{ t('desktop.account') }}</dt><dd class="mt-1 break-all text-gray-900 dark:text-white">{{ authStore.user?.email }}</dd></div>
           <div><dt class="text-gray-500 dark:text-gray-400">{{ t('desktop.returnAddress') }}</dt><dd data-test="desktop-callback" class="mt-1 break-all font-mono text-xs text-gray-700 dark:text-gray-200">{{ authorization.redirect_uri }}</dd></div>
         </dl>
         <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">{{ t('desktop.accessDescription') }}</p>
         <p class="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">{{ t('desktop.authorizeHint') }}</p>
         <p v-if="error" role="alert" class="text-sm text-red-600 dark:text-red-400">{{ t(error) }}</p>
-        <div class="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-dark-700">
+        <div class="grid gap-3 border-t border-gray-100 pt-5 dark:border-dark-700 sm:flex sm:justify-end">
           <button type="button" data-test="desktop-deny" class="btn btn-secondary" :disabled="submitting" @click="deny">{{ t('common.cancel') }}</button>
           <button type="submit" data-test="desktop-approve" class="btn btn-primary" :disabled="submitting">{{ submitting ? t('common.processing') : t('desktop.approve') }}</button>
         </div>

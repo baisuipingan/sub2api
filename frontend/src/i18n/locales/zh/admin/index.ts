@@ -10,6 +10,7 @@ import plugins from './plugins'
 import workbench from './workbench'
 import workbenchSettings from './workbenchSettings'
 import agentSettings from './agentSettings'
+import desktopReleaseStorage from './desktopReleaseStorage'
 
 export default {
   ...overview,
@@ -24,4 +25,5 @@ export default {
   ...workbench,
   ...workbenchSettings,
   ...agentSettings,
+  ...desktopReleaseStorage,
 }

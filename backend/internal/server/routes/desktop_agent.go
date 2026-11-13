@@ -6,6 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func registerDesktopDownloadRoutes(v1 *gin.RouterGroup, h *handler.Handlers, limiter *middleware.PanelRateLimiter) {
+	if h.DesktopReleaseStorage != nil {
+		v1.GET("/desktop/downloads", limiter.PublicIP(), h.DesktopReleaseStorage.GetDownloads)
+	}
+}
+
 func registerDesktopAgentUserRoutes(authenticated *gin.RouterGroup, h *handler.Handlers) {
 	if h.DesktopAgent != nil {
 		authenticated.POST("/desktop/bootstrap", h.DesktopAgent.Bootstrap)
@@ -13,6 +19,14 @@ func registerDesktopAgentUserRoutes(authenticated *gin.RouterGroup, h *handler.H
 }
 
 func registerDesktopAgentAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp middleware.StepUpAuthMiddleware) {
+	if h.DesktopReleaseStorage != nil {
+		release := admin.Group("/desktop/release-storage", desktopAgentNoStore)
+		release.GET("", h.DesktopReleaseStorage.GetConfig)
+		release.PUT("", gin.HandlerFunc(stepUp), h.DesktopReleaseStorage.UpdateConfig)
+		release.POST("/test", gin.HandlerFunc(stepUp), h.DesktopReleaseStorage.TestConnection)
+		release.POST("/objects/head", h.DesktopReleaseStorage.HeadObject)
+		release.POST("/uploads", gin.HandlerFunc(stepUp), h.DesktopReleaseStorage.CreateUpload)
+	}
 	if h.DesktopAgent != nil {
 		admin.GET("/desktop/config", h.DesktopAgent.GetConfig)
 		admin.GET("/desktop/models", h.DesktopAgent.GetModels)

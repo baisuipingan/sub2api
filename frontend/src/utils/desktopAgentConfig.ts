@@ -72,16 +72,25 @@ export function normalizeDesktopAgentProfiles(config: DesktopAgentConfig, profil
 }
 
 /** Fail closed on a malformed registry rather than publish guessed capabilities. */
+const officialProfileHosts: Record<DesktopAgentProfile['source'], readonly string[]> = {
+  official_openai: ['developers.openai.com', 'platform.openai.com'],
+  official_deepseek: ['api-docs.deepseek.com'],
+  official_anthropic: ['platform.claude.com', 'docs.anthropic.com'],
+  official_xai: ['docs.x.ai'],
+  official_google: ['ai.google.dev', 'aistudio.google.com'],
+}
+
 export function validDesktopAgentProfiles(value: unknown): value is DesktopAgentProfile[] {
   if (!Array.isArray(value) || value.length === 0) return false
   const ids = new Set<string>()
   const aliases = new Set<string>()
   return value.every((profile: DesktopAgentProfile) => {
-    if (!profile || !validModelString(profile.id) || ids.has(profile.id) || !validModelString(profile.display_name) || profile.source !== 'official_openai') return false
+    if (!profile || !validModelString(profile.id) || ids.has(profile.id) || !validModelString(profile.display_name) || !Object.prototype.hasOwnProperty.call(officialProfileHosts, profile.source)) return false
     ids.add(profile.id)
     try {
       const source = new URL(profile.source_url)
-      if (source.protocol !== 'https:' || !['developers.openai.com', 'platform.openai.com'].includes(source.hostname) || source.username || source.password) return false
+      // 每家档案必须链接自身官方域名；只扩展全局域名白名单会误认跨厂商或伪造来源。
+      if (source.protocol !== 'https:' || !officialProfileHosts[profile.source].includes(source.hostname) || source.port || source.username || source.password) return false
     } catch { return false }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(profile.reviewed_at) || typeof profile.revision !== 'string' || !profile.revision ||
       !positiveInteger(profile.official_context_window) || !positiveInteger(profile.max_input_tokens) || profile.max_input_tokens > profile.official_context_window ||

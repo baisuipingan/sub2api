@@ -32,7 +32,7 @@ function fixture(): DesktopAgentConfig {
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
 function setup(active = true, locale: 'en' | 'zh' = 'en', realSelect = false) {
   const i18n = createI18n({ legacy: false, locale, fallbackLocale: 'en', messages: { en: { ...enCommon, admin: enMessages, stepUp: { adminApiKeyForbidden: 'Full administrator required', notEnabled: 'Enable TOTP first' } }, zh: { ...zhCommon, admin: zhMessages, stepUp: { adminApiKeyForbidden: '需要完整管理员权限', notEnabled: '请先启用二次验证' } } } })
-  const wrapper = mount(AgentSettings, { attachTo: document.body, props: { active }, global: { plugins: [i18n], stubs: { ...(!realSelect ? { Select: SelectStub } : {}), TotpStepUpDialog: StepUpStub, Teleport: true, Transition: false } } })
+  const wrapper = mount(AgentSettings, { attachTo: document.body, props: { active }, global: { plugins: [i18n], stubs: { DesktopReleaseStorageSettings: true, ...(!realSelect ? { Select: SelectStub } : {}), TotpStepUpDialog: StepUpStub, Teleport: true, Transition: false } } })
   wrappers.push(wrapper); return { wrapper, i18n }
 }
 type Wrapper = ReturnType<typeof setup>['wrapper']

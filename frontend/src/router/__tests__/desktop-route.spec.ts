@@ -21,6 +21,7 @@ describe('Desktop browser login route', () => {
     expect(record?.path).toBe('/desktop/authorize')
     expect(record?.meta.requiresAuth).toBe(true)
     expect(record?.meta.requiresAdmin).toBe(false)
+    expect(record?.meta.title).toBe('Connect MiloCode')
     const path = '/desktop/authorize?' + new URLSearchParams({
       response_type: 'code', client_id: 'zcode-desktop', redirect_uri: 'http://127.0.0.1:54321/callback',
       state: 'a'.repeat(43),

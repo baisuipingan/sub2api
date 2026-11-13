@@ -1,7 +1,7 @@
 export default {
   agentSettings: {
     title: 'Desktop client',
-    description: 'Configure ZCode’s billing group, client models and defaults. Accounts, balance and inference continue to use the existing gateway.',
+    description: 'Configure MiloCode’s billing group, client models and defaults. Accounts, balance and inference continue to use the existing gateway.',
     connectionTitle: 'Service overview',
     unconfigured: 'Agent is not configured. Select a group, add models and declare their capabilities and budgets, then save to make them available.',
     unpublished: 'This configuration is not published. Review and save the complete valid configuration to make it available to the desktop Agent.',

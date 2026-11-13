@@ -77,6 +77,45 @@ describe('desktop Agent config preflight', () => {
       expect(validDesktopAgentProfiles(value)).toBe(false)
     }
   })
+  it('accepts mixed official vendors and preserves a custom public model binding', () => {
+    const profiles = [
+      profile(),
+      vendorProfile('deepseek-flash', 'official_deepseek', 'https://api-docs.deepseek.com/quick_start/pricing'),
+      vendorProfile('claude-fixture', 'official_anthropic', 'https://platform.claude.com/docs/en/about-claude/models/overview'),
+      vendorProfile('grok-fixture', 'official_xai', 'https://docs.x.ai/docs/models'),
+      vendorProfile('gemini-fixture', 'official_google', 'https://ai.google.dev/gemini-api/docs/models'),
+    ]
+    expect(validDesktopAgentProfiles(profiles)).toBe(true)
+    const cfg = valid()
+    cfg.model_profiles = { 'fixture-model': { profile_id: 'deepseek-flash', override: false } }
+    const normalized = normalizeDesktopAgentProfiles(cfg, profiles)
+    expect(normalized.models[0]).toMatchObject({ id: 'fixture-model', display_name: 'Fixture Model', context_window: 922000 })
+    expect(normalized.default_model_id).toBe('fixture-model')
+    expect(normalized.model_profiles).toEqual(cfg.model_profiles)
+    expect(validateDesktopAgentConfig(normalized, profiles)).toEqual([])
+  })
+  it.each([
+    ['official_openai', 'https://platform.openai.com/docs/models'],
+    ['official_anthropic', 'https://docs.anthropic.com/en/docs/about-claude/models'],
+    ['official_google', 'https://aistudio.google.com/models'],
+  ])('accepts the official documentation alias %s %s', (source, url) => {
+    expect(validDesktopAgentProfiles([vendorProfile('vendor-fixture', source, url)])).toBe(true)
+  })
+  it.each([
+    ['official_openai', 'https://docs.x.ai/docs/models'],
+    ['official_anthropic', 'https://api-docs.deepseek.com/quick_start/pricing'],
+    ['official_deepseek', 'https://developers.openai.com/api/docs/models'],
+    ['official_google', 'https://docs.anthropic.com/en/docs'],
+    ['official_xai', 'https://ai.google.dev/gemini-api/docs/models'],
+    ['official_xai', 'https://docs.x.ai.attacker.invalid/models'],
+    ['official_deepseek', 'http://api-docs.deepseek.com/quick_start/pricing'],
+    ['official_google', 'https://user:password@ai.google.dev/gemini-api/docs/models'],
+    ['official_anthropic', 'https://platform.claude.com:8443/docs'],
+    ['saved_configuration', 'https://developers.openai.com/api/docs/models'],
+    ['__proto__', 'https://developers.openai.com/api/docs/models'],
+  ])('rejects mismatched or untrusted provenance %s %s', (source, url) => {
+    expect(validDesktopAgentProfiles([vendorProfile('vendor-fixture', source, url)])).toBe(false)
+  })
   it('accepts unconfigured disabled, full enabled and complete disabled without mutation', () => {
     expect(validateDesktopAgentConfig({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })).toEqual([])
     const config = valid()
@@ -225,3 +264,10 @@ describe('desktop Agent config preflight', () => {
     expect(isDesktopAgentGroupEligible({ status, subscription_type, platform })).toBe(eligible)
   })
 })
+
+function vendorProfile(id: string, source: string, sourceURL: string): DesktopAgentProfile {
+  return {
+    ...profile(), id, display_name: id, aliases: [id], source: source as DesktopAgentProfile['source'], source_url: sourceURL,
+    model: { ...profile().model, id, display_name: id },
+  }
+}

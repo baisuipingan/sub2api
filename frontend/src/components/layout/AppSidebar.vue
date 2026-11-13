@@ -171,6 +171,19 @@
           </router-link>
         </div>
       </template>
+      <div v-if="isAdmin || !appStore.backendModeEnabled" class="sidebar-section">
+        <router-link
+          :to="downloadPath"
+          data-testid="milocode-download-nav"
+          class="sidebar-link mb-1"
+          :class="{ 'sidebar-link-active': isActive(downloadPath), 'sidebar-link-collapsed': sidebarCollapsed }"
+          :title="sidebarCollapsed ? t('desktop.downloads.title') : undefined"
+          @click="handleMenuItemClick(downloadPath)"
+        >
+          <Icon name="download" class="h-5 w-5 flex-shrink-0" />
+          <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('desktop.downloads.title') }}</span>
+        </router-link>
+      </div>
     </nav>
 
     <!-- Bottom Section -->
@@ -235,6 +248,7 @@ import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
 import { workspaceDefault, workspaceKey, workspaceLocation, type WorkspaceArea } from '@/router/workspace'
+import { desktopDownloadPath } from '@/router/desktopDownloadRoutes'
 
 interface NavItem {
   path: string
@@ -301,6 +315,7 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const adminCustomIds = computed(() => isAdmin.value ? adminSettingsStore.customMenuItems.filter(item => item.visibility === 'admin').map(item => item.id) : [])
 const workspace = computed(() => workspaceLocation(route, adminCustomIds.value))
+const downloadPath = computed(() => desktopDownloadPath(workspace.value.area, workspace.value.context))
 const homePath = computed(() => workspaceDefault(workspace.value.area, workspace.value.context, isAdmin.value))
 const currentScrollKey = computed(() => workspaceKey(workspace.value.area, workspace.value.context))
 let scrollOwner = { userId: authStore.user?.id ?? null, key: currentScrollKey.value }
@@ -1002,6 +1017,7 @@ function areaDestination(area: WorkspaceArea) {
   const visiblePaths = context === 'admin'
     ? flatten(buildAdminNavItems(area))
     : flatten(finalizeNav(buildSelfNavItems(!isAdmin.value, area)))
+  visiblePaths.push(desktopDownloadPath(area, context))
   return workspaceNavigation.destination(router, area, context, {
     isAdmin: isAdmin.value,
     backendModeEnabled: appStore.backendModeEnabled,

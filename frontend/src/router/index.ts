@@ -16,11 +16,13 @@ import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 import { withWorkspaceMeta } from './workspace'
 import { workbenchRoutes } from './workbenchRoutes'
+import { desktopDownloadRoutes } from './desktopDownloadRoutes'
 
 /**
  * Route definitions with lazy loading
  */
 const routes: RouteRecordRaw[] = [
+  ...desktopDownloadRoutes,
   // ==================== Setup Routes ====================
   {
     path: '/setup',
@@ -310,7 +312,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Connect ZCode',
+      title: 'Connect MiloCode',
       titleKey: 'desktop.authorizeTitle'
     }
   },

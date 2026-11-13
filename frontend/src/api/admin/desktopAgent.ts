@@ -37,7 +37,7 @@ export interface DesktopAgentProfile {
   id: string
   display_name: string
   model: DesktopAgentModel
-  source: 'official_openai'
+  source: 'official_openai' | 'official_deepseek' | 'official_anthropic' | 'official_xai' | 'official_google'
   source_url: string
   reviewed_at: string
   revision: string

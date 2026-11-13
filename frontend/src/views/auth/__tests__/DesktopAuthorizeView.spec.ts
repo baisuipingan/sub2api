@@ -35,6 +35,10 @@ afterEach(() => {
 describe('desktop browser consent', () => {
   it('shows the account and local return address and waits for explicit consent', async () => {
     const wrapper = render()
+    expect(wrapper.get('[data-test="desktop-client"]').text()).toBe('MiloCode')
+    expect(wrapper.text()).not.toContain('ZCode')
+    expect(wrapper.text()).not.toContain(request.code_challenge)
+    expect(wrapper.text()).not.toContain(request.state)
     expect(wrapper.text()).toContain(auth.user.email)
     expect(wrapper.get('[data-test="desktop-callback"]').text()).toBe(request.redirect_uri)
     expect(authorize).not.toHaveBeenCalled()
