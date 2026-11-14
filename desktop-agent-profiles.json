@@ -1,0 +1,2104 @@
+{
+  "schema_version": 1,
+  "revision": "2026-11-14.2",
+  "profiles": [
+    {
+      "id": "gpt-6.1-sol",
+      "display_name": "GPT-6.1 Sol",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-6.1-sol"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "gpt-6.1-sol",
+        "display_name": "GPT-6.1 Sol",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-6-astra",
+      "display_name": "GPT-6 Astra",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6-astra",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-6-astra"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "gpt-6-astra",
+        "display_name": "GPT-6 Astra",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-6-sol",
+      "display_name": "GPT-6 Sol",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6-sol",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-6-sol"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "gpt-6-sol",
+        "display_name": "GPT-6 Sol",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-6-luna",
+      "display_name": "GPT-6 Luna",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-6-luna"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "gpt-6-luna",
+        "display_name": "GPT-6 Luna",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "display_name": "GPT-5.6 Sol",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-5.6-sol",
+        "gpt-5.6"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "gpt-5.6-sol",
+        "display_name": "GPT-5.6 Sol",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "display_name": "GPT-5.6 Terra",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-5.6-terra"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "gpt-5.6-terra",
+        "display_name": "GPT-5.6 Terra",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "display_name": "GPT-5.6 Luna",
+      "source": "official_openai",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gpt-5.6-luna"
+      ],
+      "official_context_window": 1050000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "gpt-5.6-luna",
+        "display_name": "GPT-5.6 Luna",
+        "context_window": 1050000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "deepseek-flash",
+      "display_name": "DeepSeek Flash",
+      "source": "official_deepseek",
+      "source_url": "https://api-docs.deepseek.com/api/list-models/",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "deepseek-flash",
+        "deepseek-v4-flash",
+        "deepseek-v4-flash-vision-exp"
+      ],
+      "official_context_window": 1048576,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 393216,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "high",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "reasoning_none_unavailable",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "deepseek-flash",
+        "display_name": "DeepSeek Flash",
+        "context_window": 1048576,
+        "max_output_tokens": 393216,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro",
+      "source": "official_deepseek",
+      "source_url": "https://api-docs.deepseek.com/api/list-models/",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "deepseek-v4-pro"
+      ],
+      "official_context_window": 1048576,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 393216,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "high",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "reasoning_none_unavailable",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "deepseek-v4-pro",
+        "display_name": "DeepSeek V4 Pro",
+        "context_window": 1048576,
+        "max_output_tokens": 393216,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": false,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-fable-5-2",
+      "display_name": "Claude Fable 5.2",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/fable-5-2/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-fable-5-2"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required"
+      ],
+      "model": {
+        "id": "claude-fable-5-2",
+        "display_name": "Claude Fable 5.2",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-opus-5-5",
+      "display_name": "Claude Opus 5.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-opus-5-5"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required"
+      ],
+      "model": {
+        "id": "claude-opus-5-5",
+        "display_name": "Claude Opus 5.5",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "display_name": "Claude Sonnet 5.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-sonnet-5-5"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required"
+      ],
+      "model": {
+        "id": "claude-sonnet-5-5",
+        "display_name": "Claude Sonnet 5.5",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "display_name": "Claude Haiku 5.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-haiku-5-5"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required"
+      ],
+      "model": {
+        "id": "claude-haiku-5-5",
+        "display_name": "Claude Haiku 5.5",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "default_reasoning": "medium",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-opus-4-6",
+      "display_name": "Claude Opus 4.6",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/opus-4-6/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-opus-4-6"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "claude-opus-4-6",
+        "display_name": "Claude Opus 4.6",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/sonnet-4-6/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-sonnet-4-6"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 128000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "claude-sonnet-4-6",
+        "display_name": "Claude Sonnet 4.6",
+        "context_window": 1000000,
+        "max_output_tokens": 128000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-opus-4-5-20251101",
+      "display_name": "Claude Opus 4.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/opus-4-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-opus-4-5-20251101",
+        "claude-opus-4-5"
+      ],
+      "official_context_window": 200000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 64000,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "claude-opus-4-5-20251101",
+        "display_name": "Claude Opus 4.5",
+        "context_window": 200000,
+        "max_output_tokens": 64000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-sonnet-4-5-20250929",
+      "display_name": "Claude Sonnet 4.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/sonnet-4-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-5"
+      ],
+      "official_context_window": 200000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 64000,
+      "official_reasoning_levels": [],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "claude-sonnet-4-5-20250929",
+        "display_name": "Claude Sonnet 4.5",
+        "context_window": 200000,
+        "max_output_tokens": 64000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "claude-haiku-4-5-20251001",
+      "display_name": "Claude Haiku 4.5",
+      "source": "official_anthropic",
+      "source_url": "https://platform.claude.com/docs/en/models/haiku-4-5/overview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "claude-haiku-4-5-20251001",
+        "claude-haiku-4-5"
+      ],
+      "official_context_window": 200000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 64000,
+      "official_reasoning_levels": [],
+      "notes": [
+        "official_shared_context",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "responses_compatibility_required",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "claude-haiku-4-5-20251001",
+        "display_name": "Claude Haiku 4.5",
+        "context_window": 200000,
+        "max_output_tokens": 64000,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": true
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "grok-4.7",
+      "display_name": "Grok 4.7",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.7.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.7"
+      ],
+      "official_context_window": 500000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unlimited",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "grok-4.7",
+        "display_name": "Grok 4.7",
+        "context_window": 500000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "unlimited",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-4.6",
+      "display_name": "Grok 4.6",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.6.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.6"
+      ],
+      "official_context_window": 500000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unlimited",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "grok-4.6",
+        "display_name": "Grok 4.6",
+        "context_window": 500000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "unlimited",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-4.5",
+      "display_name": "Grok 4.5",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.5.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.5",
+        "grok-4.5-latest",
+        "grok-build-latest"
+      ],
+      "official_context_window": 500000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unpublished",
+        "native_web_search_unavailable",
+        "grok_xhigh_compatibility"
+      ],
+      "model": {
+        "id": "grok-4.5",
+        "display_name": "Grok 4.5",
+        "context_window": 500000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "not_published",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "default_reasoning": "high",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-4.3",
+      "display_name": "Grok 4.3",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.3.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.3",
+        "grok-4.3-latest"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unpublished",
+        "native_web_search_unavailable",
+        "reasoning_none_unavailable"
+      ],
+      "model": {
+        "id": "grok-4.3",
+        "display_name": "Grok 4.3",
+        "context_window": 1000000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "not_published",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "default_reasoning": "low",
+        "supports_reasoning": true,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-build-0.1",
+      "display_name": "Grok Build 0.1",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-build-0.1.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-build-0.1",
+        "grok-code-fast-1",
+        "grok-code-fast",
+        "grok-code-fast-1-0825"
+      ],
+      "official_context_window": 256000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unpublished",
+        "native_web_search_unavailable",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "grok-build-0.1",
+        "display_name": "Grok Build 0.1",
+        "context_window": 256000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "not_published",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-4.20-0309-reasoning",
+      "display_name": "Grok 4.20 Reasoning",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.20-0309-reasoning.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-reasoning-latest",
+        "grok-4.20",
+        "grok-4.20-reasoning",
+        "grok-4.20-0309",
+        "grok-4.20-beta-0309-reasoning",
+        "grok-4.20-beta",
+        "grok-4.20-beta-0309",
+        "grok-4.20-beta-latest",
+        "grok-4.20-beta-latest-reasoning",
+        "grok-4.20-beta-reasoning",
+        "grok-4.20-experimental-beta-0304-reasoning",
+        "grok-4.20-experimental-beta-0304",
+        "grok-4.20-experimental-beta-reasoning-latest",
+        "grok-4.20-experimental-beta-latest",
+        "grok-4.20-reasoning-gv2"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unpublished",
+        "native_web_search_unavailable",
+        "reasoning_auto_only"
+      ],
+      "model": {
+        "id": "grok-4.20-0309-reasoning",
+        "display_name": "Grok 4.20 Reasoning",
+        "context_window": 1000000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "not_published",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "grok-4.20-0309-non-reasoning",
+      "display_name": "Grok 4.20 Non-Reasoning",
+      "source": "official_xai",
+      "source_url": "https://docs.x.ai/developers/models/grok-4.20-0309-non-reasoning.md",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "grok-4.20-0309-non-reasoning",
+        "grok-4.20-non-reasoning",
+        "grok-4.20-non-reasoning-latest",
+        "grok-4.20-beta-non-reasoning",
+        "grok-4.20-beta-latest-non-reasoning",
+        "grok-4.20-experimental-beta-0304-non-reasoning",
+        "grok-4.20-experimental-beta-non-reasoning-latest",
+        "grok-4.20-beta-0309-non-reasoning",
+        "grok-4.20-non-reasoning-gv2"
+      ],
+      "official_context_window": 1000000,
+      "max_input_tokens": null,
+      "official_max_output_tokens": null,
+      "official_reasoning_levels": [],
+      "notes": [
+        "official_shared_context",
+        "output_limit_unpublished",
+        "native_web_search_unavailable"
+      ],
+      "model": {
+        "id": "grok-4.20-0309-non-reasoning",
+        "display_name": "Grok 4.20 Non-Reasoning",
+        "context_window": 1000000,
+        "max_output_tokens": 0,
+        "output_limit_kind": "not_published",
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": true,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": true
+      }
+    },
+    {
+      "id": "gemini-4-carbon",
+      "display_name": "Gemini 4 Carbon",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-4-carbon",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-4-carbon"
+      ],
+      "official_context_window": 1048576,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 1048576,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_shared_context",
+        "long_decode_required"
+      ],
+      "model": {
+        "id": "gemini-4-carbon",
+        "display_name": "Gemini 4 Carbon",
+        "context_window": 1048576,
+        "max_output_tokens": 1048576,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-4-argon",
+      "display_name": "Gemini 4 Argon",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-4-argon",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-4-argon"
+      ],
+      "official_context_window": 1048576,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 1048576,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_shared_context",
+        "long_decode_required"
+      ],
+      "model": {
+        "id": "gemini-4-argon",
+        "display_name": "Gemini 4 Argon",
+        "context_window": 1048576,
+        "max_output_tokens": 1048576,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-4-hydrogen",
+      "display_name": "Gemini 4 Hydrogen",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-4-hydrogen",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-4-hydrogen"
+      ],
+      "official_context_window": 1048576,
+      "max_input_tokens": null,
+      "official_max_output_tokens": 1048576,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_shared_context",
+        "long_decode_required"
+      ],
+      "model": {
+        "id": "gemini-4-hydrogen",
+        "display_name": "Gemini 4 Hydrogen",
+        "context_window": 1048576,
+        "max_output_tokens": 1048576,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3.8-flash",
+      "display_name": "Gemini 3.8 Flash",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3.8-flash",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3.8-flash"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3.8-flash",
+        "display_name": "Gemini 3.8 Flash",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "display_name": "Gemini 3.6 Flash",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3.6-flash",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3.6-flash"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3.6-flash",
+        "display_name": "Gemini 3.6 Flash",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3.5-flash-lite",
+      "display_name": "Gemini 3.5 Flash-Lite",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3.5-flash-lite",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3.5-flash-lite"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3.5-flash-lite",
+        "display_name": "Gemini 3.5 Flash-Lite",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3.1-flash-lite",
+      "display_name": "Gemini 3.1 Flash-Lite",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3.1-flash-lite",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3.1-flash-lite"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3.1-flash-lite",
+        "display_name": "Gemini 3.1 Flash-Lite",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3.1-pro-preview",
+      "display_name": "Gemini 3.1 Pro Preview",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3.1-pro-preview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3.1-pro-preview"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3.1-pro-preview",
+        "display_name": "Gemini 3.1 Pro Preview",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-3-flash-preview",
+      "display_name": "Gemini 3 Flash Preview",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-3-flash-preview",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-3-flash-preview"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-3-flash-preview",
+        "display_name": "Gemini 3 Flash Preview",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "display_name": "Gemini 2.5 Pro",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-2.5-pro",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-2.5-pro"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-2.5-pro",
+        "display_name": "Gemini 2.5 Pro",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "display_name": "Gemini 2.5 Flash",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-2.5-flash",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-2.5-flash"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-2.5-flash",
+        "display_name": "Gemini 2.5 Flash",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    },
+    {
+      "id": "gemini-2.5-flash-lite",
+      "display_name": "Gemini 2.5 Flash-Lite",
+      "source": "official_google",
+      "source_url": "https://aistudio.google.com/docs/models/gemini-2.5-flash-lite",
+      "reviewed_at": "2026-11-14",
+      "revision": "2026-11-14.2",
+      "aliases": [
+        "gemini-2.5-flash-lite"
+      ],
+      "official_context_window": null,
+      "max_input_tokens": 1048576,
+      "official_max_output_tokens": 65536,
+      "official_reasoning_levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "notes": [
+        "reasoning_auto_only",
+        "responses_compatibility_required",
+        "structured_output_compatibility",
+        "native_web_search_unavailable",
+        "official_input_limit",
+        "context_limit_unpublished"
+      ],
+      "model": {
+        "id": "gemini-2.5-flash-lite",
+        "display_name": "Gemini 2.5 Flash-Lite",
+        "context_window": 1048576,
+        "max_output_tokens": 65536,
+        "default_max_output_tokens": 16384,
+        "reasoning_levels": [
+          "none"
+        ],
+        "default_reasoning": "none",
+        "supports_reasoning": false,
+        "supports_streaming": true,
+        "requires_mfjs_tool_schema": false,
+        "input": {
+          "text": true,
+          "image": true,
+          "video": false,
+          "audio": false,
+          "pdf": false
+        },
+        "output": {
+          "text": true
+        },
+        "supports_tool_call": true,
+        "supports_json_schema_output": false,
+        "supports_native_web_search": false,
+        "supports_mid_conversation_system": false
+      }
+    }
+  ]
+}
