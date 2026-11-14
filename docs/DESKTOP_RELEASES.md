@@ -43,3 +43,13 @@
 下载页说明当前 Mac 包有 ad-hoc 完整性签名，但没有 Apple 开发者签名及公证，提供同站静态文件 `/downloads/MiloCode-macOS-Helper.command`。源文件在 `frontend/public/downloads/`，Vite 构建后随前端嵌入服务器，不需要额外存储桶或服务端执行脚本。
 
 用户先打开 DMG，将 MiloCode 拖入窗口中的 Applications；旧版只有 ZIP 时，解压后将应用移入「应用程序」。随后下载脚本，在终端运行 `bash ~/Downloads/MiloCode-macOS-Helper.command`。脚本只接受 `/Applications/MiloCode.app` 或 `~/Applications/MiloCode.app`，核对 `app.milo.code` / `MiloCode` 标识、拒绝异常链接路径并验证现有代码签名；用户确认后仅递归删除该应用的 `com.apple.quarantine` 并打开应用。它不会重新签名、默认提权、下载远端程序、清空全部扩展属性或关闭 Gatekeeper。完整性验证不等同于 Apple 认证发布者，仍需确认安装包和脚本来自本站。权限或完整性检查失败时给出明确说明，保留系统设置中的「仍要打开」作为替代路径。
+
+## 2026-11-14 官网 DMG 发布记录
+
+官网 Mac 手动下载优先 DMG 的变更已于 `2026-11-14T09:54:49Z` 部署至生产，网站版本 `0.2.21-ds.19`，发布标签 `fork-v0.2.21-19`，源码 `852bcc50498fecfb41177d63bb63d5de405e644f`。使用 [CI 43580811372](https://github.com/baisuipingan/sub2api/actions/runs/43580811372) 全部成功后产出的不可变镜像 `ghcr.io/baisuipingan/sub2api@sha256:6dcfb4085727da5bcdf58ec6733f63a457a230e4cf6cb17e7fdde0aa22d3c1f1`，由生产既有 `sub2api-release deploy` 入口部署，没有服务器现场构建或跳过发布门禁。
+
+此次没有数据库迁移，schema epoch 保持 4，仍沿用 `backup-required` 回退策略。部署前备份 `/root/sub2api-deploy/releases/backups/sub2api-20261114T095435Z.dump.gz` 为 15,321,597 bytes，gzip 与 PGDMP 格式已验证。主应用、PostgreSQL、Redis 全部 healthy，本地及公网 health 均为 ok。部署记录、镜像标签、备份与下载接口证据位于 `output/deploy/fork-v0.2.21-19/`。
+
+本轮相关验证包括 Go 下载 / 发布接口定向测试、前端 10 项回归、类型检查、完整 CI 的后端和前端测试 / lint / 构建。生产 Go HTTP 客户端实际读取 DMG HEAD 为 200，类型和长度合法且约 0.2 秒；官网接口已从 Mac ZIP 切换为经确认存在的 DMG，不改变客户端 Sparkle ZIP 更新链路。
+
+MiloCode 3.17.6 正式发布后再次检查，生产 `/api/v1/desktop/downloads` 两平台均为 `3.17.6`：Windows `exe` 为 198,091,170 bytes；Mac `dmg` 为 235,607,781 bytes，生产 HEAD 为 200 / `application/x-apple-diskimage`，长度完全匹配。已登录 Chrome 下载页也已核对两平台版本、链接和 Mac 拖拽安装说明，证据 `production-release-result-final.json`。客户端安装包、公网完整字节与更新签名的独立验证记录位于客户端仓库 `docs/fork/38-client-release-3.17.6.md`。
