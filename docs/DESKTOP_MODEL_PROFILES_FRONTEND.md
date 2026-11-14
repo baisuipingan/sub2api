@@ -20,7 +20,11 @@ Real Chromium acceptance on 2026-11-14 also consumed the complete 37-profile JSO
 
 - 122 affected tests passed: 77 config/profile utility cases, 40 settings component cases, three locale completeness cases and two message-compilation cases. Mixed-vendor fixtures exercise the actual settings card, automatic-only reasoning, shared-context labels, output cap interpolation, trusted note rendering and publishing without changing public model IDs.
 - Budget-based models accept empty official effort metadata; malformed official values and empty executable reasoning lists remain rejected. Unknown note codes stay hidden instead of appearing as untranslated text.
-- Targeted ESLint and `vue-tsc --noEmit` passed. The complete frontend build (locale gate, `vue-tsc -b` and Vite) passed with existing Browserslist/chunk warnings. This round did not repeat real-browser visual acceptance or make production configuration changes.
+- Targeted ESLint and `vue-tsc --noEmit` passed. The complete frontend build (locale gate, `vue-tsc -b` and Vite) passed with existing Browserslist/chunk warnings. Browser acceptance of the combined implementation is recorded above; the subsequent production check is recorded below.
+
+## Production acceptance on 2026-11-14
+
+Release `0.2.21-ds.17` passed the full release CI and was deployed by immutable digest. The authenticated production profile endpoint matched all 37 reviewed registry entries exactly, and the existing two-model configuration remained readable with an unchanged raw setting SHA256. The actual production settings page accepted the mixed-vendor registry without console errors. Adding `deepseek-flash` to an unsaved draft automatically selected its official profile and high default; unsupported efforts were disabled and low/high/max were selectable. Selecting max succeeded. Reloading the saved configuration removed the test draft; no production model settings were saved and no paid inference was requested. Evidence is under `output/deploy/fork-v0.2.21-17/`.
 
 ## Verification on 2026-11-13
 

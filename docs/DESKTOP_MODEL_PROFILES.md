@@ -58,7 +58,7 @@
 - **原生网页搜索：** 官方支持，但当前 ZCode provider-native WebSearch 编码器仅支持 Anthropic。Responses 档案暂将 `supports_native_web_search=false`。这不影响独立浏览器工具。
 - **none：** 既有桌面协议把 `none` 编码为省略 effort，含义是采用上游默认，不能等同于官方显式 `reasoning.effort:"none"`。内置可执行档位先只发布 low/medium/high/xhigh/max；官方档位仍完整列出。高级覆盖中的 none 文案明确说明省略参数。
 - **MFJS：** 属于特定模型的工具结构兼容处理，OpenAI 档案保持关闭。
-- **运营默认：** 新档案的单次输出上限 16,384、默认推理 medium 是本项目运行默认，不能冒充官方推荐费用预算；管理员可调整合法范围内的运营默认。
+- **运营默认：** 各档案的单次输出默认上限为 16,384；OpenAI 默认推理 medium，DeepSeek 默认 high，其它厂商按档案使用对应档位或自动。这些是本项目运行默认，不能冒充官方推荐费用预算；管理员可调整合法范围内的运营默认。
 
 ## 旧数据、别名与覆盖
 
@@ -93,4 +93,12 @@
 - 从实际 Go 注册表导出完整 37 项 JSON，真实 Chromium 使用本次 Vue 卡片、Select、样式及严格档案解析器验收。确认 DeepSeek 可执行档位仅 low / high / max，选择 max 能更新运营默认；37 项列表完整可选，自定义别名选择 Claude 后不改变公开 ID；Grok、新旧 Claude、Gemini 精确 ID 自动关联；Gemini 仅自动档。
 - 已人工查看中文桌面、中文暗色 390px、英文暗色 390px 截图，未出现横向溢出或未翻译的 key。最终浏览器验收过程没有脚本或控制台错误，证据保留于 `output/playwright/agent-vendors-*`。临时入口、服务与导出辅助测试在验收后删除；没有使用生产凭据、写生产配置或调用付费模型。
 
-本轮尚未发布生产。档案由服务端下发，部署本次前后端后即可使用现有 MiloCode 3.17.3，无需为此次目录扩充重新构建安装包。
+### 2026-11-14 生产发布记录
+
+- 已发布并部署 `fork-v0.2.21-17` / `0.2.21-ds.17`，源码 `b18f2467cedf9a3b3669cef5b770c3b8111d2485`。[完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/43545302576) 的后端单元 / 集成测试、lint、前端全量测试 / 类型检查 / 构建、发布脚本检查和镜像版本校验全部通过。
+- 生产使用不可变镜像 `ghcr.io/baisuipingan/sub2api@sha256:e51202de9d6b0cc6faeb4717fd63140f0acf01cdde67322b3e17dd871f9bbc2c`。生产记录、运行镜像、版本与源码标签一致；应用、PostgreSQL、Redis 均健康，公网 `/health` 返回正常。schema epoch 仍为 4，本轮无数据库迁移。
+- 发布 helper 在切换前生成数据库备份 `/root/sub2api-deploy/releases/backups/sub2api-20261114T023725Z.dump.gz`，并保留 previous 版本记录。另有精确 Agent 设置快照 `/root/sub2api-deploy/releases/backups/desktop_agent_config_vendor_profiles_20261114T021445Z.json`。回退遵守 `backup-required` 策略；若上线后保存过新厂商绑定，旧版本不认识这些 profile ID，应单独恢复该设置快照，不能为配置回退覆盖后续余额或使用记录。
+- 使用已授权管理接口只读验收，线上全部 37 项档案与审核的 Go 注册表逐字段一致。生产原始 `desktop_agent_config_v1` SHA256 保持 `3e5f874adabdd69b479ccf891e2944966101e9cef547305633ee4e940e698bc5`，原有两个 GPT 模型与运营配置没有改写。
+- 真实生产管理页刷新成功；临时草稿添加 `deepseek-flash` 自动关联 DeepSeek Flash，默认 high，只允许 low / high / max，选择 max 正常。验收后重新加载已保存配置，清除草稿，没有保存测试模型；页面无控制台错误。证据位于 `output/deploy/fork-v0.2.21-17/`。
+
+档案由服务端下发，现有 MiloCode 3.17.3 无需重新安装。此次验证目录、配置读取与页面交互，没有调用付费模型，也不代表已配置各厂商生产渠道或完成其真实推理、工具调用和计费联调。
