@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,6 +22,7 @@ import (
 
 const desktopDownloadFeedMaxBytes = 1 << 20
 const desktopDownloadCacheTTL = time.Minute
+const desktopDownloadInstallerHeadTimeout = 2 * time.Second
 
 type DesktopDownload struct {
 	Platform  string `json:"platform"`
@@ -101,6 +103,9 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 					parsed, fetchErr = parseMacDesktopDownload(raw, cfg.PublicBaseURL)
 				}
 				if fetchErr == nil {
+					if index == 1 {
+						parsed = s.macDesktopInstaller(fetchCtx, parsed, cfg.PublicBaseURL)
+					}
 					value.Platforms[index] = parsed
 				}
 			}(i, feed)
@@ -125,6 +130,58 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 		value := cloneDesktopDownloads(downloads)
 		return &value, nil
 	}
+}
+
+func (s *DesktopReleaseStorageService) macDesktopInstaller(ctx context.Context, archive DesktopDownload, origin string) DesktopDownload {
+	if s.downloadHead == nil {
+		return archive
+	}
+	// Sparkle 的 ZIP 是更新归档；官网手动安装应优先提供已实际发布的 DMG，不能仅改后缀猜测链接。
+	installerURL := origin + "/milocode/releases/" + archive.Version + "/darwin-arm64/MiloCode-" + archive.Version + "-mac-arm64.dmg"
+	installer, err := desktopDownloadAsset(installerURL, origin, archive.Version, "darwin-arm64", ".dmg", 1)
+	if err != nil {
+		return archive
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, desktopDownloadInstallerHeadTimeout)
+	defer cancel()
+	size, err := s.downloadHead(probeCtx, installer.URL)
+	if err != nil || size <= 0 || size > desktopReleaseMaxBytes {
+		return archive
+	}
+	installer.Size = size
+	return installer
+}
+
+func headDesktopDownloadInstaller(ctx context.Context, raw string) (int64, error) {
+	validated, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{AllowPrivate: false})
+	if err != nil {
+		return 0, err
+	}
+	shared, err := httpclient.GetClient(httpclient.Options{Timeout: desktopDownloadInstallerHeadTimeout, ValidateResolvedIP: true})
+	if err != nil {
+		return 0, err
+	}
+	return headDesktopDownloadInstallerWithClient(ctx, validated, shared)
+}
+
+func headDesktopDownloadInstallerWithClient(ctx context.Context, raw string, shared *http.Client) (int64, error) {
+	client := *shared
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, raw, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", "application/x-apple-diskimage")
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	mediaType, _, mimeErr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if resp.StatusCode != http.StatusOK || resp.ContentLength <= 0 || resp.ContentLength > desktopReleaseMaxBytes || mimeErr != nil || mediaType != "application/x-apple-diskimage" {
+		return 0, errors.New("desktop installer unavailable")
+	}
+	return resp.ContentLength, nil
 }
 
 func fetchDesktopDownloadFeed(ctx context.Context, raw string) ([]byte, error) {

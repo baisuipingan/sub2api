@@ -30,7 +30,9 @@
 
 顶部通知铃铛前提供整块可点击的 MiloCode 推广入口，左侧菜单不再重复展示。控制台、工作台及管理员均可进入同一个下载页面，并保留当前工作区及角色上下文；仅后端模式仍沿用原来的用户访问限制。宽屏显示客户端提示与下载图标，窄屏保留紧凑品牌入口。页面沿用站内布局、按钮、加载与空状态组件，仅列出 Windows x64 和 macOS Apple Silicon（ARM64）。每个平台展示自己已发布的版本；不把版本号或安装包地址写死在前端。无配置、尚未发布或元数据读取失败时，显示明确的不可下载状态，不能生成猜测的安装包链接。
 
-公开轻量接口 `GET /api/v1/desktop/downloads` 返回 `{platforms:[{platform,available,version?,url?,size?,format?}]}`。它只从已配置公开域名读取固定的 `milocode/stable/win32-x64/latest.json` 与 `milocode/stable/darwin-arm64/appcast.xml`，不访问 S3 凭据或枚举桶。读取限制 1 MiB、短超时，复用 SSRF 校验且不跟随重定向；请求合并并在进程内缓存 60 秒，公开入口沿用面板 IP 限流。只有同一个 HTTPS origin 下、与平台和稳定版本一致的固定 releases 路径可作为下载地址。Windows 读取签名 envelope 中的 EXE 信息；Mac 读取 Sparkle appcast 的完整 ZIP enclosure，忽略 delta 包，不假设可选 DMG 必然存在。
+公开轻量接口 `GET /api/v1/desktop/downloads` 返回 `{platforms:[{platform,available,version?,url?,size?,format?}]}`。它从已配置公开域名读取固定的 `milocode/stable/win32-x64/latest.json` 与 `milocode/stable/darwin-arm64/appcast.xml`，不访问 S3 凭据或枚举桶。读取限制 1 MiB、短超时，复用 SSRF 校验且不跟随重定向；请求合并并在进程内缓存 60 秒，公开入口沿用面板 IP 限流。只有同一个 HTTPS origin 下、与平台和稳定版本一致的固定 releases 路径可作为下载地址。Windows 读取签名 envelope 中的 EXE 信息；Mac 从 Sparkle 完整 ZIP enclosure 发现可信的已发布版本并忽略 delta 包，再对同版本固定路径 `milocode/releases/<version>/darwin-arm64/MiloCode-<version>-mac-arm64.dmg` 作最长 2 秒的公开 HEAD 确认。只有 200、合法正数大小（不超过发布上限）、`application/x-apple-diskimage` 类型才对官网返回 DMG URL/大小/格式；不转发响应正文或跟随任何重定向。DMG 不存在、超时或元数据不合法时兼容旧版 ZIP，并在页面明确说明手动将应用移入「应用程序」，不输出未经确认的 DMG 猜测链接。
+
+官网手动安装与应用内更新分别使用适合自己的包：新版本官网默认下载 DMG，打开后将 MiloCode 拖到 Applications；Sparkle appcast 的更新 enclosure 始终保持已签署 ZIP，不因为官网安装体验改变更新格式、签名或公钥。HEAD 结果与版本元数据一并缓存 60 秒，每次页面访问不会重复探测 DMG，更不会经服务器下载整个安装包。
 
 网页下载与客户端更新的信任边界不同：网页和普通软件下载站一样信任管理员配置的 HTTPS 发布源，后端不持有客户端公钥、不声称替代客户端验签。已安装客户端继续用构建时固定的密钥验证签名 feed 和更新包。网站接口只输出公开版本、安装包 URL 和大小，不输出 bucket、S3 endpoint、凭据、PUT 签名 URL、私钥或原始 feed 内容。点击下载后由浏览器直接请求公开发布源，Sub2API 不代理包正文。
 
@@ -40,4 +42,4 @@
 
 下载页说明当前 Mac 包有 ad-hoc 完整性签名，但没有 Apple 开发者签名及公证，提供同站静态文件 `/downloads/MiloCode-macOS-Helper.command`。源文件在 `frontend/public/downloads/`，Vite 构建后随前端嵌入服务器，不需要额外存储桶或服务端执行脚本。
 
-用户先将 ZIP 中的应用移入「应用程序」，下载脚本后在终端运行 `bash ~/Downloads/MiloCode-macOS-Helper.command`。脚本只接受 `/Applications/MiloCode.app` 或 `~/Applications/MiloCode.app`，核对 `app.milo.code` / `MiloCode` 标识、拒绝异常链接路径并验证现有代码签名；用户确认后仅递归删除该应用的 `com.apple.quarantine` 并打开应用。它不会重新签名、默认提权、下载远端程序、清空全部扩展属性或关闭 Gatekeeper。完整性验证不等同于 Apple 认证发布者，仍需确认安装包和脚本来自本站。权限或完整性检查失败时给出明确说明，保留系统设置中的「仍要打开」作为替代路径。
+用户先打开 DMG，将 MiloCode 拖入窗口中的 Applications；旧版只有 ZIP 时，解压后将应用移入「应用程序」。随后下载脚本，在终端运行 `bash ~/Downloads/MiloCode-macOS-Helper.command`。脚本只接受 `/Applications/MiloCode.app` 或 `~/Applications/MiloCode.app`，核对 `app.milo.code` / `MiloCode` 标识、拒绝异常链接路径并验证现有代码签名；用户确认后仅递归删除该应用的 `com.apple.quarantine` 并打开应用。它不会重新签名、默认提权、下载远端程序、清空全部扩展属性或关闭 Gatekeeper。完整性验证不等同于 Apple 认证发布者，仍需确认安装包和脚本来自本站。权限或完整性检查失败时给出明确说明，保留系统设置中的「仍要打开」作为替代路径。

@@ -31,6 +31,9 @@
                 </a>
                 <button v-else type="button" class="btn btn-secondary mt-4 w-full" disabled>{{ t('desktop.downloads.unavailable') }}</button>
                 <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ item.available ? packageDetails(item) : t('desktop.downloads.unavailableHint') }}</p>
+                <p v-if="item.available && item.platform === 'darwin-arm64'" class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400" data-testid="mac-package-install-hint">
+                  {{ t(item.format === 'dmg' ? 'desktop.downloads.macDmgInstallHint' : 'desktop.downloads.macZipInstallHint') }}
+                </p>
               </section>
             </div>
             <p v-if="!loading && !failed && platforms.some(item => item.available)" class="mt-4 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('desktop.downloads.firstInstallHint') }}</p>

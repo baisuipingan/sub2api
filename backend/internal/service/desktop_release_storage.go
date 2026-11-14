@@ -95,10 +95,11 @@ type DesktopReleaseStorageService struct {
 	publicProbe  func(context.Context, string, []byte) error
 	downloads    desktopDownloadCache
 	downloadFeed func(context.Context, string) ([]byte, error)
+	downloadHead func(context.Context, string) (int64, error)
 }
 
 func NewDesktopReleaseStorageService(repo SettingRepository, backup *BackupService, factory DesktopReleaseObjectStoreFactory) *DesktopReleaseStorageService {
-	return &DesktopReleaseStorageService{repo: repo, backup: backup, factory: factory, publicProbe: probeDesktopReleasePublicObject, downloadFeed: fetchDesktopDownloadFeed}
+	return &DesktopReleaseStorageService{repo: repo, backup: backup, factory: factory, publicProbe: probeDesktopReleasePublicObject, downloadFeed: fetchDesktopDownloadFeed, downloadHead: headDesktopDownloadInstaller}
 }
 
 func normalizeDesktopReleaseStorage(in DesktopReleaseStorageConfig) (DesktopReleaseStorageConfig, error) {

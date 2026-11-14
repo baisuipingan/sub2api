@@ -82,17 +82,32 @@ describe('MiloCode download page', () => {
 
   it('shows the real Mac release without suggesting an Intel package', async () => {
     getDownloads.mockResolvedValue({ platforms: [
-      { platform: 'darwin-arm64', available: true, version: '2.10.4', url: 'https://download.example.test/milocode/releases/2.10.4/darwin-arm64/MiloCode.zip', format: 'zip' },
+      { platform: 'darwin-arm64', available: true, version: '2.10.4', url: 'https://download.example.test/milocode/releases/2.10.4/darwin-arm64/MiloCode-2.10.4-mac-arm64.dmg', size: 23456789, format: 'dmg' },
     ] })
     const wrapper = render()
     await flushPromises()
     const mac = wrapper.get('[data-platform="darwin-arm64"]')
     expect(mac.text()).toContain('v2.10.4')
-    expect(mac.text()).toContain('ZIP')
-    expect(mac.text()).not.toContain('ZIP ·')
-    expect(mac.get('a').attributes('href')).toContain('/2.10.4/darwin-arm64/')
+    expect(mac.text()).toContain('DMG · 22.4 MB')
+    expect(mac.get('a').attributes('href')).toContain('/2.10.4/darwin-arm64/MiloCode-2.10.4-mac-arm64.dmg')
+    expect(mac.get('[data-testid="mac-package-install-hint"]').text()).toBe('desktop.downloads.macDmgInstallHint')
+    expect(mac.text()).not.toContain('desktop.downloads.macZipInstallHint')
     expect(wrapper.text()).not.toContain('Intel')
     expect(wrapper.findAll('[data-platform]')).toHaveLength(2)
+  })
+
+  it('explains how to install older ZIP-only releases without calling them a DMG', async () => {
+    getDownloads.mockResolvedValue({ platforms: [
+      { platform: 'darwin-arm64', available: true, version: '2.10.3', url: 'https://download.example.test/milocode/releases/2.10.3/darwin-arm64/MiloCode.zip', format: 'zip' },
+    ] })
+    const wrapper = render()
+    await flushPromises()
+    const mac = wrapper.get('[data-platform="darwin-arm64"]')
+    expect(mac.text()).toContain('ZIP')
+    expect(mac.text()).not.toContain('ZIP ·')
+    expect(mac.get('a').attributes('href')).toContain('/2.10.3/darwin-arm64/MiloCode.zip')
+    expect(mac.get('[data-testid="mac-package-install-hint"]').text()).toBe('desktop.downloads.macZipInstallHint')
+    expect(mac.text()).not.toContain('desktop.downloads.macDmgInstallHint')
   })
 
 })

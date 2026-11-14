@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -143,9 +144,123 @@ func TestDesktopDownloadsCacheCoalescesAndKeepsPlatformsIndependent(t *testing.T
 func TestDesktopDownloadsNoConfigurationMakesNoOutboundRequest(t *testing.T) {
 	svc, _, _, _ := desktopReleaseFixture(t)
 	svc.downloadFeed = func(context.Context, string) ([]byte, error) { t.Fatal("unexpected fetch"); return nil, nil }
+	svc.downloadHead = func(context.Context, string) (int64, error) { t.Fatal("unexpected HEAD"); return 0, nil }
 	value, err := svc.PublicDownloads(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, emptyDesktopDownloads(), *value)
+}
+
+func TestDesktopDownloadsPrefersConfirmedMacDMGAndCachesProbe(t *testing.T) {
+	svc, _, _, _ := desktopReleaseFixture(t)
+	_, err := svc.Update(context.Background(), DesktopReleaseStorageConfig{Bucket: "milocode-releases", PublicBaseURL: downloadTestOrigin})
+	require.NoError(t, err)
+	svc.downloadFeed = func(_ context.Context, url string) ([]byte, error) {
+		if strings.HasSuffix(url, "appcast.xml") {
+			return macDownloadFixture(macDownloadItem("3.17.6")), nil
+		}
+		return windowsDownloadFixture(t, downloadTestOrigin+"/milocode/releases/3.17.6/win32-x64/MiloCode.exe", "3.17.6"), nil
+	}
+	var probes atomic.Int32
+	svc.downloadHead = func(ctx context.Context, url string) (int64, error) {
+		probes.Add(1)
+		require.Equal(t, downloadTestOrigin+"/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg", url)
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		require.Positive(t, time.Until(deadline))
+		require.LessOrEqual(t, time.Until(deadline), desktopDownloadInstallerHeadTimeout)
+		return 234567, nil
+	}
+	for range 2 {
+		got, getErr := svc.PublicDownloads(context.Background())
+		require.NoError(t, getErr)
+		require.Equal(t, "exe", got.Platforms[0].Format)
+		require.Equal(t, DesktopDownload{Platform: "darwin-arm64", Available: true, Version: "3.17.6", URL: downloadTestOrigin + "/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg", Size: 234567, Format: "dmg"}, got.Platforms[1])
+	}
+	require.EqualValues(t, 1, probes.Load())
+	// 官网选择 DMG 不得改变客户端读取的 Sparkle ZIP enclosure。
+	archive, err := parseMacDesktopDownload(macDownloadFixture(macDownloadItem("3.17.6")), downloadTestOrigin)
+	require.NoError(t, err)
+	require.Equal(t, "zip", archive.Format)
+	require.True(t, strings.HasSuffix(archive.URL, "/MiloCode.zip"))
+}
+
+func TestDesktopDownloadsMacDMGFallsBackToPublishedZIP(t *testing.T) {
+	archive, err := parseMacDesktopDownload(macDownloadFixture(macDownloadItem("3.17.5")), downloadTestOrigin)
+	require.NoError(t, err)
+	for _, test := range []struct {
+		name string
+		size int64
+		err  error
+	}{
+		{name: "missing DMG", err: errors.New("404")},
+		{name: "HEAD timeout", err: context.DeadlineExceeded},
+		{name: "missing size", size: -1},
+		{name: "empty size", size: 0},
+		{name: "oversized", size: desktopReleaseMaxBytes + 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc, _, _, _ := desktopReleaseFixture(t)
+			svc.downloadHead = func(context.Context, string) (int64, error) { return test.size, test.err }
+			require.Equal(t, archive, svc.macDesktopInstaller(context.Background(), archive, downloadTestOrigin))
+		})
+	}
+	// 未通过发布版本及路径验证时，不能生成或访问候选 DMG。
+	svc, _, _, _ := desktopReleaseFixture(t)
+	svc.downloadHead = func(context.Context, string) (int64, error) { t.Fatal("unexpected HEAD"); return 0, nil }
+	invalid := archive
+	invalid.Version = "../1.2.3"
+	require.Equal(t, invalid, svc.macDesktopInstaller(context.Background(), invalid, downloadTestOrigin))
+}
+
+func TestDesktopDownloadsInstallerHEADBoundary(t *testing.T) {
+	for _, test := range []struct {
+		name, mime string
+		status     int
+		size       int64
+		ok         bool
+	}{
+		{name: "published DMG", status: 200, mime: "application/x-apple-diskimage", size: 12345, ok: true},
+		{name: "missing", status: 404, mime: "application/x-apple-diskimage", size: 12345},
+		{name: "cross-origin redirect", status: 302, mime: "application/x-apple-diskimage", size: 12345},
+		{name: "unknown size", status: 200, mime: "application/x-apple-diskimage", size: -1},
+		{name: "empty", status: 200, mime: "application/x-apple-diskimage", size: 0},
+		{name: "too large", status: 200, mime: "application/x-apple-diskimage", size: desktopReleaseMaxBytes + 1},
+		{name: "HTML error page", status: 200, mime: "text/html", size: 12345},
+		{name: "wrong archive type", status: 200, mime: "application/zip", size: 12345},
+		{name: "missing MIME", status: 200, size: 12345},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := 0
+			body := strings.NewReader("installer body must not pass through the gateway")
+			client := &http.Client{Transport: desktopReleaseRoundTrip(func(request *http.Request) (*http.Response, error) {
+				calls++
+				require.Equal(t, http.MethodHead, request.Method)
+				require.Empty(t, request.Header.Get("Authorization"))
+				require.Empty(t, request.Header.Get("Cookie"))
+				return &http.Response{StatusCode: test.status, ContentLength: test.size, Header: http.Header{"Content-Type": []string{test.mime}, "Location": []string{"https://attacker.test/installer.dmg"}}, Body: io.NopCloser(body), Request: request}, nil
+			})}
+			size, headErr := headDesktopDownloadInstallerWithClient(context.Background(), downloadTestOrigin+"/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg", client)
+			if test.ok {
+				require.NoError(t, headErr)
+				require.Equal(t, test.size, size)
+			} else {
+				require.Error(t, headErr)
+			}
+			require.Equal(t, 1, calls)
+			require.Equal(t, len("installer body must not pass through the gateway"), body.Len())
+		})
+	}
+	for _, raw := range []string{"http://example.test/installer.dmg", "https://127.0.0.1/installer.dmg", "https://localhost/installer.dmg", "https://10.0.0.1/installer.dmg"} {
+		_, err := headDesktopDownloadInstaller(context.Background(), raw)
+		require.Error(t, err)
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	client := &http.Client{Transport: desktopReleaseRoundTrip(func(request *http.Request) (*http.Response, error) {
+		return nil, request.Context().Err()
+	})}
+	_, err := headDesktopDownloadInstallerWithClient(ctx, downloadTestOrigin+"/installer.dmg", client)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestDesktopDownloadsHTTPBoundaryIsBoundedAndDoesNotRedirect(t *testing.T) {
