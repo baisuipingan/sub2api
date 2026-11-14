@@ -261,6 +261,43 @@ describe('system Agent multiple model settings', () => {
     await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
     expect(mocks.updateConfig.mock.calls[0][0].model_profiles['gpt-6.1-sol']).toEqual({ profile_id: 'gpt-6.1-sol', override: false })
   })
+  it.each(['zh', 'en'] as const)('renders mixed-vendor budgets and execution limits without changing the automatic reasoning default: %s', async locale => {
+    const automatic = { reasoning_levels: ['none'] as DesktopAgentModel['reasoning_levels'], default_reasoning: 'none' as const, supports_reasoning: false, supports_json_schema_output: false }
+    const reviewed = (id: string, source: DesktopAgentProfile['source'], sourceUrl: string, notes: string[], officialLevels: DesktopAgentProfile['official_reasoning_levels'] = ['low', 'medium', 'high']): DesktopAgentProfile => ({
+      ...profile(), id, display_name: id, source, source_url: sourceUrl, aliases: [id], official_context_window: 1000000, max_input_tokens: 872000, notes, official_reasoning_levels: officialLevels,
+      model: model(id, { ...automatic, context_window: 872000, max_output_tokens: 128000, default_max_output_tokens: 16384 }),
+    })
+    const profiles = [
+      profile(),
+      reviewed('deepseek-flash', 'official_deepseek', 'https://api-docs.deepseek.com/quick_start/pricing', ['shared_context_budget', 'output_budget_compatibility', 'native_web_search_unavailable']),
+      reviewed('claude-haiku-4-5-20251001', 'official_anthropic', 'https://platform.claude.com/docs/en/models/haiku-4-5/overview', ['shared_context_budget', 'reasoning_auto_only', 'structured_output_compatibility', 'unreviewed-message'], []),
+      reviewed('grok-4', 'official_xai', 'https://docs.x.ai/docs/models', ['grok_xhigh_compatibility']),
+      reviewed('gemini-4-carbon', 'official_google', 'https://aistudio.google.com/docs/models/gemini-4-carbon', ['responses_compatibility_required', 'reasoning_auto_only']),
+    ]
+    const cfg = fixture(); cfg.models = profiles.map(item => structuredClone(item.model)); cfg.default_model_id = profiles[0].id; delete cfg.model_profiles
+    mocks.getProfiles.mockResolvedValueOnce({ profiles }); mocks.getConfig.mockResolvedValueOnce(cfg); mocks.getModels.mockResolvedValueOnce({ group_id: 7, models: profiles.map(item => item.id) })
+    const { wrapper } = setup(true, locale); await flushPromises()
+    const messages = (locale === 'zh' ? zhMessages : enMessages).agentSettings
+    expect(wrapper.findAll('[data-test="agent-model-card"]')).toHaveLength(5)
+    expect(card(wrapper, 0).get('[data-test="agent-profile-budgets"]').text()).toContain(locale === 'zh' ? '最大输入' : 'maximum input')
+    const sharedBudget = card(wrapper, 1).get('[data-test="agent-profile-budgets"]').text()
+    expect(sharedBudget).toContain(locale === 'zh' ? '输入与输出共享上下文' : 'shared input/output context')
+    expect(sharedBudget).toContain(locale === 'zh' ? '保守输入预算 872,000' : 'conservative input budget 872,000')
+    expect(sharedBudget).not.toContain(locale === 'zh' ? '最大输入' : 'maximum input')
+    expect(card(wrapper, 1).get('[data-test="agent-profile-note-output_budget_compatibility"]').text()).toContain('128,000')
+    expect(card(wrapper, 1).get('[data-test="agent-profile-note-native_web_search_unavailable"]').text()).toBe(messages.profileNotes.native_web_search_unavailable)
+    for (const note of ['shared_context_budget', 'reasoning_auto_only', 'structured_output_compatibility'] as const) expect(card(wrapper, 2).get(`[data-test="agent-profile-note-${note}"]`).text()).toBe(messages.profileNotes[note])
+    expect(card(wrapper, 2).find('[data-test="agent-profile-note-unreviewed-message"]').exists()).toBe(false)
+    expect(card(wrapper, 3).get('[data-test="agent-profile-note-grok_xhigh_compatibility"]').text()).toBe(messages.profileNotes.grok_xhigh_compatibility)
+    expect(card(wrapper, 4).get('[data-test="agent-profile-note-responses_compatibility_required"]').text()).toBe(messages.profileNotes.responses_compatibility_required)
+    const reasoning = card(wrapper, 4).get<HTMLSelectElement>('[data-test="agent-default-reasoning"]')
+    expect(reasoning.element.value).toBe('none')
+    expect(reasoning.findAll('option').filter(option => !option.element.disabled).map(option => option.attributes('value'))).toEqual(['none'])
+    expect(wrapper.text()).not.toMatch(/admin\.agentSettings\.|unreviewed-message/)
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig).toHaveBeenCalledOnce()
+    expect(mocks.updateConfig.mock.calls[0][0].models[4]).toMatchObject({ id: 'gemini-4-carbon', default_reasoning: 'none', reasoning_levels: ['none'], supports_reasoning: false })
+  })
   it('requires explicit overrides and restores profile defaults in one draft', async () => {
     const { wrapper } = setup(); await flushPromises()
     await modelInput(wrapper, 'default-output').setValue('8192')

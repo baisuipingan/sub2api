@@ -81,9 +81,9 @@ describe('desktop Agent config preflight', () => {
     const profiles = [
       profile(),
       vendorProfile('deepseek-flash', 'official_deepseek', 'https://api-docs.deepseek.com/quick_start/pricing'),
-      vendorProfile('claude-fixture', 'official_anthropic', 'https://platform.claude.com/docs/en/about-claude/models/overview'),
-      vendorProfile('grok-fixture', 'official_xai', 'https://docs.x.ai/docs/models'),
-      vendorProfile('gemini-fixture', 'official_google', 'https://ai.google.dev/gemini-api/docs/models'),
+      vendorProfile('claude-sonnet-4-6', 'official_anthropic', 'https://platform.claude.com/docs/en/models/sonnet-4-6/overview'),
+      vendorProfile('grok-4', 'official_xai', 'https://docs.x.ai/docs/models'),
+      vendorProfile('gemini-4-carbon', 'official_google', 'https://aistudio.google.com/docs/models/gemini-4-carbon'),
     ]
     expect(validDesktopAgentProfiles(profiles)).toBe(true)
     const cfg = valid()
@@ -93,6 +93,23 @@ describe('desktop Agent config preflight', () => {
     expect(normalized.default_model_id).toBe('fixture-model')
     expect(normalized.model_profiles).toEqual(cfg.model_profiles)
     expect(validateDesktopAgentConfig(normalized, profiles)).toEqual([])
+  })
+  it('accepts budget-based official thinking metadata but still requires executable reasoning levels', () => {
+    const budgetProfile = vendorProfile('claude-haiku-4-5-20251001', 'official_anthropic', 'https://platform.claude.com/docs/en/models/haiku-4-5/overview')
+    budgetProfile.official_reasoning_levels = []
+    budgetProfile.model.reasoning_levels = ['none']
+    budgetProfile.model.default_reasoning = 'none'
+    budgetProfile.model.supports_reasoning = false
+    expect(validDesktopAgentProfiles([budgetProfile])).toBe(true)
+    const cfg = valid(); cfg.model_profiles = { 'fixture-model': { profile_id: budgetProfile.id, override: false } }
+    const normalized = normalizeDesktopAgentProfiles(cfg, [budgetProfile])
+    expect(normalized.models[0]).toMatchObject({ reasoning_levels: ['none'], default_reasoning: 'none', supports_reasoning: false })
+    expect(validateDesktopAgentConfig(normalized, [budgetProfile])).toEqual([])
+    budgetProfile.model.reasoning_levels = []
+    expect(validDesktopAgentProfiles([budgetProfile])).toBe(false)
+    budgetProfile.model.reasoning_levels = ['none']
+    budgetProfile.official_reasoning_levels = ['invented' as DesktopAgentProfile['official_reasoning_levels'][number]]
+    expect(validDesktopAgentProfiles([budgetProfile])).toBe(false)
   })
   it.each([
     ['official_openai', 'https://platform.openai.com/docs/models'],

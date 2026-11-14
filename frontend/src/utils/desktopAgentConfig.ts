@@ -92,13 +92,14 @@ export function validDesktopAgentProfiles(value: unknown): value is DesktopAgent
       // 每家档案必须链接自身官方域名；只扩展全局域名白名单会误认跨厂商或伪造来源。
       if (source.protocol !== 'https:' || !officialProfileHosts[profile.source].includes(source.hostname) || source.port || source.username || source.password) return false
     } catch { return false }
+    // 预算式 thinking 没有离散官方档位；实际可执行档位仍由下方模型校验要求非空。
     if (!/^\d{4}-\d{2}-\d{2}$/.test(profile.reviewed_at) || typeof profile.revision !== 'string' || !profile.revision ||
       !positiveInteger(profile.official_context_window) || !positiveInteger(profile.max_input_tokens) || profile.max_input_tokens > profile.official_context_window ||
       !Array.isArray(profile.aliases) || !profile.aliases.includes(profile.id) || !profile.aliases.every(alias => {
         if (!validModelString(alias) || aliases.has(alias)) return false
         aliases.add(alias)
         return true
-      }) || !Array.isArray(profile.official_reasoning_levels) || profile.official_reasoning_levels.length === 0 ||
+      }) || !Array.isArray(profile.official_reasoning_levels) ||
       !profile.official_reasoning_levels.every(level => DESKTOP_AGENT_REASONING_LEVELS.includes(level)) ||
       !Array.isArray(profile.notes) || !profile.notes.every(note => typeof note === 'string') ||
       !profile.model || profile.model.id !== profile.id || validateDesktopAgentModel(profile.model, 'profile').length > 0) return false

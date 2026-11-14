@@ -6,9 +6,21 @@ The profile endpoint remains `{ profiles: [...] }` and returns reviewed builtin 
 
 Without `override: true`, capability flags and physical budgets come from the trusted profile. Valid operator defaults (reasoning and per-request output limit), the public ID, display name and default-model choice are preserved. Advanced overrides are explicit. Restoring profile defaults clears the override and restores operator defaults as well.
 
-The interface distinguishes the documented official context window and input limit from the conservative current-client context budget. Native OpenAI web search remains unavailable in the current ZCode executor even when the official model supports it. The current `none` level omits the reasoning parameter; it does not explicitly disable reasoning. These execution limitations are shown with translated, stable note codes from the profile registry.
+The interface distinguishes the documented official context window and input limit from the conservative current-client context budget. A `shared_context_budget` profile instead labels its context as shared between input and output and its `max_input_tokens` as a derived conservative input budget, never an independently documented maximum input. The actual current-client budget remains visible separately.
+
+Reviewed notes remain a translated allowlist; unknown codes are not rendered as raw messages or translation keys. In addition to the existing input and reasoning notes, the card explains shared context reservations, conservative output caps, automatic-only reasoning, the need for a Responses-compatible channel or an existing gateway bridge, structured-output compatibility limits, and the Grok 4.5 documentation's xhigh/high equivalence. That equivalence is scoped to its profile, not every Grok model or a global gateway rewrite. Native web search remains disabled because the current unified Responses executor does not encode provider-native search. These notes describe execution boundaries without adding provider-specific forms or changing protocol selection.
+
+The current `none` level omits the reasoning parameter; it does not explicitly disable thinking. An automatic-only profile retains this executable level and a valid default, even if the model can think by default. Official reasoning metadata may be an empty array for models that expose a token budget instead of discrete effort levels; executable `model.reasoning_levels` must still be nonempty and strictly validated. Official model names, custom bindings, advanced overrides and existing draft interactions keep the same ownership and matching rules.
 
 Verification covers profile matching, legacy normalization, unknown models, atomic bindings, override locking/restoration, failed loads and draft-preserving retry, plus existing group/catalog and step-up protections.
+
+Real Chromium acceptance on 2026-11-14 also consumed the complete 37-profile JSON exported by the actual Go registry. The strict frontend parser accepted the mixed sources and empty official effort metadata. Verified DeepSeek's exact low/high/max controls, a custom public alias selecting Claude without changing its identity, automatic official matching across vendors, and Gemini's automatic-only control. Chinese desktop and Chinese/English dark 390px screenshots were inspected with no overflow or raw translation keys. This used a disposable local fixture, no production credentials or paid inference. The fixture entry points and server were removed afterwards; evidence remains under `output/playwright/agent-vendors-*`.
+
+## Verification on 2026-11-14
+
+- 122 affected tests passed: 77 config/profile utility cases, 40 settings component cases, three locale completeness cases and two message-compilation cases. Mixed-vendor fixtures exercise the actual settings card, automatic-only reasoning, shared-context labels, output cap interpolation, trusted note rendering and publishing without changing public model IDs.
+- Budget-based models accept empty official effort metadata; malformed official values and empty executable reasoning lists remain rejected. Unknown note codes stay hidden instead of appearing as untranslated text.
+- Targeted ESLint and `vue-tsc --noEmit` passed. The complete frontend build (locale gate, `vue-tsc -b` and Vite) passed with existing Browserslist/chunk warnings. This round did not repeat real-browser visual acceptance or make production configuration changes.
 
 ## Verification on 2026-11-13
 

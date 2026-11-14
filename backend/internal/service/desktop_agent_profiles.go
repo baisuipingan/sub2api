@@ -41,6 +41,14 @@ type DesktopAgentModelProfileBinding struct {
 // Return fresh structures: neither a caller nor a settings draft may mutate the
 // process-wide source of truth. Only exact official IDs/declared aliases match.
 func desktopAgentBuiltinProfiles() []DesktopAgentProfile {
+	profiles := desktopAgentOpenAIProfiles()
+	profiles = append(profiles, desktopAgentDeepSeekProfiles()...)
+	profiles = append(profiles, desktopAgentClaudeProfiles()...)
+	profiles = append(profiles, desktopAgentGrokProfiles()...)
+	return append(profiles, desktopAgentGeminiProfiles()...)
+}
+
+func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 	type specification struct {
 		id, name string
 		aliases  []string

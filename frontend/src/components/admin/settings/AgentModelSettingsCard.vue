@@ -26,8 +26,8 @@
         <p v-if="!profile && profilesReady" data-test="agent-profile-required" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.agentSettings.profileRequired') }}</p>
         <template v-if="profile">
           <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.profileSource') }} <a :href="profile.source_url" target="_blank" rel="noopener noreferrer" class="text-primary-600 underline dark:text-primary-400">{{ t('admin.agentSettings.officialDocumentation') }}</a> · {{ t('admin.agentSettings.profileReviewed', { date: profile.reviewed_at, revision: profile.revision }) }}</p>
-          <p data-test="agent-profile-budgets" class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.profileBudgets', { context: profile.official_context_window.toLocaleString(), input: profile.max_input_tokens.toLocaleString(), budget: profile.model.context_window.toLocaleString() }) }}</p>
-          <ul class="list-inside list-disc space-y-1 text-xs leading-5 text-gray-500 dark:text-gray-400"><li v-for="note in profileNotes" :key="note">{{ t(`admin.agentSettings.profileNotes.${note}`) }}</li></ul>
+          <p data-test="agent-profile-budgets" class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(profile.notes.includes('shared_context_budget') ? 'admin.agentSettings.profileSharedBudgets' : 'admin.agentSettings.profileBudgets', { context: profile.official_context_window.toLocaleString(), input: profile.max_input_tokens.toLocaleString(), budget: profile.model.context_window.toLocaleString() }) }}</p>
+          <ul class="list-inside list-disc space-y-1 text-xs leading-5 text-gray-500 dark:text-gray-400"><li v-for="note in profileNotes" :key="note" :data-test="`agent-profile-note-${note}`">{{ t(`admin.agentSettings.profileNotes.${note}`, { output: profile.model.max_output_tokens.toLocaleString() }) }}</li></ul>
         </template>
       </div>
       <details class="rounded-xl border border-gray-200 dark:border-dark-700">
@@ -78,7 +78,11 @@ const emit = defineEmits<{ 'update:modelValue': [value: DesktopAgentModel]; 'pro
 const { t } = useI18n()
 const profile = computed(() => resolveDesktopAgentProfile(props.profiles, props.modelValue.id, props.binding))
 const officialProfile = computed(() => resolveDesktopAgentProfile(props.profiles, props.modelValue.id))
-const profileNotes = computed(() => profile.value?.notes.filter(note => ['input_budget_compatibility', 'native_web_search_unavailable', 'reasoning_none_unavailable'].includes(note)) || [])
+const profileNotes = computed(() => profile.value?.notes.filter(note => [
+  'input_budget_compatibility', 'native_web_search_unavailable', 'reasoning_none_unavailable',
+  'shared_context_budget', 'output_budget_compatibility', 'reasoning_auto_only',
+  'responses_compatibility_required', 'structured_output_compatibility', 'grok_xhigh_compatibility',
+].includes(note)) || [])
 const canOverride = computed(() => !props.disabled && props.profilesReady && !!profile.value && props.binding?.override === true)
 const profileOptions = computed(() => props.profiles.filter(profile => !officialProfile.value || profile.id === officialProfile.value.id).map(profile => ({ value: profile.id, label: profile.display_name })))
 const capabilitySummary = computed(() => !profile.value ? t('admin.agentSettings.unverifiedSummary') : [
