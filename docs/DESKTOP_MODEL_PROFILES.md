@@ -1,6 +1,6 @@
 # 桌面模型官方档案、远程目录与协议合同
 
-本合同对应 2026-11-14 的本地改造，内置档案修订为 2026-11-14.2。当前内容以代码和已核验的官方资料为准；文末单独保留 ds.17 的历史发布记录。本轮尚未部署生产，也没有完成新版客户端打包或付费模型联调。
+本合同对应 2026-11-14 的改造，内置档案修订为 2026-11-14.2，服务已部署为 0.2.21-ds.18。当前内容以代码和已核验的官方资料为准；文末保留发布记录。客户端打包及发布证据由 MiloCode 仓库单独记录；本轮未进行付费模型联调。
 
 ## 范围与数据边界
 
@@ -199,4 +199,8 @@ models 与 model_profiles 属于同一管理员草稿，选择档案或移除模
 
 ## 当前发布状态
 
-本轮远程数据分支已发布，服务与客户端源码仍在当前工作分支。未部署生产，未打包新版 MiloCode，未进行各厂商付费推理、长 decode、工具或计费联调。
+远程数据分支与服务均已上线。2026-11-14 发布 fork-v0.2.21-18 / 0.2.21-ds.18，源码 4c8ea12d77b7ce206945eb3eec9811cb5d175781；[完整发布 CI](https://github.com/baisuipingan/sub2api/actions/runs/43561614368) 的后端单测、数据库集成、Lint、前端测试及构建全部通过。
+
+生产按 ghcr.io/baisuipingan/sub2api@sha256:6ca949e5fc02263f011e4cd7f1b6072fcabde916a82a2639036691cc79dc1cdc 部署，schema epoch 仍为 4。部署前数据库备份为 /root/sub2api-deploy/releases/backups/sub2api-20261114T055337Z.dump.gz，Agent 原文快照为 /root/sub2api-deploy/releases/backups/desktop_agent_catalog_pre_ds18_20261114T052420Z.json。
+
+发布后验收确认应用、PostgreSQL、Redis 与公开健康检查正常；远程 37 项档案与审核 JSON 完整一致，revision 为 2026-11-14.2，using_fallback=false，最近刷新成功且无错误。已保存 Agent 配置原文与模型列表保持不变，顶部下载入口、Mac 辅助脚本及公开下载接口均正常。证据位于 output/deploy/fork-v0.2.21-18/。未进行各厂商付费推理、长 decode、工具或计费联调。

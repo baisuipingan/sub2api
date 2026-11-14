@@ -1,6 +1,6 @@
 # Desktop model profile frontend contract
 
-This contract describes the local 2026-11-14 revision 2026-11-14.2. The backend catalogue is the source of reviewed facts. Saved administrator capability values are not an official source. This revision has not been deployed, and its final combined verification is to be recorded by the lead agent.
+This contract describes the 2026-11-14 revision 2026-11-14.2, deployed in 0.2.21-ds.18. The backend catalogue is the source of reviewed facts. Saved administrator capability values are not an official source. Full release CI and production acceptance passed; see the release record in DESKTOP_MODEL_PROFILES.md and output/deploy/fork-v0.2.21-18/.
 
 ## Draft and identity ownership
 
