@@ -26,8 +26,9 @@ type DesktopAgentProfile struct {
 	ReviewedAt              string            `json:"reviewed_at"`
 	Revision                string            `json:"revision"`
 	Aliases                 []string          `json:"aliases"`
-	OfficialContextWindow   int               `json:"official_context_window"`
-	MaxInputTokens          int               `json:"max_input_tokens"`
+	OfficialContextWindow   *int              `json:"official_context_window"`
+	MaxInputTokens          *int              `json:"max_input_tokens"`
+	OfficialMaxOutputTokens *int              `json:"official_max_output_tokens"`
 	OfficialReasoningLevels []string          `json:"official_reasoning_levels"`
 	Notes                   []string          `json:"notes"`
 	Model                   DesktopAgentModel `json:"model"`
@@ -67,7 +68,7 @@ func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 	for _, spec := range specs {
 		levels := []string{"low", "medium", "high", "xhigh", "max"}
 		officialLevels := slices.Clone(levels)
-		notes := []string{"input_budget_compatibility", "native_web_search_unavailable"}
+		notes := []string{"official_shared_context", "native_web_search_unavailable"}
 		if spec.none {
 			officialLevels = append([]string{"none"}, officialLevels...)
 			notes = append(notes, "reasoning_none_unavailable")
@@ -76,15 +77,12 @@ func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 		profiles = append(profiles, DesktopAgentProfile{
 			ID: spec.id, DisplayName: spec.name, Source: "official_openai",
 			SourceURL:  "https://developers.openai.com/api/docs/models/" + spec.id,
-			ReviewedAt: "2026-11-13", Revision: "2026-11-13.1", Aliases: aliases,
-			OfficialContextWindow: 1050000, MaxInputTokens: 922000,
+			ReviewedAt: "2026-11-14", Revision: "2026-11-14.2", Aliases: aliases,
+			OfficialContextWindow: desktopProfileTokenLimit(1050000), OfficialMaxOutputTokens: desktopProfileTokenLimit(128000),
 			OfficialReasoningLevels: officialLevels, Notes: notes,
 			Model: DesktopAgentModel{
 				ID: spec.id, DisplayName: spec.name,
-				// The executor has no separate maximum-input field and does not
-				// reserve the physical 128K output limit during compaction. Bound
-				// its working context by the documented input limit, not 1.05M.
-				ContextWindow: 922000, MaxOutputTokens: 128000, DefaultMaxOutputTokens: 16384,
+				ContextWindow: 1050000, MaxOutputTokens: 128000, DefaultMaxOutputTokens: 16384,
 				ReasoningLevels: levels, DefaultReasoning: "medium",
 				SupportsReasoning: desktopProfileBool(true), SupportsStreaming: desktopProfileBool(true),
 				RequiresMFJSToolSchema: desktopProfileBool(false),
@@ -101,14 +99,22 @@ func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 
 func desktopProfileBool(value bool) *bool { return &value }
 
-func (s *DesktopAgentService) GetProfiles(_ context.Context) ([]DesktopAgentProfile, error) {
-	profiles := desktopAgentBuiltinProfiles()
-	return profiles, nil
+// Zero is an internal sentinel for a limit the vendor does not publish
+// separately. Preserve that distinction as JSON null, never as a derived cap.
+func desktopProfileTokenLimit(value int) *int {
+	if value == 0 {
+		return nil
+	}
+	return &value
 }
 
-func desktopAgentProfileBinding(cfg DesktopAgentConfig, modelID string) (DesktopAgentModelProfileBinding, *DesktopAgentProfile) {
+func (s *DesktopAgentService) GetProfiles(_ context.Context) ([]DesktopAgentProfile, error) {
+	return cloneDesktopAgentProfiles(s.profileRequestScope().profiles), nil
+}
+
+func desktopAgentProfileBinding(cfg DesktopAgentConfig, modelID string, catalog ...[]DesktopAgentProfile) (DesktopAgentModelProfileBinding, *DesktopAgentProfile) {
 	binding, explicit := cfg.ModelProfiles[modelID]
-	profiles := desktopAgentBuiltinProfiles()
+	profiles := desktopAgentProfileList(catalog...)
 	for _, profile := range profiles {
 		if slices.Contains(profile.Aliases, modelID) {
 			if explicit && binding.ProfileID != profile.ID {
@@ -130,7 +136,7 @@ func desktopAgentProfileBinding(cfg DesktopAgentConfig, modelID string) (Desktop
 	return binding, nil
 }
 
-func validateDesktopAgentProfileBindings(cfg DesktopAgentConfig) error {
+func validateDesktopAgentProfileBindings(cfg DesktopAgentConfig, catalog ...[]DesktopAgentProfile) error {
 	if len(cfg.ModelProfiles) > len(cfg.Models) {
 		return ErrDesktopAgentInvalid
 	}
@@ -138,7 +144,7 @@ func validateDesktopAgentProfileBindings(cfg DesktopAgentConfig) error {
 		if !slices.ContainsFunc(cfg.Models, func(model DesktopAgentModel) bool { return model.ID == id }) {
 			return ErrDesktopAgentInvalid
 		}
-		_, profile := desktopAgentProfileBinding(cfg, id)
+		_, profile := desktopAgentProfileBinding(cfg, id, catalog...)
 		if profile == nil || binding.ProfileID == "" {
 			return ErrDesktopAgentInvalid
 		}
@@ -150,11 +156,11 @@ func validateDesktopAgentProfileBindings(cfg DesktopAgentConfig) error {
 // retained by default are presentation and valid operational output/reasoning
 // choices. An explicit saved override is required to retain custom capabilities.
 // Unknown legacy aliases stay visible to administrators but are not executable.
-func applyDesktopAgentCapabilityProfiles(cfg DesktopAgentConfig, repairLegacyPolicy bool) (DesktopAgentConfig, error) {
+func applyDesktopAgentCapabilityProfiles(cfg DesktopAgentConfig, repairLegacyPolicy bool, catalog ...[]DesktopAgentProfile) (DesktopAgentConfig, error) {
 	bindings := make(map[string]DesktopAgentModelProfileBinding, len(cfg.Models))
 	models := make([]DesktopAgentModel, 0, len(cfg.Models))
 	for _, old := range cfg.Models {
-		binding, profile := desktopAgentProfileBinding(cfg, old.ID)
+		binding, profile := desktopAgentProfileBinding(cfg, old.ID, catalog...)
 		if profile == nil {
 			if !repairLegacyPolicy {
 				return cfg, ErrDesktopAgentInvalid
@@ -174,7 +180,7 @@ func applyDesktopAgentCapabilityProfiles(cfg DesktopAgentConfig, repairLegacyPol
 		} else if !repairLegacyPolicy {
 			return cfg, ErrDesktopAgentInvalid
 		}
-		if old.DefaultMaxOutputTokens > 0 && old.DefaultMaxOutputTokens <= model.MaxOutputTokens {
+		if old.DefaultMaxOutputTokens > 0 && (model.MaxOutputTokens == 0 && old.DefaultMaxOutputTokens <= model.ContextWindow || old.DefaultMaxOutputTokens <= model.MaxOutputTokens) {
 			model.DefaultMaxOutputTokens = old.DefaultMaxOutputTokens
 		} else if !repairLegacyPolicy {
 			return cfg, ErrDesktopAgentInvalid

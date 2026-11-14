@@ -13,7 +13,7 @@
         </div>
         <div>
           <label :for="`agent-default-output-${index}`" class="input-label">{{ t('admin.agentSettings.defaultMaxOutputTokens') }}</label>
-          <input :id="`agent-default-output-${index}`" :value="modelValue.default_max_output_tokens" data-test="agent-default-output" type="number" min="1" :max="modelValue.max_output_tokens || undefined" step="1" class="input" :disabled="disabled || !profile" @input="update('default_max_output_tokens', Number(inputValue($event)))" />
+          <input :id="`agent-default-output-${index}`" :value="modelValue.default_max_output_tokens" data-test="agent-default-output" type="number" min="1" :max="desktopAgentOutputBudgetCeiling(modelValue) || undefined" step="1" class="input" :disabled="disabled || !profile" @input="update('default_max_output_tokens', Number(inputValue($event)))" />
         </div>
         <button type="button" data-test="agent-model-remove" class="btn btn-secondary btn-sm justify-self-start text-red-600 dark:text-red-400 lg:mb-1" :disabled="disabled" @click="$emit('remove')">{{ t('admin.agentSettings.removeModel') }}</button>
       </div>
@@ -26,7 +26,11 @@
         <p v-if="!profile && profilesReady" data-test="agent-profile-required" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.agentSettings.profileRequired') }}</p>
         <template v-if="profile">
           <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.profileSource') }} <a :href="profile.source_url" target="_blank" rel="noopener noreferrer" class="text-primary-600 underline dark:text-primary-400">{{ t('admin.agentSettings.officialDocumentation') }}</a> · {{ t('admin.agentSettings.profileReviewed', { date: profile.reviewed_at, revision: profile.revision }) }}</p>
-          <p data-test="agent-profile-budgets" class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t(profile.notes.includes('shared_context_budget') ? 'admin.agentSettings.profileSharedBudgets' : 'admin.agentSettings.profileBudgets', { context: profile.official_context_window.toLocaleString(), input: profile.max_input_tokens.toLocaleString(), budget: profile.model.context_window.toLocaleString() }) }}</p>
+          <dl data-test="agent-profile-budgets" class="grid min-w-0 gap-3 rounded-lg border border-gray-200 bg-white p-3 text-sm sm:grid-cols-3 dark:border-dark-700 dark:bg-dark-900">
+            <div class="min-w-0"><dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.officialContext') }}</dt><dd class="mt-1 break-words font-medium">{{ limitText(profile.official_context_window) }}</dd></div>
+            <div class="min-w-0"><dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.officialInput') }}</dt><dd class="mt-1 break-words font-medium">{{ limitText(profile.max_input_tokens) }}</dd></div>
+            <div class="min-w-0"><dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.officialOutput') }}</dt><dd class="mt-1 break-words font-medium">{{ officialOutputText }}</dd></div>
+          </dl>
           <ul class="list-inside list-disc space-y-1 text-xs leading-5 text-gray-500 dark:text-gray-400"><li v-for="note in profileNotes" :key="note" :data-test="`agent-profile-note-${note}`">{{ t(`admin.agentSettings.profileNotes.${note}`, { output: profile.model.max_output_tokens.toLocaleString() }) }}</li></ul>
         </template>
       </div>
@@ -44,8 +48,8 @@
           <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.overrideHint') }}</p>
           <fieldset :disabled="!canOverride" class="min-w-0 space-y-5 disabled:opacity-70">
           <div class="grid min-w-0 gap-4 md:grid-cols-2">
-            <div><label :for="`agent-context-${index}`" class="input-label">{{ t('admin.agentSettings.contextWindow') }}</label><input :id="`agent-context-${index}`" :value="modelValue.context_window" data-test="agent-context" type="number" min="1" max="100000000" step="1" class="input" @input="update('context_window', Number(inputValue($event)))" /></div>
-            <div><label :for="`agent-max-output-${index}`" class="input-label">{{ t('admin.agentSettings.maxOutputTokens') }}</label><input :id="`agent-max-output-${index}`" :value="modelValue.max_output_tokens" data-test="agent-max-output" type="number" min="1" step="1" class="input" @input="update('max_output_tokens', Number(inputValue($event)))" /></div>
+            <div><label :for="`agent-context-${index}`" class="input-label">{{ t(inputOnlyProfile ? 'admin.agentSettings.maxInputTokens' : 'admin.agentSettings.contextWindow') }}</label><input :id="`agent-context-${index}`" :value="modelValue.context_window" data-test="agent-context" type="number" min="1" max="100000000" step="1" class="input" @input="update('context_window', Number(inputValue($event)))" /></div>
+            <div><label :for="`agent-max-output-${index}`" class="input-label">{{ t('admin.agentSettings.maxOutputTokens') }}</label><input v-if="outputLimitKnown || canOverride" :id="`agent-max-output-${index}`" :value="outputLimitKnown ? modelValue.max_output_tokens : ''" data-test="agent-max-output" type="number" min="1" step="1" class="input" :placeholder="t('admin.agentSettings.customOutputPlaceholder')" @input="setMaxOutput" /><p v-else :id="`agent-max-output-${index}`" data-test="agent-output-limit-unknown" class="input bg-gray-50 dark:bg-dark-800">{{ modelOutputText }}</p></div>
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.budgetHint') }}</p>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.capabilitiesHint') }}</p>
@@ -70,7 +74,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DESKTOP_AGENT_REASONING_LEVELS } from '@/api/admin/desktopAgent'
 import type { DesktopAgentModel, DesktopAgentModelProfileBinding, DesktopAgentProfile, DesktopAgentReasoningLevel } from '@/api/admin/desktopAgent'
-import { resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
+import { desktopAgentOutputBudgetCeiling, hasDesktopAgentOutputLimit, resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
 import Select from '@/components/common/Select.vue'
 
 const props = defineProps<{ modelValue: DesktopAgentModel; profiles: DesktopAgentProfile[]; binding?: DesktopAgentModelProfileBinding; profilesReady: boolean; index: number; isDefault: boolean; unavailable: boolean; disabled: boolean }>()
@@ -79,15 +83,27 @@ const { t } = useI18n()
 const profile = computed(() => resolveDesktopAgentProfile(props.profiles, props.modelValue.id, props.binding))
 const officialProfile = computed(() => resolveDesktopAgentProfile(props.profiles, props.modelValue.id))
 const profileNotes = computed(() => profile.value?.notes.filter(note => [
-  'input_budget_compatibility', 'native_web_search_unavailable', 'reasoning_none_unavailable',
-  'shared_context_budget', 'output_budget_compatibility', 'reasoning_auto_only',
+  'native_web_search_unavailable', 'reasoning_none_unavailable', 'reasoning_auto_only',
   'responses_compatibility_required', 'structured_output_compatibility', 'grok_xhigh_compatibility',
+  'official_shared_context', 'official_input_limit', 'context_limit_unpublished',
+  'output_limit_unpublished', 'output_limit_unlimited', 'long_decode_required',
 ].includes(note)) || [])
 const canOverride = computed(() => !props.disabled && props.profilesReady && !!profile.value && props.binding?.override === true)
 const profileOptions = computed(() => props.profiles.filter(profile => !officialProfile.value || profile.id === officialProfile.value.id).map(profile => ({ value: profile.id, label: profile.display_name })))
+const inputOnlyProfile = computed(() => profile.value?.official_context_window === null && !!profile.value.max_input_tokens)
+const outputLimitKnown = computed(() => hasDesktopAgentOutputLimit(props.modelValue))
+function limitText(value: number | null | undefined) { return typeof value === 'number' && value > 0 ? value.toLocaleString() : t('admin.agentSettings.limitUnpublished') }
+function outputText(model: DesktopAgentModel) {
+  return model.output_limit_kind === 'unlimited' ? t('admin.agentSettings.limitUnlimited') : model.output_limit_kind === 'not_published' ? t('admin.agentSettings.limitUnpublished') : limitText(model.max_output_tokens)
+}
+const modelOutputText = computed(() => outputText(props.modelValue))
+const officialOutputText = computed(() => {
+  if (!profile.value) return t('admin.agentSettings.limitUnpublished')
+  return profile.value.official_max_output_tokens === undefined ? outputText(profile.value.model) : profile.value.model.output_limit_kind === 'unlimited' ? t('admin.agentSettings.limitUnlimited') : limitText(profile.value.official_max_output_tokens)
+})
 const capabilitySummary = computed(() => !profile.value ? t('admin.agentSettings.unverifiedSummary') : [
-  t('admin.agentSettings.contextSummary', { count: props.modelValue.context_window.toLocaleString() }),
-  t('admin.agentSettings.outputSummary', { count: props.modelValue.max_output_tokens.toLocaleString() }),
+  t(inputOnlyProfile.value ? 'admin.agentSettings.inputSummary' : 'admin.agentSettings.contextSummary', { count: props.modelValue.context_window.toLocaleString() }),
+  t('admin.agentSettings.outputSummary', { count: modelOutputText.value }),
   ...(props.modelValue.supports_tool_call ? [t('admin.agentSettings.summaryTools')] : []),
   ...(props.modelValue.input.image ? [t('admin.agentSettings.summaryImage')] : []),
   ...(props.modelValue.supports_streaming ? [t('admin.agentSettings.summaryStreaming')] : []),
@@ -114,6 +130,12 @@ function inputValue(event: Event) { return (event.target as HTMLInputElement).va
 function update<K extends keyof DesktopAgentModel>(key: K, value: DesktopAgentModel[K]) {
   const operational = key === 'display_name' || key === 'default_reasoning' || key === 'default_max_output_tokens'
   if (!props.disabled && (operational || canOverride.value)) emit('update:modelValue', { ...props.modelValue, [key]: value })
+}
+function setMaxOutput(event: Event) {
+  if (!canOverride.value) return
+  const next = { ...props.modelValue, max_output_tokens: Number(inputValue(event)) }
+  delete next.output_limit_kind
+  emit('update:modelValue', next)
 }
 function capabilityValue(key: CapabilityKey): boolean {
   const model = props.modelValue

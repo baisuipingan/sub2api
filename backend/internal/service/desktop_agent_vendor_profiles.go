@@ -8,6 +8,7 @@ type desktopAgentVendorSpecification struct {
 	id, name, source, sourceURL                   string
 	aliases                                       []string
 	context, input, output                        int
+	outputLimitKind                               string
 	officialLevels, levels                        []string
 	defaultReasoning                              string
 	image, pdf, jsonSchema, midConversationSystem bool
@@ -15,15 +16,22 @@ type desktopAgentVendorSpecification struct {
 }
 
 func desktopAgentVendorProfile(spec desktopAgentVendorSpecification) DesktopAgentProfile {
+	contextWindow := spec.context
+	if contextWindow == 0 {
+		// Some vendors publish an independent input limit without publishing
+		// a shared total. Use the input limit without relabeling it as a total.
+		contextWindow = spec.input
+	}
 	return DesktopAgentProfile{
 		ID: spec.id, DisplayName: spec.name, Source: spec.source, SourceURL: spec.sourceURL,
-		ReviewedAt: "2026-11-14", Revision: "2026-11-14.1",
+		ReviewedAt: "2026-11-14", Revision: "2026-11-14.2",
 		Aliases:               append([]string{spec.id}, spec.aliases...),
-		OfficialContextWindow: spec.context, MaxInputTokens: spec.input,
+		OfficialContextWindow: desktopProfileTokenLimit(spec.context), MaxInputTokens: desktopProfileTokenLimit(spec.input),
+		OfficialMaxOutputTokens: desktopProfileTokenLimit(spec.output),
 		OfficialReasoningLevels: append([]string{}, spec.officialLevels...), Notes: slices.Clone(spec.notes),
 		Model: DesktopAgentModel{
 			ID: spec.id, DisplayName: spec.name,
-			ContextWindow: spec.input, MaxOutputTokens: spec.output, DefaultMaxOutputTokens: 16384,
+			ContextWindow: contextWindow, MaxOutputTokens: spec.output, OutputLimitKind: spec.outputLimitKind, DefaultMaxOutputTokens: 16384,
 			ReasoningLevels: slices.Clone(spec.levels), DefaultReasoning: spec.defaultReasoning,
 			SupportsReasoning: desktopProfileBool(len(spec.levels) > 1 || spec.levels[0] != "none"),
 			SupportsStreaming: desktopProfileBool(true), RequiresMFJSToolSchema: desktopProfileBool(false),
@@ -45,10 +53,10 @@ func desktopAgentDeepSeekProfiles() []DesktopAgentProfile {
 			id: id, name: "DeepSeek V4 Pro", source: "official_deepseek",
 			sourceURL: "https://api-docs.deepseek.com/api/list-models/",
 			// /models documents a shared context, not an independent input cap.
-			context: 1048576, input: 655360, output: 393216,
+			context: 1048576, output: 393216,
 			officialLevels: []string{"none", "low", "high", "max"}, levels: []string{"low", "high", "max"}, defaultReasoning: "high",
 			jsonSchema: true,
-			notes:      []string{"shared_context_budget", "reasoning_none_unavailable", "native_web_search_unavailable"},
+			notes:      []string{"official_shared_context", "reasoning_none_unavailable", "native_web_search_unavailable"},
 		}
 		if id == "deepseek-flash" {
 			spec.name = "DeepSeek Flash"
@@ -87,10 +95,10 @@ func desktopAgentClaudeProfiles() []DesktopAgentProfile {
 		spec := desktopAgentVendorSpecification{
 			id: model.id, name: model.name, source: "official_anthropic",
 			sourceURL: "https://platform.claude.com/docs/en/models/" + model.slug + "/overview",
-			aliases:   model.aliases, context: model.context, input: model.context - model.output, output: model.output,
+			aliases:   model.aliases, context: model.context, output: model.output,
 			officialLevels: model.officialLevels, levels: []string{"none"}, defaultReasoning: model.defaultReasoning,
 			image: true, pdf: true,
-			notes: []string{"shared_context_budget", "structured_output_compatibility", "native_web_search_unavailable", "responses_compatibility_required"},
+			notes: []string{"official_shared_context", "structured_output_compatibility", "native_web_search_unavailable", "responses_compatibility_required"},
 		}
 		// 已有 Responses→Messages 桥仅对这些新家族保真映射 adaptive
 		// effort。旧家族走固定 thinking budget，不能冒充等价官方档位，
@@ -110,35 +118,40 @@ func desktopAgentClaudeProfiles() []DesktopAgentProfile {
 func desktopAgentGrokProfiles() []DesktopAgentProfile {
 	type grokSpecification struct {
 		id, name, defaultReasoning             string
-		context, output                        int
+		context                                int
+		outputLimitKind                        string
 		aliases, officialLevels, levels, notes []string
 	}
 	levels := []string{"low", "medium", "high", "xhigh"}
 	specs := []grokSpecification{
-		{"grok-4.7", "Grok 4.7", "high", 500000, 128000, nil, levels, levels, nil},
-		{"grok-4.6", "Grok 4.6", "high", 500000, 128000, nil, levels, levels, nil},
-		{"grok-4.5", "Grok 4.5", "high", 500000, 128000, []string{"grok-4.5-latest", "grok-build-latest"}, levels, []string{"low", "medium", "high"}, []string{"grok_xhigh_compatibility"}},
-		{"grok-4.3", "Grok 4.3", "low", 1000000, 128000, []string{"grok-4.3-latest"}, []string{"none", "low", "medium", "high", "xhigh"}, levels, []string{"reasoning_none_unavailable"}},
-		{"grok-build-0.1", "Grok Build 0.1", "none", 256000, 64000, []string{"grok-code-fast-1", "grok-code-fast", "grok-code-fast-1-0825"}, nil, []string{"none"}, []string{"reasoning_auto_only"}},
-		{"grok-4.20-0309-reasoning", "Grok 4.20 Reasoning", "none", 1000000, 128000,
+		{"grok-4.7", "Grok 4.7", "high", 500000, "unlimited", nil, levels, levels, nil},
+		{"grok-4.6", "Grok 4.6", "high", 500000, "unlimited", nil, levels, levels, nil},
+		{"grok-4.5", "Grok 4.5", "high", 500000, "not_published", []string{"grok-4.5-latest", "grok-build-latest"}, levels, []string{"low", "medium", "high"}, []string{"grok_xhigh_compatibility"}},
+		{"grok-4.3", "Grok 4.3", "low", 1000000, "not_published", []string{"grok-4.3-latest"}, []string{"none", "low", "medium", "high", "xhigh"}, levels, []string{"reasoning_none_unavailable"}},
+		{"grok-build-0.1", "Grok Build 0.1", "none", 256000, "not_published", []string{"grok-code-fast-1", "grok-code-fast", "grok-code-fast-1-0825"}, nil, []string{"none"}, []string{"reasoning_auto_only"}},
+		{"grok-4.20-0309-reasoning", "Grok 4.20 Reasoning", "none", 1000000, "not_published",
 			[]string{"grok-4.20-reasoning-latest", "grok-4.20", "grok-4.20-reasoning", "grok-4.20-0309", "grok-4.20-beta-0309-reasoning", "grok-4.20-beta", "grok-4.20-beta-0309", "grok-4.20-beta-latest", "grok-4.20-beta-latest-reasoning", "grok-4.20-beta-reasoning", "grok-4.20-experimental-beta-0304-reasoning", "grok-4.20-experimental-beta-0304", "grok-4.20-experimental-beta-reasoning-latest", "grok-4.20-experimental-beta-latest", "grok-4.20-reasoning-gv2"},
 			nil, []string{"none"}, []string{"reasoning_auto_only"}},
-		{"grok-4.20-0309-non-reasoning", "Grok 4.20 Non-Reasoning", "none", 1000000, 128000,
+		{"grok-4.20-0309-non-reasoning", "Grok 4.20 Non-Reasoning", "none", 1000000, "not_published",
 			[]string{"grok-4.20-non-reasoning", "grok-4.20-non-reasoning-latest", "grok-4.20-beta-non-reasoning", "grok-4.20-beta-latest-non-reasoning", "grok-4.20-experimental-beta-0304-non-reasoning", "grok-4.20-experimental-beta-non-reasoning-latest", "grok-4.20-beta-0309-non-reasoning", "grok-4.20-non-reasoning-gv2"},
 			nil, []string{"none"}, nil},
 	}
 	profiles := make([]DesktopAgentProfile, 0, len(specs))
 	for _, model := range specs {
+		outputLimitNote := "output_limit_unpublished"
+		if model.outputLimitKind == "unlimited" {
+			outputLimitNote = "output_limit_unlimited"
+		}
 		spec := desktopAgentVendorSpecification{
 			id: model.id, name: model.name, source: "official_xai",
 			sourceURL: "https://docs.x.ai/developers/models/" + model.id + ".md",
-			aliases:   model.aliases, context: model.context, input: model.context - model.output, output: model.output,
+			aliases:   model.aliases, context: model.context, outputLimitKind: model.outputLimitKind,
 			officialLevels: model.officialLevels, levels: model.levels, defaultReasoning: model.defaultReasoning,
 			image: true, jsonSchema: true, midConversationSystem: true,
-			notes: append([]string{"shared_context_budget", "output_budget_compatibility", "native_web_search_unavailable"}, model.notes...),
+			notes: append([]string{"official_shared_context", outputLimitNote, "native_web_search_unavailable"}, model.notes...),
 		}
-		// xAI documents 128K as the Responses default, not a hard model limit.
-		// Bound the client to that budget (64K for Build's smaller context).
+		// A Responses API default is not a model maximum. Keep unlimited and
+		// unpublished limits explicit instead of inventing a numeric cap.
 		profiles = append(profiles, desktopAgentVendorProfile(spec))
 	}
 	return profiles
@@ -162,26 +175,26 @@ func desktopAgentGeminiProfiles() []DesktopAgentProfile {
 		{"gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", false, flashLevels},
 		{"gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", false, levels},
 		{"gemini-3-flash-preview", "Gemini 3 Flash Preview", false, flashLevels},
-		// Gemini 2.5 has a thinking budget rather than native discrete effort
-		// levels. Do not present a compatibility mapping as an official enum.
-		{"gemini-2.5-pro", "Gemini 2.5 Pro", false, nil},
-		{"gemini-2.5-flash", "Gemini 2.5 Flash", false, nil},
-		{"gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite", false, nil},
+		// Current Interactions documentation exposes these official levels.
+		// The executor below still omits effort until that transport is adapted.
+		{"gemini-2.5-pro", "Gemini 2.5 Pro", false, levels},
+		{"gemini-2.5-flash", "Gemini 2.5 Flash", false, levels},
+		{"gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite", false, levels},
 	}
 	profiles := make([]DesktopAgentProfile, 0, len(specs))
 	for _, model := range specs {
 		spec := desktopAgentVendorSpecification{
 			id: model.id, name: model.name, source: "official_google",
 			sourceURL: "https://aistudio.google.com/docs/models/" + model.id,
-			context:   1048576, input: 1048576, output: 65536,
+			input:     1048576, output: 65536,
 			officialLevels: model.officialLevels, levels: []string{"none"}, defaultReasoning: "none", image: true,
 			notes: []string{"reasoning_auto_only", "responses_compatibility_required", "structured_output_compatibility", "native_web_search_unavailable"},
 		}
 		if model.sharedContext {
-			spec.input -= spec.output
-			spec.notes = append(spec.notes, "shared_context_budget")
+			spec.context, spec.input, spec.output = 1048576, 0, 1048576
+			spec.notes = append(spec.notes, "official_shared_context", "long_decode_required")
 		} else {
-			spec.notes = append(spec.notes, "input_budget_compatibility")
+			spec.notes = append(spec.notes, "official_input_limit", "context_limit_unpublished")
 		}
 		// Gemini-native /generateContent is not this client's wire protocol.
 		// Only image input is portable through the current Responses paths;

@@ -31,6 +31,9 @@ function validGateway(value: string): boolean {
 }
 
 const positiveInteger = (value: number) => Number.isSafeInteger(value) && value > 0
+const publishedLimit = (value: unknown): value is number => typeof value === 'number' && positiveInteger(value)
+export const hasDesktopAgentOutputLimit = (model: DesktopAgentModel): boolean => !model.output_limit_kind || model.output_limit_kind === 'fixed'
+export const desktopAgentOutputBudgetCeiling = (model: DesktopAgentModel): number => hasDesktopAgentOutputLimit(model) ? model.max_output_tokens : model.context_window
 
 export function getDesktopAgentProfileBinding(config: DesktopAgentConfig, publicID: string): DesktopAgentModelProfileBinding | undefined {
   return config.model_profiles && Object.prototype.hasOwnProperty.call(config.model_profiles, publicID) ? config.model_profiles[publicID] : undefined
@@ -47,7 +50,7 @@ export function applyDesktopAgentProfile(model: DesktopAgentModel, profile: Desk
   const next = { ...JSON.parse(JSON.stringify(profile.model)) as DesktopAgentModel, id: model.id, display_name: model.display_name }
   if (preserveDefaults) {
     if (next.reasoning_levels.includes(model.default_reasoning)) next.default_reasoning = model.default_reasoning
-    if (positiveInteger(model.default_max_output_tokens) && model.default_max_output_tokens <= next.max_output_tokens) next.default_max_output_tokens = model.default_max_output_tokens
+    if (positiveInteger(model.default_max_output_tokens) && model.default_max_output_tokens <= desktopAgentOutputBudgetCeiling(next)) next.default_max_output_tokens = model.default_max_output_tokens
   }
   return next
 }
@@ -94,7 +97,11 @@ export function validDesktopAgentProfiles(value: unknown): value is DesktopAgent
     } catch { return false }
     // 预算式 thinking 没有离散官方档位；实际可执行档位仍由下方模型校验要求非空。
     if (!/^\d{4}-\d{2}-\d{2}$/.test(profile.reviewed_at) || typeof profile.revision !== 'string' || !profile.revision ||
-      !positiveInteger(profile.official_context_window) || !positiveInteger(profile.max_input_tokens) || profile.max_input_tokens > profile.official_context_window ||
+      !(profile.official_context_window === null || publishedLimit(profile.official_context_window)) ||
+      !(profile.max_input_tokens === null || publishedLimit(profile.max_input_tokens)) ||
+      (profile.official_context_window === null && profile.max_input_tokens === null) ||
+      (publishedLimit(profile.official_context_window) && publishedLimit(profile.max_input_tokens) && profile.max_input_tokens > profile.official_context_window) ||
+      (profile.official_max_output_tokens !== undefined && !(profile.official_max_output_tokens === null || publishedLimit(profile.official_max_output_tokens))) ||
       !Array.isArray(profile.aliases) || !profile.aliases.includes(profile.id) || !profile.aliases.every(alias => {
         if (!validModelString(alias) || aliases.has(alias)) return false
         aliases.add(alias)
@@ -103,6 +110,8 @@ export function validDesktopAgentProfiles(value: unknown): value is DesktopAgent
       !profile.official_reasoning_levels.every(level => DESKTOP_AGENT_REASONING_LEVELS.includes(level)) ||
       !Array.isArray(profile.notes) || !profile.notes.every(note => typeof note === 'string') ||
       !profile.model || profile.model.id !== profile.id || validateDesktopAgentModel(profile.model, 'profile').length > 0) return false
+    if (profile.official_max_output_tokens !== undefined &&
+      (hasDesktopAgentOutputLimit(profile.model) ? profile.official_max_output_tokens !== profile.model.max_output_tokens : profile.official_max_output_tokens !== null)) return false
     return true
   })
 }
@@ -143,8 +152,9 @@ function validateDesktopAgentModel(model: DesktopAgentModel, path: string): Desk
   if (!validModelString(model.id) || /[ *?\\]/u.test(model.id)) add('id', 'model_id_invalid')
   if (!validModelString(model.display_name)) add('display_name', 'display_name_invalid')
   if (!positiveInteger(model.context_window) || model.context_window > 100_000_000) add('context_window', 'context_window_invalid')
-  if (!positiveInteger(model.max_output_tokens) || model.max_output_tokens >= model.context_window) add('max_output_tokens', 'max_output_invalid')
-  if (!positiveInteger(model.default_max_output_tokens) || model.default_max_output_tokens > model.max_output_tokens) add('default_max_output_tokens', 'default_output_invalid')
+  if (model.output_limit_kind !== undefined && !['', 'fixed', 'unlimited', 'not_published'].includes(model.output_limit_kind)) add('max_output_tokens', 'max_output_invalid')
+  if (hasDesktopAgentOutputLimit(model) ? (!positiveInteger(model.max_output_tokens) || model.max_output_tokens > model.context_window) : model.max_output_tokens !== 0) add('max_output_tokens', 'max_output_invalid')
+  if (!positiveInteger(model.default_max_output_tokens) || model.default_max_output_tokens > desktopAgentOutputBudgetCeiling(model)) add('default_max_output_tokens', 'default_output_invalid')
   const capabilities: [string, unknown, boolean][] = [
     ['supports_reasoning', model.supports_reasoning, false],
     ['supports_streaming', model.supports_streaming, true],

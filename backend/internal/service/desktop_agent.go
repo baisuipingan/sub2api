@@ -50,6 +50,7 @@ type DesktopAgentModel struct {
 	DisplayName                   string              `json:"display_name"`
 	ContextWindow                 int                 `json:"context_window"`
 	MaxOutputTokens               int                 `json:"max_output_tokens"`
+	OutputLimitKind               string              `json:"output_limit_kind,omitempty"`
 	DefaultMaxOutputTokens        int                 `json:"default_max_output_tokens"`
 	ReasoningLevels               []string            `json:"reasoning_levels"`
 	DefaultReasoning              string              `json:"default_reasoning"`
@@ -157,7 +158,7 @@ type DesktopAgentBootstrap struct {
 // v3 的空目录和空默认值是有效事实；不能被 omitempty 误编码成“未下发策略”。
 func (result DesktopAgentBootstrap) MarshalJSON() ([]byte, error) {
 	type legacy DesktopAgentBootstrap
-	if result.SchemaVersion != 3 || result.ServiceStatus != "ready" {
+	if result.SchemaVersion < 3 || result.ServiceStatus != "ready" {
 		return json.Marshal(legacy(result))
 	}
 	models := result.Models
@@ -187,11 +188,14 @@ type DesktopAgentCredentialProvider interface {
 }
 
 type DesktopAgentService struct {
-	settings    *SettingService
-	users       desktopAgentUserReader
-	groups      desktopAgentGroupReader
-	credentials DesktopAgentCredentialProvider
-	catalog     DesktopAgentModelCatalog
+	settings         *SettingService
+	users            desktopAgentUserReader
+	groups           desktopAgentGroupReader
+	credentials      DesktopAgentCredentialProvider
+	catalog          DesktopAgentModelCatalog
+	profileCatalog   *DesktopAgentProfileCatalogService
+	profiles         []DesktopAgentProfile
+	profileRecordRaw string
 }
 
 func NewDesktopAgentService(settings *SettingService, users desktopAgentUserReader, groups desktopAgentGroupReader, credentials DesktopAgentCredentialProvider, catalogs ...DesktopAgentModelCatalog) *DesktopAgentService {
@@ -228,7 +232,7 @@ func decodeDesktopJSON(data []byte, target any) error {
 			return ErrDesktopAgentInvalid
 		}
 		token, err := d.Token()
-		if err != nil || token == nil {
+		if err != nil {
 			return ErrDesktopAgentInvalid
 		}
 		delim, ok := token.(json.Delim)
@@ -286,6 +290,12 @@ func decodeDesktopJSON(data []byte, target any) error {
 }
 
 func validateDesktopJSONShape(value any, typ reflect.Type) error {
+	if value == nil {
+		if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Int {
+			return nil
+		}
+		return ErrDesktopAgentInvalid
+	}
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
@@ -339,7 +349,7 @@ func ParseDesktopAgentRequest(data []byte) (DesktopAgentRequest, error) {
 	if err := decodeDesktopJSON(data, &req); err != nil {
 		return req, err
 	}
-	if !desktopAgentString(req.ClientVersion, 128) || (req.ProtocolVersion != 1 && req.ProtocolVersion != 2 && req.ProtocolVersion != 3) || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
+	if !desktopAgentString(req.ClientVersion, 128) || (req.ProtocolVersion != 1 && req.ProtocolVersion != 2 && req.ProtocolVersion != 3 && req.ProtocolVersion != 4) || (req.Platform != "win32" && req.Platform != "darwin") || (req.InstallationID != "" && !desktopAgentString(req.InstallationID, 128)) {
 		return req, ErrDesktopAgentInvalid
 	}
 	var fields map[string]json.RawMessage
@@ -350,6 +360,9 @@ func ParseDesktopAgentRequest(data []byte) (DesktopAgentRequest, error) {
 	return req, nil
 }
 func ParseDesktopAgentConfig(data []byte) (DesktopAgentConfig, error) {
+	return parseDesktopAgentConfig(data, desktopAgentBuiltinProfiles())
+}
+func parseDesktopAgentConfig(data []byte, profiles []DesktopAgentProfile) (DesktopAgentConfig, error) {
 	var cfg DesktopAgentConfig
 	if len(data) > 131072 {
 		return cfg, ErrDesktopAgentInvalid
@@ -375,7 +388,7 @@ func ParseDesktopAgentConfig(data []byte) (DesktopAgentConfig, error) {
 	if err != nil {
 		return cfg, err
 	}
-	if err := validateDesktopAgentConfig(cfg); err != nil {
+	if err := validateDesktopAgentConfig(cfg, profiles); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
@@ -384,7 +397,10 @@ func ParseDesktopAgentConfig(data []byte) (DesktopAgentConfig, error) {
 // ParseDesktopAgentAdminConfig rejects old UI payloads rather than collapsing a
 // multi-model policy into the historical single-model shape.
 func ParseDesktopAgentAdminConfig(data []byte) (DesktopAgentConfig, error) {
-	cfg, err := ParseDesktopAgentConfig(data)
+	return parseDesktopAgentAdminConfig(data, desktopAgentBuiltinProfiles())
+}
+func parseDesktopAgentAdminConfig(data []byte, profiles []DesktopAgentProfile) (DesktopAgentConfig, error) {
+	cfg, err := parseDesktopAgentConfig(data, profiles)
 	if err != nil {
 		return cfg, err
 	}
@@ -400,7 +416,7 @@ func ParseDesktopAgentAdminConfig(data []byte) (DesktopAgentConfig, error) {
 	}
 	return cfg, nil
 }
-func validateDesktopAgentConfig(cfg DesktopAgentConfig) error {
+func validateDesktopAgentConfig(cfg DesktopAgentConfig, catalog ...[]DesktopAgentProfile) error {
 	var err error
 	cfg, err = normalizeDesktopAgentConfig(cfg)
 	if err != nil {
@@ -410,7 +426,7 @@ func validateDesktopAgentConfig(cfg DesktopAgentConfig) error {
 		return ErrDesktopAgentInvalid
 	}
 	if !cfg.Enabled && cfg.GroupID == 0 && cfg.BaseURL == "" && len(cfg.Models) == 0 && cfg.DefaultModelID == "" {
-		return validateDesktopAgentProfileBindings(cfg)
+		return validateDesktopAgentProfileBindings(cfg, catalog...)
 	}
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || u.Path != "/v1" || u.ForceQuery || cfg.GroupID <= 0 {
@@ -433,11 +449,11 @@ func validateDesktopAgentConfig(cfg DesktopAgentConfig) error {
 	if !seen[cfg.DefaultModelID] {
 		return ErrDesktopAgentInvalid
 	}
-	return validateDesktopAgentProfileBindings(cfg)
+	return validateDesktopAgentProfileBindings(cfg, catalog...)
 }
 
 func validateDesktopAgentModel(m *DesktopAgentModel) error {
-	if m == nil || !desktopAgentString(m.ID, 128) || strings.ContainsAny(m.ID, " *?\\") || !desktopAgentString(m.DisplayName, 128) || m.ContextWindow <= 0 || m.ContextWindow > 100000000 || m.MaxOutputTokens <= 0 || m.MaxOutputTokens >= m.ContextWindow || m.DefaultMaxOutputTokens <= 0 || m.DefaultMaxOutputTokens > m.MaxOutputTokens {
+	if m == nil || !desktopAgentString(m.ID, 128) || strings.ContainsAny(m.ID, " *?\\") || !desktopAgentString(m.DisplayName, 128) || m.ContextWindow <= 0 || m.ContextWindow > 100000000 || m.DefaultMaxOutputTokens <= 0 || !validDesktopAgentOutputLimit(m) {
 		return ErrDesktopAgentInvalid
 	}
 	booleans := []*bool{m.SupportsReasoning, m.SupportsStreaming, m.RequiresMFJSToolSchema, m.SupportsToolCall, m.SupportsJSONSchemaOutput, m.SupportsNativeWebSearch, m.SupportsMidConversationSystem}
@@ -474,6 +490,7 @@ func validateDesktopAgentModel(m *DesktopAgentModel) error {
 	return nil
 }
 func (s *DesktopAgentService) GetConfig(ctx context.Context) (*DesktopAgentConfig, error) {
+	s = s.profileRequestScope()
 	values, err := s.settings.settingRepo.GetMultiple(ctx, []string{SettingKeyDesktopAgentConfig})
 	if err != nil {
 		return nil, err
@@ -482,11 +499,11 @@ func (s *DesktopAgentService) GetConfig(ctx context.Context) (*DesktopAgentConfi
 	if raw == "" {
 		return &DesktopAgentConfig{}, nil
 	}
-	cfg, err := ParseDesktopAgentConfig([]byte(raw))
+	cfg, err := parseDesktopAgentConfig([]byte(raw), s.profiles)
 	if err != nil {
 		return nil, err
 	}
-	cfg, err = applyDesktopAgentCapabilityProfiles(cfg, true)
+	cfg, err = applyDesktopAgentCapabilityProfiles(cfg, true, s.profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -542,7 +559,7 @@ func (s *DesktopAgentService) validateGroup(ctx context.Context, cfg DesktopAgen
 		return nil, reason, err
 	}
 	for i := range cfg.Models {
-		if _, profile := desktopAgentProfileBinding(cfg, cfg.Models[i].ID); profile == nil {
+		if _, profile := desktopAgentProfileBinding(cfg, cfg.Models[i].ID, s.profiles); profile == nil {
 			return nil, "configuration_invalid", nil
 		}
 		switch desktopAgentModelPolicyReason(group, models, &cfg.Models[i]) {
@@ -566,7 +583,7 @@ func (s *DesktopAgentService) effectiveGroupModels(ctx context.Context, cfg Desk
 	for i := range cfg.Models {
 		model := &cfg.Models[i]
 		reason := desktopAgentModelPolicyReason(group, catalog, model)
-		if _, profile := desktopAgentProfileBinding(cfg, model.ID); profile == nil {
+		if _, profile := desktopAgentProfileBinding(cfg, model.ID, s.profiles); profile == nil {
 			// Reuse the v3 reason enum understood by existing strict clients.
 			reason = "model_unavailable"
 		}
@@ -596,19 +613,24 @@ func (s *DesktopAgentService) GetModels(ctx context.Context, groupID int64) ([]s
 	return s.catalog.ModelsForGroup(ctx, group)
 }
 func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgentConfig) (*DesktopAgentConfig, error) {
+	if s.profiles == nil && s.profileCatalog != nil {
+		s.profileCatalog.updateMu.Lock()
+		defer s.profileCatalog.updateMu.Unlock()
+	}
+	s = s.profileRequestScope()
 	var err error
 	cfg, err = normalizeDesktopAgentConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateDesktopAgentConfig(cfg); err != nil {
+	if err := validateDesktopAgentConfig(cfg, s.profiles); err != nil {
 		return nil, err
 	}
-	cfg, err = applyDesktopAgentCapabilityProfiles(cfg, false)
+	cfg, err = applyDesktopAgentCapabilityProfiles(cfg, false, s.profiles)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateDesktopAgentConfig(cfg); err != nil {
+	if err := validateDesktopAgentConfig(cfg, s.profiles); err != nil {
 		return nil, err
 	}
 	if cfg.Enabled || len(cfg.Models) > 0 {
@@ -624,6 +646,21 @@ func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgent
 	if err != nil {
 		return nil, err
 	}
+	if s.profileCatalog != nil {
+		if repo, ok := s.settings.settingRepo.(interface {
+			SaveDesktopAgentConfigWithCatalog(context.Context, string, string) (bool, error)
+		}); ok {
+			changed, saveErr := repo.SaveDesktopAgentConfigWithCatalog(ctx, s.profileRecordRaw, string(data))
+			if saveErr != nil {
+				return nil, saveErr
+			}
+			if !changed {
+				_ = s.profileCatalog.Initialize(ctx)
+				return nil, ErrDesktopAgentPolicyChanged
+			}
+			return &cfg, nil
+		}
+	}
 	if err = s.settings.settingRepo.SetMultiple(ctx, map[string]string{SettingKeyDesktopAgentConfig: string(data)}); err != nil {
 		return nil, err
 	}
@@ -633,7 +670,8 @@ func (s *DesktopAgentService) Bootstrap(ctx context.Context, userID int64) (*Des
 	return s.BootstrapForProtocol(ctx, userID, 1)
 }
 func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID int64, protocol int) (*DesktopAgentBootstrap, error) {
-	if protocol != 1 && protocol != 2 && protocol != 3 {
+	s = s.profileRequestScope()
+	if protocol != 1 && protocol != 2 && protocol != 3 && protocol != 4 {
 		return nil, ErrDesktopAgentInvalid
 	}
 	cfg, err := s.GetConfig(ctx)
@@ -647,7 +685,7 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	hash := sha256.Sum256(raw)
 	result := &DesktopAgentBootstrap{SchemaVersion: protocol, ConfigRevision: hex.EncodeToString(hash[:]), ServiceStatus: "disabled", ReasonCode: "disabled"}
 	if !cfg.Enabled {
-		if protocol == 3 && cfg.GroupID == 0 && len(cfg.Models) == 0 {
+		if protocol >= 3 && cfg.GroupID == 0 && len(cfg.Models) == 0 {
 			result.ServiceStatus, result.ReasonCode = "not_configured", "configuration_missing"
 		}
 		return result, nil
@@ -673,10 +711,27 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	var effectiveModels []DesktopAgentModel
 	var unavailableModels []DesktopAgentUnavailableModel
 	validateBootstrapGroup := func() (*Group, string, error) {
-		if protocol != 3 {
+		if protocol < 3 {
+			for _, model := range cfg.Models {
+				if !desktopAgentLegacyModel(model) {
+					return nil, "configuration_invalid", nil
+				}
+			}
 			return s.validateGroup(ctx, *cfg)
 		}
 		group, models, unavailable, reason, err := s.effectiveGroupModels(ctx, *cfg)
+		if protocol == 3 {
+			compatible := make([]DesktopAgentModel, 0, len(models))
+			for _, model := range models {
+				if desktopAgentLegacyModel(model) {
+					model.OutputLimitKind = ""
+					compatible = append(compatible, model)
+				} else {
+					unavailable = append(unavailable, DesktopAgentUnavailableModel{ModelID: model.ID, DisplayName: model.DisplayName, ReasonCode: "model_unavailable"})
+				}
+			}
+			models = compatible
+		}
 		effectiveModels, unavailableModels = models, unavailable
 		return group, reason, err
 	}
@@ -760,13 +815,19 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 			break
 		}
 	}
-	result.Models = cfg.Models
+	result.Models = append([]DesktopAgentModel(nil), cfg.Models...)
+	if protocol < 4 {
+		for i := range result.Models {
+			result.Models[i].OutputLimitKind = ""
+		}
+		selected.OutputLimitKind = ""
+	}
 	if protocol == 1 {
 		result.Models = []DesktopAgentModel{selected}
 	}
 	result.SelectionPolicy = &DesktopAgentSelection{ModelID: selected.ID, ReasoningLevel: selected.DefaultReasoning, MaxOutputTokens: selected.DefaultMaxOutputTokens, Auxiliary: "inherit-main"}
 	result.Credential = &DesktopAgentCredential{ID: strconv.FormatInt(key.ID, 10), Key: key.Key, Scope: scope, ExpiresAt: key.ExpiresAt}
-	if protocol == 3 {
+	if protocol >= 3 {
 		result.Models, result.UnavailableModels = effectiveModels, unavailableModels
 		result.SelectionPolicy = nil
 		result.SelectionPolicyV3 = &DesktopAgentSelectionV3{Auxiliary: "inherit-main"}
@@ -791,6 +852,11 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 // DisableConfig changes only the latest persisted switch. CAS retries preserve
 // a concurrent save; unsaved browser fields never participate in this operation.
 func (s *DesktopAgentService) DisableConfig(ctx context.Context) (*DesktopAgentConfig, error) {
+	if s.profileCatalog != nil {
+		s.profileCatalog.updateMu.Lock()
+		defer s.profileCatalog.updateMu.Unlock()
+	}
+	s = s.profileRequestScope()
 	repo, ok := s.settings.settingRepo.(interface {
 		CompareAndSwapDesktopAgentConfig(context.Context, string, string) (bool, error)
 	})
@@ -815,7 +881,7 @@ func (s *DesktopAgentService) DisableConfig(ctx context.Context) (*DesktopAgentC
 		if err != nil {
 			return nil, err
 		}
-		cfg, err := ParseDesktopAgentConfig(data)
+		cfg, err := parseDesktopAgentConfig(data, s.profiles)
 		if err != nil {
 			return nil, err
 		}
@@ -825,7 +891,7 @@ func (s *DesktopAgentService) DisableConfig(ctx context.Context) (*DesktopAgentC
 			return nil, err
 		}
 		if changed {
-			cfg, err = applyDesktopAgentCapabilityProfiles(cfg, true)
+			cfg, err = applyDesktopAgentCapabilityProfiles(cfg, true, s.profiles)
 			if err != nil {
 				return nil, err
 			}

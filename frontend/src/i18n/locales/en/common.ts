@@ -214,6 +214,8 @@ export default {
     recharge: 'Recharge',
     subscribe: 'Subscription',
     docs: 'Docs',
+    milocodeDownload: 'Download MiloCode',
+    milocodeTagline: 'AI coding desktop app',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
     paymentDashboard: 'Payment Dashboard',

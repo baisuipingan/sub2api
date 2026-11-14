@@ -32,9 +32,10 @@ func TestDesktopAgentBuiltinProfilesNeverTrustSettingsOrShareMutableState(t *tes
 		}
 		openAICount++
 		require.Contains(t, profile.SourceURL, "https://developers.openai.com/api/docs/models/")
-		require.Equal(t, 1050000, profile.OfficialContextWindow)
-		require.Equal(t, 922000, profile.MaxInputTokens)
-		require.Equal(t, 922000, profile.Model.ContextWindow)
+		require.Equal(t, desktopProfileTokenLimit(1050000), profile.OfficialContextWindow)
+		require.Nil(t, profile.MaxInputTokens)
+		require.Equal(t, desktopProfileTokenLimit(128000), profile.OfficialMaxOutputTokens)
+		require.Equal(t, 1050000, profile.Model.ContextWindow)
 		require.Equal(t, 128000, profile.Model.MaxOutputTokens)
 		require.NotContains(t, profile.Model.ReasoningLevels, "none")
 		require.False(t, *profile.Model.SupportsNativeWebSearch)
@@ -46,7 +47,7 @@ func TestDesktopAgentBuiltinProfilesNeverTrustSettingsOrShareMutableState(t *tes
 	profiles[0].Model.ReasoningLevels[0] = "invented"
 	profiles, err = svc.GetProfiles(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 922000, profiles[0].Model.ContextWindow)
+	require.Equal(t, 1050000, profiles[0].Model.ContextWindow)
 	require.True(t, *profiles[0].Model.Input.Image)
 	require.Equal(t, "low", profiles[0].Model.ReasoningLevels[0])
 	require.Zero(t, keys.calls)
@@ -86,9 +87,26 @@ func TestDesktopAgentVendorRegistryHasUniqueExactIdentitiesAndOfficialSources(t 
 			require.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, profile.ReviewedAt)
 			require.NotEmpty(t, profile.Revision)
 			require.Equal(t, profile.ID, profile.Model.ID)
-			require.Positive(t, profile.MaxInputTokens)
-			require.LessOrEqual(t, profile.MaxInputTokens, profile.OfficialContextWindow)
-			require.LessOrEqual(t, profile.Model.ContextWindow, profile.MaxInputTokens)
+			if profile.OfficialContextWindow != nil {
+				require.Positive(t, *profile.OfficialContextWindow)
+				require.Equal(t, *profile.OfficialContextWindow, profile.Model.ContextWindow)
+			} else {
+				require.NotNil(t, profile.MaxInputTokens)
+				require.Equal(t, *profile.MaxInputTokens, profile.Model.ContextWindow)
+			}
+			if profile.MaxInputTokens != nil {
+				require.Positive(t, *profile.MaxInputTokens)
+			}
+			if profile.OfficialMaxOutputTokens != nil {
+				require.Equal(t, *profile.OfficialMaxOutputTokens, profile.Model.MaxOutputTokens)
+				require.Empty(t, profile.Model.OutputLimitKind)
+			} else {
+				require.Zero(t, profile.Model.MaxOutputTokens)
+				require.Contains(t, []string{"unlimited", "not_published"}, profile.Model.OutputLimitKind)
+			}
+			require.NotContains(t, profile.Notes, "shared_context_budget")
+			require.NotContains(t, profile.Notes, "input_budget_compatibility")
+			require.NotContains(t, profile.Notes, "output_budget_compatibility")
 			require.NoError(t, validateDesktopAgentModel(&profile.Model))
 			require.False(t, *profile.Model.SupportsNativeWebSearch)
 			require.False(t, *profile.Model.Input.Audio)
@@ -112,7 +130,8 @@ func TestDesktopAgentVendorRegistryHasUniqueExactIdentitiesAndOfficialSources(t 
 	for _, id := range []string{"deepseek-flash", "deepseek-v4-pro", "claude-opus-5-5", "claude-haiku-4-5-20251001", "grok-4.7", "grok-build-0.1", "gemini-4-carbon", "gemini-2.5-flash"} {
 		require.True(t, ids[id], id)
 	}
-	for _, unsupported := range []string{"deepseek-chat", "deepseek-reasoner", "claude-opus-future", "grok-imagine-image", "gemini-3.1-flash-image-preview"} {
+	require.Len(t, ids, 37)
+	for _, unsupported := range []string{"deepseek-chat", "deepseek-reasoner", "deepseek-v4.1-flash", "claude-opus-future", "grok-imagine-image", "gemini-3.1-flash-image-preview"} {
 		_, resolved := desktopAgentProfileBinding(DesktopAgentConfig{}, unsupported)
 		require.Nil(t, resolved, unsupported)
 	}
@@ -121,9 +140,11 @@ func TestDesktopAgentVendorRegistryHasUniqueExactIdentitiesAndOfficialSources(t 
 func TestDesktopAgentVendorBudgetsAndTransportCapabilitiesStayModelSpecific(t *testing.T) {
 	flash := desktopProfileByIDFixture(t, "deepseek-flash")
 	pro := desktopProfileByIDFixture(t, "deepseek-v4-pro")
-	require.Equal(t, 1048576, flash.OfficialContextWindow)
+	require.Equal(t, desktopProfileTokenLimit(1048576), flash.OfficialContextWindow)
+	require.Nil(t, flash.MaxInputTokens)
+	require.Equal(t, desktopProfileTokenLimit(393216), flash.OfficialMaxOutputTokens)
+	require.Equal(t, 1048576, flash.Model.ContextWindow)
 	require.Equal(t, 393216, flash.Model.MaxOutputTokens)
-	require.Equal(t, flash.OfficialContextWindow, flash.Model.ContextWindow+flash.Model.MaxOutputTokens)
 	require.True(t, *flash.Model.Input.Image)
 	require.True(t, *flash.Model.SupportsMidConversationSystem)
 	require.False(t, *pro.Model.Input.Image, "legacy Pro must not inherit Flash vision")
@@ -136,15 +157,23 @@ func TestDesktopAgentVendorBudgetsAndTransportCapabilitiesStayModelSpecific(t *t
 	grok := desktopProfileByIDFixture(t, "grok-4.7")
 	olderGrok := desktopProfileByIDFixture(t, "grok-4.5")
 	build := desktopProfileByIDFixture(t, "grok-build-0.1")
-	require.Equal(t, 500000, grok.OfficialContextWindow)
-	require.Equal(t, 1000000, desktopProfileByIDFixture(t, "grok-4.3").OfficialContextWindow)
+	require.Equal(t, desktopProfileTokenLimit(500000), grok.OfficialContextWindow)
+	require.Equal(t, 500000, grok.Model.ContextWindow)
+	require.Nil(t, grok.MaxInputTokens)
+	require.Nil(t, grok.OfficialMaxOutputTokens)
+	require.Equal(t, "unlimited", grok.Model.OutputLimitKind)
+	require.Zero(t, grok.Model.MaxOutputTokens)
+	require.Contains(t, grok.Notes, "output_limit_unlimited")
+	require.Equal(t, desktopProfileTokenLimit(1000000), desktopProfileByIDFixture(t, "grok-4.3").OfficialContextWindow)
 	require.Contains(t, grok.Model.ReasoningLevels, "xhigh")
 	require.Contains(t, olderGrok.OfficialReasoningLevels, "xhigh")
 	require.NotContains(t, olderGrok.Model.ReasoningLevels, "xhigh", "official Grok 4.5 guide aliases xhigh to high")
-	require.Equal(t, 256000, build.OfficialContextWindow)
-	require.Equal(t, 64000, build.Model.MaxOutputTokens)
-	require.Equal(t, build.OfficialContextWindow, build.Model.ContextWindow+build.Model.MaxOutputTokens)
-	require.Contains(t, build.Notes, "output_budget_compatibility")
+	require.Equal(t, desktopProfileTokenLimit(256000), build.OfficialContextWindow)
+	require.Equal(t, 256000, build.Model.ContextWindow)
+	require.Zero(t, build.Model.MaxOutputTokens)
+	require.Nil(t, build.OfficialMaxOutputTokens)
+	require.Equal(t, "not_published", build.Model.OutputLimitKind)
+	require.Contains(t, build.Notes, "output_limit_unpublished")
 	require.False(t, *grok.Model.Input.PDF)
 
 	for _, id := range []string{"claude-opus-5-5", "claude-opus-4-6", "gemini-4-carbon", "gemini-3.8-flash", "gemini-2.5-pro"} {
@@ -161,16 +190,82 @@ func TestDesktopAgentVendorBudgetsAndTransportCapabilitiesStayModelSpecific(t *t
 		}
 	}
 	adaptive := desktopProfileByIDFixture(t, "claude-opus-5-5")
+	require.Equal(t, desktopProfileTokenLimit(1000000), adaptive.OfficialContextWindow)
+	require.Equal(t, 1000000, adaptive.Model.ContextWindow)
+	require.Nil(t, adaptive.MaxInputTokens)
+	require.Equal(t, desktopProfileTokenLimit(128000), adaptive.OfficialMaxOutputTokens)
 	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max"}, adaptive.Model.ReasoningLevels)
 	legacy := desktopProfileByIDFixture(t, "claude-opus-4-6")
 	require.False(t, *legacy.Model.SupportsReasoning, "legacy fixed budgets are not official adaptive effort levels")
 	require.Equal(t, []string{"none"}, legacy.Model.ReasoningLevels)
 	require.Contains(t, legacy.OfficialReasoningLevels, "max")
 	carbon := desktopProfileByIDFixture(t, "gemini-4-carbon")
-	require.Equal(t, carbon.OfficialContextWindow, carbon.Model.ContextWindow+carbon.Model.MaxOutputTokens)
+	require.Equal(t, desktopProfileTokenLimit(1048576), carbon.OfficialContextWindow)
+	require.Nil(t, carbon.MaxInputTokens)
+	require.Equal(t, desktopProfileTokenLimit(1048576), carbon.OfficialMaxOutputTokens)
+	require.Equal(t, 1048576, carbon.Model.ContextWindow)
+	require.Equal(t, 1048576, carbon.Model.MaxOutputTokens)
+	require.Contains(t, carbon.Notes, "long_decode_required")
 	flash38 := desktopProfileByIDFixture(t, "gemini-3.8-flash")
-	require.Equal(t, flash38.MaxInputTokens, flash38.Model.ContextWindow)
-	require.Equal(t, flash38.OfficialContextWindow, flash38.MaxInputTokens, "separate input limit must not be reduced like a shared context")
+	require.Nil(t, flash38.OfficialContextWindow, "an independent input limit is not an official shared total")
+	require.Equal(t, desktopProfileTokenLimit(1048576), flash38.MaxInputTokens)
+	require.Equal(t, 1048576, flash38.Model.ContextWindow)
+	require.Equal(t, desktopProfileTokenLimit(65536), flash38.OfficialMaxOutputTokens)
+	for _, id := range []string{"gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"} {
+		require.Equal(t, []string{"low", "medium", "high"}, desktopProfileByIDFixture(t, id).OfficialReasoningLevels)
+	}
+}
+
+func TestDesktopAgentOfficialTokenLimitsRemainPublishedFacts(t *testing.T) {
+	groups := []struct {
+		ids                    []string
+		context, input, output int
+		outputKind             string
+	}{
+		{[]string{"gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}, 1050000, 0, 128000, ""},
+		{[]string{"deepseek-flash", "deepseek-v4-pro"}, 1048576, 0, 393216, ""},
+		{[]string{"claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-4-6", "claude-sonnet-4-6"}, 1000000, 0, 128000, ""},
+		{[]string{"claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001"}, 200000, 0, 64000, ""},
+		{[]string{"grok-4.7", "grok-4.6"}, 500000, 0, 0, "unlimited"},
+		{[]string{"grok-4.5"}, 500000, 0, 0, "not_published"},
+		{[]string{"grok-4.3", "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning"}, 1000000, 0, 0, "not_published"},
+		{[]string{"grok-build-0.1"}, 256000, 0, 0, "not_published"},
+		{[]string{"gemini-4-carbon", "gemini-4-argon", "gemini-4-hydrogen"}, 1048576, 0, 1048576, ""},
+		{[]string{"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"}, 0, 1048576, 65536, ""},
+	}
+	checked := map[string]bool{}
+	for _, group := range groups {
+		for _, id := range group.ids {
+			t.Run(id, func(t *testing.T) {
+				profile := desktopProfileByIDFixture(t, id)
+				require.False(t, checked[id])
+				checked[id] = true
+				require.Equal(t, desktopProfileTokenLimit(group.context), profile.OfficialContextWindow)
+				require.Equal(t, desktopProfileTokenLimit(group.input), profile.MaxInputTokens)
+				require.Equal(t, desktopProfileTokenLimit(group.output), profile.OfficialMaxOutputTokens)
+				executionContext := group.context
+				if executionContext == 0 {
+					executionContext = group.input
+				}
+				require.Equal(t, executionContext, profile.Model.ContextWindow)
+				require.Equal(t, group.output, profile.Model.MaxOutputTokens)
+				require.Equal(t, group.outputKind, profile.Model.OutputLimitKind)
+				require.Equal(t, 16384, profile.Model.DefaultMaxOutputTokens, "operational default is separate from a vendor maximum")
+				require.Equal(t, "2026-11-14.2", profile.Revision)
+				raw, err := json.Marshal(profile)
+				require.NoError(t, err)
+				var fields map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(raw, &fields))
+				for field, limit := range map[string]int{"official_context_window": group.context, "max_input_tokens": group.input, "official_max_output_tokens": group.output} {
+					require.Contains(t, fields, field, "unknown published limits must be explicit null rather than omitted or fabricated")
+					if limit == 0 {
+						require.Equal(t, "null", string(fields[field]))
+					}
+				}
+			})
+		}
+	}
+	require.Len(t, checked, len(desktopAgentBuiltinProfiles()), "every shipped model needs an official-data regression")
 }
 
 func TestDesktopAgentVendorProfilesHaveNoSharedMutableStorage(t *testing.T) {
@@ -183,6 +278,7 @@ func TestDesktopAgentVendorProfilesHaveNoSharedMutableStorage(t *testing.T) {
 	before, err := json.Marshal(second)
 	require.NoError(t, err)
 	first.Aliases[1], first.OfficialReasoningLevels[0], first.Model.ReasoningLevels[0], first.Notes[0] = "changed", "changed", "changed", "changed"
+	*first.OfficialContextWindow, *first.MaxInputTokens, *first.OfficialMaxOutputTokens = 1, 1, 1
 	*first.Model.Input.Text, *first.Model.Output.Text, *first.Model.SupportsToolCall = false, false, false
 	spec.aliases[0], spec.officialLevels[0], spec.levels[0], spec.notes[0] = "mutated", "mutated", "mutated", "mutated"
 	after, err := json.Marshal(second)
@@ -195,6 +291,11 @@ func TestDesktopAgentVendorProfilesHaveNoSharedMutableStorage(t *testing.T) {
 	for i := range profiles {
 		profile := &profiles[i]
 		profile.Model.ContextWindow = 1
+		for _, limit := range []*int{profile.OfficialContextWindow, profile.MaxInputTokens, profile.OfficialMaxOutputTokens} {
+			if limit != nil {
+				*limit = 1
+			}
+		}
 		profile.Aliases[0] = "changed"
 		profile.Model.ReasoningLevels[0] = "changed"
 		if len(profile.OfficialReasoningLevels) > 0 {
@@ -233,7 +334,11 @@ func TestDesktopAgentVendorBootstrapPreservesPublicIdentityAndLegacyWireShapes(t
 				cfg.Models, cfg.DefaultModelID = []DesktopAgentModel{model}, model.ID
 				svc.catalog.(*desktopCatalogStub).models = []string{model.ID}
 				saveDesktopProfileFixture(t, repo, cfg)
-				for _, protocol := range []int{1, 2, 3} {
+				protocols := []int{1, 2, 3, 4}
+				if model.OutputLimitKind != "" || model.MaxOutputTokens >= model.ContextWindow {
+					protocols = []int{4}
+				}
+				for _, protocol := range protocols {
 					result, err := svc.BootstrapForProtocol(context.Background(), 7, protocol)
 					require.NoError(t, err)
 					require.Equal(t, "ready", result.ServiceStatus)
@@ -241,10 +346,10 @@ func TestDesktopAgentVendorBootstrapPreservesPublicIdentityAndLegacyWireShapes(t
 					require.Equal(t, []DesktopAgentModel{model}, result.Models)
 					raw, err := json.Marshal(result)
 					require.NoError(t, err)
-					for _, metadata := range []string{"model_profiles", "profile_id", "source_url", "reviewed_at", "official_context_window", "max_input_tokens", "official_reasoning_levels"} {
+					for _, metadata := range []string{"model_profiles", "profile_id", "source_url", "reviewed_at", "official_context_window", "max_input_tokens", "official_max_output_tokens", "official_reasoning_levels"} {
 						require.NotContains(t, string(raw), metadata)
 					}
-					if protocol == 3 {
+					if protocol >= 3 {
 						require.Equal(t, model.ID, result.SelectionPolicyV3.Default.ModelID)
 						require.Equal(t, model.DefaultReasoning, result.SelectionPolicyV3.Default.ReasoningLevel)
 						require.Len(t, result.Credential.AuthorizationScope, 64)
@@ -272,19 +377,19 @@ func TestDesktopAgentVendorProjectionRepairsLegacyValuesWithoutCrossModelBudgetL
 	require.Equal(t, []int{19000, 17000}, []int{repaired.Models[0].DefaultMaxOutputTokens, repaired.Models[1].DefaultMaxOutputTokens})
 	require.Equal(t, []string{"high", "none"}, []string{repaired.Models[0].DefaultReasoning, repaired.Models[1].DefaultReasoning})
 	require.Equal(t, 393216, repaired.Models[0].MaxOutputTokens)
-	require.Equal(t, 65536, repaired.Models[1].MaxOutputTokens)
+	require.Equal(t, 1048576, repaired.Models[1].MaxOutputTokens)
 	_, err = applyDesktopAgentCapabilityProfiles(cfg, false)
 	require.ErrorIs(t, err, ErrDesktopAgentInvalid, "writes must not silently change an explicitly chosen unsupported effort")
 
 	cfg.Models[0].DefaultReasoning = "high"
 	cfg.Models[1].DefaultReasoning = "none"
-	cfg.Models[1].DefaultMaxOutputTokens = 65537
+	cfg.Models[1].DefaultMaxOutputTokens = 1048577
 	_, err = applyDesktopAgentCapabilityProfiles(cfg, false)
 	require.ErrorIs(t, err, ErrDesktopAgentInvalid, "one model's large output allowance must not authorize another's")
-	cfg.Models[1].DefaultMaxOutputTokens = 65536
+	cfg.Models[1].DefaultMaxOutputTokens = 1048576
 	validated, err := applyDesktopAgentCapabilityProfiles(cfg, false)
 	require.NoError(t, err)
-	require.Equal(t, 65536, validated.Models[1].DefaultMaxOutputTokens)
+	require.Equal(t, 1048576, validated.Models[1].DefaultMaxOutputTokens)
 	require.True(t, slices.Contains(validated.Models[0].ReasoningLevels, "max"))
 }
 
@@ -307,7 +412,7 @@ func TestDesktopAgentLegacyOfficialCapabilitiesAreReplacedWithoutWritingSettings
 	model := resolved.Models[0]
 	require.Equal(t, "gpt-6.1-sol", model.ID)
 	require.Equal(t, cfg.Models[0].DisplayName, model.DisplayName)
-	require.Equal(t, 922000, model.ContextWindow)
+	require.Equal(t, 1050000, model.ContextWindow)
 	require.Equal(t, 128000, model.MaxOutputTokens)
 	require.Equal(t, cfg.Models[0].DefaultMaxOutputTokens, model.DefaultMaxOutputTokens)
 	require.Equal(t, "medium", model.DefaultReasoning)
@@ -320,7 +425,7 @@ func TestDesktopAgentLegacyOfficialCapabilitiesAreReplacedWithoutWritingSettings
 		result, err := svc.BootstrapForProtocol(context.Background(), 7, protocol)
 		require.NoError(t, err)
 		require.Equal(t, "ready", result.ServiceStatus)
-		require.Equal(t, 922000, result.Models[0].ContextWindow)
+		require.Equal(t, 1050000, result.Models[0].ContextWindow)
 		raw, err := json.Marshal(result)
 		require.NoError(t, err)
 		for _, metadata := range []string{"model_profiles", "profile_id", "source_url", "official_context_window"} {
@@ -355,7 +460,7 @@ func TestDesktopAgentUnknownLegacyAliasCannotPublishGuessedCapabilities(t *testi
 	updated, err := svc.UpdateConfig(context.Background(), cfg)
 	require.NoError(t, err)
 	require.Equal(t, cfg.Models[0].ID, updated.Models[0].ID)
-	require.Equal(t, 922000, updated.Models[0].ContextWindow)
+	require.Equal(t, 1050000, updated.Models[0].ContextWindow)
 	require.NotZero(t, keys.calls) // v3 ready+empty retains its established contract.
 }
 
@@ -380,7 +485,7 @@ func TestDesktopAgentProfileMatchingIsExactAndOverridesAreExplicit(t *testing.T)
 	cfg.ModelProfiles[cfg.Models[0].ID] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6.1-sol"}
 	updated, err = svc.UpdateConfig(context.Background(), cfg)
 	require.NoError(t, err)
-	require.Equal(t, 922000, updated.Models[0].ContextWindow)
+	require.Equal(t, 1050000, updated.Models[0].ContextWindow)
 	require.NotEqual(t, cfg.Models[0].ContextWindow, updated.Models[0].ContextWindow)
 	for _, bindings := range []map[string]DesktopAgentModelProfileBinding{
 		{"other": {ProfileID: "gpt-6.1-sol"}},
@@ -427,6 +532,6 @@ func TestDesktopAgentDisableReturnsTheSameReviewedProjectionAsRead(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, read, disabled)
 	require.False(t, disabled.Enabled)
-	require.Equal(t, 922000, disabled.Models[0].ContextWindow)
+	require.Equal(t, 1050000, disabled.Models[0].ContextWindow)
 	require.Contains(t, repo.values[SettingKeyDesktopAgentConfig], `"context_window":100000`)
 }

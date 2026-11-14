@@ -50,6 +50,16 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 	return svc, nil
 }
 
+func ProvideDesktopAgentProfileCatalogService(cfg *config.Config, settings *SettingService) *DesktopAgentProfileCatalogService {
+	svc := NewDesktopAgentProfileCatalogService(cfg, settings)
+	if err := svc.Initialize(context.Background()); err != nil {
+		svc.mu.Lock()
+		svc.status.LastError = "cache_invalid"
+		svc.mu.Unlock()
+	}
+	return svc
+}
+
 // ProvideUpdateService creates UpdateService with BuildInfo
 func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
 	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType).
@@ -914,6 +924,7 @@ var ProviderSet = wire.NewSet(
 	NewDashboardService,
 	ProvideWorkbenchAdminService,
 	ProvidePricingService,
+	ProvideDesktopAgentProfileCatalogService,
 	NewBillingService,
 	NewImageStudioPricingService,
 	ProvideBillingCacheService,

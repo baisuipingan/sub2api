@@ -80,6 +80,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		&service.BatchImageCleanupService{},
 		nil, // batchImageWorker
 		pricingSvc,
+		nil, // desktopProfiles
 		emailQueueSvc,
 		billingCacheSvc,
 		&service.UsageRecordWorkerPool{},

@@ -88,12 +88,7 @@ func (h *DesktopAgentHandler) UpdateConfig(c *gin.Context) {
 		desktopAgentError(c, err)
 		return
 	}
-	cfg, err := service.ParseDesktopAgentAdminConfig(raw)
-	if err != nil {
-		desktopAgentError(c, err)
-		return
-	}
-	result, err := h.service.UpdateConfig(c.Request.Context(), cfg)
+	result, err := h.service.UpdateConfigJSON(c.Request.Context(), raw)
 	if err != nil {
 		desktopAgentError(c, err)
 		return

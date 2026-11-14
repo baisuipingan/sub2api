@@ -19,12 +19,41 @@ const model = (config: DesktopAgentConfig) => config.models[0]!
 
 const profile = (): DesktopAgentProfile => ({
   id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol', source: 'official_openai', source_url: 'https://developers.openai.com/api/docs/models/gpt-5.6-sol',
-  reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-5.6-sol', 'gpt-5.6'], official_context_window: 1050000, max_input_tokens: 922000,
-  official_reasoning_levels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], notes: ['input_budget_compatibility', 'native_web_search_unavailable', 'reasoning_none_unavailable'],
-  model: { ...model(valid()), id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol', context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' },
+  reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-5.6-sol', 'gpt-5.6'], official_context_window: 1050000, max_input_tokens: null, official_max_output_tokens: 128000,
+  official_reasoning_levels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], notes: ['official_shared_context', 'native_web_search_unavailable', 'reasoning_none_unavailable'],
+  model: { ...model(valid()), id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol', context_window: 1050000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' },
 })
 
 describe('desktop Agent config preflight', () => {
+  it.each(['unlimited', 'not_published'] as const)('represents %s output without inventing a numeric maximum', kind => {
+    const p = profile()
+    p.official_context_window = 500000
+    p.max_input_tokens = null
+    p.official_max_output_tokens = null
+    p.model = { ...p.model, context_window: 500000, max_output_tokens: 0, output_limit_kind: kind }
+    expect(validDesktopAgentProfiles([p])).toBe(true)
+    const cfg = valid(); cfg.model_profiles = { 'fixture-model': { profile_id: p.id, override: false } }
+    const normalized = normalizeDesktopAgentProfiles(cfg, [p])
+    expect(normalized.models[0]).toMatchObject({ context_window: 500000, max_output_tokens: 0, output_limit_kind: kind, default_max_output_tokens: 4096 })
+    expect(validateDesktopAgentConfig(normalized, [p])).toEqual([])
+    p.model.max_output_tokens = 128000
+    expect(validDesktopAgentProfiles([p])).toBe(false)
+  })
+  it('retains official maxima equal to context and separates an input-only specification', () => {
+    const p = profile()
+    p.official_context_window = 1048576
+    p.max_input_tokens = null
+    p.official_max_output_tokens = 1048576
+    p.model.context_window = 1048576
+    p.model.max_output_tokens = 1048576
+    expect(validDesktopAgentProfiles([p])).toBe(true)
+    p.official_context_window = null
+    p.max_input_tokens = 1048576
+    p.official_max_output_tokens = p.model.max_output_tokens = 65536
+    expect(validDesktopAgentProfiles([p])).toBe(true)
+    p.max_input_tokens = null
+    expect(validDesktopAgentProfiles([p])).toBe(false)
+  })
   it('matches only exact official IDs, explicit aliases or a valid chosen profile', () => {
     const profiles = [profile(), { ...profile(), id: 'gpt-6.1-sol', aliases: ['gpt-6.1-sol'] }]
     expect(resolveDesktopAgentProfile(profiles, 'gpt-5.6')?.id).toBe('gpt-5.6-sol')
@@ -47,7 +76,7 @@ describe('desktop Agent config preflight', () => {
     const before = JSON.stringify(cfg)
     const normalized = normalizeDesktopAgentProfiles(cfg, [profile()])
     expect(JSON.stringify(cfg)).toBe(before)
-    expect(normalized.models[0]).toMatchObject({ id: 'gpt-5.6', display_name: 'Fixture Model', context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 4096, default_reasoning: 'low' })
+    expect(normalized.models[0]).toMatchObject({ id: 'gpt-5.6', display_name: 'Fixture Model', context_window: 1050000, max_output_tokens: 128000, default_max_output_tokens: 4096, default_reasoning: 'low' })
     expect(normalized.model_profiles).toEqual({ 'gpt-5.6': { profile_id: 'gpt-5.6-sol', override: false } })
     expect(normalized.default_model_id).toBe('gpt-5.6')
     expect(validateDesktopAgentConfig(normalized, [profile()])).toEqual([])
@@ -89,7 +118,7 @@ describe('desktop Agent config preflight', () => {
     const cfg = valid()
     cfg.model_profiles = { 'fixture-model': { profile_id: 'deepseek-flash', override: false } }
     const normalized = normalizeDesktopAgentProfiles(cfg, profiles)
-    expect(normalized.models[0]).toMatchObject({ id: 'fixture-model', display_name: 'Fixture Model', context_window: 922000 })
+    expect(normalized.models[0]).toMatchObject({ id: 'fixture-model', display_name: 'Fixture Model', context_window: 1050000 })
     expect(normalized.default_model_id).toBe('fixture-model')
     expect(normalized.model_profiles).toEqual(cfg.model_profiles)
     expect(validateDesktopAgentConfig(normalized, profiles)).toEqual([])
@@ -236,7 +265,7 @@ describe('desktop Agent config preflight', () => {
 
   it.each([
     ['context_window', 100_000_001, 'context_window_invalid'], ['context_window', 0, 'context_window_invalid'],
-    ['max_output_tokens', 128000, 'max_output_invalid'], ['max_output_tokens', 1.5, 'max_output_invalid'],
+    ['max_output_tokens', 128001, 'max_output_invalid'], ['max_output_tokens', 1.5, 'max_output_invalid'],
     ['default_max_output_tokens', 8193, 'default_output_invalid'], ['default_max_output_tokens', NaN, 'default_output_invalid'],
   ] as const)('rejects invalid budget %s=%s', (field, value, code) => {
     const config = valid(); model(config)[field] = value

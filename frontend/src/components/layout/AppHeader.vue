@@ -22,24 +22,41 @@
         </div>
       </div>
 
-      <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
-      <div class="flex min-w-0 items-center gap-1 sm:gap-3">
+      <!-- Right: Desktop Client + Announcements + Account Actions -->
+      <div class="flex shrink-0 items-center gap-1 sm:gap-3">
+        <router-link
+          v-if="user && (authStore.isAdmin || !appStore.backendModeEnabled)"
+          :to="downloadPath"
+          :title="t('nav.milocodeDownload')"
+          :aria-label="t('nav.milocodeDownload')"
+          data-testid="milocode-download-header"
+          class="group flex shrink-0 items-center gap-2 rounded-xl border border-primary-200/80 bg-primary-50 px-2 py-1.5 text-primary-700 transition-colors hover:border-primary-300 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/50 dark:focus-visible:ring-offset-dark-900 sm:px-3"
+        >
+          <img :src="miloCodeIcon" alt="" width="28" height="28" class="h-7 w-7 shrink-0 rounded-md bg-white object-contain" data-testid="milocode-download-icon" />
+          <div class="hidden sm:block">
+            <div class="text-xs font-bold leading-5 sm:text-sm">MiloCode</div>
+            <div class="hidden text-[10px] leading-3 text-primary-600 dark:text-primary-400 xl:block">{{ t('nav.milocodeTagline') }}</div>
+          </div>
+          <Icon name="download" size="sm" class="hidden transition-transform group-hover:translate-y-0.5 sm:block" />
+        </router-link>
+
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
+        <!-- Keep secondary labels compact at tablet widths so account actions fit. -->
         <!-- Docs Link -->
         <a
           v-if="docUrl"
           :href="docUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white sm:flex"
+          class="hidden items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white md:flex"
         >
           <Icon name="book" size="sm" />
           <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
         </a>
 
-        <!-- Model Plaza Entry (icon only below sm) -->
+        <!-- Model Plaza Entry (icon only below lg) -->
         <router-link
           v-if="user && modelPlazaEnabled"
           :to="{ path: '/model-plaza', query: { embedded: '1' } }"
@@ -48,7 +65,7 @@
           class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
         >
           <Icon name="grid" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
+          <span class="hidden lg:inline">{{ t('nav.modelPlaza') }}</span>
         </router-link>
 
         <!-- Language Switcher -->
@@ -268,6 +285,8 @@ import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
 import { workspaceLocation } from '@/router/workspace'
+import { desktopDownloadPath } from '@/router/desktopDownloadRoutes'
+import miloCodeIcon from '@/assets/milocode-icon.png'
 
 const router = useRouter()
 const route = useRoute()
@@ -278,6 +297,7 @@ const adminSettingsStore = useAdminSettingsStore()
 const workspace = computed(() => workspaceLocation(route, authStore.isAdmin
   ? adminSettingsStore.customMenuItems.filter(item => item.visibility === 'admin').map(item => item.id)
   : []))
+const downloadPath = computed(() => desktopDownloadPath(workspace.value.area, workspace.value.context))
 const onboardingStore = useOnboardingStore()
 
 const user = computed(() => authStore.user)

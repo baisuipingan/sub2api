@@ -109,6 +109,7 @@ func provideCleanup(
 	batchImageCleanup *service.BatchImageCleanupService,
 	batchImageWorker *service.BatchImageWorkerRuntime,
 	pricing *service.PricingService,
+	desktopProfiles *service.DesktopAgentProfileCatalogService,
 	emailQueue *service.EmailQueueService,
 	billingCache *service.BillingCacheService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
@@ -325,6 +326,12 @@ func provideCleanup(
 			{"SubscriptionService", func() error {
 				if subscriptionService != nil {
 					subscriptionService.Stop()
+				}
+				return nil
+			}},
+			{"DesktopAgentProfileCatalogService", func() error {
+				if desktopProfiles != nil {
+					desktopProfiles.Stop()
 				}
 				return nil
 			}},

@@ -3,6 +3,7 @@ import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import AgentSettings from '../AgentSettings.vue'
+import AgentProfileCatalogSettings from '../AgentProfileCatalogSettings.vue'
 import type { DesktopAgentConfig, DesktopAgentModel, DesktopAgentProfile } from '@/api/admin/desktopAgent'
 import enMessages from '@/i18n/locales/en/admin/agentSettings'
 import zhMessages from '@/i18n/locales/zh/admin/agentSettings'
@@ -24,7 +25,7 @@ function model(id = 'verified-model', overrides: Partial<DesktopAgentModel> = {}
   return { id, display_name: `Display ${id}`, context_window: 128000, max_output_tokens: 16000, default_max_output_tokens: 4096, reasoning_levels: ['none', 'low', 'high'], default_reasoning: 'low', supports_reasoning: true, supports_streaming: true, supports_tool_call: true, requires_mfjs_tool_schema: false, input: { text: true, image: true, video: false, audio: false, pdf: true }, output: { text: true }, supports_json_schema_output: true, supports_native_web_search: false, supports_mid_conversation_system: true, ...overrides }
 }
 function profile(): DesktopAgentProfile {
-  return { id: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol', source: 'official_openai', source_url: 'https://developers.openai.com/api/docs/models/gpt-6.1-sol', reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-6.1-sol'], official_context_window: 1050000, max_input_tokens: 922000, official_reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], notes: ['input_budget_compatibility', 'native_web_search_unavailable'], model: model('gpt-6.1-sol', { context_window: 922000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' }) }
+  return { id: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol', source: 'official_openai', source_url: 'https://developers.openai.com/api/docs/models/gpt-6.1-sol', reviewed_at: '2026-11-13', revision: '2026-11-13.1', aliases: ['gpt-6.1-sol'], official_context_window: 1050000, max_input_tokens: null, official_max_output_tokens: 128000, official_reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], notes: ['official_shared_context', 'native_web_search_unavailable'], model: model('gpt-6.1-sol', { context_window: 1050000, max_output_tokens: 128000, default_max_output_tokens: 16384, reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'], default_reasoning: 'medium' }) }
 }
 function fixture(): DesktopAgentConfig {
   return { enabled: true, group_id: 7, base_url: 'https://account.example.invalid/v1', models: [model()], default_model_id: 'verified-model', model_profiles: { 'verified-model': { profile_id: 'gpt-6.1-sol', override: true } } }
@@ -32,7 +33,7 @@ function fixture(): DesktopAgentConfig {
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail }); return { promise, resolve, reject } }
 function setup(active = true, locale: 'en' | 'zh' = 'en', realSelect = false) {
   const i18n = createI18n({ legacy: false, locale, fallbackLocale: 'en', messages: { en: { ...enCommon, admin: enMessages, stepUp: { adminApiKeyForbidden: 'Full administrator required', notEnabled: 'Enable TOTP first' } }, zh: { ...zhCommon, admin: zhMessages, stepUp: { adminApiKeyForbidden: '需要完整管理员权限', notEnabled: '请先启用二次验证' } } } })
-  const wrapper = mount(AgentSettings, { attachTo: document.body, props: { active }, global: { plugins: [i18n], stubs: { DesktopReleaseStorageSettings: true, ...(!realSelect ? { Select: SelectStub } : {}), TotpStepUpDialog: StepUpStub, Teleport: true, Transition: false } } })
+  const wrapper = mount(AgentSettings, { attachTo: document.body, props: { active }, global: { plugins: [i18n], stubs: { DesktopReleaseStorageSettings: true, AgentProfileCatalogSettings: true, ...(!realSelect ? { Select: SelectStub } : {}), TotpStepUpDialog: StepUpStub, Teleport: true, Transition: false } } })
   wrappers.push(wrapper); return { wrapper, i18n }
 }
 type Wrapper = ReturnType<typeof setup>['wrapper']
@@ -154,7 +155,7 @@ describe('system Agent multiple model settings', () => {
     mocks.getModels.mockRejectedValueOnce(new Error('failed')); await wrapper.get('[data-test="agent-refresh-models"]').trigger('click'); await flushPromises()
     await wrapper.get('[data-test="agent-refresh-models"]').trigger('click'); await flushPromises(); expect(mocks.getModels.mock.calls.at(-1)).toEqual([8])
   })
-  it.each([['max-output', '128000', 'max_output_invalid'], ['default-output', '16001', 'default_output_invalid'], ['context', '1.5', 'context_window_invalid']])('keeps per-model %s validation', async (field, value, code) => {
+  it.each([['max-output', '128001', 'max_output_invalid'], ['default-output', '16001', 'default_output_invalid'], ['context', '1.5', 'context_window_invalid']])('keeps per-model %s validation', async (field, value, code) => {
     const { wrapper } = setup(); await flushPromises(); await modelInput(wrapper, field).setValue(value); await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
     expect(mocks.updateConfig).not.toHaveBeenCalled(); expect(wrapper.text()).toContain(enMessages.agentSettings.validation[code as keyof typeof enMessages.agentSettings.validation])
   })
@@ -227,7 +228,7 @@ describe('system Agent multiple model settings', () => {
     await card(wrapper, 1).get('[data-test="agent-profile"]').setValue('gpt-6.1-sol')
     expect(card(wrapper, 1).attributes('data-model-id')).toBe('second-model')
     expect(modelInput(wrapper, 'model-name', 1).element.value).toBe('second-model')
-    expect(modelInput(wrapper, 'context', 1).element.value).toBe('922000')
+    expect(modelInput(wrapper, 'context', 1).element.value).toBe('1050000')
     expect(modelInput(wrapper, 'context', 1).element.disabled || modelInput(wrapper, 'context', 1).element.matches(':disabled')).toBe(true)
     expect(modelInput(wrapper, 'default-output', 1).element.value).toBe('16384')
     expect(modelInput(wrapper, 'model-default', 0).element.checked).toBe(true)
@@ -253,7 +254,7 @@ describe('system Agent multiple model settings', () => {
     const cfg = fixture(); cfg.models = [model('gpt-6.1-sol', { context_window: 42, max_output_tokens: 40 })]; cfg.default_model_id = 'gpt-6.1-sol'; delete cfg.model_profiles
     mocks.getConfig.mockResolvedValueOnce(cfg); mocks.getModels.mockResolvedValueOnce({ group_id: 7, models: ['gpt-6.1-sol'] })
     const { wrapper } = setup(); await flushPromises()
-    expect(modelInput(wrapper, 'context').element.value).toBe('922000')
+    expect(modelInput(wrapper, 'context').element.value).toBe('1050000')
     expect(modelInput(wrapper, 'default-output').element.value).toBe('4096')
     expect(card(wrapper).get('[data-test="agent-default-reasoning"]').element.value).toBe('low')
     expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(true)
@@ -264,31 +265,38 @@ describe('system Agent multiple model settings', () => {
   it.each(['zh', 'en'] as const)('renders mixed-vendor budgets and execution limits without changing the automatic reasoning default: %s', async locale => {
     const automatic = { reasoning_levels: ['none'] as DesktopAgentModel['reasoning_levels'], default_reasoning: 'none' as const, supports_reasoning: false, supports_json_schema_output: false }
     const reviewed = (id: string, source: DesktopAgentProfile['source'], sourceUrl: string, notes: string[], officialLevels: DesktopAgentProfile['official_reasoning_levels'] = ['low', 'medium', 'high']): DesktopAgentProfile => ({
-      ...profile(), id, display_name: id, source, source_url: sourceUrl, aliases: [id], official_context_window: 1000000, max_input_tokens: 872000, notes, official_reasoning_levels: officialLevels,
-      model: model(id, { ...automatic, context_window: 872000, max_output_tokens: 128000, default_max_output_tokens: 16384 }),
+      ...profile(), id, display_name: id, source, source_url: sourceUrl, aliases: [id], official_context_window: 1048576, max_input_tokens: null, official_max_output_tokens: 393216, notes, official_reasoning_levels: officialLevels,
+      model: model(id, { ...automatic, context_window: 1048576, max_output_tokens: 393216, default_max_output_tokens: 16384 }),
     })
     const profiles = [
       profile(),
-      reviewed('deepseek-flash', 'official_deepseek', 'https://api-docs.deepseek.com/quick_start/pricing', ['shared_context_budget', 'output_budget_compatibility', 'native_web_search_unavailable']),
-      reviewed('claude-haiku-4-5-20251001', 'official_anthropic', 'https://platform.claude.com/docs/en/models/haiku-4-5/overview', ['shared_context_budget', 'reasoning_auto_only', 'structured_output_compatibility', 'unreviewed-message'], []),
-      reviewed('grok-4', 'official_xai', 'https://docs.x.ai/docs/models', ['grok_xhigh_compatibility']),
+      reviewed('deepseek-flash', 'official_deepseek', 'https://api-docs.deepseek.com/quick_start/pricing', ['official_shared_context', 'native_web_search_unavailable']),
+      reviewed('claude-haiku-4-5-20251001', 'official_anthropic', 'https://platform.claude.com/docs/en/models/haiku-4-5/overview', ['official_shared_context', 'reasoning_auto_only', 'structured_output_compatibility', 'unreviewed-message'], []),
+      reviewed('grok-4.7', 'official_xai', 'https://docs.x.ai/developers/models/grok-4.7.md', ['output_limit_unlimited']),
       reviewed('gemini-4-carbon', 'official_google', 'https://aistudio.google.com/docs/models/gemini-4-carbon', ['responses_compatibility_required', 'reasoning_auto_only']),
     ]
+    Object.assign(profiles[2], { official_context_window: 200000, official_max_output_tokens: 64000 })
+    Object.assign(profiles[2].model, { context_window: 200000, max_output_tokens: 64000 })
+    Object.assign(profiles[3], { official_context_window: 500000, official_max_output_tokens: null })
+    Object.assign(profiles[3].model, { context_window: 500000, max_output_tokens: 0, output_limit_kind: 'unlimited' })
+    profiles[4].official_max_output_tokens = 1048576
+    profiles[4].model.max_output_tokens = 1048576
     const cfg = fixture(); cfg.models = profiles.map(item => structuredClone(item.model)); cfg.default_model_id = profiles[0].id; delete cfg.model_profiles
     mocks.getProfiles.mockResolvedValueOnce({ profiles }); mocks.getConfig.mockResolvedValueOnce(cfg); mocks.getModels.mockResolvedValueOnce({ group_id: 7, models: profiles.map(item => item.id) })
     const { wrapper } = setup(true, locale); await flushPromises()
     const messages = (locale === 'zh' ? zhMessages : enMessages).agentSettings
     expect(wrapper.findAll('[data-test="agent-model-card"]')).toHaveLength(5)
-    expect(card(wrapper, 0).get('[data-test="agent-profile-budgets"]').text()).toContain(locale === 'zh' ? '最大输入' : 'maximum input')
+    expect(card(wrapper, 0).get('[data-test="agent-profile-budgets"]').text()).toContain(messages.limitUnpublished)
     const sharedBudget = card(wrapper, 1).get('[data-test="agent-profile-budgets"]').text()
-    expect(sharedBudget).toContain(locale === 'zh' ? '输入与输出共享上下文' : 'shared input/output context')
-    expect(sharedBudget).toContain(locale === 'zh' ? '保守输入预算 872,000' : 'conservative input budget 872,000')
-    expect(sharedBudget).not.toContain(locale === 'zh' ? '最大输入' : 'maximum input')
-    expect(card(wrapper, 1).get('[data-test="agent-profile-note-output_budget_compatibility"]').text()).toContain('128,000')
+    expect(sharedBudget).toContain('1,048,576')
+    expect(sharedBudget).toContain('393,216')
+    expect(sharedBudget).toContain(messages.limitUnpublished)
+    expect(sharedBudget).not.toContain('655,360')
     expect(card(wrapper, 1).get('[data-test="agent-profile-note-native_web_search_unavailable"]').text()).toBe(messages.profileNotes.native_web_search_unavailable)
-    for (const note of ['shared_context_budget', 'reasoning_auto_only', 'structured_output_compatibility'] as const) expect(card(wrapper, 2).get(`[data-test="agent-profile-note-${note}"]`).text()).toBe(messages.profileNotes[note])
+    for (const note of ['official_shared_context', 'reasoning_auto_only', 'structured_output_compatibility'] as const) expect(card(wrapper, 2).get(`[data-test="agent-profile-note-${note}"]`).text()).toBe(messages.profileNotes[note])
     expect(card(wrapper, 2).find('[data-test="agent-profile-note-unreviewed-message"]').exists()).toBe(false)
-    expect(card(wrapper, 3).get('[data-test="agent-profile-note-grok_xhigh_compatibility"]').text()).toBe(messages.profileNotes.grok_xhigh_compatibility)
+    expect(card(wrapper, 3).get('[data-test="agent-profile-note-output_limit_unlimited"]').text()).toBe(messages.profileNotes.output_limit_unlimited)
+    expect(card(wrapper, 3).get('[data-test="agent-output-limit-unknown"]').text()).toBe(messages.limitUnlimited)
     expect(card(wrapper, 4).get('[data-test="agent-profile-note-responses_compatibility_required"]').text()).toBe(messages.profileNotes.responses_compatibility_required)
     const reasoning = card(wrapper, 4).get<HTMLSelectElement>('[data-test="agent-default-reasoning"]')
     expect(reasoning.element.value).toBe('none')
@@ -303,7 +311,7 @@ describe('system Agent multiple model settings', () => {
     await modelInput(wrapper, 'default-output').setValue('8192')
     await modelInput(wrapper, 'context').setValue('256000')
     await modelInput(wrapper, 'profile-override').setValue(false)
-    expect(modelInput(wrapper, 'context').element.value).toBe('922000')
+    expect(modelInput(wrapper, 'context').element.value).toBe('1050000')
     expect(modelInput(wrapper, 'default-output').element.value).toBe('8192')
     expect(modelInput(wrapper, 'context').element.matches(':disabled')).toBe(true)
     await modelInput(wrapper, 'profile-override').setValue(true)
@@ -326,5 +334,22 @@ describe('system Agent multiple model settings', () => {
     expect(mocks.getConfig).toHaveBeenCalledTimes(1)
     await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
     expect(mocks.updateConfig.mock.calls[0][0].models[0].display_name).toBe('Unsaved identity')
+  })
+  it('reloads only profiles after a remote sync while retaining the unsaved model draft', async () => {
+    const cfg = fixture(); cfg.model_profiles!['verified-model'].override = false
+    mocks.getConfig.mockResolvedValueOnce(cfg)
+    const { wrapper } = setup(); await flushPromises()
+    await modelInput(wrapper, 'model-name').setValue('Unsaved display name')
+    await modelInput(wrapper, 'default-output').setValue('8192')
+    wrapper.findComponent(AgentProfileCatalogSettings).vm.$emit('updated')
+    await flushPromises()
+    expect(mocks.getProfiles).toHaveBeenCalledTimes(2)
+    expect(mocks.getConfig).toHaveBeenCalledTimes(1)
+    expect(mocks.getGroups).toHaveBeenCalledTimes(1)
+    expect(modelInput(wrapper, 'model-name').element.value).toBe('Unsaved display name')
+    expect(modelInput(wrapper, 'default-output').element.value).toBe('8192')
+    expect(mocks.updateConfig).not.toHaveBeenCalled()
+    await wrapper.get('[data-test="agent-save"]').trigger('click'); await flushPromises()
+    expect(mocks.updateConfig.mock.calls[0][0].models[0]).toMatchObject({ id: 'verified-model', display_name: 'Unsaved display name', default_max_output_tokens: 8192 })
   })
 })

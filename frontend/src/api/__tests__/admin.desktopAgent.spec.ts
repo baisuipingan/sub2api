@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { get, put, post } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn() }))
 vi.mock('@/api/client', () => ({ apiClient: { get, put, post } }))
 
-import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, getDesktopAgentProfiles, updateDesktopAgentConfig, type DesktopAgentConfig } from '@/api/admin/desktopAgent'
+import { disableDesktopAgentConfig, getDesktopAgentConfig, getDesktopAgentModels, getDesktopAgentProfiles, getDesktopAgentProfileCatalog, refreshDesktopAgentProfileCatalog, updateDesktopAgentProfileCatalogSource, updateDesktopAgentConfig, type DesktopAgentConfig } from '@/api/admin/desktopAgent'
 
 const initial = (): DesktopAgentConfig => ({ enabled: false, group_id: 0, base_url: '', models: [], default_model_id: '' })
 
@@ -78,6 +78,37 @@ describe('independent desktop Agent admin API', () => {
     get.mockResolvedValueOnce({ data: profiles })
     await expect(getDesktopAgentProfiles()).resolves.toBe(profiles)
     expect(get).toHaveBeenCalledWith('/admin/desktop/profiles')
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('reads remote catalog status without triggering a download', async () => {
+    const status = { revision: '2026-11-14.2', profile_count: 37, using_fallback: false }
+    get.mockResolvedValueOnce({ data: status })
+    await expect(getDesktopAgentProfileCatalog()).resolves.toBe(status)
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledWith('/admin/desktop/profile-catalog')
+    expect(post).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('refreshes with an empty body and propagates protected action failures', async () => {
+    const error = { status: 403, code: 'STEP_UP_REQUIRED' }
+    post.mockRejectedValueOnce(error)
+    await expect(refreshDesktopAgentProfileCatalog()).rejects.toBe(error)
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/admin/desktop/profile-catalog/refresh')
+    expect(get).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('saves only the requested source without immediately refreshing or changing model configuration', async () => {
+    const source = 'https://raw.githubusercontent.com/example/profiles/main/catalog.json'
+    const status = { source_url: source, revision: 'builtin', using_fallback: true }
+    put.mockResolvedValueOnce({ data: status })
+    await expect(updateDesktopAgentProfileCatalogSource(source)).resolves.toBe(status)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledWith('/admin/desktop/profile-catalog/source', { source_url: source })
+    expect(get).not.toHaveBeenCalled()
     expect(post).not.toHaveBeenCalled()
   })
 

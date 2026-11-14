@@ -124,7 +124,7 @@ func TestDesktopAgentConfigRequiresCompleteExplicitSafePolicy(t *testing.T) {
 		"no tools":               func(c *DesktopAgentConfig) { c.Model.SupportsToolCall = desktopBool(false) },
 		"no streaming":           func(c *DesktopAgentConfig) { c.Model.SupportsStreaming = desktopBool(false) },
 		"default outside budget": func(c *DesktopAgentConfig) { c.Model.DefaultMaxOutputTokens = c.Model.MaxOutputTokens + 1 },
-		"limit exceeds context":  func(c *DesktopAgentConfig) { c.Model.MaxOutputTokens = c.Model.ContextWindow },
+		"limit exceeds context":  func(c *DesktopAgentConfig) { c.Model.MaxOutputTokens = c.Model.ContextWindow + 1 },
 		"reasoning duplicate":    func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"low", "low"} },
 		"reasoning out of order": func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"high", "low"} },
 		"reasoning unknown":      func(c *DesktopAgentConfig) { c.Model.ReasoningLevels = []string{"guessed"} },
@@ -153,7 +153,7 @@ func TestDesktopAgentStrictRequestRejectsAmbiguityAndAuthorityFields(t *testing.
 	valid := `{"client_version":"0.1.0","protocol_version":1,"platform":"darwin"}`
 	for _, raw := range []string{`{}`, `null`, `[]`, valid + ` {}`,
 		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","Platform":"win32"`, 1),
-		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":4`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
+		strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":""`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"linux"`, 1), strings.Replace(valid, `"protocol_version":1`, `"protocol_version":5`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","platform":"win32"`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":null`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","group_id":12`, 1), strings.Replace(valid, `"platform":"darwin"`, `"platform":"darwin","installation_id":null`, 1)} {
 		_, err := ParseDesktopAgentRequest([]byte(raw))
 		require.ErrorIs(t, err, ErrDesktopAgentInvalid, raw)
 	}

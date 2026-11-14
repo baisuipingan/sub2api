@@ -1,36 +1,97 @@
-# Desktop model capability profiles: frontend contract
+# Desktop model profile frontend contract
 
-The settings draft owns both `models` and `model_profiles`. A profile selection updates the model and its binding together; removing a model removes its binding. Public model IDs are matched exactly against builtin IDs and declared aliases. Custom IDs require an explicit profile selection. Upstream physical IDs are not consulted.
+This contract describes the local 2026-11-14 revision 2026-11-14.2. The backend catalogue is the source of reviewed facts. Saved administrator capability values are not an official source. This revision has not been deployed, and its final combined verification is to be recorded by the lead agent.
 
-The profile endpoint remains `{ profiles: [...] }` and returns reviewed builtin specifications, never saved administrator declarations. A missing, invalid, or failed profile response blocks publishing while preserving the editable draft. Retrying profiles must not reload or discard the draft.
+## Draft and identity ownership
 
-Without `override: true`, capability flags and physical budgets come from the trusted profile. Valid operator defaults (reasoning and per-request output limit), the public ID, display name and default-model choice are preserved. Advanced overrides are explicit. Restoring profile defaults clears the override and restores operator defaults as well.
+The settings draft owns models and model_profiles together. Selecting a profile updates its binding and model atomically; removing a model removes its binding. Exact official IDs and explicitly documented aliases auto-resolve. Custom public IDs require an explicit profile choice. No prefix or upstream-private-name inference is performed, and profile choice does not change the public routing ID, display name, or default-model identity.
 
-The interface distinguishes the documented official context window and input limit from the conservative current-client context budget. A `shared_context_budget` profile instead labels its context as shared between input and output and its `max_input_tokens` as a derived conservative input budget, never an independently documented maximum input. The actual current-client budget remains visible separately.
+Without override:true, capabilities and token limits come from the trusted profile. Valid saved reasoning and positive per-request output defaults are preserved. The project baseline of 16,384 is an operational request budget, not an official model maximum or a mandatory reset of existing valid defaults. Advanced overrides are explicit. Disabling an override restores reviewed capabilities while retaining valid defaults; restoring profile defaults also resets the operational defaults.
 
-Reviewed notes remain a translated allowlist; unknown codes are not rendered as raw messages or translation keys. In addition to the existing input and reasoning notes, the card explains shared context reservations, conservative output caps, automatic-only reasoning, the need for a Responses-compatible channel or an existing gateway bridge, structured-output compatibility limits, and the Grok 4.5 documentation's xhigh/high equivalence. That equivalence is scoped to its profile, not every Grok model or a global gateway rewrite. Native web search remains disabled because the current unified Responses executor does not encode provider-native search. These notes describe execution boundaries without adding provider-specific forms or changing protocol selection.
+A missing, invalid, or failed profile response blocks publishing and keeps the editable draft. Retrying profiles must not reload saved settings or discard edits.
 
-The current `none` level omits the reasoning parameter; it does not explicitly disable thinking. An automatic-only profile retains this executable level and a valid default, even if the model can think by default. Official reasoning metadata may be an empty array for models that expose a token budget instead of discrete effort levels; executable `model.reasoning_levels` must still be nonempty and strictly validated. Official model names, custom bindings, advanced overrides and existing draft interactions keep the same ownership and matching rules.
+## Official token values and presentation
 
-Verification covers profile matching, legacy normalization, unknown models, atomic bindings, override locking/restoration, failed loads and draft-preserving retry, plus existing group/catalog and step-up protections.
+The profile endpoint remains { profiles: [...] }, but now returns the current accepted merged catalogue rather than only compiled-in data. Every displayed official number is separate from the current operational request budget.
 
-Real Chromium acceptance on 2026-11-14 also consumed the complete 37-profile JSON exported by the actual Go registry. The strict frontend parser accepted the mixed sources and empty official effort metadata. Verified DeepSeek's exact low/high/max controls, a custom public alias selecting Claude without changing its identity, automatic official matching across vendors, and Gemini's automatic-only control. Chinese desktop and Chinese/English dark 390px screenshots were inspected with no overflow or raw translation keys. This used a disposable local fixture, no production credentials or paid inference. The fixture entry points and server were removed afterwards; evidence remains under `output/playwright/agent-vendors-*`.
+| Field | Display and validation |
+| --- | --- |
+| official_context_window | Positive published shared total, or null when not separately published |
+| max_input_tokens | Positive independently published input maximum, or null |
+| official_max_output_tokens | Positive published maximum, or null for unpublished / no independent limit |
+| model.context_window | Exact official shared total, otherwise the independent input limit |
+| model.max_output_tokens | Positive published maximum for fixed limits; 0 only with unlimited / not_published |
+| model.default_max_output_tokens | Positive administrator request budget |
 
-## Verification on 2026-11-14
+No field is calculated as context minus output. Unknown values display “未单独公布” / “Not separately published,” never 0 Token. A model with only an independent input limit labels its running value “最大输入” rather than “shared context.”
 
-- 122 affected tests passed: 77 config/profile utility cases, 40 settings component cases, three locale completeness cases and two message-compilation cases. Mixed-vendor fixtures exercise the actual settings card, automatic-only reasoning, shared-context labels, output cap interpolation, trusted note rendering and publishing without changing public model IDs.
-- Budget-based models accept empty official effort metadata; malformed official values and empty executable reasoning lists remain rejected. Unknown note codes stay hidden instead of appearing as untranslated text.
-- Targeted ESLint and `vue-tsc --noEmit` passed. The complete frontend build (locale gate, `vue-tsc -b` and Vite) passed with existing Browserslist/chunk warnings. Browser acceptance of the combined implementation is recorded above; the subsequent production check is recorded below.
+The official card presents three labelled facts: total context, independent input maximum, and maximum output. The summary and advanced view show the same semantics. unlimited displays that there is no independent text-output ceiling; not_published displays the absence of a published limit. Neither exposes the wire sentinel 0 as a physical maximum.
 
-## Production acceptance on 2026-11-14
+The output-limit kinds accepted by the final contract are omitted/empty/fixed, unlimited, and not_published. Fixed limits are positive and may equal context. Unlimited/unpublished kinds require zero max_output_tokens and a positive operational budget no greater than context. The normal default-budget control uses the fixed output maximum when known and context otherwise. Advanced editing of a previously unknown maximum clears the unknown marker and becomes an explicit custom fixed override.
 
-Release `0.2.21-ds.17` passed the full release CI and was deployed by immutable digest. The authenticated production profile endpoint matched all 37 reviewed registry entries exactly, and the existing two-model configuration remained readable with an unchanged raw setting SHA256. The actual production settings page accepted the mixed-vendor registry without console errors. Adding `deepseek-flash` to an unsaved draft automatically selected its official profile and high default; unsupported efforts were disabled and low/high/max were selectable. Selecting max succeeded. Reloading the saved configuration removed the test draft; no production model settings were saved and no paid inference was requested. Evidence is under `output/deploy/fork-v0.2.21-17/`.
+The optional handling of official_max_output_tokens permits older reviewed profile responses to display their existing model limit; the new schema-1 feed explicitly includes this field, using null when appropriate. Malformed non-null official limits, contradictory model limits, invalid capability flags, and empty executable reasoning lists are rejected.
 
-## Verification on 2026-11-13
+## Conditions and execution limits
 
-- 110 affected tests passed: 61 config/profile utility cases, 38 settings component cases, 8 API cases and 3 locale completeness cases. Targeted ESLint completed without warnings. The final combined frontend `vue-tsc -b` and Vite production build passed after the last runtime changes.
-- Real Chromium acceptance used the actual Vue settings component, actual Select and stylesheet with local fixture HTTP endpoints. No production credentials or paid inference requests were involved.
-- Confirmed official IDs automatically normalize and keep a fixed official profile; custom public IDs show an unverified summary until selection. Profile choice preserves the public identity and persists its binding atomically.
-- Confirmed advanced physical fields start locked; enabling overrides makes them editable. Turning overrides off restores the trusted 922,000 context budget while preserving a valid 8,192 output default. Restore defaults resets that output default to 16,384. A save was inspected through the local fixture endpoint.
-- Confirmed a simulated profile HTTP 503 disables publishing. Editing the display name and retrying profiles preserves the draft; the subsequent save contains the edited name. The expected 503 was the only console error in that final browser run.
-- Captured and inspected Chinese/English, light/dark layouts at 390 and 1,200 pixels. All eight layouts had no horizontal overflow or raw translation keys. Screenshots are in `output/playwright/agent-profiles-*`; the local fixture server and temporary entry files were removed after verification.
+Reviewed notes use a translated allowlist. Unknown note codes remain hidden; remote text is never rendered as raw instructions or translation keys.
+
+The current notes distinguish official_shared_context, official_input_limit, context_limit_unpublished, output_limit_unpublished, output_limit_unlimited, and long_decode_required. Old conservative-reservation notes are not emitted by the new 37-profile data.
+
+Gemini4 displays its official 1,048,576 maximum output with a visible condition: normal synchronous output defaults to 65,536, and full long output needs background execution or continuation plus remaining shared context. Recording the official maximum does not add those modes to the existing Responses executor or claim current synchronous support for a million-token response.
+
+Official reasoning metadata and executable reasoning options remain separate. Gemini2.5 official low/medium/high refers to the current Interactions documentation; the existing desktop Responses path remains automatic-only. Claude legacy fixed thinking budgets are not relabelled as equivalent official effort levels. The Grok4.5 xhigh/high equivalence note is limited to that profile.
+
+none still means omitting the effort parameter and accepting the upstream default; it does not explicitly disable thinking. Automatic-only profiles retain the executable none level. Official reasoning metadata may be empty when no discrete effort enum is published, while executable model.reasoning_levels must be nonempty, ordered, and valid.
+
+The card continues to explain Responses compatibility, structured-output limitations, and unavailable provider-native search. Those notes do not switch provider protocols or affect independent browser tools. The complete 37-item source/specification table and media boundaries are in DESKTOP_MODEL_PROFILES.md.
+
+## Remote catalogue controls
+
+The catalogue has its own settings component and action state, separate from the model draft. Its default source is:
+
+https://raw.githubusercontent.com/baisuipingan/sub2api/model-profiles/desktop-agent-profiles.json
+
+The server accepts schema_version:1 with a revision and nonempty profiles. It refreshes on startup and every ten minutes, retaining accepted data in the existing settings record desktop_agent_profile_catalog_v1. The browser does not fetch or evaluate the remote feed directly.
+
+The component displays source, revision, accepted profile count, last successful time, fallback state, and a safe failure message. Unknown server error details are not shown as remote instructions.
+
+| API under /api/v1 | Frontend behavior |
+| --- | --- |
+| GET /admin/desktop/profiles | Load accepted reviewed profiles; strictly validate before enabling publish |
+| GET /admin/desktop/profile-catalog | Read the current catalogue state |
+| POST /admin/desktop/profile-catalog/refresh | Empty body, existing step-up flow, then reload profiles without submitting the model draft |
+| PUT /admin/desktop/profile-catalog/source | Send only source_url through step-up; preserve the separate model draft |
+
+Saving a source does not immediately replace accepted model data. An empty source pauses remote fetching while retaining the accepted catalogue. HTTPS/source validation, private-network and redirect rejection, the 2 MiB limit, source ownership, compatibility preflight, and CAS publication are enforced by the server.
+
+Incoming entries cannot steal an existing ID/alias owner or change an existing profile's vendor. Remote omissions retain known entries and aliases. Validation, compatibility, fetch, and persistence failures keep the last accepted catalogue. Persistence does not change observable memory; only a successful commit publishes profiles, catalogue raw value and status under one lock. Every configuration read/write/bootstrap uses one server-side catalogue snapshot, preventing a response from combining different revisions. The final server catalogue regression passed 19/19 in both normal and race-detector runs.
+
+Step-up cancellation, inactive tabs, unmount, and late responses keep existing generation fences. Catalogue refresh must not save the model draft, change its public identities, or trigger paid model calls.
+
+## Protocol compatibility
+
+The UI may publish models that need bootstrap protocol4; it must not invent smaller maximum values to make them fit an old client.
+
+- Protocol1/2 retain their old positive-output, output-less-than-context shape. A configured incompatible model causes fail-closed service configuration.
+- Protocol3 filters incompatible models into model_unavailable. A removed default stays null; no fallback model is silently selected.
+- Protocol4 supports fixed maximum equal to context and explicit unlimited/unpublished zero sentinels while preserving protocol3 scope, empty catalogue, unavailable-model, and nullable-default behavior.
+
+The new MiloCode Host requests protocol4 first and performs at most one protocol3 retry for the known old-service HTTP400 rejection shape. Authentication, permission, transport, throttling, service failures, and malformed successful responses do not trigger protocol downgrade. The same account/session and epoch checks guard both requests. The client maps only the positive operational default into existing optionSpecs; credentials stay in private Host material rather than public models, UI snapshots, or remote data.
+
+## Current verification scope
+
+The revised Go catalogue has been exported to output/desktop-agent-profiles-official.json with 37 entries and explicit nullable limits. Its targeted data/profile regression passed, including all official values, exact alias binding, fresh pointers/slices, preserved legal defaults, and bootstrap shapes.
+
+The revised frontend passed 149 relevant tests covering profile validation, model drafts, catalogue controls, admin API wrappers and locale completeness. vue-tsc -b, changed-file ESLint and the Vite production build passed. A real-browser fixture used the actual Vue components and exported catalogue, mocking only the local catalogue management API. It verified the full DeepSeek context, Grok unknown/unlimited outputs, Gemini4 long-decode conditions, Gemini2.5 maximum-input labels, unsaved source preservation and Chinese/English 390px dark layouts without horizontal overflow or untranslated keys. Evidence is under output/playwright/agent-profiles-official-max-qa.json and the matching screenshot prefix. It did not change production settings or perform paid inference.
+
+The stable remote JSON has been published on the independent model-profiles branch at commit 15465ab2cee2575bd04ef87b0d2080192437d21c. A real HTTPS GET returned 200 and matched all 37 reviewed entries byte-for-byte (SHA256 f03fd79e44a8959dd93f60a890a51a0dd93aeec22db103cfb12ea135b0ed85a0). The data branch contains only JSON and its maintenance README; it does not trigger a service release.
+
+## Historical production release: 0.2.21-ds.17
+
+The 2026-11-14 release 0.2.21-ds.17 was deployed and its original 37-profile page passed authenticated read-only production acceptance. A temporary unsaved DeepSeek draft auto-selected its profile, exposed low/high/max, and was removed by reloading saved settings; no model configuration or paid inference was submitted. Historical evidence is under output/deploy/fork-v0.2.21-17/.
+
+That release used conservative context/input reservations and some default-based output caps. Those expressions are superseded by this contract's official raw values and explicit unknown/unlimited fields. Its deployment and browser results do not establish that this revision or its protocol4 client is live.
+
+## Current release status
+
+Only the remote data branch has been published. The server and client sources remain on their working branches; this service revision is not deployed. A new MiloCode package has not been produced, and no paid provider inference, long-decode, tool, or billing integration test has been performed for it.

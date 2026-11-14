@@ -63,21 +63,24 @@ describe('workspace sidebar interactions', () => {
   })
 
   it.each([
-    ['/dashboard', false, '/downloads'],
-    ['/workbench/image', false, '/workbench/downloads'],
-    ['/admin/dashboard', true, '/admin/downloads'],
-    ['/admin/workbench', true, '/admin/workbench/downloads'],
-  ] as const)('keeps the MiloCode download entry last from %s', async (path, admin, destination) => {
+    ['/downloads', false],
+    ['/workbench/downloads', false],
+    ['/admin/downloads', true],
+    ['/admin/workbench/downloads', true],
+  ] as const)('leaves MiloCode downloads out of the sidebar at %s', async (path, admin) => {
     authState.isAdmin = admin
-    const { wrapper, router } = await setup(path)
-    const links = wrapper.findAll('.sidebar-nav a')
-    expect(links.at(-1)?.attributes('href')).toBe(destination)
-    await wrapper.get('[data-testid="milocode-download-nav"]').trigger('click')
+    const { wrapper } = await setup(path)
+    expect(wrapper.find('[data-testid="milocode-download-nav"]').exists()).toBe(false)
+    expect(wrapper.findAll('.sidebar-nav a').some(link => link.attributes('href')?.endsWith('/downloads'))).toBe(false)
+  })
+
+  it('returns to a header download page when switching workspace areas', async () => {
+    const { wrapper, router } = await setup('/admin/downloads')
+    await wrapper.get('.user-area-switcher a[href="/admin/workbench"]').trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe(destination)
-    expect(router.currentRoute.value.meta.workspaceArea).toBe(path.includes('workbench') ? 'workbench' : 'console')
-    expect(router.currentRoute.value.meta.requiresAdmin).toBe(admin)
-    expect(wrapper.get('[data-testid="milocode-download-nav"]').classes()).toContain('sidebar-link-active')
+    await wrapper.get('.user-area-switcher a[href="/admin/downloads"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/admin/downloads')
   })
 
   it('shows workbench management above personal generation, with only the exact active management entry selected', async () => {

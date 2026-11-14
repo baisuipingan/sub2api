@@ -12,6 +12,8 @@
       </div>
     </div>
 
+    <AgentProfileCatalogSettings :active="props.active" :disabled="loading || saving" @updated="retryProfiles" />
+
     <template v-if="loaded">
       <fieldset :disabled="loading || saving" class="min-w-0 space-y-6">
         <div class="card">
@@ -85,6 +87,7 @@ import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Select from '@/components/common/Select.vue'
 import AgentModelSettingsCard from './AgentModelSettingsCard.vue'
 import DesktopReleaseStorageSettings from './DesktopReleaseStorageSettings.vue'
+import AgentProfileCatalogSettings from './AgentProfileCatalogSettings.vue'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const { t } = useI18n()

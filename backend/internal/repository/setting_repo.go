@@ -153,3 +153,73 @@ func (r *settingRepository) CompareAndSwapDesktopAgentConfig(ctx context.Context
 	count, err := r.client.Setting.Update().Where(setting.KeyEQ(service.SettingKeyDesktopAgentConfig), setting.ValueEQ(previous)).SetValue(next).SetUpdatedAt(time.Now()).Save(ctx)
 	return count == 1, err
 }
+
+// Catalog publication is compare-and-swap: a stale refresh must not overwrite
+// another instance's newer source or last-good snapshot.
+func (r *settingRepository) CompareAndSwapDesktopAgentProfileCatalog(ctx context.Context, previous, next string, configGuard ...string) (bool, error) {
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	row, err := lockDesktopAgentProfileCatalog(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	if row.Value != previous {
+		return false, nil
+	}
+	if len(configGuard) > 0 {
+		cfg, readErr := tx.Setting.Query().Where(setting.KeyEQ(service.SettingKeyDesktopAgentConfig)).ForShare().Only(ctx)
+		raw := ""
+		if readErr != nil && !ent.IsNotFound(readErr) {
+			return false, readErr
+		}
+		if cfg != nil {
+			raw = cfg.Value
+		}
+		if raw != configGuard[0] {
+			return false, nil
+		}
+	}
+	if _, err = tx.Setting.UpdateOne(row).SetValue(next).SetUpdatedAt(time.Now()).Save(ctx); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Always lock catalog before config in both publication directions. Creating an
+// empty placeholder inside this transaction also serializes first publication.
+func lockDesktopAgentProfileCatalog(ctx context.Context, tx *ent.Tx) (*ent.Setting, error) {
+	// Ent's single-row DO NOTHING still requests RETURNING id and reports
+	// sql.ErrNoRows when the key exists. Ignore preserves existing columns while
+	// returning the locked row's ID in both the insert and conflict cases.
+	if err := tx.Setting.Create().SetKey(service.SettingKeyDesktopAgentProfileCatalog).SetValue("").SetUpdatedAt(time.Now()).OnConflictColumns(setting.FieldKey).Ignore().Exec(ctx); err != nil {
+		return nil, err
+	}
+	return tx.Setting.Query().Where(setting.KeyEQ(service.SettingKeyDesktopAgentProfileCatalog)).ForUpdate().Only(ctx)
+}
+func (r *settingRepository) SaveDesktopAgentConfigWithCatalog(ctx context.Context, expectedCatalog, value string) (bool, error) {
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	row, err := lockDesktopAgentProfileCatalog(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	if row.Value != expectedCatalog {
+		return false, nil
+	}
+	if err = tx.Setting.Create().SetKey(service.SettingKeyDesktopAgentConfig).SetValue(value).SetUpdatedAt(time.Now()).OnConflictColumns(setting.FieldKey).UpdateNewValues().Exec(ctx); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}

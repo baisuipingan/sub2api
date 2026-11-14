@@ -8,6 +8,7 @@ export interface DesktopAgentModel {
   display_name: string
   context_window: number
   max_output_tokens: number
+  output_limit_kind?: '' | 'fixed' | 'unlimited' | 'not_published'
   default_max_output_tokens: number
   reasoning_levels: DesktopAgentReasoningLevel[]
   default_reasoning: DesktopAgentReasoningLevel
@@ -42,14 +43,40 @@ export interface DesktopAgentProfile {
   reviewed_at: string
   revision: string
   aliases: string[]
-  official_context_window: number
-  max_input_tokens: number
+  official_context_window: number | null
+  max_input_tokens: number | null
+  official_max_output_tokens?: number | null
   official_reasoning_levels: DesktopAgentReasoningLevel[]
   notes: string[]
 }
 
 export async function getDesktopAgentProfiles(): Promise<{ profiles: DesktopAgentProfile[] }> {
   const { data } = await apiClient.get<{ profiles: DesktopAgentProfile[] }>('/admin/desktop/profiles')
+  return data
+}
+
+export interface DesktopAgentProfileCatalogStatus {
+  source_url: string
+  revision: string
+  profile_count: number
+  last_success_at: string | null
+  last_checked_at: string | null
+  last_error: string
+  using_fallback: boolean
+}
+
+export async function getDesktopAgentProfileCatalog(): Promise<DesktopAgentProfileCatalogStatus> {
+  const { data } = await apiClient.get<DesktopAgentProfileCatalogStatus>('/admin/desktop/profile-catalog')
+  return data
+}
+
+export async function refreshDesktopAgentProfileCatalog(): Promise<DesktopAgentProfileCatalogStatus> {
+  const { data } = await apiClient.post<DesktopAgentProfileCatalogStatus>('/admin/desktop/profile-catalog/refresh')
+  return data
+}
+
+export async function updateDesktopAgentProfileCatalogSource(source_url: string): Promise<DesktopAgentProfileCatalogStatus> {
+  const { data } = await apiClient.put<DesktopAgentProfileCatalogStatus>('/admin/desktop/profile-catalog/source', { source_url })
   return data
 }
 

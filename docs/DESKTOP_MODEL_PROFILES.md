@@ -1,104 +1,202 @@
-# 桌面模型官方档案与执行能力
+# 桌面模型官方档案、远程目录与协议合同
 
-2026-11-14 修正。本合同替代此前“从已保存配置导出能力模板”的设计。旧能力由管理员随填，不能作为可信事实复用。本轮不改变模型网关、钱包、计费或 ZCode 引擎。
+本合同对应 2026-11-14 的本地改造，内置档案修订为 2026-11-14.2。当前内容以代码和已核验的官方资料为准；文末单独保留 ds.17 的历史发布记录。本轮尚未部署生产，也没有完成新版客户端打包或付费模型联调。
 
-## 来源与范围
+## 范围与数据边界
 
-内置档案位于 `backend/internal/service/desktop_agent_profiles.go` 与 `desktop_agent_vendor_profiles.go`，随代码发布，运行时不联网探测。`GET /api/v1/admin/desktop/profiles` 仅返回内置档案，不再读取已保存模型的能力值。每项包含官方来源 URL、核对时间、修订号、官方规格、当前执行器投影及限制说明。
+桌面客户端为 MiloCode。sub2api 继续负责用户身份、Agent 专用 Key、分组授权、路由和计费；能力档案负责声明模型规格与当前 Responses 执行链能表达的能力。新增档案不会自动添加管理员模型，不会探测上游，也不会改变公开路由 ID、计费、钱包或厂商协议转换。
 
-### 2026-11-14 多厂商能力档案扩展
+内置 37 项档案由 desktop_agent_profiles.go 与 desktop_agent_vendor_profiles.go 生成。远程目录可以补充或修正这些数据，经过验证后与内置及已接受目录合并。管理页、配置读写与 bootstrap 使用同一份已接受目录。已保存的管理员能力声明不是官方规格来源。
 
-在已有 7 项 OpenAI 档案与官方来源校验基础上，新增 DeepSeek、Anthropic Claude、xAI Grok、Google Gemini 的文本 / 编码 Agent 档案。后端注册表是唯一能力来源；管理页读取同一份目录，已知公开 ID 自动关联，自定义名仍显式选择，不按前缀继承能力，不追溯供应商私有模型名，也不更改公开路由 ID。
+官方 ID 和文档明确列出的别名采用精确匹配，不按前缀、命名空间或供应商后缀猜测。自定义公开 ID 必须显式绑定官方档案，绑定不改名、不追溯私有上游型号。例如供应商自定义的 deepseek-v4.1-flash 可以由管理员选择对应档案，但它不是内置官方别名，名称本身不能证明实际规格。
 
-管理端同时校验档案的 `source` 与对应官方文档域名，不能仅放开为任意 HTTPS。新增档案逐项核对官方公开 ID、文档明确说明的别名和能力，未知供应商自定义名由管理员显式关联。官方推理强度与桌面 Responses 执行链实际可发送的强度分开记录；预算式 thinking 或没有公布离散档位的模型，其管理元数据 `official_reasoning_levels` 使用空数组，不能虚构官方枚举。可执行 `reasoning_levels` 仍必须非空并通过既有协议校验。`none` 仍表示省略 effort、采用上游默认，不冒充显式关闭思考。生图、音频及特殊多 Agent 接口不属于桌面文本执行目录。
+## 官方数值合同
 
-本轮不增加 bootstrap 字段、协议版本或数据库迁移，不调整网关路由、转换与计费，不写入管理员当前配置，也不向模型上游发起付费探测。已有有效模型、配置覆盖与精确别名边界保持原合同。仅开放现有 Responses 执行器和网关转换可表达的能力；不能保持语义的能力关闭并在管理页解释。共享输入 / 输出上下文的厂商按上下文减最大输出计算保守输入预算，界面明确这是派生预算，而不是厂商单独公布的最大输入限制。
+每项档案包含：
 
-首批按实际已确认模型和同协议常用系列核对：
+| 字段 | 含义 |
+| --- | --- |
+| official_context_window | 厂商明确公布的总上下文；未单独公布时为 null |
+| max_input_tokens | 厂商明确公布的独立最大输入；未单独公布时为 null |
+| official_max_output_tokens | 厂商明确公布的独立最大输出；未公布或没有独立上限时为 null |
+| model.context_window | 厂商总上下文；若只公布独立输入，则使用该输入上限，不将其冒称总上下文 |
+| model.max_output_tokens | 已公布最大输出的原始数值；无限或未公布时为 0，并由 output_limit_kind 区分 |
+| model.default_max_output_tokens | 管理员设置的正数单次请求预算，和官方最大输出分开 |
+| official_reasoning_levels | 官方支持的离散推理档位，仅作官方元数据 |
+| model.reasoning_levels | 当前执行链可保真发送的档位，必须非空 |
+| notes | 固定说明码；前端只显示已翻译的白名单 |
 
-| 档案 | 官方上下文 / 最大输入 / 最大输出（Token） | 官方推理档位 |
+不使用“上下文减最大输出”、接口默认值、上下文减一或其他推算结果填充官方字段。null 表示未单列，不能显示为 0 Token。所有厂商的运行上下文都不预扣物理最大输出；每次调用仍受既有剩余上下文和请求预算检查约束。
+
+output_limit_kind 规则：
+
+| 值 | max_output_tokens | 运行语义 |
 | --- | --- | --- |
-| [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | 1,050,000 / 922,000 / 128,000 | low、medium（默认）、high、xhigh、max |
-| [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) | 1,050,000 / 922,000 / 128,000 | low、medium、high、xhigh、max |
-| [GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol) | 1,050,000 / 922,000 / 128,000 | none、low、medium（默认）、high、xhigh、max |
-| [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) | 1,050,000 / 922,000 / 128,000 | none、low、medium（默认）、high、xhigh、max |
-| [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) | 1,050,000 / 922,000 / 128,000 | none、low、medium（默认）、high、xhigh、max |
-| [GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra) | 1,050,000 / 922,000 / 128,000 | none、low、medium（默认）、high、xhigh、max |
-| [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) | 1,050,000 / 922,000 / 128,000 | none、low、medium（默认）、high、xhigh、max |
+| 缺省、空串或 fixed | 正数，允许等于 context_window | 已公布的有界最大输出 |
+| unlimited | 0 | 厂商没有独立文本输出上限，仍受上下文和运营预算约束 |
+| not_published | 0 | 厂商未公布独立最大输出，不发明数字上限 |
 
-### 新增厂商目录与执行限制
+unknown 与 unlimited 的 0 只是线协议标记，不是发送给模型的请求预算。正数运营预算不得超过已公布的最大输出；没有独立输出上限时不得超过上下文。
 
-新增 30 项，共 37 项档案。下表只记录文本 / 编码 Agent；不是向管理员自动添加模型或改写已保存设置。
+## 37 项官方核验表
 
-| 厂商 | 新增官方档案 | 当前可执行推理控制 |
-| --- | --- | --- |
-| DeepSeek | `deepseek-flash`、`deepseek-v4-pro` | low / high / max，默认 high |
-| Claude 当前系列 | `claude-fable-5-2`、`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-haiku-5-5` | low / medium / high / xhigh / max；复用已有原生 Messages 兼容桥的 adaptive 映射 |
-| Claude 常用旧系列 | `claude-opus-4-6`、`claude-sonnet-4-6`、`claude-opus-4-5-20251101`、`claude-sonnet-4-5-20250929`、`claude-haiku-4-5-20251001` | 自动，省略参数；现有 legacy thinking budget 映射不等同官方 effort，32K 预算还可能超出 16K 默认输出 |
-| Grok | `grok-4.7`、`grok-4.6`、`grok-4.5`、`grok-4.3`、`grok-build-0.1`、`grok-4.20-0309-reasoning`、`grok-4.20-0309-non-reasoning` | 4.7 / 4.6 为 low / medium / high / xhigh；4.5 为 low / medium / high；4.3 为 low / medium / high / xhigh；其余自动 |
-| Gemini 4 | `gemini-4-carbon`、`gemini-4-argon`、`gemini-4-hydrogen` | 自动，省略参数 |
-| Gemini 3 / 2.5 | `gemini-3.8-flash`、`gemini-3.6-flash`、`gemini-3.5-flash-lite`、`gemini-3.1-flash-lite`、`gemini-3.1-pro-preview`、`gemini-3-flash-preview`、`gemini-2.5-pro`、`gemini-2.5-flash`、`gemini-2.5-flash-lite` | 自动，省略参数；不将 Chat / Messages 的 thinking 映射冒充 Responses 的保真控制 |
+下表中“—”表示该字段未单独公布，对应 JSON null。Claude 的 1M / 200K、128K / 64K 按本轮已核验档案记录为 1,000,000 / 200,000、128,000 / 64,000。Gemini 使用其模型页公布的精确数值。档位表示官方接口能力，不承诺当前统一执行链能发送全部档位。
 
-核对依据与预算：
+| 档案及官方来源 | 总上下文 | 独立最大输入 | 最大输出 | 官方推理档位 |
+| --- | ---: | ---: | ---: | --- |
+| [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) | 1,050,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) | 1,050,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol) | 1,050,000 | — | 128,000 | none / low / medium / high / xhigh / max |
+| [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) | 1,050,000 | — | 128,000 | none / low / medium / high / xhigh / max |
+| [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) | 1,050,000 | — | 128,000 | none / low / medium / high / xhigh / max |
+| [GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra) | 1,050,000 | — | 128,000 | none / low / medium / high / xhigh / max |
+| [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) | 1,050,000 | — | 128,000 | none / low / medium / high / xhigh / max |
+| [DeepSeek Flash](https://api-docs.deepseek.com/api/list-models/) | 1,048,576 | — | 393,216 | none / low / high / max |
+| [DeepSeek V4 Pro](https://api-docs.deepseek.com/api/list-models/) | 1,048,576 | — | 393,216 | none / low / high / max |
+| [Claude Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/overview) | 1,000,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [Claude Opus 5.5](https://platform.claude.com/docs/en/models/opus-5-5/overview) | 1,000,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/overview) | 1,000,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview) | 1,000,000 | — | 128,000 | low / medium / high / xhigh / max |
+| [Claude Opus 4.6](https://platform.claude.com/docs/en/models/opus-4-6/overview) | 1,000,000 | — | 128,000 | low / medium / high / max |
+| [Claude Sonnet 4.6](https://platform.claude.com/docs/en/models/sonnet-4-6/overview) | 1,000,000 | — | 128,000 | low / medium / high / max |
+| [Claude Opus 4.5](https://platform.claude.com/docs/en/models/opus-4-5/overview) | 200,000 | — | 64,000 | low / medium / high |
+| [Claude Sonnet 4.5](https://platform.claude.com/docs/en/models/sonnet-4-5/overview) | 200,000 | — | 64,000 | thinking 预算，无离散 effort |
+| [Claude Haiku 4.5](https://platform.claude.com/docs/en/models/haiku-4-5/overview) | 200,000 | — | 64,000 | thinking 预算，无离散 effort |
+| [Grok 4.7](https://docs.x.ai/developers/models/grok-4.7.md) | 500,000 | — | 无独立上限 | low / medium / high / xhigh |
+| [Grok 4.6](https://docs.x.ai/developers/models/grok-4.6.md) | 500,000 | — | 无独立上限 | low / medium / high / xhigh |
+| [Grok 4.5](https://docs.x.ai/developers/models/grok-4.5.md) | 500,000 | — | — | low / medium / high / xhigh |
+| [Grok 4.3](https://docs.x.ai/developers/models/grok-4.3.md) | 1,000,000 | — | — | none / low / medium / high / xhigh |
+| [Grok Build 0.1](https://docs.x.ai/developers/models/grok-build-0.1.md) | 256,000 | — | — | 未列离散 effort |
+| [Grok 4.20 Reasoning](https://docs.x.ai/developers/models/grok-4.20-0309-reasoning.md) | 1,000,000 | — | — | 未列离散 effort |
+| [Grok 4.20 Non-Reasoning](https://docs.x.ai/developers/models/grok-4.20-0309-non-reasoning.md) | 1,000,000 | — | — | 未列离散 effort |
+| [Gemini 4 Carbon](https://aistudio.google.com/docs/models/gemini-4-carbon) | 1,048,576 | — | 1,048,576，需 long decode | low / medium / high |
+| [Gemini 4 Argon](https://aistudio.google.com/docs/models/gemini-4-argon) | 1,048,576 | — | 1,048,576，需 long decode | low / medium / high |
+| [Gemini 4 Hydrogen](https://aistudio.google.com/docs/models/gemini-4-hydrogen) | 1,048,576 | — | 1,048,576，需 long decode | low / medium / high / xhigh |
+| [Gemini 3.8 Flash](https://aistudio.google.com/docs/models/gemini-3.8-flash) | — | 1,048,576 | 65,536 | low / medium / high |
+| [Gemini 3.6 Flash](https://aistudio.google.com/docs/models/gemini-3.6-flash) | — | 1,048,576 | 65,536 | minimal / low / medium / high |
+| [Gemini 3.5 Flash-Lite](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite) | — | 1,048,576 | 65,536 | minimal / low / medium / high |
+| [Gemini 3.1 Flash-Lite](https://aistudio.google.com/docs/models/gemini-3.1-flash-lite) | — | 1,048,576 | 65,536 | minimal / low / medium / high |
+| [Gemini 3.1 Pro Preview](https://aistudio.google.com/docs/models/gemini-3.1-pro-preview) | — | 1,048,576 | 65,536 | low / medium / high |
+| [Gemini 3 Flash Preview](https://aistudio.google.com/docs/models/gemini-3-flash-preview) | — | 1,048,576 | 65,536 | minimal / low / medium / high |
+| [Gemini 2.5 Pro](https://aistudio.google.com/docs/models/gemini-2.5-pro) | — | 1,048,576 | 65,536 | low / medium / high（Interactions） |
+| [Gemini 2.5 Flash](https://aistudio.google.com/docs/models/gemini-2.5-flash) | — | 1,048,576 | 65,536 | low / medium / high（Interactions） |
+| [Gemini 2.5 Flash-Lite](https://aistudio.google.com/docs/models/gemini-2.5-flash-lite) | — | 1,048,576 | 65,536 | low / medium / high（Interactions） |
 
-- **DeepSeek：** [模型元数据](https://api-docs.deepseek.com/api/list-models/)、[Responses API](https://api-docs.deepseek.com/api/create-response/)、[公开别名](https://api-docs.deepseek.com/quick_start/pricing/)。共享上下文 1,048,576，最大输出 393,216，派生输入 / 客户端预算 655,360。Flash 开图片输入和对话中系统更新；Pro 只开文本输入且不支持对话中系统更新。原生 Responses 支持工具、流式、JSON Schema；PDF 需要先上传取得 file ID，当前内联文件方式不开放。Flash 精确别名为 `deepseek-v4-flash` 和 `deepseek-v4-flash-vision-exp`，不将已退役的 `deepseek-chat` / `deepseek-reasoner` 当别名。
-- **Claude：** [官方模型目录](https://platform.claude.com/docs/en/models/overview)、[effort](https://platform.claude.com/docs/en/build-with-claude/effort)、[共享上下文](https://platform.claude.com/docs/en/build-with-claude/context-windows)。当前系列及 4.6 为共享 1,000,000、输出 128,000、派生输入 872,000；4.5 为共享 200,000、输出 64,000、派生输入 136,000。三个 4.5 短名称只按官方明确别名关联其日期版本。图片、内联 PDF 可经已有 Responses→Messages 桥传递；桥会前置 system 消息且未转换 `text.format`，因此对话中系统更新与 JSON Schema 保守关闭。官方 OpenAI SDK兼容层本身会忽略 reasoning_effort，不能据它承诺原生 effort；当前新系列 effort 能力依据本项目已有原生桥。Sonnet 4.5 等旧版本仍受厂商弃用和退役策略限制，档案不会让退役模型重新可用。
-- **Grok：** 各档案来源指向 [官方逐模型规格](https://docs.x.ai/developers/models)，另核对 [Responses 参数](https://docs.x.ai/developers/rest-api-reference/inference/responses.md) 与 [推理说明](https://docs.x.ai/developers/model-capabilities/text/reasoning.md)。4.7 / 4.6 / 4.5 上下文 500,000，4.3 与 4.20 为 1,000,000，Build 为 256,000。官方 Responses 的输出 128,000 是默认值而非模型硬上限；本项目以 128,000 作为保守输出 cap，Build 使用 64,000，均从共享上下文扣除再下发输入预算，界面明确说明。支持图片、工具、流式及 JSON Schema；PDF 的上传 / 检索协议不等同当前内联 PDF，保持关闭。4.5 的 xhigh 在通用指南映射成 high，暂不提供独立档位；4.3 的显式 none 受现客户端省略语义限制，不开放。
-- **Gemini：** [官方模型目录](https://aistudio.google.com/docs/models)、[thinking](https://aistudio.google.com/docs/thinking)、[OpenAI 兼容协议](https://aistudio.google.com/docs/openai)。Gemini 4 共享上下文 1,048,576，同步输出 65,536，派生输入 983,040；长 decode 的百万输出不属于当前协议。其余所列型号文档独立给出最大输入 1,048,576、输出 65,536，客户端采用该输入上限。只保守开放文本、图片、工具、流式，不假设音频 / 视频 / PDF / 原生搜索或 JSON Schema 可经当前路径保真。Gemini 原生账号的 `generateContent` 不是桌面 Responses 协议；需使用已兼容 Responses 的上游或现有 Antigravity 桥。Antigravity 的 effort 会折叠档位，故内置只提供自动。2.5 Pro / Flash 已弃用，当前官方仍为既有用户保留至 2026-12-01，之后自动迁移；2.5 Flash-Lite 受既有用户可用性限制。不发明 `gemini-3.1-pro` 这类去掉 preview 的别名。
+官方别名的完整集合以生成的 JSON 为准。典型例子：gpt-5.6 归属 gpt-5.6-sol；deepseek-v4-flash 和 deepseek-v4-flash-vision-exp 归属 deepseek-flash；三个 Claude 4.5 短名称归属其明确日期版本。不将去掉 preview 的 Gemini 名称或任意供应商后缀创造为官方别名。
 
-仅精确匹配上述官方 ID，以及官方文档明确列出的别名。不靠前缀猜测，不把 `openai/xxx` 或供应商后缀自动当成官方 ID。自定义公开名可以显式关联档案，关联后仍使用原公开 ID 路由，不回溯供应商私有名。档案声明的能力要求渠道确实支持当前 Responses 接口或对应已有兼容桥；增加档案不会凭空新增厂商原生协议。
+### 推理与媒体能力的执行边界
 
-## 官方能力与实际可用能力
+- OpenAI 维持当前 Responses 文本、图片、PDF、工具、流式及 JSON Schema 能力；原生网页搜索关闭，独立浏览器工具不受影响。
+- DeepSeek 依据[原生 Responses API](https://api-docs.deepseek.com/api/create-response/)与[模型元数据](https://api-docs.deepseek.com/api/list-models/)配置。Flash 开图片输入与对话中系统更新；Pro 不继承这两个能力。PDF 需要上传取得 file_id，当前内联 PDF 不开放。
+- Claude 新系列复用已有 Responses→Messages 桥的 adaptive effort；4.6 / 4.5 当前只提供自动档，不将旧固定 thinking budget 冒充官方 effort。桥保留图片与内联 PDF，但会前置 system 且未完整转换 text.format，因此 JSON Schema 和对话中系统更新关闭。[官方 effort](https://platform.claude.com/docs/en/build-with-claude/effort)与[上下文说明](https://platform.claude.com/docs/en/build-with-claude/context-windows)是官方元数据来源。
+- Grok 4.5 的[官方推理指南](https://docs.x.ai/developers/model-capabilities/text/reasoning.md)将 xhigh 等同 high，当前仅提供可区分的 low / medium / high。4.3 不开放显式 none；Build 与 4.20 使用自动档。[Responses 参数默认输出](https://docs.x.ai/developers/rest-api-reference/inference/responses.md)不充当模型最大值。支持图片、工具、流式、JSON Schema；当前内联 PDF 不开放。
+- Gemini 官方档位依据[最新 thinking 表](https://aistudio.google.com/docs/thinking#thinking-levels)。2.5 的新 Interactions 档位与旧 generateContent / OpenAI 兼容层的 budget 映射须区分。当前桌面 Responses 链只提供自动档，开放文本、图片、工具与流式；不因原生多模态规格而自动打开音频、视频、PDF、JSON Schema 或原生搜索。
+- Gemini4 的 1,048,576 是[附带长输出条件的官方最大输出](https://aistudio.google.com/docs/long-decode#output-limits)。普通同步输出默认 65,536；完整长输出需要后台执行或 continuation，且受共享上下文剩余空间约束。本轮只准确记录最大值，没有给当前 Responses 执行器新增 Google 原生 Interactions、后台任务或续写协议，不能宣传当前同步链已支持百万输出。
 
-上表原有 OpenAI 档案均支持文本/图片输入、文本输出、流式、工具调用、结构化输出；音频/视频输入保持关闭。其 PDF 支持依据官方 [File inputs](https://developers.openai.com/api/docs/guides/file-inputs) 与现有 Responses 文件序列化能力；对话中系统消息依据 [Responses 输入消息合同](https://developers.openai.com/api/reference/resources/responses/methods/create) 及现有执行器兼容转换。其它厂商按各自段落的保守执行投影，不批量复制 OpenAI 能力开关。
+none 继续表示省略 effort、采用上游默认，不能冒充显式关闭思考。官方元数据可包含 none，执行档位则按现有编码能力筛选。无离散官方档位的元数据可为空；执行档位必须非空。
 
-以下差异必须呈现，不能把官方能力未经适配全部置为启用：
+运营默认仍为每次 16,384 Token，属于本项目默认预算，不是厂商最大值或厂商推荐值。OpenAI 默认 medium，DeepSeek 默认 high，其余按档案使用相应默认或自动。读取旧配置时保留公开 ID、展示名及合法的已存推理/输出默认；合法的旧自定义默认不会被强制重置为 16K。
 
-- **上下文预算：** 当前引擎没有独立的最大输入字段，压缩时最多预留约 21K 输出与 13K 缓冲，不会固定预留物理 128K 输出；直接下发 1.05M 会允许输入超过 922K。故客户端 `context_window` 保守使用 922,000；官方 1,050,000 上下文与 922,000 最大输入另列为来源信息，界面称“客户端上下文预算”。这不是官方上下文缩水，也不修改引擎。
-- **原生网页搜索：** 官方支持，但当前 ZCode provider-native WebSearch 编码器仅支持 Anthropic。Responses 档案暂将 `supports_native_web_search=false`。这不影响独立浏览器工具。
-- **none：** 既有桌面协议把 `none` 编码为省略 effort，含义是采用上游默认，不能等同于官方显式 `reasoning.effort:"none"`。内置可执行档位先只发布 low/medium/high/xhigh/max；官方档位仍完整列出。高级覆盖中的 none 文案明确说明省略参数。
-- **MFJS：** 属于特定模型的工具结构兼容处理，OpenAI 档案保持关闭。
-- **运营默认：** 各档案的单次输出默认上限为 16,384；OpenAI 默认推理 medium，DeepSeek 默认 high，其它厂商按档案使用对应档位或自动。这些是本项目运行默认，不能冒充官方推荐费用预算；管理员可调整合法范围内的运营默认。
+### 生命周期
 
-## 旧数据、别名与覆盖
+档案不保证厂商继续开放模型。[Claude 生命周期](https://platform.claude.com/docs/en/about-claude/model-deprecations)中 Sonnet4.5 已弃用，计划 2026-11-30 退役；“not sooner than”不等同已退役。[Gemini 生命周期](https://aistudio.google.com/docs/deprecations)中 2.5Pro / Flash 已弃用并限制既有用户，2026-12-01 起分别自动路由 3.8Flash / 3.5Flash-Lite；2.5Flash-Lite 未弃用但有既有用户限制。模型名存在于档案中不代表当前分组已配置该厂商或完成真实调用验证。
 
-配置仍保存于一条 `desktop_agent_config_v1`；新增可选管理元数据：
+## 远程目录 schema 1
 
-```json
+默认维护地址：
+
+https://raw.githubusercontent.com/baisuipingan/sub2api/model-profiles/desktop-agent-profiles.json
+
+目录是数据，不包含 Key、账户网关、计费分组、远程 CEL 表达式、工具实现或任意可执行映射。官方 source_url 只是来源链接，不是调用地址。
+
+~~~json
 {
-  "model_profiles": {
-    "my-public-model": {"profile_id":"gpt-6.1-sol","override":false}
-  }
+  "schema_version": 1,
+  "revision": "2026-11-14.2",
+  "profiles": []
 }
-```
+~~~
 
-元数据不加入 bootstrap 模型字段，不改变 protocol 1/2/3 的严格线协议。管理员配置响应可带绑定，发布给客户端的仍是既有完整模型结构。
+以上是 envelope 结构示意；实际目录 profiles 必须非空。本轮完整 37 项导出位于 output/desktop-agent-profiles-official.json，可在 backend 下运行：
 
-- 已知官方 ID 的旧数据：读取和执行时重新投影内置能力，保留公开 ID、展示名及仍合法的运营默认；非法旧默认退回档案默认。读取不自动写数据库，管理员保存后才物化新配置。旧布尔能力、上下文和物理输出等随填值不会继续下发。
-- 未关联的旧自定义 ID：管理页保留可见；不能继续把旧声明当真实能力发布。v3 将该模型隔离到现有 `model_unavailable`，其它有效模型可继续使用；v1/2 保持整体拒绝。管理员需一次性选择可信档案。
-- 新增已知 ID 自动套用；新增自定义 ID 须显式关联。选择档案不能改模型 ID、展示名或默认模型归属。
-- `override:false` 时高级能力只读；服务端也重新生成基线，不能靠伪造表单字段覆盖。只有显式保存 `override:true` 才保留管理员高级声明。恢复档案默认会清除此标记。覆盖是管理员对特殊上游差异的声明，不等于官方认证。
-- 失败的档案读取阻止发布，保留草稿并允许独立重试，不能回退为旧声明模板。绑定和模型由同一草稿所有者一起更改、校验和保存。
+~~~sh
+go run ./cmd/export-desktop-agent-profiles -output ../output/desktop-agent-profiles-official.json
+~~~
 
-不引入新表或迁移。回退旧二进制前，应注意旧版本严格解析器不认识新增配置字段；正式发布与回退须按交付说明执行。
+运行规则：
 
-## 验证重点
+1. 内置档案作为启动基线；已接受远程目录与源地址保存在既有 settings 的 desktop_agent_profile_catalog_v1，不新增表或数据库迁移。
+2. 启动尝试刷新，随后每 10 分钟刷新；管理员也可以手动刷新。网络请求不进入用户推理热路径。
+3. 拉取只接受经过校验的 HTTPS，阻止私网与重定向；启用系统 URL allowlist 时沿用其 PricingHosts。响应上限 2 MiB、超时 20 秒。每个档案的官方来源域名还须匹配对应厂商白名单。
+4. 严格校验 schema、唯一 ID / 别名、可空官方数值、执行数值与能力布尔值；未知 schema 或非法内容整批拒绝。
+5. 合并保留旧目录中未出现的模型与别名；旧别名不能转移给其他档案，现有档案不能改厂商来源。远程遗漏不能静默删除管理员正在使用的身份。
+6. 发布前以候选目录重新校验已存模型、绑定、合法运营默认及分组策略。不兼容变更整批拒绝，不能只发布一半；高级覆盖仍要求显式 override。
+7. 持久化先通过 settings CAS 比较旧值，成功后才替换内存目录。并发修改、校验、网络或存储失败保留最后一次已接受的目录并记录安全错误码。内置加最后有效目录支持重启恢复；无远程有效记录时使用内置档案。已保存的安全源地址即使不再被当前 allowlist 放行，也不阻止读取最后有效目录或替换源；实际出站仍按当前策略校验。
+8. 管理员保存与目录发布共用更新锁；数据库事务按 catalog→config 顺序加锁，目录提交校验预检时的配置原文，配置提交校验请求采用的目录原文，阻止多实例过期写。preflight 只读一次配置，并在同份原文和固定旧目录上比较候选。持久化不改变可见内存状态；提交成功后在同一临界区发布目录、状态和 CAS 原文。每次配置读取、保存和 bootstrap 固定一个目录 snapshot，嵌套读取复用同一份，避免同一请求混用版本。
+9. 保存源地址只修改目录源，不立即替换模型草稿或配置。空地址暂停后续远程拉取并保留有效目录；非空地址可等待周期刷新或点击手动刷新。
 
-官方 ID 修正旧随填能力、未知别名隔离、显式关联保留路由名、override 的服务端边界、精确别名匹配、档案对象不共享可变状态、读取不写库、不领取 Key、bootstrap 不泄漏新增管理元数据；以及前端原子草稿、重试不丢编辑、覆盖与恢复、窄屏与多语言。
+### 管理接口
 
-### 2026-11-14 验证记录
+以下路径均位于 /api/v1 下，沿用管理员权限。变更接口使用现有 step-up 保护；不向普通用户开放。
 
-- `go test -tags=unit ./internal/service -run 'TestDesktopAgent' -count=1` 通过。新增回归涵盖全部厂商来源、别名唯一 / 精确识别、Flash / Pro 媒体隔离、不同型号预算、可变引用隔离、自定义公开 ID，以及 protocol 1/2/3 响应形状不增加管理元数据。
-- 前端 122 项相关测试、定向 ESLint、类型检查和完整生产构建通过；最终文案修订后再通过 locale 完整性与编译检查。构建只出现既有警告。
-- 从实际 Go 注册表导出完整 37 项 JSON，真实 Chromium 使用本次 Vue 卡片、Select、样式及严格档案解析器验收。确认 DeepSeek 可执行档位仅 low / high / max，选择 max 能更新运营默认；37 项列表完整可选，自定义别名选择 Claude 后不改变公开 ID；Grok、新旧 Claude、Gemini 精确 ID 自动关联；Gemini 仅自动档。
-- 已人工查看中文桌面、中文暗色 390px、英文暗色 390px 截图，未出现横向溢出或未翻译的 key。最终浏览器验收过程没有脚本或控制台错误，证据保留于 `output/playwright/agent-vendors-*`。临时入口、服务与导出辅助测试在验收后删除；没有使用生产凭据、写生产配置或调用付费模型。
+| 方法与路径 | 行为 |
+| --- | --- |
+| GET /admin/desktop/profiles | 返回当前有效合并目录，形状为 { profiles: [...] }，不返回已存自定义能力模板 |
+| GET /admin/desktop/profile-catalog | 返回源地址、版本、数量、最近成功/检查时间、最后错误及是否使用内置基线 |
+| POST /admin/desktop/profile-catalog/refresh | 空请求体；完整刷新成功后返回状态，失败保留目录 |
+| PUT /admin/desktop/profile-catalog/source | 仅接受 { "source_url": "https://..." }；空串可暂停拉取 |
+| GET /admin/desktop/config | 已存配置经过当前目录投影，不自动写回数据库 |
+| PUT /admin/desktop/config | 同一目录 snapshot 下解析、验证和保存完整草稿 |
+| GET /admin/desktop/models?group_id=... | 读取分组可路由公开模型，不做付费上游探测 |
+| POST /admin/desktop/config/disable | 只原子关闭已存开关，不把未保存草稿提交上去 |
 
-### 2026-11-14 生产发布记录
+状态中的错误码只描述更新失败，不显示未经信任的远程原文或秘密材料。更新目录与更换源地址不自动改变管理员已选的公开模型清单。
 
-- 已发布并部署 `fork-v0.2.21-17` / `0.2.21-ds.17`，源码 `b18f2467cedf9a3b3669cef5b770c3b8111d2485`。[完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/43545302576) 的后端单元 / 集成测试、lint、前端全量测试 / 类型检查 / 构建、发布脚本检查和镜像版本校验全部通过。
-- 生产使用不可变镜像 `ghcr.io/baisuipingan/sub2api@sha256:e51202de9d6b0cc6faeb4717fd63140f0acf01cdde67322b3e17dd871f9bbc2c`。生产记录、运行镜像、版本与源码标签一致；应用、PostgreSQL、Redis 均健康，公网 `/health` 返回正常。schema epoch 仍为 4，本轮无数据库迁移。
-- 发布 helper 在切换前生成数据库备份 `/root/sub2api-deploy/releases/backups/sub2api-20261114T023725Z.dump.gz`，并保留 previous 版本记录。另有精确 Agent 设置快照 `/root/sub2api-deploy/releases/backups/desktop_agent_config_vendor_profiles_20261114T021445Z.json`。回退遵守 `backup-required` 策略；若上线后保存过新厂商绑定，旧版本不认识这些 profile ID，应单独恢复该设置快照，不能为配置回退覆盖后续余额或使用记录。
-- 使用已授权管理接口只读验收，线上全部 37 项档案与审核的 Go 注册表逐字段一致。生产原始 `desktop_agent_config_v1` SHA256 保持 `3e5f874adabdd69b479ccf891e2944966101e9cef547305633ee4e940e698bc5`，原有两个 GPT 模型与运营配置没有改写。
-- 真实生产管理页刷新成功；临时草稿添加 `deepseek-flash` 自动关联 DeepSeek Flash，默认 high，只允许 low / high / max，选择 max 正常。验收后重新加载已保存配置，清除草稿，没有保存测试模型；页面无控制台错误。证据位于 `output/deploy/fork-v0.2.21-17/`。
+## bootstrap protocol 4 与旧客户端
 
-档案由服务端下发，现有 MiloCode 3.17.3 无需重新安装。此次验证目录、配置读取与页面交互，没有调用付费模型，也不代表已配置各厂商生产渠道或完成其真实推理、工具调用和计费联调。
+POST /api/v1/desktop/bootstrap 的 protocol_version 新增 4。v4 保留 v3 的账号授权 scope、逐模型不可用原因、空 models 和可空默认选择；只扩展输出上限的表达。ready 响应仍使用现有 provider、models、selection_policy、credential，官方来源元数据不会进入 bootstrap。
+
+v4 允许有界最大输出等于上下文；unlimited / not_published 允许 0 标记，同时要求有效正数运营预算。MiloCode 将 model.context_window 原值传入配置，把 default_max_output_tokens 投影为现有 optionSpecs 的请求预算。它不把 0、接口默认值或 context-1 伪装成物理最大输出，也不增加第二套模型执行器。
+
+旧协议保持严格数值合同：
+
+- v1 / v2 不接收新增字段、0 输出或等于上下文的最大输出；配置包含不兼容模型时整体返回未配置，不发送虚假的兼容上限。
+- v3 对不兼容模型使用已有 model_unavailable 原因逐项隔离，其余模型继续可用；若默认模型被隔离，default 为 null，不自动换成别的模型。
+- v4 发布完整的新语义。需要使用 Grok 未公布/无限输出档案或 Gemini4 最大输出等于上下文的档案时，需要支持 v4 的新版 MiloCode。
+
+新版 Host 优先请求 v4。只对已知旧服务的固定 HTTP 400 / DESKTOP_AGENT_INVALID 错误形状有界回退一次 v3；旧服务没有专用的 unsupported-protocol 枚举，因此这是固定 bootstrap 请求上的兼容识别。401、403、429、503、网络/超时和非法成功响应不触发协议降级。回退继续走原账户、认证刷新与 epoch fence，不跨账号复用凭据。
+
+Key 仍只存在于 Host 私有材料中；不进入公共模型 Registry、RPC 快照、日志、提示词或持久任务事件。bootstrap 领取前后复查用户、分组、Key 用途与归属；目录更新不改变凭据授权 scope，不取消已经开始的流或工具运行。模型被删除或参数变更时，后续调用沿原有模型成员/配置指纹检查拒绝。
+
+## 管理草稿、覆盖与回退
+
+models 与 model_profiles 属于同一管理员草稿，选择档案或移除模型时一起更新。无 override 时由可信档案生成能力；合法运营默认保留。开启高级覆盖才保留管理员声明；关闭覆盖恢复档案能力并保留合法默认，“恢复档案默认”则同时重置这两个运营默认。
+
+档案加载或校验失败时阻止发布，保留编辑内容。刷新目录不能偷偷提交草稿，重试不能重新加载已存配置覆盖编辑。远程新增档案也不自动加入已存模型。
+
+仍使用既有 desktop_agent_config_v1 设置及新增的目录缓存设置。没有数据库迁移，但旧二进制可能不认识 output_limit_kind 或新档案，不能把“无迁移”理解为任意版本无条件回退。发布与回退应保留设置快照，按现有流程处理配置兼容，不能为模型设置回退覆盖后续余额与使用记录。
+
+## 已核验的本地交付物
+
+本轮已从实际 Go 注册表导出 schema 1 / revision 2026-11-14.2 的 37 项 JSON，包含 7 OpenAI、2 DeepSeek、9 Claude、7 Grok、12 Gemini。新增数据回归覆盖所有 37 项官方原值、null 语义、引用隔离、自定义显式绑定、合法默认保留和协议形状。
+
+- 前端相关测试 149/149，包含档案校验、设置草稿、同步控件、管理 API 和中英文键完整性；vue-tsc -b、改动文件 ESLint、Vite 生产构建通过。
+- 后端 service/handler/routes/server 定向单测与真实 PostgreSQL 集成通过；集成覆盖目录首次写入、CAS 以及目录/配置双向并发过期提交拒绝，无跳过。
+- 最终并发修正源码的远程目录回归，普通与 -race 均 19/19（11 个顶层测试），无跳过或数据竞争；覆盖原子发布、持久化失败、并发读取及 preflight 单次读取。最终日志位于 output/desktop-agent-catalog-final-{unit,race}.log。此前 race 编译因磁盘不足失败的尝试不算通过；定点清理约 2.38 GiB 旧项目编译缓存后，完整重跑通过。
+- MiloCode 本地 Host/账户/准入/交付回归 65/65；canonical 输出类型调整后的 MV04 定向 5/5，完整 typecheck 通过，改动文件 lint 与架构检查通过。
+- 浏览器使用实际 Vue 组件和真实导出的 37 项档案，管理同步接口使用本地 mock。验证 DeepSeek 完整 1M 上下文、Grok 无限/未知输出、Gemini4 长输出条件、Gemini2.5 独立输入标签、远程刷新不覆盖草稿；中英文 390px 暗色页面无横向溢出或原始翻译键。证据为 output/playwright/agent-profiles-official-max-qa.json 及同名前缀截图。本验收不代表各厂商已付费联调。
+
+远程 JSON 已实际发布到独立 model-profiles 分支，提交 15465ab2cee2575bd04ef87b0d2080192437d21c。分支仅含 JSON 与维护 README，没有服务发布工作流。稳定地址真实 HTTPS 返回 200，37 项数据与本地审核文件逐字节一致，SHA256 为 f03fd79e44a8959dd93f60a890a51a0dd93aeec22db103cfb12ea135b0ed85a0。核验记录为 output/desktop-agent-profiles-remote-verification.json。后续维护该分支 JSON 即可；服务首次上线本轮读取能力后，无需随每次数值更新重新发版。
+
+## 历史记录：0.2.21-ds.17
+
+以下仅记录 2026-11-14 已发生的历史发布，不能作为本合同 v4 / 远程目录已上线的证据。ds.17 当时含预留输出后的保守上下文/输入预算及部分默认输出 cap；本合同已修正这些表达，不再把它们作为官方最大值。
+
+- 历史版本 fork-v0.2.21-17 / 0.2.21-ds.17，源码 b18f2467cedf9a3b3669cef5b770c3b8111d2485；[当时的完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/43545302576)通过并已部署。
+- 历史镜像为 ghcr.io/baisuipingan/sub2api@sha256:e51202de9d6b0cc6faeb4717fd63140f0acf01cdde67322b3e17dd871f9bbc2c。当时应用、PostgreSQL、Redis 与 /health 正常，schema epoch 为 4。
+- 当时发布前数据库备份为 /root/sub2api-deploy/releases/backups/sub2api-20261114T023725Z.dump.gz；Agent 设置快照为 /root/sub2api-deploy/releases/backups/desktop_agent_config_vendor_profiles_20261114T021445Z.json。
+- 当时已授权的只读管理接口和页面验收确认 37 项旧修订档案可读、DeepSeek 草稿档位可选，既有设置未被测试草稿覆盖；没有付费推理。历史证据位于 output/deploy/fork-v0.2.21-17/。
+
+## 当前发布状态
+
+本轮远程数据分支已发布，服务与客户端源码仍在当前工作分支。未部署生产，未打包新版 MiloCode，未进行各厂商付费推理、长 decode、工具或计费联调。
