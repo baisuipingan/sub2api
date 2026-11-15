@@ -47,7 +47,7 @@ func TestDesktopDownloadsParseLatestWithoutHardcodedVersion(t *testing.T) {
 	got, err := parseWindowsDesktopDownload(windowsDownloadFixture(t, url, "2.10.3"), downloadTestOrigin)
 	require.NoError(t, err)
 	require.Equal(t, DesktopDownload{Platform: "win32-x64", Available: true, Version: "2.10.3", URL: url, Size: 12345, Format: "exe"}, got)
-	got, err = parseMacDesktopDownload(macDownloadFixture(macDownloadItem("1.2.9")+macDownloadItem("1.2.10")+macDownloadItem("1.2.8")), downloadTestOrigin)
+	got, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("1.2.9")+macDownloadItem("1.2.10")+macDownloadItem("1.2.8")), downloadTestOrigin, "darwin-arm64")
 	require.NoError(t, err)
 	require.Equal(t, "1.2.10", got.Version)
 	require.Equal(t, "zip", got.Format)
@@ -56,7 +56,7 @@ func TestDesktopDownloadsParseLatestWithoutHardcodedVersion(t *testing.T) {
 	item := strings.Replace(macDownloadItem("3.0.0"), "<sparkle:version>3.0.0</sparkle:version>", "", 1)
 	item = strings.Replace(item, "<enclosure ", `<enclosure sparkle:version="3.0.0" `, 1)
 	item = strings.Replace(item, "</item>", `<sparkle:deltas><enclosure url="https://attacker.test/delta.zip" /></sparkle:deltas></item>`, 1)
-	got, err = parseMacDesktopDownload(macDownloadFixture(item), downloadTestOrigin)
+	got, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(item), downloadTestOrigin, "darwin-arm64")
 	require.NoError(t, err)
 	require.Equal(t, "3.0.0", got.Version)
 	require.Equal(t, downloadTestOrigin+"/milocode/releases/3.0.0/darwin-arm64/MiloCode.zip", got.URL)
@@ -70,7 +70,7 @@ func TestDesktopDownloadsParseLatestWithoutHardcodedVersion(t *testing.T) {
 	// become the Intel download when an upstream feed is configured incorrectly.
 	_, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("3.0.0")), downloadTestOrigin, "darwin-x64")
 	require.Error(t, err)
-	_, err = parseMacDesktopDownload(macDownloadFixture(macDownloadItemForPlatform("3.0.0", "darwin-x64")), downloadTestOrigin)
+	_, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItemForPlatform("3.0.0", "darwin-x64")), downloadTestOrigin, "darwin-arm64")
 	require.Error(t, err)
 }
 
@@ -96,9 +96,9 @@ func TestDesktopDownloadsRejectUntrustedPathsAndMalformedFeeds(t *testing.T) {
 		_, err := parseWindowsDesktopDownload(raw, downloadTestOrigin)
 		require.Error(t, err)
 	}
-	_, err := parseMacDesktopDownload(macDownloadFixture(strings.ReplaceAll(macDownloadItem("1.2.3"), downloadTestOrigin, "https://attacker.test")), downloadTestOrigin)
+	_, err := parseMacDesktopDownloadForPlatform(macDownloadFixture(strings.ReplaceAll(macDownloadItem("1.2.3"), downloadTestOrigin, "https://attacker.test")), downloadTestOrigin, "darwin-arm64")
 	require.Error(t, err)
-	_, err = parseMacDesktopDownload([]byte(`<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss><channel>&x;</channel></rss>`), downloadTestOrigin)
+	_, err = parseMacDesktopDownloadForPlatform([]byte(`<!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/passwd">]><rss><channel>&x;</channel></rss>`), downloadTestOrigin, "darwin-arm64")
 	require.Error(t, err)
 }
 
@@ -203,7 +203,7 @@ func TestDesktopDownloadsPrefersConfirmedMacDMGAndCachesProbe(t *testing.T) {
 	}
 	require.EqualValues(t, 2, probes.Load())
 	// 官网选择 DMG 不得改变客户端读取的 Sparkle ZIP enclosure。
-	archive, err := parseMacDesktopDownload(macDownloadFixture(macDownloadItem("3.17.6")), downloadTestOrigin)
+	archive, err := parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("3.17.6")), downloadTestOrigin, "darwin-arm64")
 	require.NoError(t, err)
 	require.Equal(t, "zip", archive.Format)
 	require.True(t, strings.HasSuffix(archive.URL, "/MiloCode.zip"))
@@ -235,7 +235,7 @@ func TestDesktopDownloadsMissingIntelFeedDoesNotHideAppleSilicon(t *testing.T) {
 }
 
 func TestDesktopDownloadsMacDMGFallsBackToPublishedZIP(t *testing.T) {
-	archive, err := parseMacDesktopDownload(macDownloadFixture(macDownloadItem("3.17.5")), downloadTestOrigin)
+	archive, err := parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("3.17.5")), downloadTestOrigin, "darwin-arm64")
 	require.NoError(t, err)
 	for _, test := range []struct {
 		name string

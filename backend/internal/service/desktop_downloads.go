@@ -285,10 +285,6 @@ func parseWindowsDesktopDownload(raw []byte, origin string) (DesktopDownload, er
 	return desktopDownloadAsset(manifest.Files[0].URL, origin, manifest.Version, manifest.Platform, ".exe", manifest.Files[0].Size)
 }
 
-func parseMacDesktopDownload(raw []byte, origin string) (DesktopDownload, error) {
-	return parseMacDesktopDownloadForPlatform(raw, origin, "darwin-arm64")
-}
-
 func parseMacDesktopDownloadForPlatform(raw []byte, origin, platform string) (DesktopDownload, error) {
 	if platform != "darwin-arm64" && platform != "darwin-x64" {
 		return DesktopDownload{}, ErrDesktopReleaseStorageInvalid
