@@ -46,7 +46,7 @@ type desktopDownloadCache struct {
 }
 
 func emptyDesktopDownloads() DesktopDownloads {
-	return DesktopDownloads{Platforms: []DesktopDownload{{Platform: "win32-x64"}, {Platform: "darwin-arm64"}}}
+	return DesktopDownloads{Platforms: []DesktopDownload{{Platform: "win32-x64"}, {Platform: "darwin-arm64"}, {Platform: "darwin-x64"}}}
 }
 
 func (c *desktopDownloadCache) get(origin string) (DesktopDownloads, bool) {
@@ -85,7 +85,12 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 		defer cancel()
 		value := emptyDesktopDownloads()
 		var wg sync.WaitGroup
-		for i, feed := range []string{"milocode/stable/win32-x64/latest.json", "milocode/stable/darwin-arm64/appcast.xml"} {
+		feeds := []string{
+			"milocode/stable/win32-x64/latest.json",
+			"milocode/stable/darwin-arm64/appcast.xml",
+			"milocode/stable/darwin-x64/appcast.xml",
+		}
+		for i, feed := range feeds {
 			wg.Add(1)
 			go func(index int, path string) {
 				defer wg.Done()
@@ -100,10 +105,10 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 				if index == 0 {
 					parsed, fetchErr = parseWindowsDesktopDownload(raw, cfg.PublicBaseURL)
 				} else {
-					parsed, fetchErr = parseMacDesktopDownload(raw, cfg.PublicBaseURL)
+					parsed, fetchErr = parseMacDesktopDownloadForPlatform(raw, cfg.PublicBaseURL, value.Platforms[index].Platform)
 				}
 				if fetchErr == nil {
-					if index == 1 {
+					if index > 0 {
 						parsed = s.macDesktopInstaller(fetchCtx, parsed, cfg.PublicBaseURL)
 					}
 					value.Platforms[index] = parsed
@@ -133,12 +138,13 @@ func (s *DesktopReleaseStorageService) PublicDownloads(ctx context.Context) (*De
 }
 
 func (s *DesktopReleaseStorageService) macDesktopInstaller(ctx context.Context, archive DesktopDownload, origin string) DesktopDownload {
-	if s.downloadHead == nil {
+	if s.downloadHead == nil || (archive.Platform != "darwin-arm64" && archive.Platform != "darwin-x64") {
 		return archive
 	}
 	// Sparkle 的 ZIP 是更新归档；官网手动安装应优先提供已实际发布的 DMG，不能仅改后缀猜测链接。
-	installerURL := origin + "/milocode/releases/" + archive.Version + "/darwin-arm64/MiloCode-" + archive.Version + "-mac-arm64.dmg"
-	installer, err := desktopDownloadAsset(installerURL, origin, archive.Version, "darwin-arm64", ".dmg", 1)
+	arch := strings.TrimPrefix(archive.Platform, "darwin-")
+	installerURL := origin + "/milocode/releases/" + archive.Version + "/" + archive.Platform + "/MiloCode-" + archive.Version + "-mac-" + arch + ".dmg"
+	installer, err := desktopDownloadAsset(installerURL, origin, archive.Version, archive.Platform, ".dmg", 1)
 	if err != nil {
 		return archive
 	}
@@ -280,6 +286,13 @@ func parseWindowsDesktopDownload(raw []byte, origin string) (DesktopDownload, er
 }
 
 func parseMacDesktopDownload(raw []byte, origin string) (DesktopDownload, error) {
+	return parseMacDesktopDownloadForPlatform(raw, origin, "darwin-arm64")
+}
+
+func parseMacDesktopDownloadForPlatform(raw []byte, origin, platform string) (DesktopDownload, error) {
+	if platform != "darwin-arm64" && platform != "darwin-x64" {
+		return DesktopDownload{}, ErrDesktopReleaseStorageInvalid
+	}
 	var feed struct {
 		XMLName xml.Name `xml:"rss"`
 		Items   []struct {
@@ -305,7 +318,7 @@ func parseMacDesktopDownload(raw []byte, origin string) (DesktopDownload, error)
 		if err != nil || len(signature) != 64 {
 			continue
 		}
-		candidate, err := desktopDownloadAsset(item.Enclosure.URL, origin, version, "darwin-arm64", ".zip", item.Enclosure.Length)
+		candidate, err := desktopDownloadAsset(item.Enclosure.URL, origin, version, platform, ".zip", item.Enclosure.Length)
 		if err == nil && (!latest.Available || desktopDownloadNewer(candidate.Version, latest.Version)) {
 			latest = candidate
 		}

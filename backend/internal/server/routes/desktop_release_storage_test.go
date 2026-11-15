@@ -91,6 +91,7 @@ func TestDesktopDownloadsRouteIsPublicAndOnlyExposesDownloadMetadata(t *testing.
 	require.Equal(t, "public, max-age=60", rec.Header().Get("Cache-Control"))
 	require.Contains(t, rec.Body.String(), `"platform":"win32-x64","available":false`)
 	require.Contains(t, rec.Body.String(), `"platform":"darwin-arm64","available":false`)
+	require.Contains(t, rec.Body.String(), `"platform":"darwin-x64","available":false`)
 	for _, secret := range []string{"bucket", "access_key", "secret", "endpoint", "signed", "public_base_url"} {
 		require.NotContains(t, rec.Body.String(), secret)
 	}

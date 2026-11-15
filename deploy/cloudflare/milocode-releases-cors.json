@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://milorouter.com"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["Range", "If-Range"]
+      },
+      "exposeHeaders": ["Content-Range", "Content-Length", "Accept-Ranges", "ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

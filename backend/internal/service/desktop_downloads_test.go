@@ -35,7 +35,11 @@ func macDownloadFixture(items string) []byte {
 }
 
 func macDownloadItem(version string) string {
-	return `<item><sparkle:version>` + version + `</sparkle:version><enclosure url="` + downloadTestOrigin + `/milocode/releases/` + version + `/darwin-arm64/MiloCode.zip" length="45678" sparkle:edSignature="` + base64.StdEncoding.EncodeToString(make([]byte, 64)) + `" /></item>`
+	return macDownloadItemForPlatform(version, "darwin-arm64")
+}
+
+func macDownloadItemForPlatform(version, platform string) string {
+	return `<item><sparkle:version>` + version + `</sparkle:version><enclosure url="` + downloadTestOrigin + `/milocode/releases/` + version + `/` + platform + `/MiloCode.zip" length="45678" sparkle:edSignature="` + base64.StdEncoding.EncodeToString(make([]byte, 64)) + `" /></item>`
 }
 
 func TestDesktopDownloadsParseLatestWithoutHardcodedVersion(t *testing.T) {
@@ -56,6 +60,18 @@ func TestDesktopDownloadsParseLatestWithoutHardcodedVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "3.0.0", got.Version)
 	require.Equal(t, downloadTestOrigin+"/milocode/releases/3.0.0/darwin-arm64/MiloCode.zip", got.URL)
+	intel, err := parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItemForPlatform("3.0.0", "darwin-x64")), downloadTestOrigin, "darwin-x64")
+	require.NoError(t, err)
+	require.Equal(t, "darwin-x64", intel.Platform)
+	require.Equal(t, downloadTestOrigin+"/milocode/releases/3.0.0/darwin-x64/MiloCode.zip", intel.URL)
+	_, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("3.0.0")), downloadTestOrigin, "darwin-x86")
+	require.Error(t, err)
+	// Each feed may expose only its own architecture; an ARM package cannot
+	// become the Intel download when an upstream feed is configured incorrectly.
+	_, err = parseMacDesktopDownloadForPlatform(macDownloadFixture(macDownloadItem("3.0.0")), downloadTestOrigin, "darwin-x64")
+	require.Error(t, err)
+	_, err = parseMacDesktopDownload(macDownloadFixture(macDownloadItemForPlatform("3.0.0", "darwin-x64")), downloadTestOrigin)
+	require.Error(t, err)
 }
 
 func TestDesktopDownloadsRejectUntrustedPathsAndMalformedFeeds(t *testing.T) {
@@ -90,7 +106,7 @@ func TestDesktopDownloadsCacheCoalescesAndKeepsPlatformsIndependent(t *testing.T
 	svc, _, _, _ := desktopReleaseFixture(t)
 	_, err := svc.Update(context.Background(), DesktopReleaseStorageConfig{Bucket: "milocode-releases", PublicBaseURL: downloadTestOrigin})
 	require.NoError(t, err)
-	started, release := make(chan struct{}, 2), make(chan struct{})
+	started, release := make(chan struct{}, 3), make(chan struct{})
 	var calls atomic.Int32
 	feed := windowsDownloadFixture(t, downloadTestOrigin+"/milocode/releases/9.2.3/win32-x64/MiloCode.exe", "9.2.3")
 	svc.downloadFeed = func(_ context.Context, url string) ([]byte, error) {
@@ -116,29 +132,31 @@ func TestDesktopDownloadsCacheCoalescesAndKeepsPlatformsIndependent(t *testing.T
 	}
 	<-started
 	<-started
+	<-started
 	close(release)
 	wg.Wait()
 	close(results)
 	require.Len(t, results, 12)
-	require.EqualValues(t, 2, calls.Load())
+	require.EqualValues(t, 3, calls.Load())
 	for result := range results {
 		require.True(t, result.Platforms[0].Available)
 		require.Equal(t, "9.2.3", result.Platforms[0].Version)
 		require.False(t, result.Platforms[1].Available)
+		require.False(t, result.Platforms[2].Available)
 		// The caller cannot mutate the shared cache by retaining its result.
 		result.Platforms[0].Version = "changed"
 	}
 	again, err := svc.PublicDownloads(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "9.2.3", again.Platforms[0].Version)
-	require.EqualValues(t, 2, calls.Load())
+	require.EqualValues(t, 3, calls.Load())
 	// Disabling configuration immediately bypasses previously cached feeds.
 	_, err = svc.Update(context.Background(), DesktopReleaseStorageConfig{})
 	require.NoError(t, err)
 	again, err = svc.PublicDownloads(context.Background())
 	require.NoError(t, err)
 	require.False(t, again.Platforms[0].Available)
-	require.EqualValues(t, 2, calls.Load())
+	require.EqualValues(t, 3, calls.Load())
 }
 
 func TestDesktopDownloadsNoConfigurationMakesNoOutboundRequest(t *testing.T) {
@@ -156,6 +174,9 @@ func TestDesktopDownloadsPrefersConfirmedMacDMGAndCachesProbe(t *testing.T) {
 	require.NoError(t, err)
 	svc.downloadFeed = func(_ context.Context, url string) ([]byte, error) {
 		if strings.HasSuffix(url, "appcast.xml") {
+			if strings.Contains(url, "darwin-x64") {
+				return macDownloadFixture(macDownloadItemForPlatform("3.17.6", "darwin-x64")), nil
+			}
 			return macDownloadFixture(macDownloadItem("3.17.6")), nil
 		}
 		return windowsDownloadFixture(t, downloadTestOrigin+"/milocode/releases/3.17.6/win32-x64/MiloCode.exe", "3.17.6"), nil
@@ -163,7 +184,10 @@ func TestDesktopDownloadsPrefersConfirmedMacDMGAndCachesProbe(t *testing.T) {
 	var probes atomic.Int32
 	svc.downloadHead = func(ctx context.Context, url string) (int64, error) {
 		probes.Add(1)
-		require.Equal(t, downloadTestOrigin+"/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg", url)
+		require.Contains(t, []string{
+			downloadTestOrigin + "/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg",
+			downloadTestOrigin + "/milocode/releases/3.17.6/darwin-x64/MiloCode-3.17.6-mac-x64.dmg",
+		}, url)
 		deadline, ok := ctx.Deadline()
 		require.True(t, ok)
 		require.Positive(t, time.Until(deadline))
@@ -175,13 +199,39 @@ func TestDesktopDownloadsPrefersConfirmedMacDMGAndCachesProbe(t *testing.T) {
 		require.NoError(t, getErr)
 		require.Equal(t, "exe", got.Platforms[0].Format)
 		require.Equal(t, DesktopDownload{Platform: "darwin-arm64", Available: true, Version: "3.17.6", URL: downloadTestOrigin + "/milocode/releases/3.17.6/darwin-arm64/MiloCode-3.17.6-mac-arm64.dmg", Size: 234567, Format: "dmg"}, got.Platforms[1])
+		require.Equal(t, DesktopDownload{Platform: "darwin-x64", Available: true, Version: "3.17.6", URL: downloadTestOrigin + "/milocode/releases/3.17.6/darwin-x64/MiloCode-3.17.6-mac-x64.dmg", Size: 234567, Format: "dmg"}, got.Platforms[2])
 	}
-	require.EqualValues(t, 1, probes.Load())
+	require.EqualValues(t, 2, probes.Load())
 	// 官网选择 DMG 不得改变客户端读取的 Sparkle ZIP enclosure。
 	archive, err := parseMacDesktopDownload(macDownloadFixture(macDownloadItem("3.17.6")), downloadTestOrigin)
 	require.NoError(t, err)
 	require.Equal(t, "zip", archive.Format)
 	require.True(t, strings.HasSuffix(archive.URL, "/MiloCode.zip"))
+}
+
+func TestDesktopDownloadsMissingIntelFeedDoesNotHideAppleSilicon(t *testing.T) {
+	svc, _, _, _ := desktopReleaseFixture(t)
+	_, err := svc.Update(context.Background(), DesktopReleaseStorageConfig{Bucket: "milocode-releases", PublicBaseURL: downloadTestOrigin})
+	require.NoError(t, err)
+	svc.downloadFeed = func(_ context.Context, url string) ([]byte, error) {
+		switch url {
+		case downloadTestOrigin + "/milocode/stable/darwin-arm64/appcast.xml":
+			return macDownloadFixture(macDownloadItem("3.17.6")), nil
+		case downloadTestOrigin + "/milocode/stable/darwin-x64/appcast.xml":
+			return nil, errors.New("not published")
+		case downloadTestOrigin + "/milocode/stable/win32-x64/latest.json":
+			return windowsDownloadFixture(t, downloadTestOrigin+"/milocode/releases/3.17.6/win32-x64/MiloCode.exe", "3.17.6"), nil
+		default:
+			t.Errorf("unexpected feed: %s", url)
+			return nil, errors.New("unexpected feed")
+		}
+	}
+	svc.downloadHead = nil
+	got, err := svc.PublicDownloads(context.Background())
+	require.NoError(t, err)
+	require.True(t, got.Platforms[0].Available)
+	require.True(t, got.Platforms[1].Available)
+	require.Equal(t, DesktopDownload{Platform: "darwin-x64"}, got.Platforms[2])
 }
 
 func TestDesktopDownloadsMacDMGFallsBackToPublishedZIP(t *testing.T) {

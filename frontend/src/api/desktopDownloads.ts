@@ -1,6 +1,6 @@
 import { apiClient } from './client'
 
-export type DesktopDownloadPlatform = 'win32-x64' | 'darwin-arm64'
+export type DesktopDownloadPlatform = 'win32-x64' | 'darwin-arm64' | 'darwin-x64'
 export interface DesktopDownload {
   platform: DesktopDownloadPlatform
   available: boolean

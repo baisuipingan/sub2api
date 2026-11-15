@@ -31,7 +31,7 @@ var (
 	ErrDesktopReleaseStorageTestFailed  = infraerrors.BadRequest("DESKTOP_RELEASE_STORAGE_TEST_FAILED", "desktop release storage test failed; verify bucket permissions and the public domain mapping")
 	desktopReleaseBucketPattern         = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 	desktopReleaseVersionPattern        = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	desktopReleaseAssetPattern          = regexp.MustCompile(`^milocode/releases/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))/(win32-x64|darwin-arm64)/([A-Za-z0-9][A-Za-z0-9._-]*)$`)
+	desktopReleaseAssetPattern          = regexp.MustCompile(`^milocode/releases/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))/(win32-x64|darwin-arm64|darwin-x64)/([A-Za-z0-9][A-Za-z0-9._-]*)$`)
 	desktopReleaseSHA256Pattern         = regexp.MustCompile(`^[a-f0-9]{64}$`)
 	desktopReleaseETagPattern           = regexp.MustCompile(`^"[A-Za-z0-9._:-]{1,128}"$`)
 )
@@ -233,6 +233,8 @@ func desktopReleaseKey(key string) (version, contentType, cacheControl string, e
 		return "", "application/json", DesktopReleaseStableCacheControl, nil
 	case "milocode/stable/darwin-arm64/appcast.xml":
 		return "", "application/xml", DesktopReleaseStableCacheControl, nil
+	case "milocode/stable/darwin-x64/appcast.xml":
+		return "", "application/xml", DesktopReleaseStableCacheControl, nil
 	}
 	parts := desktopReleaseAssetPattern.FindStringSubmatch(key)
 	if parts == nil {
@@ -242,7 +244,7 @@ func desktopReleaseKey(key string) (version, contentType, cacheControl string, e
 	if parts[2] == "win32-x64" && (strings.HasSuffix(name, ".exe") || strings.HasSuffix(name, ".exe.blockmap")) {
 		return parts[1], "application/octet-stream", DesktopReleaseImmutableCacheControl, nil
 	}
-	if parts[2] == "darwin-arm64" {
+	if parts[2] == "darwin-arm64" || parts[2] == "darwin-x64" {
 		if strings.HasSuffix(name, ".zip") {
 			return parts[1], "application/zip", DesktopReleaseImmutableCacheControl, nil
 		}

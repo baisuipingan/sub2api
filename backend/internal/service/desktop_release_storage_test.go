@@ -158,6 +158,13 @@ func TestDesktopReleaseUploadAllowlistAndConditionalWrites(t *testing.T) {
 			require.ErrorIs(t, err, ErrDesktopReleaseStorageInvalid)
 		})
 	}
+	intel := valid
+	intel.Key = "milocode/releases/1.2.3/darwin-x64/MiloCode-1.2.3-mac-x64.dmg"
+	intel.ContentType = "application/x-apple-diskimage"
+	_, err = validateDesktopReleaseUpload(intel)
+	require.NoError(t, err)
+	_, _, _, err = desktopReleaseKey("milocode/stable/darwin-x64/appcast.xml")
+	require.NoError(t, err)
 	for _, condition := range []struct {
 		none, match string
 		ok          bool
