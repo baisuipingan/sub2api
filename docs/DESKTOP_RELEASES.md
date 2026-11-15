@@ -65,6 +65,20 @@ npx wrangler r2 bucket cors set milocode-releases --file deploy/cloudflare/miloc
 
 独立 Chrome 验收使用 `https://milorouter.com` 页面来源，实际读取正式 Windows 包的 1 byte 探测及 6 个并发 4 MiB 分段；7 个请求均返回 206，浏览器可读取准确的 Content-Range、Content-Length 和一致 ETag，请求不含 Cookie 或 Authorization。共读取 24 MiB + 1 byte，此次网络样本耗时约 5.7 秒，不作为其他地区线路的提速承诺。下载页以真实组件及隔离夹具验收中英文、明暗主题和 320–1536 px 共 14 个布局场景，无页面/卡片/按钮溢出，无 CORS 或降级运维提示；Intel 卡片为未发布平台的测试夹具。临时入口、测试浏览器和 Vite 服务均已清理，证据保存在 `output/playwright/milocode-download-*-20261115*`。
 
+## 2026-11-15 并发下载与 Intel Mac 生产发布
+
+网站于 `2026-11-15T07:36:40Z` 部署为 `0.2.21-ds.21`，发布标签 `fork-v0.2.21-21`，源码 `f5e94db9b6c0138bb570570f1afb28c162600ee4`。[CI 43688659838](https://github.com/baisuipingan/sub2api/actions/runs/43688659838) 的后端测试、lint、前端测试、类型检查、构建及发布脚本检查全部通过后，使用产出的不可变镜像 `ghcr.io/baisuipingan/sub2api@sha256:986d3442c2ca02c56ffefbff51c2794ac5e8bfa48d0188b1fc96f69078091254`，经生产既有部署入口发布。
+
+本次没有数据库迁移，schema epoch 仍为 4，保持 `backup-required` 策略。新备份 `/root/sub2api-deploy/releases/backups/sub2api-20261115T073631Z.dump.gz` 为 15,972,580 bytes，gzip 与 PGDMP 标识已验证；旧版本精确镜像保留在 `previous.json`。服务、PostgreSQL 和 Redis 均 healthy，本地、公网健康检查均为 ok。Agent、软件发布存储、图库、备份存储及备份计划五项设置的哈希与发布前一致，原 Windows／Apple Silicon 的 feed 正文与下载元数据也完全一致。部署与阶段验收证据在 `output/deploy/fork-v0.2.21-21/`。
+
+第一次候选标签 `fork-v0.2.21-20` 的后端测试通过，但 lint 发现仅剩测试引用的旧 ARM64 解析包装函数，因此未构建或部署该候选。删除遗留函数、将测试直接指向实际使用的架构解析函数后，创建新标签完成完整 CI；未覆盖旧标签或跳过门禁。
+
+MiloCode Intel Mac `3.17.8` 随后从客户端已提交源码 `020b36c7653d2150836fa7870c986fc9eb3616a9` 独立构建发布，未重发 Windows／Apple Silicon。官网 DMG 为 `https://download.editor.vip/milocode/releases/3.17.8/darwin-x64/MiloCode-3.17.8-mac-x64.dmg`，245,379,861 bytes，SHA256 `6d5adb9ea1ba0ac15db6426318fa392dc194fb20028e887e7c31e08aa70766d7`；更新 ZIP 为 237,728,242 bytes，SHA256 `68ec605b1f12bd2b842bc1df0acfe91f45ddb4279be32c3948780ff4394d1116`，使用独立 `stable/darwin-x64/appcast.xml` 和原 Sparkle 签名身份。发布工具在写入 feed 前完成两个包的公网完整 SHA512 校验，固定公钥独立验签通过。生产最终元数据已确认三平台均可下载 3.17.8，Intel 为经 HEAD 确认的 DMG；原两个 feed 和五项设置哈希仍未改变。
+
+生产来源的独立 Chrome 实测 Windows 199,559,833-byte 安装包分段下载并完整保存／回读，49 次进度事件单调递增，测试文件已删除；另一测试在写入首个 4 MiB 后取消，收到 AbortError，并确认事务写入回滚保留原测试文件。文件 API 验收使用隔离浏览器的 Origin Private File System，未改动用户文件；生产已登录页面另行检查真实三平台入口。证据位于 `output/playwright/production-fork-v0.2.21-21/`。
+
+Intel 包通过 28 项静态检查及全量原生架构扫描，27 个 Mach-O 均支持 x86_64；当前 Apple Silicon 发布机无可用 Intel 执行环境，未宣称 Intel 实机启动、登录、Computer Use 或应用内升级已通过。系统下限为 macOS 13，仍为免费 ad-hoc 完整性签名、未 Apple 公证，沿用现有安装辅助说明。
+
 ## 2026-11-14 官网 DMG 发布记录
 
 官网 Mac 手动下载优先 DMG 的变更已于 `2026-11-14T09:54:49Z` 部署至生产，网站版本 `0.2.21-ds.19`，发布标签 `fork-v0.2.21-19`，源码 `852bcc50498fecfb41177d63bb63d5de405e644f`。使用 [CI 43580811372](https://github.com/baisuipingan/sub2api/actions/runs/43580811372) 全部成功后产出的不可变镜像 `ghcr.io/baisuipingan/sub2api@sha256:6dcfb4085727da5bcdf58ec6733f63a457a230e4cf6cb17e7fdde0aa22d3c1f1`，由生产既有 `sub2api-release deploy` 入口部署，没有服务器现场构建或跳过发布门禁。
