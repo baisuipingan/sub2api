@@ -61,6 +61,8 @@
 
 专项日志保存在 ignored 的 `output/sync-v0.2.22-*.log`；可重跑的测试、SQL 写次数断言和调用链审计均随代码提交。
 
+CI 补充：GitHub 将首次最终检查的 macOS ARM 任务排队后取消，注释明确为托管 runner 容量不足，未执行任何脚本。该组只做可移植的 shell/mock 检查，不编译架构相关程序，故将 runner 明确为同一 macOS 15 的 Intel 标签，保留全部检查。本机 ARM macOS 也已逐条执行同样的六项检查并通过。
+
 本轮不发布 release、不迁移生产数据库。发布时仍需遵守 `.fork-release.json` 的 schema epoch 4 与备份回退要求；本次补全本身未增加新的表或配置项。
 
 ## 可复查的范围与命令
@@ -80,9 +82,9 @@ go test -tags=unit ./internal/service \
   -run TestRecordUsageOfficialPricingFactorsReachCreditSnapshots -count=1 -v
 ```
 
-340 个官方改动文件中，297 个在最终工作树直接保持官方内容，43 个存在需要保留的定制差异：
+340 个官方改动文件中，296 个在最终工作树直接保持官方内容，44 个存在需要保留的定制差异：
 
-- 构建/发布：security workflow、两个 Dockerfile、VERSION、go.mod；保留 fork 发布元数据、图库 WebP 依赖和更高版本的 image 解码依赖。
+- 构建/发布：CI/security workflow、两个 Dockerfile、VERSION、go.mod；保留 fork 发布元数据、图库 WebP 依赖和更高版本的 image 解码依赖，并明确可用的 macOS 脚本执行机。
 - 注入与生成：`cmd/server/wire*`、`service/wire.go`、Ent Group 及其生成文件；保留积分字段、定制服务及 cleanup，同时注入官方 lane 与 UltraFast。
 - 领域与认证：constants、API Key repo/auth cache、admin_group；保留受管 Key 用途保护、积分余额和组额度，不覆盖新版组配置。
 - 结算：usage_billing repo/batch、UsageBillingCommand、gateway_usage_billing；在此真正实现积分聚合，并保持官方价格因子传递。

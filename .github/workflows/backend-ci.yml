@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   shell:
-    runs-on: macos-15
+    # These portable shell checks need macOS, not a particular CPU architecture.
+    # Explicit Intel avoids the capacity-constrained hosted ARM runner queue.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v6
       - name: Check deployment scripts
