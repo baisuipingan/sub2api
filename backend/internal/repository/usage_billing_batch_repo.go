@@ -33,8 +33,8 @@ type usageBillingRequestKey struct {
 // 每条命令的去重认领、各项累加与返回结果都与按 cmds 顺序逐条调用 Apply 一致：
 //   - 认领用一条多行 INSERT，未认领的命令按已有指纹判定为重复（Applied=false）或指纹冲突；
 //     认领后在归档表命中的命令同样判定，并删除本事务插入的认领行。
-//   - 纯 USD 命令在同一行的多次累加合并为一条语句，累加值取各命令金额之和。
-//     含积分命令时复用逐条结算逻辑，保留整数列、版本和每请求账本。
+//   - 同一行的多次累加合并为一条语句；USD 与积分命令统一按精确积分聚合，
+//     同时更新兼容 USD 列，钱包版本保留逐笔递增语义，每请求账本用一条批量 INSERT 写入。
 //     同一事务内 NOW() 不变，窗口重置类表达式的合并结果与逐条执行相同。
 //   - 逐条命令的扣费后余额、是否透支、Key 额度是否在该条耗尽、账号额度状态，
 //     由合并语句返回的累加后值按命令顺序推算。
@@ -78,26 +78,20 @@ func (r *usageBillingRepository) ApplyBatch(ctx context.Context, cmds []*service
 		}
 	}
 
-	if usageBillingBatchUsesCredits(cmds) {
-		// The USD aggregation helpers only update legacy numeric columns. Keep
-		// integer credit balances, quota windows and per-request ledger entries
-		// on the same authoritative path as Apply, within this batch transaction.
-		if err := r.applyUsageBillingCreditBatch(ctx, tx, cmds, applied, outcomes); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := applyUsageBillingBatchSubscriptions(ctx, tx, cmds, applied); err != nil {
-			return nil, err
-		}
-		if err := applyUsageBillingBatchBalance(ctx, tx, userID, cmds, applied, outcomes); err != nil {
-			return nil, err
-		}
-		if err := applyUsageBillingBatchAPIKeys(ctx, tx, cmds, applied, outcomes); err != nil {
-			return nil, err
-		}
-		if err := applyUsageBillingBatchAccountQuotas(ctx, tx, cmds, applied, outcomes); err != nil {
-			return nil, err
-		}
+	if err := applyUsageBillingBatchSubscriptions(ctx, tx, cmds, applied); err != nil {
+		return nil, err
+	}
+	if err := applyUsageBillingBatchBalance(ctx, tx, userID, cmds, applied, outcomes); err != nil {
+		return nil, err
+	}
+	if err := applyUsageBillingBatchAPIKeys(ctx, tx, cmds, applied, outcomes); err != nil {
+		return nil, err
+	}
+	if err := applyUsageBillingBatchAccountQuotas(ctx, tx, cmds, applied, outcomes); err != nil {
+		return nil, err
+	}
+	if err := insertUsageBillingBatchCreditLedger(ctx, tx, cmds, applied, outcomes); err != nil {
+		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -105,77 +99,6 @@ func (r *usageBillingRepository) ApplyBatch(ctx context.Context, cmds []*service
 	}
 	tx = nil
 	return outcomes, nil
-}
-
-// usageBillingBatchUsesCredits also recognizes explicit wallet credits on a
-// command whose engine label is absent, matching applyUsageBillingEffects.
-func usageBillingBatchUsesCredits(cmds []*service.UsageBillingCommand) bool {
-	for _, cmd := range cmds {
-		if cmd.BillingEngine == service.BillingEngineCredits || cmd.BalanceCredits != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *usageBillingRepository) applyUsageBillingCreditBatch(ctx context.Context, tx *sql.Tx, cmds []*service.UsageBillingCommand, applied []bool, outcomes []service.UsageBillingBatchOutcome) error {
-	// Reusing per-command effects could otherwise acquire account P then Q in
-	// one batch and Q then P in another. Prelock in the same table/ID order as
-	// the USD aggregation path before applying the original command order.
-	var subscriptionIDs, userIDs, apiKeyIDs, accountIDs []int64
-	for i, cmd := range cmds {
-		if !applied[i] {
-			continue
-		}
-		if cmd.SubscriptionID != nil && (cmd.SubscriptionCost > 0 || (cmd.BillingEngine == service.BillingEngineCredits && cmd.SubscriptionCredits > 0)) {
-			subscriptionIDs = append(subscriptionIDs, *cmd.SubscriptionID)
-		}
-		if cmd.BalanceCost > 0 || cmd.BalanceCredits != 0 {
-			userIDs = append(userIDs, cmd.UserID)
-		}
-		if cmd.APIKeyQuotaCost > 0 || cmd.APIKeyRateLimitCost > 0 ||
-			(cmd.BillingEngine == service.BillingEngineCredits && (cmd.APIKeyQuotaCredits > 0 || cmd.APIKeyRateLimitCredits > 0)) {
-			apiKeyIDs = append(apiKeyIDs, cmd.APIKeyID)
-		}
-		if cmd.AccountQuotaCost > 0 && service.AccountTypeSupportsQuota(cmd.AccountType) {
-			accountIDs = append(accountIDs, cmd.AccountID)
-		}
-	}
-	for _, lock := range []struct {
-		query string
-		ids   []int64
-	}{
-		{`SELECT id FROM user_subscriptions WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE`, subscriptionIDs},
-		{`SELECT id FROM users WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE`, userIDs},
-		{`SELECT id FROM api_keys WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE`, apiKeyIDs},
-		{`SELECT id FROM accounts WHERE id = ANY($1::bigint[]) ORDER BY id FOR UPDATE`, accountIDs},
-	} {
-		if len(lock.ids) == 0 {
-			continue
-		}
-		rows, err := tx.QueryContext(ctx, lock.query, pq.Array(lock.ids))
-		if err != nil {
-			return err
-		}
-		for rows.Next() {
-			// Row contents are not needed; the lock lasts until commit/rollback.
-		}
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		if err := rows.Close(); err != nil {
-			return err
-		}
-	}
-	for i, cmd := range cmds {
-		if applied[i] {
-			if err := r.applyUsageBillingEffects(ctx, tx, cmd, outcomes[i].Result); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // validateUsageBillingBatch 规范化命令并校验：非空、request_id 非空、同一用户、(request_id, api_key_id) 互不相同。
@@ -187,6 +110,9 @@ func validateUsageBillingBatch(cmds []*service.UsageBillingCommand) (int64, erro
 			return 0, errUsageBillingBatchNilCommand
 		}
 		cmd.Normalize()
+		if cmd.BalanceCredits < 0 {
+			return 0, errors.New("usage billing credits must be nonnegative")
+		}
 		if cmd.RequestID == "" {
 			return 0, service.ErrUsageBillingRequestIDRequired
 		}
@@ -403,107 +329,6 @@ func groupUsageBillingAmounts(cmds []*service.UsageBillingCommand, applied []boo
 	}
 	sort.Slice(ids, func(a, b int) bool { return ids[a] < ids[b] })
 	return groups, ids
-}
-
-func applyUsageBillingBatchSubscriptions(ctx context.Context, tx *sql.Tx, cmds []*service.UsageBillingCommand, applied []bool) error {
-	groups, ids := groupUsageBillingAmounts(cmds, applied, func(cmd *service.UsageBillingCommand) (int64, float64, bool) {
-		if cmd.SubscriptionID == nil {
-			return 0, 0, false
-		}
-		return *cmd.SubscriptionID, cmd.SubscriptionCost, true
-	})
-	for _, id := range ids {
-		if err := incrementUsageBillingSubscription(ctx, tx, id, groups[id].sum.InexactFloat64()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func applyUsageBillingBatchBalance(ctx context.Context, tx *sql.Tx, userID int64, cmds []*service.UsageBillingCommand, applied []bool, outcomes []service.UsageBillingBatchOutcome) error {
-	groups, _ := groupUsageBillingAmounts(cmds, applied, func(cmd *service.UsageBillingCommand) (int64, float64, bool) {
-		return userID, cmd.BalanceCost, true
-	})
-	group := groups[userID]
-	if group == nil {
-		return nil
-	}
-
-	var newBalance decimal.Decimal
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance
-	`, group.sum, userID).Scan(&newBalance)
-	if errors.Is(err, sql.ErrNoRows) {
-		return service.ErrUserNotFound
-	}
-	if err != nil {
-		return err
-	}
-
-	running := newBalance.Add(group.sum)
-	for _, i := range group.indexes {
-		cost := usageBillingAmount(cmds[i].BalanceCost)
-		sufficient := running.GreaterThanOrEqual(cost)
-		running = running.Sub(cost)
-		balance := running.InexactFloat64()
-		outcomes[i].Result.NewBalance = &balance
-		outcomes[i].Result.BalanceOverdrafted = !sufficient
-	}
-	return nil
-}
-
-func applyUsageBillingBatchAPIKeys(ctx context.Context, tx *sql.Tx, cmds []*service.UsageBillingCommand, applied []bool, outcomes []service.UsageBillingBatchOutcome) error {
-	quotaGroups, quotaIDs := groupUsageBillingAmounts(cmds, applied, func(cmd *service.UsageBillingCommand) (int64, float64, bool) {
-		return cmd.APIKeyID, cmd.APIKeyQuotaCost, true
-	})
-	rateGroups, rateIDs := groupUsageBillingAmounts(cmds, applied, func(cmd *service.UsageBillingCommand) (int64, float64, bool) {
-		return cmd.APIKeyID, cmd.APIKeyRateLimitCost, true
-	})
-
-	ids := mergeSortedIDs(quotaIDs, rateIDs)
-	for _, id := range ids {
-		if group := quotaGroups[id]; group != nil {
-			if err := applyUsageBillingBatchAPIKeyQuota(ctx, tx, id, group, cmds, outcomes); err != nil {
-				return err
-			}
-		}
-		if group := rateGroups[id]; group != nil {
-			err := incrementUsageBillingAPIKeyRateLimit(ctx, tx, id, group.sum.InexactFloat64())
-			if err != nil && !errors.Is(err, service.ErrAPIKeyNotFound) {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func applyUsageBillingBatchAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, group *usageBillingAmountGroup, cmds []*service.UsageBillingCommand, outcomes []service.UsageBillingBatchOutcome) error {
-	var quota, used decimal.Decimal
-	err := tx.QueryRowContext(ctx, usageBillingAPIKeyQuotaUpdate+`
-		RETURNING quota, quota_used
-	`, group.sum, apiKeyID, service.StatusAPIKeyActive, service.StatusAPIKeyQuotaExhausted).Scan(&quota, &used)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !quota.IsPositive() {
-		return nil
-	}
-	running := used.Sub(group.sum)
-	for _, i := range group.indexes {
-		before := running
-		running = running.Add(usageBillingAmount(cmds[i].APIKeyQuotaCost))
-		if running.GreaterThanOrEqual(quota) && before.LessThan(quota) {
-			outcomes[i].Result.APIKeyQuotaExhausted = true
-		}
-	}
-	return nil
 }
 
 func applyUsageBillingBatchAccountQuotas(ctx context.Context, tx *sql.Tx, cmds []*service.UsageBillingCommand, applied []bool, outcomes []service.UsageBillingBatchOutcome) error {

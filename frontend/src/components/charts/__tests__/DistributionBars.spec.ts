@@ -117,6 +117,19 @@ describe('DistributionBars user breakdown', () => {
     expect(getUserBreakdown).toHaveBeenCalledWith(expect.objectContaining({ model: 'model-b', sort_by: 'actual_cost' }), expect.anything())
   })
 
+  it.each(['model', 'group', 'endpoint'] as const)('keeps user charge distinct from account cost in the %s distribution', tab => {
+    const usage = { requests: 1, total_tokens: 1, cost: 5, actual_cost: 2, account_cost: 90 }
+    const wrapper = render({
+      metric: 'actual_cost', defaultTab: tab, filters: { account_id: 9 },
+      modelStats: [{ ...usage, model: 'model-a' }],
+      groupStats: [{ ...usage, group_id: 10, group_name: 'group-a' }],
+      endpointStats: [{ ...usage, endpoint: '/v1/responses' }],
+    })
+    const value = wrapper.get('.cbar-val').text()
+    expect(value).toContain('2')
+    expect(value).not.toContain('90')
+  })
+
   it('keeps the endpoint model and billing scope without narrowing the other distribution tabs', async () => {
     const wrapper = render({ enableBreakdown: true, defaultTab: 'endpoint',
       endpointStats: [{ ...modelStats[0], endpoint: '/v1/images/generations' }],

@@ -3063,9 +3063,6 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	if size := account.OpenAIImageTestSize(); size != "" {
 		payload["size"] = size
 	}
-	if size := account.OpenAIImageTestSize(); size != "" {
-		payload["size"] = size
-	}
 	payloadBytes, _ := json.Marshal(payload)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
