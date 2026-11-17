@@ -57,7 +57,7 @@
 
 ## 完整验证与交付
 
-最终补全工作树已通过：完整后端 `go test -tags=unit -p 2 ./...`、完整后端 `go test -tags=integration -p 2 ./...`、前端 typecheck、336 个相关前端测试（含新增组合场景）、全部专项调度/转发/定价测试和 `git diff --check`。另由分支 CI 执行完整前端、安全检查、lint 与发布脚本验证；其结果与提交关联，可在 GitHub Actions 查看。
+最终补全工作树已通过：完整后端 `go test -tags=unit -p 2 ./...`、完整后端 `go test -tags=integration -p 2 ./...`、前端 typecheck、336 个相关前端测试（含新增组合场景）、全部专项调度/转发/定价测试和 `git diff --check`。另由分支 CI 执行前端 lint/typecheck/关键用例、安全检查、Go lint 与发布脚本验证；其结果与提交关联，可在 GitHub Actions 查看。
 
 专项日志保存在 ignored 的 `output/sync-v0.2.22-*.log`；可重跑的测试、SQL 写次数断言和调用链审计均随代码提交。
 
