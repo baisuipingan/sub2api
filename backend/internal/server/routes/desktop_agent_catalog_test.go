@@ -41,7 +41,7 @@ func TestDesktopAgentCatalogRoutesRequireFullAdminAndWriteStepUp(t *testing.T) {
 				router.ServeHTTP(result, request)
 				if role == service.RoleAdmin && endpoint.method == "GET" {
 					require.Equal(t, 200, result.Code)
-					require.Contains(t, result.Body.String(), `"profile_count":37`)
+					require.Contains(t, result.Body.String(), `"profile_count":39`)
 				} else {
 					require.Equal(t, 403, result.Code)
 				}

@@ -73,14 +73,14 @@ func TestDesktopAgentRemoteCatalogBuiltinSchemaAndUnknownOutput(t *testing.T) {
 	raw := catalogDocumentFixture(t, desktopAgentBuiltinProfiles())
 	var parsed DesktopAgentProfileCatalogDocument
 	require.NoError(t, decodeDesktopJSON([]byte(raw), &parsed))
-	require.Len(t, parsed.Profiles, 37)
+	require.Len(t, parsed.Profiles, 39)
 }
 func TestDesktopAgentRemoteCatalogPersistsAndRetainsOmissionsAcrossRestart(t *testing.T) {
 	svc, repo, body := newDesktopCatalogFixture(t)
 	remote := newRemoteProfileFixture()
 	*body = catalogDocumentFixture(t, []DesktopAgentProfile{remote})
 	require.NoError(t, svc.Refresh(context.Background()))
-	require.Equal(t, 38, svc.Status().ProfileCount)
+	require.Equal(t, 40, svc.Status().ProfileCount)
 	require.False(t, svc.Status().UsingFallback)
 	p := svc.Snapshot()
 	p[0].Model.ContextWindow = 1
@@ -272,7 +272,7 @@ func TestDesktopAgentRemoteCatalogRetainsCacheAndAllowsSourceRepairAfterAllowlis
 	reloaded := NewDesktopAgentProfileCatalogService(cfg, NewSettingService(repo, nil))
 	t.Cleanup(reloaded.Stop)
 	require.NoError(t, reloaded.Initialize(context.Background()))
-	require.Equal(t, 37, len(reloaded.Snapshot()))
+	require.Equal(t, 39, len(reloaded.Snapshot()))
 	require.Error(t, reloaded.Refresh(context.Background()))
 	require.Equal(t, "source_invalid", reloaded.Status().LastError)
 	require.NoError(t, reloaded.SetSource(context.Background(), DefaultDesktopAgentProfileCatalogURL))

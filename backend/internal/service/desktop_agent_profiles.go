@@ -51,18 +51,22 @@ func desktopAgentBuiltinProfiles() []DesktopAgentProfile {
 
 func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 	type specification struct {
-		id, name string
-		aliases  []string
-		none     bool
+		id, name             string
+		aliases              []string
+		none                 bool
+		maxInput             int
+		reviewedAt, revision string
 	}
 	specs := []specification{
-		{"gpt-6.1-sol", "GPT-6.1 Sol", nil, false},
-		{"gpt-6-astra", "GPT-6 Astra", nil, false},
-		{"gpt-6-sol", "GPT-6 Sol", nil, true},
-		{"gpt-6-luna", "GPT-6 Luna", nil, true},
-		{"gpt-5.6-sol", "GPT-5.6 Sol", []string{"gpt-5.6"}, true},
-		{"gpt-5.6-terra", "GPT-5.6 Terra", nil, true},
-		{"gpt-5.6-luna", "GPT-5.6 Luna", nil, true},
+		{id: "gpt-6.2-sol", name: "GPT-6.2 Sol", maxInput: 922000, reviewedAt: "2026-11-18", revision: "2026-11-18.1"},
+		{id: "gpt-6.2-astra", name: "GPT-6.2 Astra", maxInput: 922000, reviewedAt: "2026-11-18", revision: "2026-11-18.1"},
+		{id: "gpt-6.1-sol", name: "GPT-6.1 Sol"},
+		{id: "gpt-6-astra", name: "GPT-6 Astra"},
+		{id: "gpt-6-sol", name: "GPT-6 Sol", none: true},
+		{id: "gpt-6-luna", name: "GPT-6 Luna", none: true},
+		{id: "gpt-5.6-sol", name: "GPT-5.6 Sol", aliases: []string{"gpt-5.6"}, none: true},
+		{id: "gpt-5.6-terra", name: "GPT-5.6 Terra", none: true},
+		{id: "gpt-5.6-luna", name: "GPT-5.6 Luna", none: true},
 	}
 	profiles := make([]DesktopAgentProfile, 0, len(specs))
 	for _, spec := range specs {
@@ -74,11 +78,16 @@ func desktopAgentOpenAIProfiles() []DesktopAgentProfile {
 			notes = append(notes, "reasoning_none_unavailable")
 		}
 		aliases := append([]string{spec.id}, spec.aliases...)
+		reviewedAt, revision := spec.reviewedAt, spec.revision
+		if reviewedAt == "" {
+			reviewedAt, revision = "2026-11-14", "2026-11-14.2"
+		}
 		profiles = append(profiles, DesktopAgentProfile{
 			ID: spec.id, DisplayName: spec.name, Source: "official_openai",
 			SourceURL:  "https://developers.openai.com/api/docs/models/" + spec.id,
-			ReviewedAt: "2026-11-14", Revision: "2026-11-14.2", Aliases: aliases,
+			ReviewedAt: reviewedAt, Revision: revision, Aliases: aliases,
 			OfficialContextWindow: desktopProfileTokenLimit(1050000), OfficialMaxOutputTokens: desktopProfileTokenLimit(128000),
+			MaxInputTokens:          desktopProfileTokenLimit(spec.maxInput),
 			OfficialReasoningLevels: officialLevels, Notes: notes,
 			Model: DesktopAgentModel{
 				ID: spec.id, DisplayName: spec.name,

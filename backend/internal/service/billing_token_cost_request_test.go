@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -215,6 +216,54 @@ func TestCalculateTokenCostForRequest_NoResolverFallsBackToCatalog(t *testing.T)
 	want, err := bs.CalculateCost("gpt-5.4", tokens, 1)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
+}
+
+func TestCalculateTokenCostForRequest_CatalogFallbackPreservesTierAndRequestTime(t *testing.T) {
+	bs := NewBillingService(&config.Config{}, nil)
+	before := time.Date(2027, 3, 1, 7, 59, 59, 0, time.UTC)
+	after := before.Add(time.Second)
+	for _, tc := range []struct {
+		name, tier string
+		at         time.Time
+		want       float64
+	}{
+		{"standard", "", before, 0.007},
+		{"priority", "priority", before, 0.014},
+		{"flex", "flex", before, 0.0035},
+		{"ultrafast promotion", "ultrafast", before, 0.021},
+		{"ultrafast after promotion", "ultrafast", after, 0.042},
+		{"earlier request settled after later request", "ultrafast", before, 0.021},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := bs.CalculateTokenCostForRequest(TokenCostRequest{
+				Model: "gpt-6.2-sol", Tokens: UsageTokens{InputTokens: 1000, OutputTokens: 500},
+				RateMultiplier: 1, ServiceTier: tc.tier, PricingAt: tc.at,
+			})
+			require.NoError(t, err)
+			require.InDelta(t, tc.want, got.TotalCost, 1e-12)
+			require.InDelta(t, tc.want, got.ActualCost, 1e-12)
+		})
+	}
+}
+
+func TestCalculateTokenCostForRequest_CatalogFallbackKeepsUnspecifiedPolicy(t *testing.T) {
+	bs := NewBillingService(&config.Config{}, nil)
+	for _, rate := range []float64{-1, 0, 1, 1.25} {
+		// No group/resolver historically uses the model's enabled long-context
+		// ladder, preserves the rate argument, and leaves BillingMode unset.
+		tokens := UsageTokens{InputTokens: 272001, OutputTokens: 100}
+		got, err := bs.CalculateTokenCostForRequest(TokenCostRequest{
+			Model: "gpt-6.2-sol", Tokens: tokens, RateMultiplier: rate,
+		})
+		require.NoError(t, err)
+		want, err := bs.CalculateCost("gpt-6.2-sol", tokens, rate)
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+		require.Empty(t, got.BillingMode)
+		if rate > 0 {
+			require.True(t, got.LongContextBillingApplied)
+		}
+	}
 }
 
 func TestCalculateTokenCostForRequest_Fable51HasNoImplicitReasoningMultiplier(t *testing.T) {

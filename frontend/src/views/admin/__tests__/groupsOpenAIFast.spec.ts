@@ -25,11 +25,35 @@ describe("groupsOpenAIFast", () => {
     for (const locale of [zh, en]) {
       expect(locale.groups.openaiFast).toMatchObject({
         forceUltrafast: expect.stringContaining("ultrafast"),
-        ultrafastHint: expect.stringContaining("service_tier=ultrafast"),
+        ultrafastHint: expect.any(String),
       });
-      expect(locale.groups.openaiFast.ultrafastHint).toContain("GPT-6 Astra");
-      expect(locale.groups.openaiFast.ultrafastHint).toContain("GPT-6.1 Sol");
+      for (const modelOrPlan of [
+        "GPT-6.2",
+        "Sol",
+        "Astra",
+        "Pro 200",
+        "Pro 500",
+        "GPT-6 Astra",
+        "GPT-6.1 Sol",
+      ]) {
+        expect(locale.groups.openaiFast.ultrafastHint).toContain(modelOrPlan);
+      }
     }
+  });
+
+  it("explains the GPT-6.2 promotional price and its Pacific time deadline", () => {
+    expect(zh.groups.openaiFast.ultrafastHint).toContain(
+      "Pro 200 支持 Sol，Pro 500 支持 Sol 和 Astra",
+    );
+    expect(en.groups.openaiFast.ultrafastHint).toContain(
+      "Pro 200 includes GPT-6.2 Sol Ultrafast. Pro 500 includes both Sol and Astra Ultrafast",
+    );
+    expect(zh.groups.openaiFast.ultrafastHint).toContain(
+      "太平洋时间 2027 年 2 月 28 日及之前按标准价 3 倍计费，之后为 6 倍",
+    );
+    expect(en.groups.openaiFast.ultrafastHint).toContain(
+      "3× Standard through February 28, 2027 (Pacific time), then 6×",
+    );
   });
 
   it("provides localized switch labels", () => {

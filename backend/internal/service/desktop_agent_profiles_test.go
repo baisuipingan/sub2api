@@ -33,7 +33,11 @@ func TestDesktopAgentBuiltinProfilesNeverTrustSettingsOrShareMutableState(t *tes
 		openAICount++
 		require.Contains(t, profile.SourceURL, "https://developers.openai.com/api/docs/models/")
 		require.Equal(t, desktopProfileTokenLimit(1050000), profile.OfficialContextWindow)
-		require.Nil(t, profile.MaxInputTokens)
+		if strings.HasPrefix(profile.ID, "gpt-6.2-") {
+			require.Equal(t, desktopProfileTokenLimit(922000), profile.MaxInputTokens)
+		} else {
+			require.Nil(t, profile.MaxInputTokens)
+		}
 		require.Equal(t, desktopProfileTokenLimit(128000), profile.OfficialMaxOutputTokens)
 		require.Equal(t, 1050000, profile.Model.ContextWindow)
 		require.Equal(t, 128000, profile.Model.MaxOutputTokens)
@@ -41,7 +45,7 @@ func TestDesktopAgentBuiltinProfilesNeverTrustSettingsOrShareMutableState(t *tes
 		require.False(t, *profile.Model.SupportsNativeWebSearch)
 		require.NoError(t, validateDesktopAgentModel(&profile.Model))
 	}
-	require.Equal(t, 7, openAICount)
+	require.Equal(t, 9, openAICount)
 	profiles[0].Model.ContextWindow = 1
 	*profiles[0].Model.Input.Image = false
 	profiles[0].Model.ReasoningLevels[0] = "invented"
@@ -130,7 +134,7 @@ func TestDesktopAgentVendorRegistryHasUniqueExactIdentitiesAndOfficialSources(t 
 	for _, id := range []string{"deepseek-flash", "deepseek-v4-pro", "claude-opus-5-5", "claude-haiku-4-5-20251001", "grok-4.7", "grok-build-0.1", "gemini-4-carbon", "gemini-2.5-flash"} {
 		require.True(t, ids[id], id)
 	}
-	require.Len(t, ids, 37)
+	require.Len(t, ids, 39)
 	for _, unsupported := range []string{"deepseek-chat", "deepseek-reasoner", "deepseek-v4.1-flash", "claude-opus-future", "grok-imagine-image", "gemini-3.1-flash-image-preview"} {
 		_, resolved := desktopAgentProfileBinding(DesktopAgentConfig{}, unsupported)
 		require.Nil(t, resolved, unsupported)
@@ -222,6 +226,7 @@ func TestDesktopAgentOfficialTokenLimitsRemainPublishedFacts(t *testing.T) {
 		context, input, output int
 		outputKind             string
 	}{
+		{[]string{"gpt-6.2-sol", "gpt-6.2-astra"}, 1050000, 922000, 128000, ""},
 		{[]string{"gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}, 1050000, 0, 128000, ""},
 		{[]string{"deepseek-flash", "deepseek-v4-pro"}, 1048576, 0, 393216, ""},
 		{[]string{"claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-4-6", "claude-sonnet-4-6"}, 1000000, 0, 128000, ""},
@@ -251,7 +256,12 @@ func TestDesktopAgentOfficialTokenLimitsRemainPublishedFacts(t *testing.T) {
 				require.Equal(t, group.output, profile.Model.MaxOutputTokens)
 				require.Equal(t, group.outputKind, profile.Model.OutputLimitKind)
 				require.Equal(t, 16384, profile.Model.DefaultMaxOutputTokens, "operational default is separate from a vendor maximum")
-				require.Equal(t, "2026-11-14.2", profile.Revision)
+				if strings.HasPrefix(id, "gpt-6.2-") {
+					require.Equal(t, "2026-11-18.1", profile.Revision)
+					require.Equal(t, "2026-11-18", profile.ReviewedAt)
+				} else {
+					require.Equal(t, "2026-11-14.2", profile.Revision)
+				}
 				raw, err := json.Marshal(profile)
 				require.NoError(t, err)
 				var fields map[string]json.RawMessage

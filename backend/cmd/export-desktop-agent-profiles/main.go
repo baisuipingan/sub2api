@@ -20,11 +20,12 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	const revision = "2026-11-14.2"
+	var revision string
 	for _, profile := range profiles {
-		if profile.Revision != revision {
-			fail(fmt.Errorf("profile %s has revision %s, expected %s", profile.ID, profile.Revision, revision))
+		if profile.Revision == "" {
+			fail(fmt.Errorf("profile %s has no reviewed revision", profile.ID))
 		}
+		revision = max(revision, profile.Revision)
 	}
 	envelope := struct {
 		SchemaVersion int                           `json:"schema_version"`
