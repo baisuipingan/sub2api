@@ -45,12 +45,13 @@ MiloCode 通过受管 Key 调用公共网关，图片工作台通过完整 route
 
 详细证据见 [积分计价审计](SYNC_V0_2_23_BILLING_AUDIT.md)、[转发审计](SYNC_V0_2_23_FORWARDING_AUDIT.md)、[界面、迁移与模型档案审计](SYNC_V0_2_23_UI_MIGRATIONS_AUDIT.md)。日志保存在忽略目录 `output/sync-v0.2.23/`。
 
-- 完整后端 integration：`CI=true GOMAXPROCS=2 go test -tags=integration -p 2 ./...` 通过，实际创建临时 PostgreSQL/Redis 并应用全部迁移；不是没有 Docker 时跳过测试。
-- 前端全量初次执行 483 文件、4,154 测试：4,153 通过，1 个旧帮助文案断言失败；修正后连同相关配置行为重跑 5 文件、34 测试通过，另新增一条促销说明回归。typecheck、lint 和生产 build 通过。
+- 完整后端 unit：`GOMAXPROCS=2 go test -tags=unit -p 2 ./...` 最终复测通过（61 个有测试的包）；共享计价入口修正后的 service integration 复测及 embed build 均通过。
+- 完整后端 integration：`CI=true GOMAXPROCS=2 go test -tags=integration -p 2 ./...` 通过（55 个有测试的包），实际创建临时 PostgreSQL/Redis 并应用全部迁移；不是没有 Docker 时跳过测试。临时测试容器已自动清理。
+- 前端全量最终复测：483 文件、4,155 测试全部通过。更新官方 Ultra Fast 帮助文案的旧断言，并保留配置 payload 行为验证；typecheck、lint 和生产 build 通过。
 - 档案 exact ID/自定义别名、协议 1–3 bootstrap、旧远端刷新/重启、真实导出工件测试通过。
-- 转发与协议专项通过；第一次完整 unit 中 routes 的旧 37 项断言失败，修正后 routes 整包 unit 补跑通过。
+- 转发与协议专项、54 个积分组合场景及共享回退路径直接回归均通过；routes 的能力档案数量断言已随新增模型更新并通过整包验证。
 - fork 发布、部署、备份回退、Apple 容器、Compose 安全/环境/资源与 Caddy 缓存检查通过。
 
-完整后端 unit 及提交后的 CI 结果在完成后补记。没有因测试通过而宣称所有供应商都已付费在线联调。
+提交 `4e518b139d3eab2aa1293d894e6fca5d8c2532ae` 的 [GitHub CI](https://github.com/baisuipingan/sub2api/actions/runs/44252737399) 五项任务（后端 unit/integration、前端、Go 静态检查、发布辅助、macOS shell）及 [Security Scan](https://github.com/baisuipingan/sub2api/actions/runs/44252737362) 前后端两项任务全部通过。对应结果保存在 `source-ci.json` 与 `source-security.json`。此后的提交仅补记本审计文档，业务源码与已验收提交相同。没有因测试通过而宣称所有供应商都已付费在线联调。
 
 本轮仅合并和验证代码；未创建发布标签、未部署生产、未发布远端能力档案，也未修改 ZCode 仓库或制作客户端包。
