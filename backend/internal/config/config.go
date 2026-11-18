@@ -108,6 +108,7 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	OfficeAgent             OfficeAgentConfig             `mapstructure:"office_agent"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
 
@@ -2129,6 +2130,7 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	setOfficeAgentDefaults()
 	viper.SetDefault("run_mode", RunModeStandard)
 	viper.SetDefault("gateway.min_output_tokens", 128)
 	viper.SetDefault("simple_mode.auto_create_default_groups", true)
@@ -2960,6 +2962,9 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.MCP.Validate(); err != nil {
+		return err
+	}
+	if err := c.OfficeAgent.Validate(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(c.Server.FrontendURL) != "" {

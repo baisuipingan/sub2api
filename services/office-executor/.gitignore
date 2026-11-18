@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# The repository root ignores generic tests directories. These contract and
+# isolation tests are intentional source, including the Linux acceptance probe.
+!tests/
+!tests/**
+__pycache__/
+*.pyc

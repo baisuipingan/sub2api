@@ -34,10 +34,33 @@ func NewDesktopAgentModelCatalog(accounts AccountRepository, routes CompositeMod
 }
 
 func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	return s.modelsForEndpoint(ctx, group, CompositeRouteEndpointResponses)
+}
+
+// workbenchChatModelCatalog shares routing facts, not the desktop executor's
+// Responses-only projection. Keep the existing desktop catalog unchanged.
+type workbenchChatModelCatalog struct{ base *desktopAgentModelCatalog }
+
+func NewWorkbenchChatModelCatalog(accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService) DesktopAgentModelCatalog {
+	base := &desktopAgentModelCatalog{accounts: accounts, routes: routes}
+	if channels != nil {
+		base.channels = channels
+	}
+	return &workbenchChatModelCatalog{base: base}
+}
+
+func (s *workbenchChatModelCatalog) ModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	return s.base.modelsForEndpoint(ctx, group, CompositeRouteEndpointChatCompletions)
+}
+
+func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group *Group, endpoint string) ([]string, error) {
 	if s == nil || s.accounts == nil || group == nil || group.ID <= 0 {
 		return nil, errors.New("desktop model catalog unavailable")
 	}
 	platforms := []string{PlatformOpenAI}
+	if endpoint == CompositeRouteEndpointChatCompletions {
+		platforms = []string{group.Platform}
+	}
 	if group.Platform == PlatformComposite {
 		platforms = domain.ConcretePlatformIDs()
 	}
@@ -112,7 +135,7 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 	}
 	for _, route := range routes {
 		if route.Enabled && normalizeCompositeRouteMatchType(route.MatchType) == CompositeRouteMatchExact &&
-			(normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointResponses || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny) {
+			(normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny) {
 			add(route.PublicModel)
 		}
 	}
@@ -130,7 +153,7 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 		platform, target := group.Platform, model
 		requestCtx := ctx
 		if group.Platform == PlatformComposite {
-			decision := desktopAgentCompositeModelTarget(model, accounts, routes)
+			decision := publicCompositeModelTarget(model, accounts, routes, endpoint)
 			if !decision.Matched || decision.TargetPlatform == PlatformTypeSafe {
 				continue
 			}
@@ -216,8 +239,12 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 // 与CompositeRouteResolver一致：Responses显式路由优先，其次持久化精确映射
 // 的唯一平台归属，最后才允许内置检测器；不将运行时补齐的默认映射当成归属声明。
 func desktopAgentCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute) CompositeRouteDecision {
-	decision := CompositeRouteDecision{PublicModel: model, UpstreamModel: model, Endpoint: CompositeRouteEndpointResponses}
-	if route, matched := matchCompositeRoute(routes, model, CompositeRouteEndpointResponses); matched {
+	return publicCompositeModelTarget(model, accounts, routes, CompositeRouteEndpointResponses)
+}
+
+func publicCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute, endpoint string) CompositeRouteDecision {
+	decision := CompositeRouteDecision{PublicModel: model, UpstreamModel: model, Endpoint: endpoint}
+	if route, matched := matchCompositeRoute(routes, model, endpoint); matched {
 		decision.UpstreamModel = strings.TrimSpace(route.UpstreamModel)
 		if decision.UpstreamModel == "" {
 			decision.UpstreamModel = model

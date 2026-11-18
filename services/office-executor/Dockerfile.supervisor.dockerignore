@@ -1,0 +1,7 @@
+**
+!services/
+!services/office-executor/
+!services/office-executor/office_executor/
+!services/office-executor/office_executor/**
+**/__pycache__/
+**/*.pyc

@@ -1,0 +1,48 @@
+# Opt-in reference deployment on the dedicated Linux compute server.
+# No public ports, no changes to the main Sub2API compose stack.
+services:
+  office-executor:
+    image: ${OFFICE_EXECUTOR_SUPERVISOR_IMAGE:?immutable supervisor image required}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    # Inline snapshots are bounded but base64/JSON decoding needs headroom.
+    mem_limit: 1024m
+    cpus: 1.0
+    environment:
+      OFFICE_EXECUTOR_IMAGE: ${OFFICE_EXECUTOR_IMAGE:?immutable task image required}
+      OFFICE_EXECUTOR_STATE_DIR: /var/lib/milo-office-executor
+      OFFICE_EXECUTOR_CONCURRENCY: ${OFFICE_EXECUTOR_CONCURRENCY:-2}
+      OFFICE_EXECUTOR_HOST: 0.0.0.0
+      OFFICE_EXECUTOR_PORT: "8093"
+      OFFICE_EXECUTOR_TOKEN_FILE: /run/secrets/office_executor_token
+    volumes:
+      # Exact same absolute path on host and supervisor. Docker resolves task bind
+      # sources on the host, not inside this supervisor container. No named volume.
+      - /var/lib/milo-office-executor:/var/lib/milo-office-executor
+      # Only the trusted supervisor sees the daemon socket; task containers never do.
+      - /var/run/docker.sock:/var/run/docker.sock
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    secrets:
+      - office_executor_token
+    networks:
+      - office-control
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/healthz', timeout=2).read()"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    stop_grace_period: 45s
+
+secrets:
+  office_executor_token:
+    file: ${OFFICE_EXECUTOR_TOKEN_PATH:?path to an independently generated token file required}
+
+networks:
+  office-control:
+    name: milo-office-control
+    internal: true

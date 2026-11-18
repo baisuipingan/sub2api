@@ -139,6 +139,8 @@ vite.config.js
 docs/*
 !docs/DESKTOP_AGENT.md
 !docs/DESKTOP_RELEASES.md
+!docs/WORKBENCH_OFFICE_AGENT_DESIGN.md
+!docs/WORKBENCH_OFFICE_AGENT_IMPLEMENTATION.md
 !docs/agent-resource-safety.md
 !docs/moego-json-batching.md
 !docs/admin-api-keys.md

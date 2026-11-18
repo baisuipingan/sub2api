@@ -1,0 +1,15 @@
+**
+!services/
+!services/office-executor/
+!services/office-executor/office_executor/
+!services/office-executor/office_executor/**
+!services/office-executor/requirements-task.txt
+!services/office-agent/
+!services/office-agent/vendor/
+!services/office-agent/vendor/bisheng/
+!services/office-agent/vendor/bisheng/LICENSE
+!services/office-agent/vendor/bisheng/SOURCE_MANIFEST.json
+!services/office-agent/vendor/bisheng/skills/
+!services/office-agent/vendor/bisheng/skills/**
+**/__pycache__/
+**/*.pyc

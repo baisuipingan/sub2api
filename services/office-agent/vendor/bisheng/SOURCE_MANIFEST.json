@@ -1,0 +1,265 @@
+{
+  "repository": "https://github.com/dataelement/bisheng",
+  "commit": "a8e5be89c1b8d3a2e512c772e2a38de409336dc8",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/SKILL.md",
+      "local_path": "skills/bisheng-docx/SKILL.md",
+      "sha256": "456643ebd065f6688d535c692f8f35838dcfc73463dfd9c6f5863aa157fb5fac",
+      "modified": true,
+      "local_sha256": "1e035041cf2a9e0f96a4eb947d223ff76eaa62da15e4b734379e59c8e3a0fa20",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/references/design-zh.md",
+      "local_path": "skills/bisheng-docx/references/design-zh.md",
+      "sha256": "102b109b753b5a5f6e750d8baa651e6e1699e95bbfb3ae744d2f76f1bb5fc7fb",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/references/gongwen-gbt9704.md",
+      "local_path": "skills/bisheng-docx/references/gongwen-gbt9704.md",
+      "sha256": "9ce94ad0a3dc113bef37ad65d12b4c5427d24dee4916aace6723245e645b2876",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/references/python-docx-cookbook.md",
+      "local_path": "skills/bisheng-docx/references/python-docx-cookbook.md",
+      "sha256": "f0eddd38324d2038aa6629656129809faee4c32d803abc717f2a676d7807cd12",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/scripts/docx_helpers.py",
+      "local_path": "skills/bisheng-docx/scripts/docx_helpers.py",
+      "sha256": "ee0234fded342ae5c7d33572a79a1dc1921cc81a6b89b2d9411902c310efd3a3",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/scripts/inspect_docx.py",
+      "local_path": "skills/bisheng-docx/scripts/inspect_docx.py",
+      "sha256": "007a5f532281eea068b77dc64211bc2ab84bf46742c9ae0494ba6c31fcdbdbfa",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/scripts/render_docx.py",
+      "local_path": "skills/bisheng-docx/scripts/render_docx.py",
+      "sha256": "1648a2617b20f9983f370a4ebd300da56d9deb9676c0b4de660fafaaee55158d",
+      "modified": true,
+      "local_sha256": "a39f87d5224ac56708d988b5198dfb02cb12126be24b7121c2d306787752d701",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/scripts/style_profiles.py",
+      "local_path": "skills/bisheng-docx/scripts/style_profiles.py",
+      "sha256": "516c02874d29e24f66c11ea4ca119eb95725b240ec2b52d30e13a68eee51be73",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/SKILL.md",
+      "local_path": "skills/bisheng-pptx/SKILL.md",
+      "sha256": "1162e66d4720e43cdbcd429ee50911df53a4d82893b3cc614802fbfdbea9a247",
+      "modified": true,
+      "local_sha256": "34003ba3de1ebf90151ac0c609ab5ff38bfa4265c9a2cabccce3f0d34cebf89d",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/design-zh.md",
+      "local_path": "skills/bisheng-pptx/references/design-zh.md",
+      "sha256": "7e713f66ed8c7743f8aaf8a7d8d637524d7412b8e145ea0a341cb0e979f61cda",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/environment.md",
+      "local_path": "skills/bisheng-pptx/references/environment.md",
+      "sha256": "d8cbf6c47c90cf570273c335fae55123e84fb133549b927ba5584a0627f41b13",
+      "modified": true,
+      "local_sha256": "69c68c166a9c1d4a9e7f04af127f08a4344542b49c727ba6419fb6df106cdac1",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/freeform.md",
+      "local_path": "skills/bisheng-pptx/references/freeform.md",
+      "sha256": "4eb84f5afa3d2781bb83194fbd4f6c57a4473fdcbb3fc82f56ed058b3dcf5057",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/pptx-cookbook.md",
+      "local_path": "skills/bisheng-pptx/references/pptx-cookbook.md",
+      "sha256": "d5c026e7fb2d3325def76c954bfab4d3699a3de614844929431d65430748c638",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/deck_checks.py",
+      "local_path": "skills/bisheng-pptx/scripts/deck_checks.py",
+      "sha256": "91e9393470f6dbc0b8eaf3eb3f15385f99afc396b03412bd4b6f728e58785e9d",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/deck_render.py",
+      "local_path": "skills/bisheng-pptx/scripts/deck_render.py",
+      "sha256": "e14117a4784d6b9970e0c6f20477000a59326bc6c23338aeb5c294c9e79413ed",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/deck_template.py",
+      "local_path": "skills/bisheng-pptx/scripts/deck_template.py",
+      "sha256": "241e47c70eb83a20d04f776be506f8b37b416652145d2f570e6737372750fecc",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/inspect_deck.py",
+      "local_path": "skills/bisheng-pptx/scripts/inspect_deck.py",
+      "sha256": "464012f14d4df3e9b46258a0efe628df17efc69368ad6cf9606dcde973eba824",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/list_templates.py",
+      "local_path": "skills/bisheng-pptx/scripts/list_templates.py",
+      "sha256": "3c47f40a150ddbf3c83b76680f6cd417b3793eeb54351def2e915a02ba9a6c07",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/pptx_helpers.py",
+      "local_path": "skills/bisheng-pptx/scripts/pptx_helpers.py",
+      "sha256": "10e84b0bf8248b4c5e416dd4b4d4e5b7dd870f6874a906d873f56ce0215f4f26",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/probe_template.py",
+      "local_path": "skills/bisheng-pptx/scripts/probe_template.py",
+      "sha256": "bc7ec002d76d7f1f4cab7765fe200e7f207b99c231ba4abf6361f18acb4fec5a",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/scripts/render_deck.py",
+      "local_path": "skills/bisheng-pptx/scripts/render_deck.py",
+      "sha256": "a88bd349e684cda1f54ff0818570e4388674eeda554861a1dc2c72282f8e2922",
+      "modified": true,
+      "local_sha256": "44a8436777eb5438865393e9accb0011f10d3f4b02f258d293f118396e35d3a6",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/blueprint/layouts.json",
+      "local_path": "skills/bisheng-pptx/templates/blueprint/layouts.json",
+      "sha256": "2f8f41c78357f1a639f1baeb4a821b05ef02b714a962e74ab32652185ca287e1",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/blueprint/template.pptx",
+      "local_path": "skills/bisheng-pptx/templates/blueprint/template.pptx",
+      "sha256": "4c588f537dc8a30e2d6817b92443724bbfa58081e2724997e536b499aa47aed9",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/catalog.json",
+      "local_path": "skills/bisheng-pptx/templates/catalog.json",
+      "sha256": "64ed28a84707cf6cee9f8cb0c777130e0146de2969644e7df89d3f6e12ca4f97",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/classroom/layouts.json",
+      "local_path": "skills/bisheng-pptx/templates/classroom/layouts.json",
+      "sha256": "b3879443e09a04809ab7e1319a24a1765e96ee53bcb285d0c610279e77866d25",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/classroom/template.pptx",
+      "local_path": "skills/bisheng-pptx/templates/classroom/template.pptx",
+      "sha256": "8dd03aeeaf59f43dbdb6fb258049a4766f70cb0f00e9a1589bab8ec5c2da8177",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/gov-red/layouts.json",
+      "local_path": "skills/bisheng-pptx/templates/gov-red/layouts.json",
+      "sha256": "a434af93735c1497577dca4c9b6125abb11a792c21ae5617f6cd87b86b2fc143",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/gov-red/template.pptx",
+      "local_path": "skills/bisheng-pptx/templates/gov-red/template.pptx",
+      "sha256": "17bcf35798049857b61f710efea782cc7ef91a18e9ce66c49c4602ed167b0aa2",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/operating/layouts.json",
+      "local_path": "skills/bisheng-pptx/templates/operating/layouts.json",
+      "sha256": "b4e5b5887ee96af1f4ba851b8377bb64a93fd00be66b742e5443e239ce791be7",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/operating/template.pptx",
+      "local_path": "skills/bisheng-pptx/templates/operating/template.pptx",
+      "sha256": "902aecba0b075b7b817d045175a78d755d0a92e72ba767e03db3636adf5f4ac3",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/tech-dark/layouts.json",
+      "local_path": "skills/bisheng-pptx/templates/tech-dark/layouts.json",
+      "sha256": "7e7cb63b921005fc5d662af08b18a7bf3cc92a71170f86e58a3559ada3ffa972",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/tech-dark/template.pptx",
+      "local_path": "skills/bisheng-pptx/templates/tech-dark/template.pptx",
+      "sha256": "74fa341f7a7e3aeaa330db6f0260ec04224f82387b3380d47689f663febcb1e3",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/SKILL.md",
+      "local_path": "skills/bisheng-xlsx/SKILL.md",
+      "sha256": "e239333e6b16530cd2935261346e2842221ba9bb39b8f5779bdd035262cf8bde",
+      "modified": true,
+      "local_sha256": "cc3505779afc3e478a7c3e8d23d1568763ca2d428540a2a6ba8eaa63b2054419",
+      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/references/design-zh.md",
+      "local_path": "skills/bisheng-xlsx/references/design-zh.md",
+      "sha256": "c5d676a69dac2957e9cbfaac9addd824e34542f1b81f36ed6b1201c731ec57cc",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/references/openpyxl-cookbook.md",
+      "local_path": "skills/bisheng-xlsx/references/openpyxl-cookbook.md",
+      "sha256": "6360a4f475a03abcb395ef787bdab0c7537c617cbe5c24b93b57dfa7df97c67a",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/scripts/inspect_workbook.py",
+      "local_path": "skills/bisheng-xlsx/scripts/inspect_workbook.py",
+      "sha256": "38e6e3f4533bccd2199c9b558ef029d5f1f24c075ed2d6f6a13561e54b5c7f9a",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/scripts/recalc_check.py",
+      "local_path": "skills/bisheng-xlsx/scripts/recalc_check.py",
+      "sha256": "dc1bed5d119e08250d34ccaf51f01aaff1d560abb948239fcec8540f59ad14c7",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/scripts/xlsx_helpers.py",
+      "local_path": "skills/bisheng-xlsx/scripts/xlsx_helpers.py",
+      "sha256": "8b491aa9b14e8b9e6adbc1326b8f900d4f5771ebb590d6be049a94b346803d0a",
+      "modified": false
+    },
+    {
+      "upstream_path": "LICENSE",
+      "local_path": "LICENSE",
+      "sha256": "86ec6169ff02c09cca01bb674338db75fb527f5aa71f58c2becb11e7102afbe4",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/domain/services/base_prompt.py",
+      "local_path": "original/base_prompt.py",
+      "sha256": "40f5e2cf565a5ee66f1071ff8b5e4fa8d82dfe2b0e5eb879595a5dafc3ee29cd",
+      "modified": false
+    },
+    {
+      "upstream_path": "src/backend/bisheng/linsight/domain/services/tool_loop_middleware.py",
+      "local_path": "original/tool_loop_middleware.py",
+      "sha256": "8537b9cfd23c567ed9a892dc9b3e00141d7f75c31ae77196568498f6bf6e3438",
+      "modified": false
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Build context: repository root. Neither this image nor its socket reaches model code.
+ARG DOCKER_CLI_IMAGE
+ARG PYTHON_BASE_IMAGE
+FROM ${DOCKER_CLI_IMAGE} AS docker_cli
+FROM ${PYTHON_BASE_IMAGE}
+ARG DOCKER_CLI_IMAGE
+ARG PYTHON_BASE_IMAGE
+RUN case "$DOCKER_CLI_IMAGE" in *@sha256:*) ;; *) exit 1 ;; esac \
+    && case "$PYTHON_BASE_IMAGE" in *@sha256:*) ;; *) exit 1 ;; esac
+COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/opt/office-executor
+COPY services/office-executor/office_executor /opt/office-executor/office_executor
+RUN chmod -R a-w /opt/office-executor
+WORKDIR /opt/office-executor
+ENTRYPOINT ["python", "-m", "office_executor"]
+CMD ["serve"]
