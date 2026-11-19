@@ -64,7 +64,7 @@ func (s *officeLiveStream) write(data []byte) error {
 			continue
 		}
 		for _, c := range v.Choices {
-			s.text.WriteString(c.Delta.Content)
+			_, _ = s.text.WriteString(c.Delta.Content)
 		}
 		if s.text.Len() >= 256 || time.Since(s.last) > 100*time.Millisecond {
 			if e := s.flush(); e != nil {

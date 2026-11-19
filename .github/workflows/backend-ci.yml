@@ -96,8 +96,10 @@ jobs:
       - name: Embedded API routing regression
         working-directory: backend
         run: |
-          mkdir -p internal/web/dist
+          mkdir -p internal/web/dist/assets
           printf '%s' '<!doctype html><html><head><title>Sub2API</title></head><body>CI embed fixture</body></html>' > internal/web/dist/index.html
+          printf '%s' '<svg xmlns="http://www.w3.org/2000/svg"></svg>' > internal/web/dist/logo.svg
+          printf '%s' 'export const embeddedFixture = true' > internal/web/dist/assets/index-AbCd1234.js
           go test -tags embed ./internal/web -run 'TestFrontendServer_Middleware|TestServeEmbeddedFrontend' -count=1
       # Real gVisor/Office rendering has a separate Linux acceptance probe. CI
       # must not claim this by substituting runc or running generated code here.

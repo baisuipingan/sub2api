@@ -207,15 +207,16 @@ func (r *officeResourcesRepository) FinalizeCleanup(ctx context.Context, item se
 	if err = galleryLockUser(ctx, tx, item.UserID); err != nil {
 		return err
 	}
-	if item.Kind == "snapshot" {
+	switch item.Kind {
+	case "snapshot":
 		_, err = tx.ExecContext(ctx, `DELETE FROM office_workspace_snapshots WHERE id=$1 AND user_id=$2 AND state='deleting'`, item.ID, item.UserID)
-	} else if item.Kind == "version" {
+	case "version":
 		// Child versions are removed first; an interrupted pass is retryable.
 		_, err = tx.ExecContext(ctx, `DELETE FROM office_resource_versions v WHERE v.id=$1 AND v.user_id=$2 AND v.state='deleting' AND NOT EXISTS(SELECT 1 FROM office_resource_refs f WHERE f.version_id=v.id) AND NOT EXISTS(SELECT 1 FROM office_resource_versions child WHERE child.parent_version_id=v.id)`, item.ID, item.UserID)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `DELETE FROM office_resources r WHERE r.user_id=$1 AND source<>'gallery' AND NOT EXISTS(SELECT 1 FROM office_resource_versions v WHERE v.resource_id=r.id)`, item.UserID)
 		}
-	} else {
+	default:
 		return service.ErrOfficeInvalid
 	}
 	if err != nil {

@@ -42,7 +42,7 @@ func TestOfficeLiveStreamFragmentationAndPrivateFields(t *testing.T) {
 	for _, e := range repo.events {
 		var p map[string]string
 		require.NoError(t, json.Unmarshal(e.Payload, &p))
-		out.WriteString(p["text"])
+		_, _ = out.WriteString(p["text"])
 		require.Equal(t, "assistant.delta", e.Type)
 		require.NotContains(t, string(e.Payload), "secret")
 		require.NotContains(t, string(e.Payload), "不公开")
@@ -57,7 +57,7 @@ func TestOfficeLiveStreamFragmentationAndPrivateFields(t *testing.T) {
 	for _, e := range repo.events {
 		var p map[string]string
 		require.NoError(t, json.Unmarshal(e.Payload, &p))
-		out.WriteString(p["text"])
+		_, _ = out.WriteString(p["text"])
 	}
 	require.Equal(t, "你好😀世界", out.String())
 }

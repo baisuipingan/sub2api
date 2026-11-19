@@ -90,8 +90,8 @@ func (s *OfficeAgentService) ReadWeb(ctx context.Context, lease OfficeRunLease, 
 				if kind == html.TextToken && skip == 0 {
 					t := strings.TrimSpace(token.Data)
 					if t != "" {
-						out.WriteString(t)
-						out.WriteByte('\n')
+						_, _ = out.WriteString(t)
+						_ = out.WriteByte('\n')
 					}
 					if out.Len() > 64<<10 {
 						break
