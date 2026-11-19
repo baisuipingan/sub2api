@@ -86,6 +86,8 @@ async def claim(client: httpx.AsyncClient, origin: str, token: str, worker_id: s
                                  follow_redirects=False) as response:
             if response.status_code == 204:
                 return None
+            if response.status_code in {429, 500, 502, 503, 504}:
+                raise RuntimeFailure("CLAIM_TEMPORARILY_UNAVAILABLE", "领取任务服务暂时不可用；未收到的任务不会在本机执行")
             if response.status_code != 200:
                 raise RuntimeFailure("CLAIM_REJECTED", "服务端拒绝领取任务，请核对试验开关和 worker 配置")
             chunks, size = [], 0
@@ -138,11 +140,25 @@ async def run_worker(*, once=False):
     async with httpx.AsyncClient(timeout=httpx.Timeout(310, connect=5), trust_env=False,
                                  limits=httpx.Limits(max_connections=4, max_keepalive_connections=2)) as client:
         health_checked, executor_ready = 0.0, None
+        claim_retry_seconds = 5
         while True:
             if preset == "office" and time.monotonic() - health_checked >= 30:
                 executor_ready = await executor_health(client, executor_origin)
                 health_checked = time.monotonic()
-            manifest = await claim(client, origin, token, worker_id, preset, executor_ready)
+            try:
+                manifest = await claim(client, origin, token, worker_id, preset, executor_ready)
+            except RuntimeFailure as exc:
+                if once or exc.code not in {"CLAIM_TRANSPORT_FAILED", "CLAIM_TEMPORARILY_UNAVAILABLE"}:
+                    raise
+                # Only retry polling before a manifest is acquired. Go fences
+                # a lost claim with its lease; dispatched/unknown operations
+                # require confirmation on recovery. Never retry execution here.
+                print(json.dumps({"error_code": exc.code, "retry_seconds": claim_retry_seconds}),
+                      file=sys.stderr, flush=True)
+                await asyncio.sleep(claim_retry_seconds)
+                claim_retry_seconds = min(claim_retry_seconds * 2, 30)
+                continue
+            claim_retry_seconds = 5
             if manifest:
                 result = await process_manifest(origin, manifest, client,
                                                 executor_origin=executor_origin, executor_token=executor_token, preset=preset)
