@@ -66,6 +66,9 @@ func (s *OfficeResourcesService) Start() {
 	}()
 }
 func (s *OfficeResourcesService) Stop() {
+	if s == nil {
+		return
+	}
 	s.lifecycle.Lock()
 	cancel, done := s.cancel, s.done
 	if cancel == nil {

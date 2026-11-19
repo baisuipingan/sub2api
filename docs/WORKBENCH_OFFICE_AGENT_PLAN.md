@@ -214,4 +214,4 @@ M1 不依赖办公机器；M2 不依赖 Office 镜像或文件归档。M5 依赖
 
 基础提交 `27b8e3c2e61a984c6348bbf786bce53a36400634` 的 CI 已通过。本轮已实现 Vue 对话/文件及管理界面、持久会话与真实流式传输、候选答案、受控检索、通用私有资源/版本/预览、持久图与必要工作快照、任务预算及官方档案关联。已部署独立测试环境，尚未部署生产或合并主分支。
 
-当前正在进行真实上游模型、原积分账本、完整办公生成/修改与故障恢复的端到端验收。已完成和未完成的证据以 [验收记录](WORKBENCH_OFFICE_AGENT_ACCEPTANCE.md) 为准，不用旧 pilot 的 mock 结果替代。
+测试站已完成真实 GPT 对话、Word 生成与版本修改、CSV 生成 Excel/PPT、澄清跨进程恢复及原积分账本对账。Claude 已验证普通对话；DeepSeek 测试上游返回 502，Gemini/Grok 和真实搜索供应商未完成接入实测。正式开放前仍须按实际供应商补验及小流量观察。具体事实见 [验收记录](WORKBENCH_OFFICE_AGENT_ACCEPTANCE.md) 和 [运维交接](WORKBENCH_OFFICE_AGENT_OPERATIONS.md)。
