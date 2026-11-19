@@ -15,7 +15,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 | Bisheng 来源 | 固定 commit 的活跃源组件、样式、修改映射及 LICENSE/NOTICE 保留；原 React Landing、ClarifyCard、ResultSection 独立样本有截图。未声称完整 Bisheng 应用像素一致 |
 | Vue 界面 | 最终类型检查、ESLint、构建及 683 项关键前端测试通过；真实测试站 1440/390 与 1023/767/576 临界宽度无横向溢出；浅深主题、输入法与滚动通过 |
 | 文件基础 | 中文 TXT 真实上传、元数据列表、点击才取签名预览、下载成功，文件名和 SHA256 一致；列表阶段没有对象 GET |
-| Go 基础 | 定向 service/config/handler/admin/routes/repository/websearch 检查、embed 前端检查、真实 PostgreSQL `TestOffice` 集成通过；后续修正需以最终复跑为准 |
+| Go 基础 | 定向 service/config/handler/admin/routes/repository/websearch 检查、真实前端 embed 检查通过；完整 repository PostgreSQL 集成的 796 项顶层测试全部通过、无跳过，具体收尾结果见下文 |
 | Agent | 当前 101 项 Python 测试通过；包含普通聊天/办公预设分离、持久检查点、澄清恢复、付费模型与工具防重放、摘要边界、严格工具 JSON/名称分片及诊断日志脱敏 |
 | 文件权限与下载 | 最终应用上用两个独立普通用户复验 TXT/DOCX/XLSX/PPTX/PNG 上传及幂等回放、私有原件哈希、图片预览、删除隐藏；跨用户读取/删除 404，无 JWT 401，伪 PNG/HTML 400；测试用户已清理，未调用模型 |
 | 对话权限与并发读取 | 普通用户读取他人消息/run/事件/用量均 404，管理端 403；无 JWT 401；18 次会话列表并发读取全部 200（六路并发），不将该小样本称为容量压测 |
@@ -45,6 +45,32 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 - 模型正文常使用 `/output/文件名`，原渲染器仅识别 `output/文件名`。两种写法仅在匹配已授权成果时成为文件操作，外部或未授权路径不会变成可下载链接。
 - 私有跨域 PDF 不能直接塞进默认 CSP 的 iframe；Chromium 的 iframe sandbox 也会禁用原生 PDF 插件。改为有界读取、检查 MIME 与 PDF 签名后创建本地 blob；仅增加 `frame-src blob:`。全屏使用同一预览实例，版本缓存有界并在退出时撤销。
 - 同名不同格式如 `summary.xlsx` / `summary.pptx` 原本共享 stem 预览目录，可能错配预览。固定渲染器与归档按含扩展名的完整输出相对路径区分；旧 stem 目录仅在唯一对应一个成果时兼容。新增同名多格式与嵌套路径回归。
+- 模块未配置时，应用退出会对可选的资源清理服务调用 `Stop`。已增加 nil receiver 保护，并通过默认/unit 两种构建的退出回归。
+- 完整 CI 暴露 Office 摘要测试的清理被 `office_agent_context_summaries_user_id_fkey` 阻止，原测试又忽略删除错误，污染后续用户及订阅套件。仅修正 fixture 自有摘要、会话、用户、分组的清理顺序并检查错误；保留生产外键和原业务断言。新增精准回归，确认清完自己的记录且不删除其他用户。
+
+## 最终自动回归
+
+- 前端：683 项关键测试、类型检查、ESLint 与完整构建通过。
+- Python Agent：101 项测试通过；隔离执行器 30 项测试及 30 个子场景通过。
+- 真实 PostgreSQL：完整 repository 796 项顶层测试、0 跳过，44.940 秒通过；Office 与原 UserRepo、API Key 分组过滤、Subscription 的联合进程 37 项顶层测试、0 跳过，11.122 秒通过。资源回收最终定向复跑 6.966 秒通过。
+- Go/Python：真实模型桥图及严格 Gin Finish 两个跨进程契约通过；Office/Desktop 定向 race 通过，routes 仅编译且无匹配测试，不计作执行通过。
+- 远端初轮完整 default/unit 曾发现已修正的可选服务 nil 退出问题；unit 还在资源争用时出现一次原 OAuth 时限测试失败，未改该业务或断言，原样连续 20 次复跑通过。最终全量 CI 结果单独记录，不能将初轮命令写成全部通过。
+- 最终代码 `6038045b2b4783ffab6bed681a40e99391708240` 的 [完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/44475161355) 全部成功：全量 unit、全量 integration、Office/Desktop race、真实 Go/Python 图与 Finish、embed 路由、前端、golangci-lint、部署脚本和发版工具；[安全扫描](https://github.com/baisuipingan/sub2api/actions/runs/44475161362) 同样成功。之后交付提交仅修改文档。
+
+## 最终测试部署
+
+最终只更新 Go 应用，`/health` 返回 `{"status":"ok"}`，对话页面、管理员概览和任务接口正常。源文件与最终应用构建上下文的非测试 Go 内容一致。前端 dist 的 `index.html` SHA256 为 `1c4c948c5e928000b50753ac87c0ec53e4ccd48dc96f08acfdf4901241ec226b`；公开 HTML 会注入站点配置，不用其动态响应哈希替代构建产物哈希。
+
+| 镜像 | 最终固定摘要 |
+| --- | --- |
+| Go 应用 | `sha256:bd8bad2cf4ea12d58ea6fea08243d90e154d75e49434e2ee08b47d5e892e7110` |
+| chat / office worker | `sha256:a06103857f57e877555cb2a067aed4e9a0cdadebe37e34cd5d6804ea5777f6b2` |
+| 隔离任务 | `sha256:ce43b86246bbdac5c3e79858e5c7d979f00aabfd840aeff16abe12d707c01452` |
+| 可信监督器 | `sha256:9d630af8477240ce1d7d5a0437ce501777d3aba17897402007963c16820f267a` |
+
+应用更新后 worker、监督器和存储正常运行；临时工具容器、gVisor 任务容器和 testcontainers 均为 0。未重启其他业务或全局清理 Docker；未变更生产或主分支。测试登录信息位于工作区未入库的 `output/office-evidence/TEST_ACCESS.txt`（0600），不要提交到公开源码。
+
+最终 CI 成功后，已核对运行容器挂载，清空本轮专用 Go build 缓存并删除已废弃的隔离诊断/应用构建临时副本。保留部署源码、日志证据、凭据、模块缓存和运行/回退镜像；未清理全局 Docker 构建缓存。测试机可用空间由 39 GiB 增至约 50 GiB，清理后健康检查仍为 200。
 
 ## 测试站端到端结果
 
@@ -68,7 +94,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 
 | 供应商 / 模型 | 实测事实与范围 |
 | --- | --- |
-| GPT / `gpt-5.6-luna` | 普通对话、两轮上下文、重新生成/候选选择、停止与刷新，以及 Word 生成/继续修改已真实通过；均复用原账本与实际上游。Excel/PPT 组合任务及跨进程恢复的最终结果见下方收尾记录 |
+| GPT / `gpt-5.6-luna` | 普通对话、两轮上下文、重新生成/候选选择、停止与刷新，以及 Word 生成/继续修改已真实通过；均复用原账本与实际上游。Excel/PPT 组合任务及跨进程恢复均已通过，具体调用与性能边界见上方端到端结果 |
 | Claude / `claude-sonnet-4-6` | 最终部署冻结后只执行一次最小普通对话，约 5 秒进入 `completed`；仅一个已完成模型操作、无工具调用，正确返回指定中文句子。原账本 `settled=true`，输入 112 / 输出 18 token，`actual_cost=0.000606`、`charge_credits=60600`；唯一上游为账号 2 `Office test Claude gateway`，实际模型 `claude-sonnet-4-6`。只证明普通对话、完成上报与原账本闭环，不代表工具、视觉或办公能力已实测 |
 | DeepSeek / `deepseek-v4-pro` | 仅执行一次普通对话，原网关记录账号 1 `Office test gateway` 返回上游 HTTP 502；模型操作 inbox 已完成，原账本观察结果 `settled=false`、无 usage 收费记录。旧运行停在 `needs_confirmation`，未重放。后续“已确认 HTTP 失败”分类由契约测试验证，未再次调用供应商，因此不标记 DeepSeek 兼容通过 |
 | Grok | 既有测试凭据的模型发现请求返回 HTTP 错误，未建立有效验收链路；未执行真实对话或办公调用 |
