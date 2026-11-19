@@ -141,6 +141,7 @@ docs/*
 !docs/DESKTOP_RELEASES.md
 !docs/WORKBENCH_OFFICE_AGENT_DESIGN.md
 !docs/WORKBENCH_OFFICE_AGENT_IMPLEMENTATION.md
+!docs/WORKBENCH_OFFICE_AGENT_PLAN.md
 !docs/agent-resource-safety.md
 !docs/moego-json-batching.md
 !docs/admin-api-keys.md
