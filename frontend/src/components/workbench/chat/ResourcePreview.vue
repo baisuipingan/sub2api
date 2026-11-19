@@ -1,26 +1,24 @@
 <template>
-  <section class="bs-chat-workspace" :class="{ fullscreen }" :aria-label="file ? file.name : '文件工作区'">
-    <header>
-      <button v-if="file" type="button" class="bs-chat-icon" aria-label="返回文件列表" @click="emit('preview', null)"><Icon name="arrowLeft" size="sm" /></button>
-      <strong :title="file?.name">{{ file?.name || '文件工作区' }}</strong>
-      <button v-if="file && !readOnly && editable(file)" type="button" class="bs-chat-text-button" @click="emit('edit', file)"><Icon name="edit" size="sm" />继续修改</button>
-      <button v-if="file" type="button" class="bs-chat-icon" :disabled="downloading" aria-label="下载文件" title="下载文件" @click="download(file)"><Icon :name="downloading ? 'refresh' : 'download'" :class="{ 'bs-chat-spin': downloading }" size="sm" /></button>
+  <section class="bs-chat-workspace bso-workspace" :class="{ fullscreen }" :aria-label="file ? file.name : '文件工作区'">
+    <header class="bso-workspace-toolbar">
+      <button v-if="file" type="button" class="bs-chat-icon" aria-label="返回文件列表" title="返回文件列表" @click="emit('preview', null)"><Icon name="arrowLeft" size="sm" /></button>
+      <strong><span class="bso-workspace-title" :title="file?.name">{{ file?.name || '文件工作区' }}</span><span v-if="!file && files.length" class="bso-workspace-count">{{ files.length }}</span></strong>
+      <button v-if="file && !readOnly && editable(file)" type="button" class="bso-continue-edit" title="基于当前文件版本继续修改" @click="emit('edit', file)"><Icon name="edit" size="sm" /><span>继续修改</span></button>
+      <button v-if="file" type="button" class="bs-chat-icon" :disabled="downloading" aria-label="下载文件" title="下载原文件" @click="download(file)"><Icon :name="downloading ? 'refresh' : 'download'" :class="{ 'bs-chat-spin': downloading }" size="sm" /></button>
       <button v-if="!hideFullscreen" type="button" class="bs-chat-icon" :aria-label="fullscreen ? '退出全屏' : '全屏预览'" :title="fullscreen ? '退出全屏' : '全屏预览'" @click="emit('fullscreen')"><Icon :name="fullscreen ? 'x' : 'externalLink'" size="sm" /></button>
-      <button type="button" class="bs-chat-icon" aria-label="关闭文件工作区" @click="emit('close')"><Icon name="x" size="sm" /></button>
+      <button type="button" class="bs-chat-icon" aria-label="关闭文件工作区" title="关闭文件工作区" @click="emit('close')"><Icon name="x" size="sm" /></button>
     </header>
-    <p v-if="error" class="bs-chat-preview-error" role="alert">{{ error }}<button type="button" class="bs-chat-text-button" @click="loadPreview(true)">重试</button></p>
-    <div v-if="!file" class="bs-chat-workspace-list">
-      <div v-for="item in files" :key="item.version_id" class="bs-chat-file-row"><button type="button" @click="emit('preview', item)"><Icon name="document" size="sm" /><span :title="item.name">{{ item.name }}</span></button><button type="button" class="bs-chat-icon" :aria-label="`下载${item.name}`" :disabled="downloading" @click="download(item)"><Icon name="download" size="sm" /></button></div>
-      <p v-if="!files.length" class="bs-chat-empty-files"><Icon name="document" size="lg" />此会话还没有文件</p>
-    </div>
-    <div v-else-if="loading" class="bs-chat-preview-loading" role="status"><Icon class="bs-chat-spin" name="refresh" size="md" />正在加载预览…</div>
+    <div v-if="file && ['markdown', 'text'].includes(kind) && !loading && !error" class="bso-preview-mode-toolbar"><div class="bso-segmented" role="tablist" aria-label="文件显示方式"><button type="button" role="tab" :aria-selected="!showSource" @click="showSource = false">预览</button><button type="button" role="tab" :aria-selected="showSource" @click="showSource = true">源码</button></div></div>
+    <p v-if="error" class="bs-chat-preview-error" role="alert"><Icon name="exclamationCircle" size="sm" /><span>{{ error }}</span><button type="button" class="bs-chat-text-button" @click="loadPreview(true)">重试</button></p>
+    <WorkspaceFileList v-if="!file" :files="files" :loading="filesLoading" :load-failed="filesLoadFailed" :downloading="downloading" @preview="emit('preview', $event)" @download="download" />
+    <div v-else-if="loading" class="bs-chat-preview-loading bso-preview-loading" role="status"><Icon class="bs-chat-spin" name="refresh" size="md" />正在加载预览…</div>
     <div v-else-if="kind === 'image' && previewURL" class="bs-chat-image-preview"><img :src="previewURL" :alt="file.name" @error="imageFailed" /></div>
-    <!-- Only a bounded, PDF-signature-checked application/pdf blob reaches the native viewer.
-         An iframe sandbox disables Chromium's PDF plugin, including with allow-scripts. -->
+    <!-- The authenticated bounded/signature-checked PDF blob is kept intact.
+         Toolbar/fullscreen changes never create a second viewer or object GET. -->
     <iframe v-else-if="kind === 'pdf' && previewURL" :src="previewURL" :title="file.name" class="bs-chat-pdf-preview" referrerpolicy="no-referrer"></iframe>
-    <div v-else-if="kind === 'markdown'" class="bs-chat-document-preview"><ChatMarkdown :content="text" /></div>
-    <pre v-else-if="kind === 'text'" class="bs-chat-text-preview">{{ text }}</pre>
-    <div v-else-if="!error" class="bs-chat-preview-unsupported"><Icon name="document" size="lg" /><strong>{{ file.name }}</strong><p>此格式暂不支持在线预览，可以下载查看。</p><button type="button" class="bs-chat-text-button" :disabled="downloading" @click="download(file)"><Icon name="download" size="sm" />下载文件</button></div>
+    <div v-else-if="kind === 'markdown' && !showSource" class="bs-chat-document-preview"><ChatMarkdown :content="text" :files="files" @preview="emit('preview', $event)" /></div>
+    <pre v-else-if="['text', 'markdown'].includes(kind)" class="bs-chat-text-preview" :class="{ 'bso-source-preview': showSource }">{{ text }}</pre>
+    <div v-else-if="!error" class="bs-chat-preview-unsupported"><WorkspaceFileIcon :file="file" /><strong>{{ file.name }}</strong><p>此格式暂不支持在线预览，可以下载查看。</p><button type="button" class="bs-chat-text-button" :disabled="downloading" @click="download(file)"><Icon name="download" size="sm" />下载文件</button></div>
   </section>
 </template>
 <script setup lang="ts">
@@ -28,14 +26,18 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { saveAs } from 'file-saver'
 import Icon from '@/components/icons/Icon.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
+import WorkspaceFileList from './WorkspaceFileList.vue'
+import WorkspaceFileIcon from './WorkspaceFileIcon.vue'
+import './workbenchArtifacts.css'
 import { workbenchChatApi } from '@/api/workbenchChat'
 import { chatError } from '@/stores/workbenchChat'
 import { useAuthStore } from '@/stores/auth'
 import type { ChatArtifact, ChatResourceAccess } from '@/types/workbenchChat'
-const props = defineProps<{ files: ChatArtifact[]; file: ChatArtifact | null; fullscreen?: boolean; hideFullscreen?: boolean; readOnly?: boolean; loadAccess?: (versionId: string) => Promise<ChatResourceAccess> }>()
-const emit = defineEmits<{ preview: [file: ChatArtifact | null]; close: []; fullscreen: []; edit: [file: ChatArtifact] }>()
+const props = defineProps<{ files: ChatArtifact[]; file: ChatArtifact | null; filesLoading?: boolean; filesLoadFailed?: boolean; fullscreen?: boolean; hideFullscreen?: boolean; readOnly?: boolean; loadAccess?: (versionId: string) => Promise<ChatResourceAccess> }>()
+const emit = defineEmits<{ preview: [file: ChatArtifact | null]; close: []; fullscreen: []; edit: [file: ChatArtifact]; error: [message: string] }>()
 const loading = ref(false), downloading = ref(false), error = ref(''), previewURL = ref(''), text = ref(''), kind = ref('unsupported')
 const auth = useAuthStore()
+const showSource = ref(false)
 let epoch = 0, ownerEpoch = 0, fetchController: AbortController | undefined, downloadController: AbortController | undefined
 const maxAccessEntries = 24, maxPreviewEntries = 8, maxPreviewBytes = 64 * 1024 * 1024
 const maxPDFBytes = 24 * 1024 * 1024, maxTextBytes = 2 * 1024 * 1024
@@ -130,12 +132,12 @@ async function download(file: ChatArtifact) {
     if (!response.ok) throw new Error('文件下载失败，请稍后重试')
     const blob = await response.blob()
     if (owner === ownerEpoch) saveAs(blob, file.name)
-  } catch (e) { if (owner === ownerEpoch && !controller.signal.aborted) error.value = chatError(e) }
+  } catch (e) { if (owner === ownerEpoch && !controller.signal.aborted) { error.value = chatError(e); emit('error', error.value) } }
   finally { if (owner === ownerEpoch) downloading.value = false; if (downloadController === controller) downloadController = undefined }
 }
 function editable(file: ChatArtifact) { return /\.(docx|xlsx|pptx)$/i.test(file.name) }
 function imageFailed() { error.value = '图片加载失败，请重试'; if (props.file) accessCache.delete(props.file.version_id) }
-watch(() => props.file?.version_id, () => loadPreview(), { immediate: true })
+watch(() => props.file?.version_id, () => { showSource.value = false; void loadPreview() }, { immediate: true })
 watch(() => auth.user?.id, () => { ++ownerEpoch; ++epoch; fetchController?.abort(); downloadController?.abort(); clearCaches(); previewURL.value = ''; text.value = ''; error.value = ''; loading.value = false; downloading.value = false }, { flush: 'sync' })
 onBeforeUnmount(() => { ++ownerEpoch; ++epoch; fetchController?.abort(); downloadController?.abort(); clearCaches() })
 defineExpose({ download })

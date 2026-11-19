@@ -1,53 +1,49 @@
 # Bisheng 工作台 Vue 移植记录
 
-固定来源：`dataelement/bisheng@a8e5be89c1b8d3a2e512c772e2a38de409336dc8`（2026-11-17，Hotfix/3.0.2）。源路径和 SHA-256 见 `source-manifest.json`。许可证与归属随本目录保留；此处是修改过的 Vue 适配，不是原版 React 应用。
+固定来源：[`dataelement/bisheng@a8e5be89c1b8d3a2e512c772e2a38de409336dc8`](https://github.com/dataelement/bisheng/tree/a8e5be89c1b8d3a2e512c772e2a38de409336dc8)。源路径、每个源文件的 SHA-256、目标文件及适配差异见 [source-manifest.json](./source-manifest.json)。Apache-2.0 许可证与归属随本目录保留。
 
-## 保留的结构和行为
+本次移植沿用活跃组件链的页面结构和交互，将其拆成本站 Vue 组件；没有把完整 React 应用、Bisheng 后端或旧版三个组件测试页嵌入产品。清单区分 Vue 移植、依据源码契约实现的本地辅助逻辑，以及替换上游接口的本站实现，避免把接口边界的参考关系误写成整份源码复制。
 
-- 工作台共用单条侧栏；模块入口下方是平铺会话历史，不增加第二条常驻侧栏。
-- 新对话居中的欢迎区和输入框；已有会话使用底部固定输入。模型选择保留在输入框右侧。
-- `＋` 菜单中的任务模式和联网搜索；已启用能力显示可关闭标记。不显示后端尚未启用的操作。
-- 用户气泡、无卡片边框的回答、手动上滚解除自动跟随、回到底部、消息复制及重新生成。
-- 消息内真实执行步骤、排队、澄清卡；输入框上方可折叠的任务清单。任务未真正结束时不宣布全部完成。
-- 单个成果的交付链接与下载；多个成果的完整文件列表。
-- 桌面右停靠 `clamp(440px,46%,720px)` 文件面板、平板右抽屉、手机全屏。停靠和全屏只挂载一个预览实例。
-- 澄清一页一问，单选即前进、多选确认，自填、跳过及提交已收集回答。
-- 内容和输入宽度 `clamp(680px,64cqw,920px)`；系统字体、14px 正文、28px 输入框圆角和轻描边/阴影。样式同时依据原 TSX 和最终 CSS 覆盖。
+## 页面与输入区
 
-## 明确的集成差异
+- 对话使用专用的全高布局：桌面侧栏宽 **240px**，收起为本站的 58px 图标栏；会话历史、工作台入口和底部账号操作处于同一条侧栏。桌面对话不再放在旧的全站顶部栏下方。移动端使用导航抽屉和精简顶栏；管理员控制台保留本站布局。
+- 新对话欢迎区保留 **34px 标记、26px 标题、欢迎区与编辑器之间 60px 间距、28px 编辑器圆角**。本站标识和站点名称替代上游品牌。已有会话把编辑器置于底部；正文和输入区使用 `clamp(680px,64cqw,920px)` 的宽度关系。
+- 输入区实际使用 `contenteditable`，不再用早期 `textarea` 简化版替代。文档读写保持纯文本、中文输入法、换行、原生选择与撤销；任务模式和联网搜索是可独立删除的引用 chip，不混入提示词。粘贴不接受任意富文本 HTML。
+- `＋` 弹层与编辑器等宽，二级工具菜单在同一弹层内切换；保留返回、键盘操作、视口定位和滚动边界。只呈现本站启用的任务、联网、上传和个人文件选择能力。
+- 附件条呈现真实上传资料与继续修改的目标版本；“从我的文件选取”使用本站当前用户的资源元数据、分页、名称搜索和选择上限。模型及推理强度来自本站公开模型目录；模型控件仍位于输入区右侧。
 
-- 本站保留工作区切换、220px/58px 主侧栏与全站顶部栏；聊天占用其下无内边距内容区。没有引入 Bisheng 的登录、模型管理或余额系统。
-- 使用本站 `Select`、`TextArea`、`ConfirmDialog`、图标。任务/文件特有组件保持原结构，所有样式仅作用于 `.bs-chat` 及专用门户，不导入原全局 CSS。
-- 排除工作流、RAG、知识空间、应用广场、项目及用户自上传技能菜单。原侧栏项目有 mock 存储，实现中没有复制。
-- 本站模型以公开模型 ID 和已核实能力决定工具与推理强度；不复制 Bisheng 的模型注册表。输入区增加本站模型已支持的推理强度选择。
-- 前后端事件和权限统一使用本站接口，SSE 只订阅持久事件；断线重连不重发付费请求。流式回答来自真实 `assistant.delta`；最终以持久消息为准。
-- 成果继续修改使用 `target_resource_version_id` 指定不可变文件版本；不会仅把文件名写入提示词。
-- 原件/预览访问经当前用户鉴权返回短期链接，签名与模型 Key 不进入浏览器持久会话。文件列表采用元数据分页；只有打开文件时才申请链接/拉取内容。
-- 普通问答不依赖文件执行槽。执行步骤只展示服务端允许的用户文案，不展示脚本、日志或模型内部推理。
+## 对话、任务与交付
 
-## 交互与安全验证
+- 保留用户气泡、无外框回答、时间、复制、重新生成和回答版本切换；手动上滚暂停自动跟随，并提供回到底部入口。
+- 任务流程拆为 `TaskProgress → ExecutionTimeline → DeepStepGroup / TaskStepRow → ToolRowLite`，另有置底的 `PinnedTaskPanel`。排队、运行、恢复、等待补充、取消、失败、部分完成、需要确认和完成均使用真实运行状态。
+- 任务清单和工具执行各有职责：没有实际执行的计划不伪装成步骤；只有服务端明确提供 `task_id` 才归属到某个计划任务。工具按真实 operation ID 合并开始与结束事件，澄清后的恢复形成新的阶段。未收到完成确认的悬挂操作显示已结束或暂停，不显示成功。
+- 执行分组默认收起，用户手动展开不随工具事件跳变；会话内折叠记录只保存有界的 operation ID 和布尔值。任务清单全部完成但运行仍在进行时显示“正在整理成果”，不提前宣布任务完成。不展示原始脚本、日志、工具参数或模型内部推理。
+- 澄清卡保留点阵背景、16px 圆角、一页一问、单选即前进、多选显式确认、内联自填与确认、上一问/下一问、跳过和关闭提交已收集回答。使用结构化澄清接口，保留输入法 Enter 保护、防重复提交及失败后的主动重试。
+- 成果交付顺序为首要文件链接、回答正文、多文件成果卡。单文件有直接下载入口，多文件完整列出并逐项下载；没有隐藏其余成果。继续修改以 `target_resource_version_id` 指向不可变版本，而非只把文件名追加到提示词。
 
-已有针对 SSE 分帧、取消后步骤状态、成果去重、澄清卡、多页历史、登出时在途请求、未知请求重用同一 run ID 的自动测试。前端 `vue-tsc --noEmit` 已执行。
+## 文件、参考资料与导出
 
-真实链路和视觉验收必须在目标服务可运行后执行：真实普通问答/停止/刷新恢复、文档生成/预览/下载/修改版本、两用户越权、上传限额、断线恢复、移动端抽屉和暗色。自动测试使用 fixture 验证组件行为，不充当线上 API 的替身。
+- 文件工作区保留参考资料/生成成果层级、文件类型与体积、加载骨架、失败态、空态，以及返回列表、下载、继续修改、全屏和关闭工具栏。文本/Markdown 支持预览与源码切换；Office 文档使用实际生成的预览，并保留原件下载。
+- 桌面采用可拖动、可键盘调整的右侧面板，宽度同时约束聊天区域的剩余空间；较窄屏幕使用抽屉或全屏布局。布局由一个 `ResourcePreview` 实例管理，切换布局不新建第二个文件获取器。PDF 使用经过 MIME/文件头检查且有大小上限的本地 Blob，配合有界缓存、短期签名刷新、请求中止和登出清理。DOM 实例、网络读取次数和原生 PDF 查看器的页码/缩放保持是不同验收项，不能相互替代。
+- 参考资料使用独立侧栏，显示真实来源、域名、摘要和外链。来源由本站后端已完成的联网工具结果生成；正文链接只按实际来源 URL 匹配，不按任意 `[1]` 文本猜测，也不把模型自己写的来源当作已核实的引用元数据。
+- 消息选择支持单条、全选、计数和退出。桌面工具栏直接呈现 **Word / PDF / Markdown / 纯文本**，移动端使用格式选择面板；导出对象为用户选中的真实消息及当前显示的回答版本。导出范围、较早历史的加载与版本切换行为需要在目标应用中单独验收。
+- **Word 是浏览器端生成的真实 OOXML `.docx` ZIP 包**，包含文档、样式与编号等部件，不是 HTML 改扩展名；不依赖 Bisheng 的后端转换服务。**PDF 调用本地浏览器/系统打印对话框，由用户选择“另存为 PDF”**，不是服务端自动返回一个 PDF 文件。Markdown 和纯文本直接在本地导出；这些路径不向第三方转换服务上传对话内容。
 
-本次未运行完整 Bisheng 服务，不声称像素一致。后续升级应先检查源 manifest 对应活跃引用链，避免只凭组件名搬到原项目已弃用的 `PlusMenu`/`TaskModeToggle` 路径。
+## 本站边界与明确排除项
 
+- 登录、用户权限、工作区切换、余额/积分、公告、模型管理和管理员控制台继续使用 Sub2API。侧栏账号等通用能力复用本站组件，没有另建 Bisheng 用户系统。
+- 模型调用使用工作台已绑定的本站分组/API Key；公开模型 ID、已核实能力与推理强度沿用本站目录。前端不内嵌模型密钥，也不复制上游模型注册表。
+- 会话、消息、运行及 SSE 使用本站持久接口。重连用于读取已持久化事件，不靠重发模型请求恢复页面；流式正文来自真实 `assistant.delta`，最终以持久消息为准。
+- 资源身份、所有权和不可变版本属于本站资源接口；原件与预览须先按当前用户鉴权，再返回短期对象存储链接。元数据列表不直接遍历存储桶，签名链接不作为永久会话内容保存。资源选择和预览不能绕过后端的用户隔离。
+- 使用本站图标、`Select`、`BaseDialog` 等基础组件。通用页面样式、编辑器样式和任务/成果样式分别隔离在 `chat.css`、`composer.css`、`workbenchArtifacts.css` 及组件专用样式中，不导入上游全局重置样式。
+- 明确排除工作流画布与执行、RAG/知识空间、应用广场、项目及其 mock 存储、用户技能上传/管理、导入知识库，以及本站没有真实事件或接口支持的推理旁白、知识导入进度、子代理和文件格式转换分支。保留完整的已接入任务流程，不为这些排除项制造占位能力。
 
-## Source component baseline
+## 来源、视觉参照与验收边界
 
-A separate research-only React harness mounts the unmodified upstream `Landing`,
-`ClarifyCard`, and `ResultSection`, together with upstream `clarify.ts`, chat CSS,
-and the shared Tailwind preset at the pinned commit. API/config/localization,
-icon, and unsupported viewer boundaries have small test adapters. This is not the
-complete Bisheng application and is not shipped in the Vue production bundle.
+本次整页视觉参照是**已登录的 Bisheng LIVE 页面 `/workspace/c/new`，视口为 1440×1000**，用于核对真实侧栏、欢迎区、编辑器和实际展开的菜单层级。LIVE 页面用于观察产品效果；源码归属与移植依据仍固定在上述 commit，不能据此推定 LIVE 运行的就是该 commit。
 
-On 2026-11-19 the harness was opened in a real Chromium browser at 1440×1000 and
-390×844. Single-choice advance, multiple-choice explicit confirmation, exact
-answer composition, 26px heading and 16px clarification-card radius were checked.
-Evidence is in `output/research/bisheng-office/source-baseline/` (ignored research
-artifacts). This baseline supports those specific component/layout decisions;
-it does not assert pixel equality for all screens or test the upstream backend.
+早期独立 React harness 只挂载 `Landing`、`ClarifyCard` 和 `ResultSection`，连同相关 CSS、Tailwind 配置及少量边界适配器。它保留为组件级补充参照，不是完整 Bisheng 页面，不是本站最终产品，也不充当整页视觉或真实业务链路验收。研究资料位于被忽略的 `output/research/bisheng-office/`，不会进入产品 bundle。
 
-All 9 source-to-target mapping groups in `source-manifest.json` were re-hashed
-against the downloaded pinned sources with zero mismatches on 2026-11-19.
+`source-manifest.json` 当前记录 **32 组目标映射、46 个不同的固定来源文件**。本次更新按本地下载的固定源码原始字节计算 SHA-256，并校验目标及源路径存在；清单哈希是源文件哈希，不是随实现变化的 Vue 目标文件哈希。后续升级应沿活跃引用链重新核对 TSX 与最终 CSS，避免误用已不在当前链路的旧输入组件。
+
+自动测试验证事件投影、编辑器、菜单、澄清、文件缓存/鉴权、版本选择和导出等边界；fixture 不代表真实模型调用或生产验收。目标应用还须单独记录普通对话/停止/恢复、办公文件生成/预览/下载/版本修改、跨用户和账号切换、上传限制、断线、完整页面响应式、暗色、键盘焦点及真实 Word/PDF 打开效果。本文件不声明最终测试站已上线、不声明所有验收通过；实际部署、测试结果与剩余限制由本次任务的验收记录另行说明。

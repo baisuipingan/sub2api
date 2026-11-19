@@ -1,6 +1,6 @@
 <template>
   <section class="bs-chat-history" aria-label="对话历史">
-    <div class="bs-chat-history-heading"><span>对话</span><button type="button" class="bs-chat-icon" title="新建对话" aria-label="新建对话" @click="newChat"><Icon name="plus" size="sm" /></button></div>
+    <div class="bs-chat-history-heading"><span>对话</span><button v-if="showNewButton" type="button" class="bs-chat-icon" title="新建对话" aria-label="新建对话" @click="newChat"><Icon name="plus" size="sm" /></button></div>
     <div class="bs-chat-history-scroll" @scroll.passive="onScroll">
       <p v-if="listError" class="bs-chat-small-error" role="alert">{{ listError }}<button type="button" @click="reload">重试</button></p>
       <div v-for="conversation in store.conversations" :key="conversation.id" class="bs-chat-history-row" :class="{ active: store.activeConversationId === conversation.id, editing: renaming === conversation.id }">
@@ -32,6 +32,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useWorkbenchChatStore, chatError } from '@/stores/workbenchChat'
 import type { ChatConversation } from '@/types/workbenchChat'
 import './chat.css'
+withDefaults(defineProps<{ showNewButton?: boolean }>(), { showNewButton: true })
 const store = useWorkbenchChatStore()
 const router = useRouter()
 const menu = ref(''), renaming = ref(''), title = ref(''), listError = ref('')

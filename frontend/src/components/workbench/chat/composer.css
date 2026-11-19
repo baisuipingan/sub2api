@@ -1,0 +1,79 @@
+/*
+ * Vue adaptation of Bisheng a8e5be89 Chat/chat-controls.css, chat-surface.css,
+ * ComposerEditor, ChatResourceMenu and AttachmentBar. Apache-2.0.
+ * Only controls backed by this workbench's real permissions are rendered.
+ */
+.bs-native-composer { position:relative; width:100%; min-width:0; padding:0 0 4px; flex-shrink:0; }
+.bs-native-composer .bs-chat-composer { position:relative; z-index:1; display:flex; width:100%; min-width:0; flex-direction:column; align-items:stretch; overflow:hidden; gap:12px; padding:8px 0 0; border:0; border-radius:28px; corner-shape:superellipse(1.5); background:var(--bc-composer); box-shadow:0 0 0 .5px var(--bc-border),0 2px 8px rgb(0 0 0 / 4%); }
+.bs-native-composer .bs-chat-composer.elevated { min-height:114px; box-shadow:0 0 0 .5px var(--bc-border),0 4px 16px rgb(0 0 0 / 3%),0 0 24px rgb(0 0 0 / 3%); }
+.bs-native-composer .bs-chat-composer:focus-within { outline:1px solid var(--bc-border); }
+.bs-native-composer .bs-chat-composer.has-resources { box-shadow:0 0 0 .5px var(--bc-border),0 0 8px rgb(3 7 117 / 5%); }
+.bs-composer-writing { position:relative; width:100%; min-width:0; overflow:hidden; }
+.bs-native-composer .bs-composer-editor { position:relative; box-sizing:border-box; display:block; width:100%; min-height:36px; max-height:240px; overflow-y:auto; overscroll-behavior:contain; margin:0; padding:4px 14px 0; border:0; border-radius:0; outline:none; background:transparent; color:var(--bc-ink); font-family:inherit; font-size:14px; line-height:24px; white-space:pre-wrap; overflow-wrap:anywhere; scrollbar-width:thin; }
+.bs-native-composer .elevated .bs-composer-editor { min-height:52px; }
+.bs-composer-editor[data-empty=true]::before { content:attr(data-placeholder); position:absolute; inset:0; padding:inherit; color:var(--bc-muted); pointer-events:none; }
+.bs-composer-editor[aria-disabled=true] { cursor:not-allowed; opacity:.6; }
+.bs-composer-inline-reference { display:inline-flex; align-items:baseline; gap:3px; max-width:min(240px,100%); margin-inline-end:4px; padding-inline:4px; vertical-align:baseline; border-radius:4px; color:var(--bc-blue); font:inherit; cursor:text; user-select:none; }
+.bs-composer-inline-reference>svg { flex:none; align-self:center; }
+.bs-composer-reference-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bs-native-composer .bs-chat-composer-toolbar { display:flex; align-items:center; justify-content:space-between; width:100%; min-width:0; min-height:42px; height:auto; flex-wrap:wrap; gap:12px; padding:2px 8px 6px; container-type:inline-size; }
+.bs-native-composer .bs-chat-composer-leading { display:flex; min-width:0; flex:1 1 auto; align-items:center; gap:12px; overflow:visible; }
+.bs-native-composer .bs-chat-composer-trailing { display:flex; flex:0 0 auto; align-items:center; gap:12px; margin-left:auto; max-width:100%; }
+.bs-native-composer .bs-composer-add { display:grid; flex:none; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:999px; color:var(--bc-ink); background:var(--bc-fill-2); cursor:pointer; }
+.bs-native-composer .bs-composer-add>svg { width:14px; height:14px; }
+.bs-native-composer .bs-composer-add:disabled { cursor:default; opacity:.5; }
+.bs-native-composer .bs-chat-submit { display:inline-flex; flex:none; align-items:center; justify-content:center; width:34px; height:34px; padding:5px; border:0; border-radius:50%; transform:translateY(-2px); color:#fff; background:var(--bc-blue); cursor:pointer; transition:background-color .15s ease-out,transform .15s ease-out; }
+.bs-native-composer .bs-chat-submit:disabled { color:var(--bc-muted); background:var(--bc-fill-2); opacity:1; cursor:not-allowed; }
+.bs-native-composer .bs-chat-submit:active:enabled { transform:translateY(-2px) scale(.96); }
+.bs-native-composer .bs-chat-stop-square { width:10px; height:10px; border-radius:1.25px; background:currentColor; }
+.bs-native-composer .bs-chat-model-select { min-width:90px; max-width:230px; }
+.bs-native-composer .bs-chat-effort-select { width:92px; }
+.bs-native-composer .select-trigger { min-height:28px; height:28px; gap:4px; padding:2px 6px; border:0; border-radius:8px; box-shadow:none; background:transparent; color:var(--bc-ink); font-size:12px; }
+.bs-native-composer .select-value { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bs-native-composer button:focus-visible,.bs-composer-menu button:focus-visible { outline:2px solid var(--bc-blue); outline-offset:2px; }
+.bs-composer-drop { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; border:2px dashed var(--bc-blue); border-radius:28px; background:var(--bc-fill); color:var(--bc-blue); pointer-events:none; }
+.bs-composer-attachments { width:100%; min-width:0; padding:2px 10px 0; margin:0 0 -6px; }
+.bs-composer-attachment-frame { position:relative; display:flex; align-items:center; min-width:0; }
+.bs-composer-attachment-rail { display:flex; flex:1; min-width:0; gap:10px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
+.bs-composer-attachment-rail::-webkit-scrollbar { display:none; }
+.bs-composer-chip { position:relative; box-sizing:border-box; display:inline-flex; flex:none; align-items:center; gap:10px; width:240px; max-width:100%; height:64px; padding:0 12px; border:.5px solid var(--bc-border); border-radius:16px; color:var(--bc-ink); background:var(--bc-composer); }
+.bs-composer-resource-icon { display:inline-flex; flex:none; width:28px; height:28px; align-items:center; justify-content:center; color:var(--bc-muted); }
+.bs-composer-resource-body { display:flex; flex:1; flex-direction:column; min-width:0; padding:8px 0; text-align:left; }
+.bs-composer-resource-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; font-weight:500; line-height:22px; }
+.bs-composer-resource-meta { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--bc-muted); font-size:12px; font-weight:400; line-height:15px; }
+.bs-composer-resource-remove { position:absolute; top:6px; right:6px; display:grid; place-items:center; width:18px; height:18px; padding:0; border:0; border-radius:50%; color:var(--bc-page); background:color-mix(in srgb,var(--bc-ink) 72%,transparent); cursor:pointer; opacity:0; }
+.bs-composer-resource-remove:focus-visible,.bs-composer-chip:hover .bs-composer-resource-remove { opacity:1; }
+.bs-composer-chip:hover .bs-composer-resource-name,.bs-composer-chip:focus-within .bs-composer-resource-name { padding-right:18px; }
+.bs-composer-attachment-arrow { position:absolute; z-index:2; top:50%; transform:translateY(-50%); display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:50%; color:var(--bc-muted); background:var(--bc-composer); box-shadow:0 1px 5px rgb(0 0 0 / 16%); }
+.bs-composer-attachment-arrow.is-left { left:4px; }.bs-composer-attachment-arrow.is-right { right:4px; }
+.bs-composer-attachment-fade { position:absolute; top:0; bottom:0; width:24px; pointer-events:none; }
+.bs-composer-attachment-fade.is-left { left:0; background:linear-gradient(to right,var(--bc-composer),transparent); }.bs-composer-attachment-fade.is-right { right:0; background:linear-gradient(to left,var(--bc-composer),transparent); }
+.bs-chat.bs-composer-menu { position:fixed; z-index:180; max-width:calc(100vw - 24px); padding:4px; overflow:hidden; border:1px solid var(--bc-border); border-radius:12px; color:var(--bc-ink); background:var(--bc-fill); box-shadow:0 8px 28px rgb(0 0 0 / 16%); }
+.bs-composer-command-scroll-frame { position:relative; }.bs-composer-command-scroll { overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.bs-composer-command-scroll-frame.has-overflow::after { content:''; position:absolute; bottom:0; left:0; right:10px; height:16px; pointer-events:none; background:linear-gradient(to bottom,transparent,var(--bc-fill)); }
+.bs-composer-menu .bs-composer-command-row { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; padding:6px 8px; border:0; border-radius:8px; color:var(--bc-ink); background:transparent; font-size:13px; line-height:20px; text-align:left; cursor:pointer; }
+.bs-composer-menu .bs-composer-command-row:disabled { cursor:default; opacity:.5; }
+.bs-composer-command-row>svg { flex:none; width:14px; height:14px; }
+.bs-composer-command-name { flex:0 0 auto; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:400; line-height:20px; }
+.bs-composer-command-description { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--bc-muted); font-size:12px; font-weight:400; line-height:20px; }
+.bs-composer-command-row>.bs-composer-command-end { margin-left:auto; }
+.bs-composer-command-submenu { display:flex; flex-direction:column; min-height:0; padding:4px 8px; }
+.bs-composer-command-empty { margin:0; padding:12px; color:var(--bc-muted); font-size:13px; }
+.bs-composer-file-picker { margin:0; background:transparent; }
+.bs-composer-file-picker .input { font-size:14px; }
+.bs-composer-file-columns { display:flex; justify-content:space-between; margin-top:20px; padding:0 8px 10px; border-bottom:1px solid var(--bc-border); color:var(--bc-muted); font-size:12px; }
+.bs-composer-file-list { height:min(440px,48vh); overflow-y:auto; margin-top:8px; overscroll-behavior:contain; }
+.bs-composer-file-row { display:flex; min-height:60px; align-items:center; gap:12px; padding:4px 8px; border-bottom:1px solid var(--bc-border); cursor:pointer; }
+.bs-composer-file-row.selected { background:var(--bc-fill-2); }.bs-composer-file-row.unavailable { cursor:default; }
+.bs-composer-file-row input[type=checkbox] { width:16px; height:16px; flex:none; accent-color:var(--bc-blue); }
+.bs-composer-file-icon { display:grid; flex:none; place-items:center; width:32px; height:36px; border:1px solid var(--bc-border); border-radius:8px; color:var(--bc-muted); background:var(--bc-page); }
+.bs-composer-file-row time { flex:none; color:var(--bc-muted); font-size:12px; }
+.bs-composer-picker-status { display:flex; align-items:center; justify-content:center; gap:8px; padding:48px 16px; color:var(--bc-muted); font-size:13px; }
+.bs-composer-picker-more { width:100%; min-height:36px; margin-top:8px; border:0; border-radius:8px; background:var(--bc-fill); color:var(--bc-blue); font-size:13px; }
+.bs-composer-picker-footer { display:flex; width:100%; align-items:center; gap:8px; }.bs-composer-picker-footer>span { flex:1; color:#81858c; font-size:13px; }
+@media (hover:hover) and (pointer:fine) { .bs-composer-inline-reference:hover { background:color-mix(in srgb,var(--bc-blue) 7%,transparent); }.bs-native-composer .bs-composer-add:hover,.bs-native-composer .select-trigger:hover { background:var(--bc-fill-2); }.bs-native-composer .bs-chat-submit:hover:enabled { background:#7aaaff; }.bs-composer-menu .bs-composer-command-row:hover:enabled,.bs-composer-menu .bs-composer-command-row:focus-visible { background:var(--bc-fill-2); } }
+@container (width <= 560px) { .bs-native-composer .bs-chat-composer-trailing { gap:8px; } }
+@media (max-width:767px) { .bs-native-composer .bs-composer-editor { font-size:16px; }.bs-native-composer .bs-chat-composer-toolbar,.bs-native-composer .bs-chat-composer-leading { gap:8px; }.bs-native-composer .bs-chat-model-select { max-width:160px; }.bs-native-composer .bs-chat-effort-select { width:76px; } }
+@media (max-width:420px) { .bs-native-composer .bs-chat-model-select { max-width:140px; min-width:70px; }.bs-native-composer .bs-chat-composer-trailing { gap:4px; }.bs-composer-command-description { font-size:11px; } }
+@media (pointer:coarse) { .bs-composer-resource-remove { opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .bs-native-composer .bs-chat-submit { transition:none; } }

@@ -4,11 +4,16 @@
       @click="toggleDropdown"
       :disabled="switching"
       class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+      :class="{ 'locale-switcher-compact': compact }"
       :title="currentLocale?.name"
+      :aria-label="currentLocale?.name"
+      :aria-expanded="isOpen"
+      @keydown.esc="onEscape"
     >
       <span class="text-base">{{ currentLocale?.flag }}</span>
-      <span class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
+      <span v-if="!compact" class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
       <Icon
+        v-if="!compact"
         name="chevronDown"
         size="xs"
         class="text-gray-400 transition-transform duration-200"
@@ -20,6 +25,7 @@
       <div
         v-if="isOpen"
         class="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+        :class="{ 'locale-menu-above': placement === 'top' }"
       >
         <button
           v-for="locale in availableLocales"
@@ -47,6 +53,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
 
+withDefaults(defineProps<{ placement?: 'top' | 'bottom'; compact?: boolean }>(), { placement: 'bottom', compact: false })
 const { locale } = useI18n()
 
 const isOpen = ref(false)
@@ -58,6 +65,13 @@ const currentLocale = computed(() => availableLocales.find((l) => l.code === loc
 
 function toggleDropdown() {
   isOpen.value = !isOpen.value
+}
+
+function onEscape(event: KeyboardEvent) {
+  if (!isOpen.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  isOpen.value = false
 }
 
 async function selectLocale(code: string) {
@@ -92,6 +106,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.locale-switcher-compact { width:32px; height:32px; justify-content:center; padding:0; }
+.locale-menu-above { top:auto; bottom:calc(100% + 4px); margin-top:0; left:0; right:auto; }
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.15s ease;
