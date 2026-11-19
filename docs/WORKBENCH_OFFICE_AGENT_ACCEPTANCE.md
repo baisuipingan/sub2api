@@ -2,13 +2,51 @@
 
 日期：2026-11-19。分支：`codex/workbench-office-agent`。仅测试机与 `llm.editor.vip`，未发布生产，也未合入主分支。
 
+## 本次更新：LIVE 整页对照与保真修正
+
+本节是当前测试部署的事实；下方早期“已取得证据”“最终自动回归”“最终测试部署”及端到端记录保留为此前 `6038045b2b4783ffab6bed681a40e99391708240` 阶段的验收基线，不能把旧截图、旧测试数量或旧镜像摘要当作本次重新验收结果。
+
+### 来源与界面修正
+
+- 整页参照改为已登录的 Bisheng LIVE `/workspace/c/new`，1440×1000 视口，核对真实的侧栏、欢迎区、编辑器及展开菜单。固定源码仍为 `a8e5be89c1b8d3a2e512c772e2a38de409336dc8`；LIVE 产品观察不证明其部署版本与该 commit 完全相同。早期 Landing / ClarifyCard / ResultSection 三组件 React harness 仅作为组件级补充，不代替整页验收。
+- UI 提交 `980d4d135`：专用 240px 全高工作台侧栏、欢迎区 34px 标记/26px 标题/60px 间距、28px 编辑器圆角；原简化 textarea 替换为纯文本 contenteditable 与引用 chip，恢复全宽二级工具菜单、附件和个人文件选择。
+- 恢复完整的已接入任务呈现：执行阶段与工具行、置底清单、真实排队/恢复/澄清/取消/失败/部分完成及成果交付。任务归属只认真实 `task_id`，不凭计划顺序猜测；悬挂操作不伪报成功，清单全部完成也不提前宣布 run 完成。补齐内联自填确认、输入法防误提交、提交锁和失败后主动重试。
+- 恢复文件工作区层级、预览/源码、返回/下载/继续修改、面板拖动与键盘调整、单预览实例、引用侧栏及消息选择导出。Word 为客户端真实 OOXML `.docx`，PDF 使用本地浏览器/系统打印“另存为 PDF”；未引入完整 React bundle、Bisheng 后端、RAG、工作流或知识库功能。
+- 来源清单为 32 组目标映射、46 个不同固定源文件，已从本地 pinned 原始文件逐项计算 SHA-256 并核对路径，零不匹配。详见 [移植说明](third-party/bisheng-frontend/README.md) 与 [来源清单](third-party/bisheng-frontend/source-manifest.json)。
+
+### 本次自动检查与 CI
+
+| 范围 | 本次结果与边界 |
+| --- | --- |
+| 前端批量回归 | 54 个测试文件、747 项测试通过；之后新增的 `ChatReferencesPanel` 2 项测试单独通过，不表述为已执行一批 749 项 |
+| 前端静态与构建 | ESLint、类型检查和生产构建通过；ESLint 无错误，仅未改动的 `UsageView.spec.ts` 保留已有 unused 变量警告 |
+| Python 完整回归 | `services/office-agent/.venv/bin/python -m pytest tests -q` 全部 123 项通过（2.51 秒），包含 polling 22 项和 checkpoint latency 2 项；不是对隔离执行器或所有外部供应商的新一轮验收声明 |
+| UI 提交 CI | `980d4d135` 的 [完整 CI 44489448868](https://github.com/baisuipingan/sub2api/actions/runs/44489448868) 六个 job 全部成功；[Security 44489448640](https://github.com/baisuipingan/sub2api/actions/runs/44489448640) 成功 |
+| 最新代码 CI | `c82c4fde2` 已推送；[Security 44492414421](https://github.com/baisuipingan/sub2api/actions/runs/44492414421) 和 [完整 CI 44492414552](https://github.com/baisuipingan/sub2api/actions/runs/44492414552) 全部成功，包含 Go 全量 unit/integration、Office/Desktop race、真实 Go/Python 模型桥图及 Finish、embed 路由、前端、lint、部署与发版脚本；其中 CI 前端关键子集为 31 个文件、615 项通过，与上方本地 747+2 的执行范围分别记录 |
+
+### 当前测试部署
+
+本次仅更新独立测试环境的应用与 chat / office worker，可信执行器、隔离镜像和存储未变更。未部署生产、未合入主分支。
+
+| 产物 | 本次固定摘要 |
+| --- | --- |
+| Go 应用 | `sha256:6668f23223ac7810bca93a7863efc995f8ee1765191d63b040784c37b51527fb` |
+| chat / office worker | `sha256:26407491b6780fbe6ade2a88c49660acb38250745ae652a2c84a2f66b30c54fb` |
+| 前端构建 `index.html` | `40a84a33ecd11e174a7cbde7e1dbad543f751e29efed46820afca70284b4cd74` |
+
+worker 的真实控制面短暂断连演练已观察到 5 秒后自动恢复轮询，容器重启数为 0。重试仅包围尚未获得完整 manifest 的 claim 阶段；已领取任务的执行/付费操作不因此重放，鉴权与契约错误仍停止。半截领取响应由 Go 的旧租约、epoch 和操作状态约束恢复，不由 Python 猜测是否继续。
+
+部署后已在真实浏览器登录测试站，复验欢迎首页、工具菜单、历史办公任务与展开步骤、已生成 Word 的预览、全屏往返，以及 390px 手机预览关闭返回对话。保存的 `milo-test-landing.jpg`、`milo-test-task-files.jpg`（均 1280×720）和 `milo-test-mobile-preview.jpg`（390×844）位于工作区 `output/office-evidence/bisheng-ui/`，均已用 `sips` 验证。当前 Word 预览实际使用页图；本轮 UI 收尾没有再调用付费模型。原先本地 Vite 对照还覆盖 1440/1023/767/576/390、浅深主题、手机导航和导出格式面板。临时视口已恢复，测试站页面保留供用户查看。
+
+本次尚不能声明原生 PDF 查看器在全屏往返后的页码/缩放保持、所有供应商文本/工具/办公兼容或真实联网供应商成功。此前已完成的有限供应商和端到端场景仍按下方记录的原始范围保留，不扩展为本次全量重验或生产开放结论。
+
 ## 环境
 
 独立 Compose 项目 `milo-office-test`，独立 PostgreSQL、Redis 和私有测试对象存储。Go 主站、轻量聊天 worker、办公 worker 和可信执行监督器分开运行。不接入测试机已有业务的数据库或网络，不重启 Docker、不全局清理镜像。模型请求经本站原网关与用户工作台系统 Key；测试路由使用运营者已有的模型访问权限，未复制生产数据库或图库。
 
 Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本的临时容器无网络、非 root、只读根目录、有 CPU/内存/PID/临时盘与时限约束。普通聊天不依赖执行器。
 
-## 已取得证据
+## 此前基线：已取得证据
 
 | 范围 | 验证结果 |
 | --- | --- |
@@ -48,7 +86,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 - 模块未配置时，应用退出会对可选的资源清理服务调用 `Stop`。已增加 nil receiver 保护，并通过默认/unit 两种构建的退出回归。
 - 完整 CI 暴露 Office 摘要测试的清理被 `office_agent_context_summaries_user_id_fkey` 阻止，原测试又忽略删除错误，污染后续用户及订阅套件。仅修正 fixture 自有摘要、会话、用户、分组的清理顺序并检查错误；保留生产外键和原业务断言。新增精准回归，确认清完自己的记录且不删除其他用户。
 
-## 最终自动回归
+## 此前基线：最终自动回归
 
 - 前端：683 项关键测试、类型检查、ESLint 与完整构建通过。
 - Python Agent：101 项测试通过；隔离执行器 30 项测试及 30 个子场景通过。
@@ -57,7 +95,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 - 远端初轮完整 default/unit 曾发现已修正的可选服务 nil 退出问题；unit 还在资源争用时出现一次原 OAuth 时限测试失败，未改该业务或断言，原样连续 20 次复跑通过。最终全量 CI 结果单独记录，不能将初轮命令写成全部通过。
 - 最终代码 `6038045b2b4783ffab6bed681a40e99391708240` 的 [完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/44475161355) 全部成功：全量 unit、全量 integration、Office/Desktop race、真实 Go/Python 图与 Finish、embed 路由、前端、golangci-lint、部署脚本和发版工具；[安全扫描](https://github.com/baisuipingan/sub2api/actions/runs/44475161362) 同样成功。之后交付提交仅修改文档。
 
-## 最终测试部署
+## 此前基线：最终测试部署
 
 最终只更新 Go 应用，`/health` 返回 `{"status":"ok"}`，对话页面、管理员概览和任务接口正常。源文件与最终应用构建上下文的非测试 Go 内容一致。前端 dist 的 `index.html` SHA256 为 `1c4c948c5e928000b50753ac87c0ec53e4ccd48dc96f08acfdf4901241ec226b`；公开 HTML 会注入站点配置，不用其动态响应哈希替代构建产物哈希。
 
@@ -72,7 +110,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 
 最终 CI 成功后，已核对运行容器挂载，清空本轮专用 Go build 缓存并删除已废弃的隔离诊断/应用构建临时副本。保留部署源码、日志证据、凭据、模块缓存和运行/回退镜像；未清理全局 Docker 构建缓存。测试机可用空间由 39 GiB 增至约 50 GiB，清理后健康检查仍为 200。
 
-## 测试站端到端结果
+## 此前基线：测试站端到端结果
 
 | 场景 | 实际结果 |
 | --- | --- |
@@ -88,7 +126,7 @@ Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本�
 
 真实 Linux/gVisor 最终定向复跑通过：同 stem 的 DOCX/XLSX/PPTX 各得到独立 PDF，约 28.8 秒；3 张代表页图人工检查通过。Go 持久层的历史成果回归覆盖不可变旧版、删除排除、跨账户隔离和公开字段边界。
 
-## 供应商实测
+## 此前基线：供应商实测
 
 以下均为测试站 `https://llm.editor.vip` 的实际记录，经本站原网关调用；供应商兼容范围按已执行的场景列示，不从模型名称或单元测试推断。
 

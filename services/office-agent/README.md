@@ -133,6 +133,14 @@ office processes. Office additionally requires `OFFICE_EXECUTOR_PILOT_ENABLED=tr
 `OFFICE_EXECUTOR_ORIGIN` and `OFFICE_EXECUTOR_TOKEN`. The office worker reports
 cached executor health every thirty seconds from `/healthz`; chat reports null.
 
+Before a complete manifest is acquired, transport failures and claim HTTP
+429/500/502/503/504 back off for 5, 10, 20, then at most 30 seconds. A successful
+claim or empty poll resets the delay. This keeps idle workers alive while the Go
+service is replaced. Authentication/contract failures and `--once` still fail
+immediately. Execution and finish reporting are outside this polling retry: a
+received task or paid operation is never replayed by this loop. A lost claim
+response remains fenced by Go's lease and operation state.
+
 The container runs as UID/GID 11001 and requires a digest-pinned base image:
 
 ```sh
