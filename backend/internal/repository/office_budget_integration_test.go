@@ -55,7 +55,8 @@ func TestOfficeBudgetOriginalLedgerGatesNewCallsButPreservesCompletedReplay(t *t
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO accounts(name,platform,type) VALUES('budget-upstream','openai','apikey') RETURNING id`).Scan(&account))
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO api_keys(user_id,group_id,key,name,key_type) VALUES($1,$2,$3,'budget-decoy','system') RETURNING id`, in.UserID, in.GroupID, "sk-"+uuid.NewString()).Scan(&wrongKey))
 	t.Cleanup(func() {
-		_, _ = integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, account)
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, account)
+		require.NoError(t, err, "clean office budget fixture account %d", account)
 	})
 	insertUsage := func(key int64, request string, credits int) {
 		t.Helper()

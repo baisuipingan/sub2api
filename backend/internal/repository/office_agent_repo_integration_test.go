@@ -25,8 +25,19 @@ func officeTestAdmission(t *testing.T) (service.OfficeAgentRepository, service.O
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO groups(name) VALUES($1) RETURNING id`, "office-"+uuid.NewString()).Scan(&groupID))
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO api_keys(user_id,group_id,key,name,key_type) VALUES($1,$2,$3,'office-test','system') RETURNING id`, userID, groupID, "sk-"+uuid.NewString()).Scan(&keyID))
 	t.Cleanup(func() {
-		_, _ = integrationDB.ExecContext(context.Background(), `DELETE FROM users WHERE id=$1`, userID)
-		_, _ = integrationDB.ExecContext(context.Background(), `DELETE FROM groups WHERE id=$1`, groupID)
+		// Summaries reference both users and messages without delete cascades.
+		// Delete this fixture's derived records before their parent records;
+		// relying on the users cascade leaves the entire DELETE rolled back.
+		for _, table := range []string{"office_agent_context_summaries", "office_agent_conversations", "users"} {
+			column := "user_id"
+			if table == "users" {
+				column = "id"
+			}
+			_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE `+column+`=$1`, userID)
+			require.NoError(t, err, "clean office fixture %s for user %d", table, userID)
+		}
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM groups WHERE id=$1`, groupID)
+		require.NoError(t, err, "clean office fixture group %d", groupID)
 	})
 	repo := NewOfficeAgentRepository(integrationDB)
 	conversationID := uuid.NewString()

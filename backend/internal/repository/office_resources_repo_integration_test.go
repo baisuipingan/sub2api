@@ -78,7 +78,8 @@ func officeResourceFixture(t *testing.T) (service.OfficeAgentRepository, service
 	t.Cleanup(func() {
 		ctx := context.Background()
 		for _, table := range []string{"office_resource_refs", "office_gallery_pins", "office_resource_versions", "office_resources", "office_workspace_snapshots"} {
-			_, _ = integrationDB.ExecContext(ctx, `DELETE FROM `+table+` WHERE user_id=$1`, in.UserID)
+			_, err := integrationDB.ExecContext(ctx, `DELETE FROM `+table+` WHERE user_id=$1`, in.UserID)
+			require.NoError(t, err, "clean office fixture %s for user %d", table, in.UserID)
 		}
 	})
 	repo := NewOfficeResourcesRepository(integrationDB)

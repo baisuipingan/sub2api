@@ -54,7 +54,8 @@ func TestOfficeAdminPageAndUsageReadOriginalLedgerWithExactUserAndKey(t *testing
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO accounts(name,platform,type) VALUES('observed-upstream','openai','apikey') RETURNING id`).Scan(&account))
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO api_keys(user_id,group_id,key,name,key_type) VALUES($1,$2,$3,'other-system-key','system') RETURNING id`, input.UserID, input.GroupID, "sk-"+uuid.NewString()).Scan(&wrongKey))
 	t.Cleanup(func() {
-		_, _ = integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, account)
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, account)
+		require.NoError(t, err, "clean office admin fixture account %d", account)
 	})
 	op := officePrepared(t, base, *lease, "model-one")
 	unsettled := officePrepared(t, base, *lease, "model-two")
@@ -73,7 +74,8 @@ func TestOfficeAdminPageAndUsageReadOriginalLedgerWithExactUserAndKey(t *testing
 	_, err := integrationDB.ExecContext(ctx, `INSERT INTO ops_error_logs(client_request_id,user_id,api_key_id,account_id,error_phase,error_type,upstream_status_code) VALUES($1,$2,$3,$4,'upstream','upstream_error',500),($1,$5,$6,$4,'upstream','upstream_error',500)`, unsettled.RequestID, input.UserID, wrongKey, account, other.UserID, input.APIKeyID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = integrationDB.ExecContext(context.Background(), `DELETE FROM ops_error_logs WHERE client_request_id IN($1,$2)`, op.RequestID, unsettled.RequestID)
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM ops_error_logs WHERE client_request_id IN($1,$2)`, op.RequestID, unsettled.RequestID)
+		require.NoError(t, err, "clean office admin fixture errors")
 	})
 	page, err := admin.AdminRuns(ctx, service.OfficeAdminFilter{Page: 1, PageSize: 20, UserID: input.UserID})
 	require.NoError(t, err)
