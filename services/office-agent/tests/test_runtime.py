@@ -64,6 +64,42 @@ async def test_unknown_model_result_is_not_automatically_retried():
     assert "token-must-never-escape" not in result.model_dump_json()
 
 
+@pytest.mark.asyncio
+async def test_office_unexpected_error_has_safe_internal_classification_only(capsys):
+    secret = "private-prompt-and-key-must-never-be-logged"
+    class FailingGraph:
+        async def ainvoke(self, *args, **kwargs):
+            raise ValueError(secret)
+    item = manifest()
+    async with httpx.AsyncClient() as client:
+        runtime = OfficeRuntime(ControlClient("https://control.test", item, client))
+        runtime.graph = FailingGraph()
+        result = await runtime.execute()
+    log = capsys.readouterr().err
+    assert result.error_code == "AGENT_RUNTIME_ERROR" and secret not in log + result.model_dump_json()
+    assert json.loads(log) == {"event": "office.runtime_exception", "component": "office", "stage": "graph",
+                               "error_type": "ValueError", "error_module": "builtins", "run_id": str(item.run_id)}
+    assert "Traceback" not in log
+
+
+@pytest.mark.asyncio
+async def test_chat_unexpected_error_has_safe_internal_classification_only(monkeypatch, capsys):
+    from office_agent.chat import ChatRuntime
+    from office_agent.model import BridgeChatModel
+    secret = "private-chat-message-must-never-be-logged"
+    async def fail(*args, **kwargs):
+        raise KeyError(secret)
+    monkeypatch.setattr(BridgeChatModel, "ainvoke", fail)
+    item = manifest(mode="chat")
+    async with httpx.AsyncClient() as client:
+        result = await ChatRuntime(ControlClient("https://control.test", item, client)).execute()
+    log = capsys.readouterr().err
+    assert result.error_code == "CHAT_RUNTIME_ERROR" and secret not in log + result.model_dump_json()
+    data = json.loads(log)
+    assert data["error_type"] == "KeyError" and data["stage"] == "model" and data["run_id"] == str(item.run_id)
+    assert "Traceback" not in log
+
+
 def test_manifest_cannot_redirect_model_credential():
     with pytest.raises(ValueError):
         manifest(bridge_path="https://attacker.test/v1/chat/completions")
@@ -110,7 +146,7 @@ async def test_tool_budget_serializes_parallel_calls():
 @pytest.mark.asyncio
 async def test_no_false_durable_resume_or_attachment_support():
     async with httpx.AsyncClient() as client:
-        for override, code in [({"durable_resume": True}, "DURABLE_RESUME_NOT_READY"),
+        for override, code in [({"durable_resume": True}, "RESOURCE_ADAPTER_REQUIRED"),
                                ({"input_resources": [{"resource_id": "r", "version_id": "v"}]}, "INPUT_RESOURCES_NOT_READY")]:
             result = await OfficeRuntime(ControlClient("https://control.test", manifest(**override), client)).execute()
             assert result.status == "failed"
@@ -210,7 +246,9 @@ async def test_poll_worker_finishes_safe_final_content():
         if request.url.path.endswith("/events"):
             assert json.loads(request.content)["type"] == "progress"
         if request.url.path.endswith("/finish"):
-            assert json.loads(request.content)["status"] == "completed"
+            body = json.loads(request.content)
+            assert set(body) == {"status", "content", "error_code", "error_message"}
+            assert body["status"] == "completed"
         return httpx.Response(200, json={"code": 0, "data": {}})
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         result = await process_manifest("https://control.test", manifest(), client)
@@ -262,6 +300,7 @@ async def test_worker_does_not_finish_a_go_fenced_unknown_run():
         result = await process_manifest("https://control.test", manifest(), client)
     assert result.status == "needs_confirmation"
     assert not any(path.endswith("/finish") for path in paths)
+    assert sum(path.endswith("/suspend") for path in paths) == 1
 
 
 @pytest.mark.asyncio
@@ -315,11 +354,11 @@ async def test_executor_terminal_outcomes_stop_instead_of_model_retry(status, un
     assert any(path.endswith("/result") for path in paths) == (not uncertain)
 
 
-def test_long_assistant_message_matches_go_utf8_budget():
+def test_long_assistant_message_matches_go_manifest_utf8_budget():
     item = manifest(messages=[{"role": "assistant", "content": "x" * 40000}])
     assert len(item.messages[0].content) == 40000
     with pytest.raises(ValueError):
-        manifest(messages=[{"role": "assistant", "content": "中" * 40000}])
+        manifest(messages=[{"role": "assistant", "content": "中" * 700000}])
 
 
 def test_fixed_skills_do_not_consume_task_file_or_byte_quota(monkeypatch):
@@ -328,15 +367,15 @@ def test_fixed_skills_do_not_consume_task_file_or_byte_quota(monkeypatch):
     ws = VirtualWorkspace()
     assert len(ws.files) >= 38
     rows = []
-    for number in range(128):
+    for number in range(64):
         value = b"a"
         rows.append({"path": f"scratch/{number}.txt", "size": 1, "sha256": hashlib.sha256(value).hexdigest(),
                      "content_base64": base64.b64encode(value).decode()})
     ws.replace_executor_snapshot(rows)
-    assert len(ws.files) > 128
+    assert len(ws.files) > 64
     assert ws.write("/scratch/too-many.txt", "x").error
     # Test exact byte ceiling using a small equivalent, without a 24 MiB allocation.
-    monkeypatch.setattr(workspace_module, "MAX_WORKSPACE_BYTES", 128)
+    monkeypatch.setattr(workspace_module, "MAX_WORKSPACE_BYTES", 64)
     assert ws._task_budget_ok(ws.files)
     assert not ws._task_budget_ok(ws.files | {"scratch/0.txt": b"aa"})
 

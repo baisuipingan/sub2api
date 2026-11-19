@@ -79,6 +79,7 @@ type Handlers struct {
 	ImageStudioGallery    *ImageStudioGalleryHandler
 	ImageStudioJobs       *StudioJobHandler
 	OfficeAgent           *OfficeAgentHandler
+	OfficeResources       *OfficeResourcesHandler
 }
 
 // BuildInfo contains build-time information

@@ -156,6 +156,7 @@ def execute(request: dict, root: Path, request_dir: Path) -> dict:
     environment = {
         "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
         "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": "/opt/office-executor",
         "HOME": str(root / "scratch/.home"), "TMPDIR": str(root / "scratch/.tmp"),
         "XDG_CACHE_HOME": str(root / "scratch/.cache"), "XDG_CONFIG_HOME": str(root / "scratch/.home"),
         "MPLCONFIGDIR": str(root / "scratch/.cache/matplotlib"),
@@ -213,7 +214,24 @@ def main() -> None:
     request_dir = Path("/run/office-input")
     request = validate_request(json.loads((request_dir / "request.json").read_text()))
     result = execute(request, Path("/workspace"), request_dir)
-    sys.stdout.write(json.dumps(result, ensure_ascii=True, separators=(",", ":")))
+    write_result(result)
+
+
+def write_result(result: dict) -> None:
+    # The fixed image uses unbuffered stdout. Raw writes may be short (gVisor
+    # pipes return at most one buffer), while TextIOWrapper.write does not
+    # guarantee retrying a large raw FileIO write. Account for every byte so
+    # large Office snapshots cannot become a silently truncated JSON result.
+    encoded = memoryview(json.dumps(result, ensure_ascii=True, separators=(",", ":")).encode("ascii"))
+    sys.stdout.flush()
+    while encoded:
+        try:
+            written = os.write(sys.stdout.fileno(), encoded[:32 * 1024])
+        except InterruptedError:
+            continue
+        if written <= 0:
+            raise OSError("runner result stream closed before completion")
+        encoded = encoded[written:]
 
 
 if __name__ == "__main__":

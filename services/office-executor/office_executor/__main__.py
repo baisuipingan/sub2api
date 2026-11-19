@@ -14,6 +14,7 @@ import threading
 
 from .contracts import ContractError, ID, MIB
 from .supervisor import ExecutionError, Settings, Supervisor
+from .runner import write_result
 
 MAX_BODY = 34 * MIB
 
@@ -152,7 +153,7 @@ def main():
             raw = sys.stdin.buffer.read(MAX_BODY + 1)
             if len(raw) > MAX_BODY:
                 raise ContractError("request body exceeds byte limit")
-            print(json.dumps(supervisor.execute(parse_json(raw))))
+            write_result(supervisor.execute(parse_json(raw)))
         else:
             supervisor.recover()
             token_file = os.environ.get("OFFICE_EXECUTOR_TOKEN_FILE")

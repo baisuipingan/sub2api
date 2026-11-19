@@ -1,4 +1,3 @@
-<!-- Modified by MiloRouter 2026-11-18: fixed offline executor and Poppler environment. -->
 ---
 name: bisheng-pptx
 description: >-
@@ -12,6 +11,8 @@ metadata:
   display-name: PPT 制作
 ---
 
+<!-- Modified by MiloRouter 2026-11-19: fixed offline executor, durable resources, and verified preview environment. -->
+
 # 制作 PPTX
 
 一份好 PPT 的质量，七成来自内容组织，三成来自版式。本技能的做法是：
@@ -23,8 +24,8 @@ metadata:
 **这一轮只读文档，不要在同一轮里并行调用别的工具。** 读完本文件（必要时再读 references）之后，
 下一轮才开始动手。
 
-**本技能要求已勾选代码执行器（`execute_office_python`）。** 没有它就无法生成 .pptx ——
-直接告诉用户「请在工具里勾选代码执行器后重试」，不要用 Word 或 PDF 顶替。
+**本技能要求当前任务模式已提供隔离办公工具（`execute_office_python`）。** 没有它就无法生成 .pptx ——
+直接告诉用户「请切换到办公任务模式后重试」，不要用 Word 或 PDF 顶替。
 
 **第一次执行代码时先探一次环境**（只花一轮）：
 
@@ -102,7 +103,7 @@ print(r.stdout); print(r.stderr[-2000:] if r.stderr else "")
 
 ## 4. 用 Deck 构建
 
-用 `write_file` 把完整脚本写到 `scratch/build_deck.py`（**不要把整段代码塞进代码执行器的参数里**，会被截断）：
+用 `write_file` 把完整脚本写到 `scratch/build_deck.py`（长脚本优先保存文件，超限会明确拒绝）：
 
 ```python
 import sys
@@ -211,12 +212,24 @@ print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 
 改完重新生成、再跑一次，直到「结论: 通过」。**没报 ERROR ≠ 完全合规**，版式仍以 `references/design-zh.md` 为准。
 
-渲染成图片逐页查看是可选步骤，只在确知当前模型支持读图时才做，做法见 `references/environment.md`。
+浏览器预览使用固定渲染器，不需要另写 LibreOffice/Poppler 转换流程，不依赖 `pdf2image`：
+
+```python
+r = subprocess.run([sys.executable, "skills/bisheng-pptx/scripts/render_deck.py", "output/xxx.pptx"],
+                   capture_output=True, text=True)
+print(r.stdout)
+print(r.stderr[-2000:])
+```
+
+默认生成 `scratch/preview/xxx.pptx/xxx.pdf` 和 `slide-1.png` 等页图；系统自动关联同名成果，
+不同格式的同名文件不会覆盖彼此预览。当前提供 `inspect_rendered_image` 时，将代表页缩图至工具限制后实际检查。
+只有做过实际读图才能声称完成视觉检查；未提供该工具时如实报告结构与渲染检查。细节见 `references/environment.md`。
+WARN 需复核但不等于失败，不为消灭建议反复修改已正确的内容。
 
 ## 7. 交付纪律
 
 - `output/` 里**只放最终的 `.pptx`**。大纲、构建脚本、清单、预览图一律放 `scratch/`
-  （同时放一个 `.md` 会顶掉 PPT 成为用户看到的头条文件）。
+  （每个 output 文件都会生成成果卡，避免暴露过程稿）。
 - 文件名用有意义的中文名，如 `output/某某集团2026年度工作汇报.pptx`。
 - 收尾时如实说明：多少页、用了哪套模板、自检结论（几条 WARN 未处理及原因）。
   **不要声称做过没做的检查**，也不要声称生成了实际不存在的文件。

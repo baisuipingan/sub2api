@@ -35,9 +35,10 @@ type WorkbenchGalleryRepository interface {
 	GalleryOutputExists(context.Context, int64, string, string) (bool, error)
 }
 
-func ProvideWorkbenchAdminService(repo WorkbenchAdminRepository, settings *SettingService, groups GroupRepository, gallery *ImageStudioGalleryService) *WorkbenchAdminService {
+func ProvideWorkbenchAdminService(repo WorkbenchAdminRepository, settings *SettingService, groups GroupRepository, gallery *ImageStudioGalleryService, profiles *DesktopAgentProfileCatalogService) *WorkbenchAdminService {
 	svc := NewWorkbenchAdminService(repo, settings, groups)
 	svc.gallery = gallery
+	svc.profiles = profiles
 	return svc
 }
 

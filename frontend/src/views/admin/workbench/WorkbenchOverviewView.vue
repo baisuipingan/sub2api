@@ -16,6 +16,8 @@
         </div>
       </div>
 
+      <WorkbenchChatOverview :days="days" />
+
       <div v-if="error" role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
         {{ t('admin.workbench.loadFailed') }}
       </div>
@@ -88,6 +90,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { getWorkbenchOverview, type WorkbenchDays, type WorkbenchOverview } from '@/api/admin/workbench'
 import { formatBytes } from '@/utils/format'
 import { workbenchStatusVariant } from './workbenchDisplay'
+import WorkbenchChatOverview from './WorkbenchChatOverview.vue'
 
 const { t, locale } = useI18n()
 const days = ref<WorkbenchDays>(7)

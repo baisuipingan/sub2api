@@ -92,7 +92,13 @@ jobs:
         working-directory: backend
         env:
           OFFICE_AGENT_TEST_PYTHON: ${{ github.workspace }}/services/office-agent/.venv/bin/python
-        run: go test -tags integration ./internal/service -run '^TestOfficePython' -count=1 -p=1 -v
+        run: go test -tags integration ./internal/service ./internal/handler -run '^TestOfficePython' -count=1 -p=1 -v
+      - name: Embedded API routing regression
+        working-directory: backend
+        run: |
+          mkdir -p internal/web/dist
+          printf '%s' '<!doctype html><html><head><title>Sub2API</title></head><body>CI embed fixture</body></html>' > internal/web/dist/index.html
+          go test -tags embed ./internal/web -run 'TestFrontendServer_Middleware|TestServeEmbeddedFrontend' -count=1
       # Real gVisor/Office rendering has a separate Linux acceptance probe. CI
       # must not claim this by substituting runc or running generated code here.
 

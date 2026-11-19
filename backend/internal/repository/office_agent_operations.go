@@ -44,7 +44,7 @@ func officeJSONEqual(a, b []byte) bool {
 }
 
 func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease service.OfficeRunLease, in service.OfficeOperationPrepare) (*service.OfficeOperation, bool, error) {
-	if !officeToken.MatchString(in.ID) || !officeHash.MatchString(in.InputHash) || !officeToken.MatchString(in.RequestID) || len(in.RequestID) > 64 || !officeJSON(in.Input, service.OfficeMaxOperationInputBytes) || (in.Kind != service.OfficeOperationModel && in.Kind != service.OfficeOperationTool) {
+	if !officeToken.MatchString(in.ID) || !officeHash.MatchString(in.InputHash) || !officeToken.MatchString(in.RequestID) || len(in.RequestID) > 64 || !officeJSON(in.Input, service.OfficeMaxCompactionInputBytes) || (in.Kind != service.OfficeOperationModel && in.Kind != service.OfficeOperationTool) {
 		return nil, false, service.ErrOfficeInvalid
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -71,6 +71,36 @@ func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease serv
 	if in.Kind == service.OfficeOperationModel {
 		if run.ModelCalls >= run.Limits.MaxModelCalls {
 			return nil, false, service.ErrOfficeBudgetExceeded
+		}
+		if run.Limits.MaxChargeCredits > 0 {
+			// Read the original settled ledger under the run admission lock. No
+			// estimate or second charge counter is introduced. A completed inbox
+			// was returned above, even if that paid call exhausted the cap.
+			var spent int64
+			var pending, unsettled bool
+			err = tx.QueryRowContext(ctx, `SELECT
+ COALESCE((SELECT SUM(u.charge_credits) FROM office_agent_operations op
+ JOIN usage_logs u ON u.request_id='client:'||op.request_id AND u.user_id=op.user_id AND u.api_key_id=$3
+ WHERE op.user_id=$1 AND op.run_id=$2 AND op.kind='model'),0),
+ EXISTS(SELECT 1 FROM office_agent_operations WHERE user_id=$1 AND run_id=$2 AND kind='model' AND state IN ('prepared','dispatched','unknown')),
+ EXISTS(SELECT 1 FROM office_agent_operations op WHERE op.user_id=$1 AND op.run_id=$2 AND op.kind='model' AND op.state='completed'
+ AND (op.result_json->>'http_status')::integer BETWEEN 200 AND 399
+ AND NOT EXISTS(SELECT 1 FROM usage_logs u WHERE u.user_id=op.user_id AND u.api_key_id=$3 AND u.request_id='client:'||op.request_id))`, run.UserID, run.ID, run.APIKeyID).Scan(&spent, &pending, &unsettled)
+			if err != nil {
+				return nil, false, err
+			}
+			if spent >= run.Limits.MaxChargeCredits {
+				return nil, false, service.ErrOfficeBudgetExceeded
+			}
+			if unsettled {
+				return nil, false, service.ErrOfficeSettlementPending
+			}
+			if pending {
+				// One paid request can exceed the remaining credit budget because
+				// the supplier settles afterwards; parallel calls may not multiply
+				// that overrun. Stable operation IDs remain recoverable above.
+				return nil, false, service.ErrOfficeCapacity
+			}
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE office_agent_runs SET model_calls=model_calls+1,updated_at=NOW() WHERE id=$1`, run.ID)
 	} else {

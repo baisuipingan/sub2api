@@ -18,9 +18,10 @@ MAX_EXECUTOR_RESPONSE = 4 * ((MAX_EXECUTOR_SNAPSHOT + 2) // 3) + 8 * 1024 * 1024
 
 class OfficeExecutorClient:
     def __init__(self, origin: str, token: str, client: httpx.AsyncClient,
-                 control: ControlClient, workspace: VirtualWorkspace, *, journal=True):
+                 control: ControlClient, workspace: VirtualWorkspace, *, journal=True, resources=None):
         self.origin, self.token, self.client = validate_origin(origin), token, client
         self.control, self.workspace, self.journal = control, workspace, journal
+        self.resources = resources
         if not self.origin or not token:
             raise ValueError("isolated executor requires a configured origin and token")
 
@@ -31,7 +32,10 @@ class OfficeExecutorClient:
         payload = {"version": 1, "run_id": str(manifest.run_id), "lease_epoch": manifest.lease_epoch,
                    "script": code, "inputs": self.workspace.executor_inputs(),
                    "limits": {"timeout_seconds": min(180, manifest.limits.max_run_seconds)}}
-        op = operation_id(str(manifest.run_id), "office", call_id, payload)
+        # Lease epochs fence dispatch, but do not rename a graph operation when
+        # a different worker resumes its completed result.
+        identity = {key: value for key, value in payload.items() if key != "lease_epoch"}
+        op = operation_id(str(manifest.run_id), "office", call_id, identity)
         payload["operation_id"] = op
         if self.journal:
             reservation = await self.control.post(self.control.run_path(f"tools/{op}/prepare"),
@@ -39,8 +43,16 @@ class OfficeExecutorClient:
                                                              "input_files": [{"path": f["path"], "sha256": f["sha256"]} for f in payload["inputs"]]}},
                                                   operation=op)
             if not reservation or not reservation.get("execute"):
-                # Restore needs durable resource references. Never regenerate files.
-                raise RuntimeFailure("TOOL_REPLAY_REQUIRES_RESOURCE_RESTORE", "这一步已经执行，试验运行时尚不能恢复已生成文件；不会重复执行", uncertain=True)
+                stored = reservation.get("result") if isinstance(reservation, dict) else None
+                result = stored.get("output") if isinstance(stored, dict) else None
+                if isinstance(result, dict) and result.get("status") in {"timed_out", "output_limit", "invalid_output"}:
+                    self._check_outcome(result["status"])
+                if (not self.resources or not isinstance(result, dict)
+                        or result.get("status") not in {"completed", "failed"}
+                        or type(result.get("workspace_version")) is not int or result["workspace_version"] < 0):
+                    raise RuntimeFailure("TOOL_REPLAY_REQUIRES_RESOURCE_RESTORE", "已执行步骤的文件恢复信息不完整；不会重复执行", uncertain=True)
+                await self.resources.restore(version=result["workspace_version"])
+                return result
         try:
             async with self.client.stream("POST", f"{self.origin}/v1/runs/{manifest.run_id}",
                                           json=payload, headers={"Authorization": "Bearer " + self.token,
@@ -70,14 +82,13 @@ class OfficeExecutorClient:
             result = {"status": data["status"], "exit_code": data.get("exit_code"),
                       "stdout": data.get("stdout", "")[:65536], "stderr": data.get("stderr", "")[:65536],
                       "files": [{k: row[k] for k in ("path", "size", "sha256", "mime")} for row in data.get("outputs", [])]}
+            if self.resources and status in {"completed", "failed"}:
+                # Bytes become durable before the operation inbox says complete.
+                result["workspace_version"] = await self.resources.persist()
             if self.journal:
                 await self.control.post(self.control.run_path(f"tools/{op}/result"),
                                         {"output": result, "http_status": 200}, operation=op, uncertain_on_transport=True)
-            if status in {"timed_out", "output_limit", "invalid_output"}:
-                codes = {"timed_out": ("EXECUTOR_TIMED_OUT", "办公执行超时，任务已停止"),
-                         "output_limit": ("EXECUTOR_OUTPUT_LIMIT", "办公输出超过限额，任务已停止"),
-                         "invalid_output": ("INVALID_EXECUTOR_OUTPUT", "办公输出未通过校验，任务已停止")}
-                raise RuntimeFailure(*codes[status])
+            self._check_outcome(status)
             return result
         except asyncio.CancelledError:
             await asyncio.shield(self.cancel(op))
@@ -86,6 +97,14 @@ class OfficeExecutorClient:
             raise RuntimeFailure("EXECUTOR_RESULT_UNKNOWN", "办公执行连接中断，结果未确认；不会重复执行", uncertain=True) from None
         except (ValueError, TypeError, KeyError):
             raise RuntimeFailure("INVALID_EXECUTOR_RESULT", "办公执行结果校验失败；不会重复执行", uncertain=True) from None
+
+    @staticmethod
+    def _check_outcome(status):
+        codes = {"timed_out": ("EXECUTOR_TIMED_OUT", "办公执行超时，任务已停止"),
+                 "output_limit": ("EXECUTOR_OUTPUT_LIMIT", "办公输出超过限额，任务已停止"),
+                 "invalid_output": ("INVALID_EXECUTOR_OUTPUT", "办公输出未通过校验，任务已停止")}
+        if status in codes:
+            raise RuntimeFailure(*codes[status])
 
     async def cancel(self, op: str):
         # Best effort; control-plane cancellation still fences late publications.

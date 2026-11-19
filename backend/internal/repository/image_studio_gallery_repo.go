@@ -525,6 +525,8 @@ func (r *imageStudioGalleryRepository) DeleteTask(ctx context.Context, userID in
                 WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
             AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
                 WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+                WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, userID, id))
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -547,6 +549,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
             WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
           AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
             WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+          AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+            WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
         ORDER BY a.created_at LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -586,6 +590,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
               WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
             AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
               WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+              WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, next.userID, next.imageID))
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -609,6 +615,8 @@ func (r *imageStudioGalleryRepository) FinalizeAssetDelete(ctx context.Context, 
         AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
           WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
         AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
-          WHERE j.user_id=a.user_id AND j.image_id=a.image_id)`, userID, imageID)
+          WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+        AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+          WHERE p.user_id=a.user_id AND p.image_id=a.image_id)`, userID, imageID)
 	return err
 }

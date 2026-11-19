@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-dark-950">
     <!-- Background Decoration -->
-    <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
+    <div v-if="!immersive" class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
     <!-- Sidebar -->
     <AppSidebar />
@@ -17,7 +17,7 @@
       <AppHeader />
 
       <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8">
+      <main :class="immersive ? 'workbench-immersive-main' : 'p-4 md:p-6 lg:p-8'">
         <slot />
       </main>
     </div>
@@ -35,6 +35,8 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import { useTicketStore } from '@/stores/tickets'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+
+withDefaults(defineProps<{ immersive?: boolean }>(), { immersive: false })
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -62,3 +64,7 @@ onBeforeUnmount(() => {
 
 defineExpose({ replayTour })
 </script>
+
+<style scoped>
+.workbench-immersive-main{height:calc(100dvh - 64px);min-height:0;overflow:hidden;padding:0}
+</style>

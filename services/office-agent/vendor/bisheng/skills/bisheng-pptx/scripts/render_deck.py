@@ -117,7 +117,8 @@ def main() -> int:
 
 def render(pptx_path: str, outdir: str | None, pages: str | None, width_px: int) -> None:
     stem = os.path.splitext(os.path.basename(pptx_path))[0]
-    out_dir = outdir or os.path.join("scratch", "preview", stem)
+    name = pptx_path.removeprefix("output/") if pptx_path.startswith("output/") else os.path.basename(pptx_path)
+    out_dir = outdir or os.path.join("scratch", "preview", name)
     os.makedirs(out_dir, exist_ok=True)
 
     # Stale frames from a previous run read as "my fix did not apply".
@@ -151,7 +152,8 @@ def render(pptx_path: str, outdir: str | None, pages: str | None, width_px: int)
     print(f"已渲染 {len(written)} 页（源 PDF: {pdf_path}）:")
     for path in written:
         print(f"  {path}")
-    print("预览已生成。当前试验模型适配尚未开放图片读入，不能声称已完成模型视觉检查。")
+    print("预览已生成；若当前任务提供 inspect_rendered_image 工具，请先缩图到工具上限后实际读图复查。")
+    print("只有实际读图才可声称完成视觉检查；无该工具时仅报告结构与渲染检查。")
     print("看图时重点看：文字是否溢出/被截断、元素是否重叠、留白是否失衡。")
     print("注意：预装中文字体与用户 PowerPoint 中的实际字体宽度可能不同 ——")
     print("      预览里的文字松紧只作参考，容器请留约 10% 余量，不要为了预览效果反复微调字号。")

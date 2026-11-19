@@ -1,0 +1,134 @@
+{
+  "upstream": "https://github.com/dataelement/bisheng",
+  "commit": "a8e5be89c1b8d3a2e512c772e2a38de409336dc8",
+  "license": "Apache-2.0",
+  "kind": "Selective Vue adaptation of active workbench chat and Linsight UI; not a React bundle or original source snapshot",
+  "files": [
+    {
+      "target": "frontend/src/views/user/WorkbenchChatView.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/ChatView.tsx",
+          "sha256": "d23ad4a6003a031476b2a1a652eee8887f90bc10d39aa320427a93aab04864df"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Landing.tsx",
+          "sha256": "94d0eecf74edf9937d8afcd14cc641b6c3d638df2b86250a88e9cb02259aaa14"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/AiChatMessages.tsx",
+          "sha256": "e95f87bead397279fbd9b1bbe7e800886de87f86d641c9409d562e3fe9f731f6"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatComposer.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/AiChatInput.tsx",
+          "sha256": "f6edc731551f27198a747047217dac89e79d45915cf1910fc91b71cf7776a888"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ChatResourceMenu.tsx",
+          "sha256": "7fbc48b83a879649e1c73f6c8097b9eb90a0df7dcd639e3a2935e959a183eedb"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ConversationList.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/layouts/WorkbenchSidebar/SidebarConversationList.tsx",
+          "sha256": "5dfc07c45ce5c74e14a047e2f47a3097a3cc76dcb3cc062523443530094d75ff"
+        },
+        {
+          "path": "src/frontend/client/src/components/Conversations/Convo.tsx",
+          "sha256": "ef325f9fa62840f81aca233db47dc5785fe59f4821dcc44997c872107e588b2a"
+        },
+        {
+          "path": "src/frontend/client/src/components/Conversations/ConvoOptions/ConvoOptions.tsx",
+          "sha256": "3ae2f47f82e8e1235f9647bb45b6a42036dcc9e2c1d9f13814349f3c17d668e8"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/TaskProgress.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TaskTurnPanel.tsx",
+          "sha256": "9f1abcd62f79b69da834695b2416a0151ab965e648997bdf71cf079d8bd44ff1"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ExecutionTimeline.tsx",
+          "sha256": "5c841b816208335ee184cb9b10781812bc8be5fb92f29720c293c78fa32a2803"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/PinnedTaskPanel.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TaskPanel.tsx",
+          "sha256": "cd35e4ea52a641892e17883bd440d530f28ebb1448594d4ff8878ec66e8eb854"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ClarifyCard.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ClarifyCard.tsx",
+          "sha256": "f75450637188a38f707192504f6dbb7291f9bfa0db33eaeb5391c8ce1bfdd5ac"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ResultSection.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/ResultSection.tsx",
+          "sha256": "c0bb58eea35d858610b2cda777faeaebc2cd08f046c7cbe0b4418e48bc8871e5"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ResourcePreview.vue",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspacePanel.tsx",
+          "sha256": "cabe133fea42652a04a750b318dd5a80b5c59700729958e3b276063800b12377"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/PreviewBody.tsx",
+          "sha256": "e4f055c6199ba6f784742dbe675b0819fbfe6f6b1e3976eef83ff6fbc1e4bc67"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/SaveAsButton.tsx",
+          "sha256": "90bd21bf643b5e48b35a9c1e2be9209959464825ae3a0afcc4477adaab3c3f08"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/chat.css",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/chat-surface.css",
+          "sha256": "d3f7ba4b23c76fe5571628c99b2e1c91a0d02a63ae15f93a9f05676ca7257ddc"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/chat-controls.css",
+          "sha256": "d7970936c5b3a25266a1e9302b2188aa5ee6081bc905f00d4fed606af3640ed2"
+        }
+      ],
+      "modifications": "React hooks/Recoil/router/API replaced by Vue composables/Pinia/Sub2API; unsupported workflow/RAG/skill-upload controls excluded; controls use existing site components/icons; payloads use durable office events."
+    }
+  ]
+}

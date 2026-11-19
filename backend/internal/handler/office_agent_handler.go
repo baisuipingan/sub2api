@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	pkghttp "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -18,7 +19,12 @@ import (
 
 var officePilotIngress = pkghttp.NewBodyMemoryBudget(8 << 20)
 
-type OfficeAgentHandler struct{ service *service.OfficeAgentService }
+type OfficeAgentHandler struct {
+	service     *service.OfficeAgentService
+	streamMu    sync.Mutex
+	streams     map[int64]int
+	streamTotal int
+}
 
 func NewOfficeAgentHandler(svc *service.OfficeAgentService) *OfficeAgentHandler {
 	return &OfficeAgentHandler{service: svc}
@@ -154,12 +160,22 @@ func (h *OfficeAgentHandler) Claim(c *gin.Context) {
 		return
 	}
 	var in struct {
-		WorkerID string `json:"worker_id"`
+		WorkerID      string `json:"worker_id"`
+		Preset        string `json:"preset"`
+		ExecutorReady *bool  `json:"executor_ready"`
 	}
 	if !officeDecode(c, &in, 1024) {
 		return
 	}
-	manifest, err := h.service.Claim(c.Request.Context(), in.WorkerID)
+	if in.Preset == "" {
+		in.Preset = "office"
+	}
+	if _, e := h.service.AdminRepository(); e == nil {
+		if officeHandlerError(c, h.service.WorkerSeen(c.Request.Context(), in.WorkerID, in.Preset, in.ExecutorReady)) {
+			return
+		}
+	}
+	manifest, err := h.service.ClaimPreset(c.Request.Context(), in.WorkerID, in.Preset)
 	if officeHandlerError(c, err) {
 		return
 	}
@@ -182,19 +198,55 @@ func (h *OfficeAgentHandler) Heartbeat(c *gin.Context) {
 	response.Success(c, gin.H{"lease_token": token})
 }
 
+func (h *OfficeAgentHandler) Suspend(c *gin.Context) {
+	if !h.enabled(c) {
+		return
+	}
+	lease, err := h.service.AuthenticateSuspensionLease(c.Request.Context(), c.Param("id"), c.GetHeader("X-Office-Lease"), officeBearer(c))
+	if officeHandlerError(c, err) {
+		return
+	}
+	var in struct {
+		Code string `json:"code"`
+	}
+	if !officeDecode(c, &in, 256) {
+		return
+	}
+	if len(in.Code) > 64 {
+		officeHandlerError(c, service.ErrOfficeInvalid)
+		return
+	}
+	_, err = h.service.Suspend(c.Request.Context(), *lease, in.Code)
+	if officeHandlerError(c, err) {
+		return
+	}
+	response.Success(c, gin.H{"status": service.OfficeRunNeedsConfirmation})
+}
+
 func (h *OfficeAgentHandler) Model(c *gin.Context) {
 	lease := h.lease(c, false)
 	if lease == nil {
 		return
 	}
-	body, ok := officeRead(c, service.OfficeMaxOperationInputBytes)
+	limit := service.OfficeMaxOperationInputBytes
+	if c.GetHeader("X-Office-Model-Purpose") == "context_compaction" {
+		limit = service.OfficeMaxCompactionInputBytes
+	}
+	body, ok := officeRead(c, limit)
 	if !ok {
 		return
 	}
-	reply, err := h.service.InvokeModel(c.Request.Context(), *lease, c.GetHeader("X-Office-Operation-ID"), body)
+	reply, err := h.service.InvokeModelPurpose(c.Request.Context(), *lease, c.GetHeader("X-Office-Operation-ID"), body, c.GetHeader("X-Office-Model-Purpose"))
 	if officeHandlerError(c, err) {
 		return
 	}
+	writeOfficeModelReply(c, reply)
+}
+
+func writeOfficeModelReply(c *gin.Context, reply *service.OfficeGatewayReply) {
+	// Invoke returned only after a complete response was deposited in its
+	// durable inbox. This classifies a confirmed upstream failure, never billing.
+	c.Header("X-Office-Operation-State", "completed")
 	c.Header("X-Client-Request-ID", reply.RequestID)
 	c.Data(reply.Status, reply.ContentType, reply.Body)
 }
@@ -205,20 +257,14 @@ func (h *OfficeAgentHandler) Progress(c *gin.Context) {
 		return
 	}
 	var in struct {
-		EventID string `json:"event_id"`
-		Type    string `json:"type"`
-		Payload struct {
-			Message string `json:"message"`
-		} `json:"payload"`
+		EventID string          `json:"event_id"`
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
 	}
-	if !officeDecode(c, &in, 4096) {
+	if !officeDecode(c, &in, service.OfficeMaxEventBytes+1024) {
 		return
 	}
-	if in.Type != "progress" {
-		officeHandlerError(c, service.ErrOfficeInvalid)
-		return
-	}
-	event, err := h.service.Progress(c.Request.Context(), *lease, in.EventID, in.Payload.Message)
+	event, err := h.service.StructuredProgress(c.Request.Context(), *lease, in.EventID, in.Type, in.Payload)
 	if officeHandlerError(c, err) {
 		return
 	}
@@ -378,6 +424,8 @@ func officeHandlerError(c *gin.Context, err error) bool {
 		status, code, message = http.StatusConflict, "MODEL_ROUTE_CHANGED", "工作台模型、密钥或分组配置已变化，未发起新的模型调用"
 	case errors.Is(err, service.ErrOfficeBudgetExceeded):
 		status, code, message = http.StatusUnprocessableEntity, "RUN_LIMIT_EXCEEDED", "本次任务已达到模型、工具或输入输出预算限制"
+	case errors.Is(err, service.ErrOfficeSettlementPending):
+		status, code, message = http.StatusConflict, "BILLING_PENDING", "上一轮模型已完成，计费记录仍在入账；本步骤尚未调用，任务已暂停"
 	case errors.Is(err, service.ErrOfficeActiveRun), errors.Is(err, service.ErrOfficeConflict):
 		status, code, message = http.StatusConflict, "OFFICE_CONFLICT", "已有活动任务，或同一请求编号对应的内容不同"
 	case errors.Is(err, service.ErrOfficeInvalid):

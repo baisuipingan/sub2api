@@ -1,7 +1,7 @@
-"""Bounded RAM-only virtual filesystem for phase zero; no host paths or exec.
+"""Bounded RAM-only task filesystem; no host paths or local execution.
 
-Not a durable resource store. This deliberately does not put binary attachments
-or signed URLs into LangGraph checkpoints. Production resource restore is gated.
+ResourceClient persists byte snapshots through Go separately from the graph.
+Binary attachments and signed URLs never enter LangGraph checkpoints.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from deepagents.backends.protocol import (BackendProtocol, EditResult, FileDownl
     FileUploadResponse, GlobResult, GrepResult, LsResult, ReadResult, WriteResult)
 
 MAX_WORKSPACE_BYTES = 24 * 1024 * 1024
-MAX_FILES = 128
+MAX_FILES = 64
 MAX_TEXT_BYTES = 256 * 1024
 MAX_SKILL_FILES = 64
 MAX_SKILL_BYTES = 2 * 1024 * 1024
@@ -35,6 +35,10 @@ def logical_path(path: str, *, allow_root=False) -> str:
     if not value or any(part in {"", ".", ".."} for part in value.rstrip("/").split("/")):
         raise ValueError("invalid virtual path")
     value = value.rstrip("/")
+    if value.startswith("large_tool_results/"):
+        # DeepAgents' automatic offload path remains a logical alias; persist
+        # it with the task snapshot so worker recovery never loses that text.
+        value = "scratch/" + value
     if len(value.split("/")) > 12:
         raise ValueError("virtual path is too deep")
     if value.split("/", 1)[0] not in {"uploads", "output", "scratch", "skills", "large_tool_results"}:
@@ -67,7 +71,7 @@ class VirtualWorkspace(BackendProtocol):
     @staticmethod
     def _task_budget_ok(files):
         # Fixed, audited application skills are not user task files. Counting
-        # them against executor's 128-file/24-MiB contract creates false rejects.
+        # them against executor's 64-file/24-MiB contract creates false rejects.
         task_files = [data for name, data in files.items() if not name.startswith("skills/")]
         return len(task_files) <= MAX_FILES and sum(map(len, task_files)) <= MAX_WORKSPACE_BYTES
 

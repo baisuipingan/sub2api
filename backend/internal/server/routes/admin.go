@@ -150,6 +150,14 @@ func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp
 	workbench.GET("/gallery/:user_id/tasks/:task_id/images/:image_id/url", limiter.Heavy(), h.Admin.Workbench.GalleryImageURL)
 	workbench.GET("/config", h.Admin.Workbench.GetConfig)
 	workbench.PUT("/config", gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.UpdateConfig)
+	if h.OfficeAgent != nil {
+		c := workbench.Group("/chat")
+		c.GET("/overview", limiter.Heavy(), h.OfficeAgent.AdminOverview)
+		c.GET("/runs", limiter.Heavy(), h.OfficeAgent.AdminRuns)
+		c.GET("/runs/:id", limiter.Heavy(), h.OfficeAgent.AdminRun)
+		c.GET("/resources", limiter.Heavy(), h.OfficeAgent.AdminResources)
+		c.POST("/resources/:version_id/access", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminResourceAccess)
+	}
 }
 
 func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

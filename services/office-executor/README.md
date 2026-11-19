@@ -10,7 +10,7 @@
 - 不可信办公容器不接触 socket、模型 Key、对象存储凭据、数据库或控制面网络。容器固定 `runsc`、`network=none`、非 root、capabilities 全移除、no-new-privileges、只读根文件系统；不能由请求选择镜像、命令、环境、挂载或运行时。
 - 只有 `uploads/`（只读输入）、`output/`、`scratch/` 及镜像内只读 `skills/`。工作盘是受大小限制的 tmpfs，计入容器内存上限，不是无配额宿主目录；`/tmp` 另限 32 MiB。任务结束强制删除容器，临时挂载随之消失。
 - 模型脚本能使用预装 Python 和 Office 二进制；这不等于 Python 语言内已禁止系统调用。安全边界是任务沙箱、无网络/无凭据和资源限额，不是 AST 黑名单。产品不提供交互终端或安装依赖接口。
-- 默认每任务 180 秒、2 GiB 内存、1 CPU、256 MiB 工作盘、128 PID、24 MiB 输出快照、128 文件、stdout/stderr 各 64 KiB。请求仅能下调。默认监督器同时两任务；CPU/内存应按全部并发任务另加监督器本身的开销预算。
+- 默认每任务 180 秒、2 GiB 内存、1 CPU、256 MiB 工作盘、128 PID、24 MiB 输出快照、64 文件、stdout/stderr 各 64 KiB。请求仅能下调。默认监督器同时两任务；CPU/内存应按全部并发任务另加监督器本身的开销预算。
 - 宿主短期 staging（最多 24 MiB 输入/任务）在 `finally` 清理。结果默认缓存一小时，定时清理 payload，保留小型操作 tombstone 防重放；总状态空间默认 1 GiB，剩余磁盘低于 256 MiB 时拒绝新任务。
 
 ## HTTP 契约 v1
@@ -41,7 +41,7 @@ X-Office-Operation-ID: op_opaque_123
 }
 ```
 
-请求体最多 34 MiB，解码后输入总量最多 24 MiB/128 文件。`run_id`、`operation_id` 仅允许不超过 96 字符的字母、数字、`_`、`-`。输入路径允许 `uploads/`、`output/`、`scratch/`，后两者用于恢复上次执行快照；不接受绝对路径、`..`、规范化歧义和文件/目录冲突。所有文件必须校验 SHA-256。
+请求体最多 34 MiB，解码后输入总量最多 24 MiB/64 文件。`run_id`、`operation_id` 仅允许不超过 96 字符的字母、数字、`_`、`-`。输入路径允许 `uploads/`、`output/`、`scratch/`，后两者用于恢复上次执行快照；不接受绝对路径、`..`、规范化歧义和文件/目录冲突。所有文件必须校验 SHA-256。
 
 正常返回 HTTP 200，包含 `version/run_id/operation_id/lease_epoch/status/exit_code/stdout/stderr/duration_ms` 及：
 

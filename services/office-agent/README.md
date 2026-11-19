@@ -1,153 +1,191 @@
-# Internal office Agent pilot
+# Sub2API chat and office worker
 
-This is **phase 0**, not an enabled public workbench. It runs a real
-`deepagents.create_deep_agent` / LangGraph graph, with selected Bisheng skills
-and middleware. Go remains the only user, routing, scheduling and billing
-authority. There is no Bisheng server, second user system or second task queue.
+This internal Python worker uses the existing Go router, user system and billing.
+It has no public HTTP server, provider API key, database DSN or second user system.
+Ordinary chat is a separate lightweight preset; office mode runs a real
+`deepagents.create_deep_agent` / LangGraph graph with selected attributed Bisheng
+middleware and complete DOCX/XLSX/PPTX skill bundles.
 
-## What works, and what is deliberately gated
+## Runtime boundaries
 
-- Poll one Go lease at a time; call the original model gateway through a scoped
-  bridge; renew the lease independently every 20 seconds; publish safe progress
-  and a final answer. The worker never receives a user's long-lived API key.
-- Stable model operation IDs derived from run, graph step and canonical request;
-  **no SDK/HTTP automatic retry**. Unknown paid outcomes stop for confirmation.
-- Actual Bisheng Chinese base-prompt and repeated-tool-loop middleware, complete
-  DOCX/XLSX/PPTX skill bundles, templates, inspect and render helpers. See
-  `vendor/bisheng/SOURCE_MANIFEST.json` for commit, original paths/hashes and
-  modifications. Apache-2.0 license is retained next to these sources.
-- Optional **internal executor pilot**: generated Python goes only to
-  `services/office-executor`. Files exist in a bounded virtual RAM workspace;
-  write areas are `scratch/` and `output/`, uploads and skills are read-only.
-  The executor is responsible for the gVisor/network/mount/CPU/memory/disk boundary.
-  There is no local generated-code execution, local shell, package installation,
-  dynamic MCP, general-purpose subagent, host filesystem backend or old executor
-  fallback. Tools execute serially, with one per-run hard tool budget.
-- Office execution uses the Go prepare/result operation journal. The full file
-  snapshot is integrity checked and restored only in bounded RAM; the Go journal
-  and model conversation contain metadata, not base64 output files or credentials.
+- `OFFICE_WORKER_PRESET=chat` creates no filesystem or office executor. Search and
+  webpage reading are exposed only when the server manifest enables them. Simple
+  chat makes one normal model call, with no automatic planning or title call.
+- `OFFICE_WORKER_PRESET=office` has a bounded virtual RAM workspace. Generated
+  Python is sent only to the separate Linux/gVisor office executor. There is no
+  local shell, local generated-code execution, package installation, arbitrary MCP,
+  host filesystem backend, general-purpose subagent or host execution fallback.
+- All paid model operations use the original Go bridge and operation inbox. Real
+  SSE tool-call fragments and usage are consumed without SDK retries. Go alone
+  persists public `assistant.delta` events. An incomplete or uncertain operation
+  stops instead of being replayed.
+- Tools run serially. Durable distinct-tool budgets survive worker replacement.
+  Lease loss cancels the active graph and attempts executor cancellation. Epochs
+  fence dispatch but do not rename a completed operation during recovery.
+- Worker bootstrap and executor credentials are separate. User API keys and lease
+  credentials never enter graph state or model tool arguments. External LangSmith
+  tracing is disabled. Tools, attachments and webpage content cannot grant tools.
 
-**Not implemented / not promised:** durable checkpoint fencing, restarting a
-partial graph, public artifact upload/download, visual image inspection, resource
-restoration, browser search, real-time token delivery, or resumable `ask_user`.
-`InMemorySaver` is only for this isolated pilot. A manifest requesting durable
-resume or resource inputs fails before a model call. Without a persistent saver,
-`ask_user` is not exposed as an interrupting tool: the model can ask a normal
-question in its final reply. A repeated completed office operation is **not**
-regenerated to recreate missing files. Those gates must remain until the design's
-resource publishing and lease-fenced persistent-checkpoint acceptance tests pass.
+## Persistence and recovery
 
-The Go model bridge buffers each bounded result before returning it. This pilot
-therefore does not claim low-latency, user-visible streaming. It also does not
-claim that all available gateway models support tools: test the public model ID
-and protocol before enabling office tools for it. Token output parameters are
-sent through the existing OpenAI-compatible bridge, without default temperature
-or a separate, potentially stale provider model catalog.
+`GoCheckpointSaver` persists a bounded JSON document through Go's lease-fenced
+PostgreSQL CAS endpoint. It uses an allowlisted codec, never pickle or arbitrary
+class imports. It keeps four complete graph snapshots within 1 MiB. The graph
+explicitly uses the standard `add_messages` reducer: DeepAgents' default delta
+channel cannot safely be pruned to four ancestors.
 
-## Run locally
+Files are stored separately through private run workspace snapshots, at most 64
+files and 24 MiB decoded bytes. Snapshot GET supports latest (no query), exact
+immutable version (`?version=N`) and initial authorized inputs (`?version=0`).
+`head_version` is the next-write CAS head; it can differ from the restored version
+when a crash left an unreferenced newer snapshot. Files are path/hash/size checked
+before atomic restoration. Office outputs become durable before a completed tool
+journal record; replay restores the recorded snapshot and never reruns the script.
 
-Python 3.12 is used for validation; dependencies are pinned by `uv.lock`.
-No Office packages or browser binaries are installed into the trusted Agent.
+`ask_user` checkpoints then transitions to `waiting_user`. The server requeues the
+same run with `{request_id,answers:[{question_id,values:string[]}]}`; a new worker
+resumes its graph. Recovery without a new clarification continues pending steps
+instead of reinserting the original user messages. Missing recovery state fails
+before new paid operations.
+
+Completed files under `output/` are published as immutable private resources.
+Optional `output_parent={resource_id,version_id,path}` comes only from an explicit
+user "continue modifying" action verified by Go. Only that exact output path
+creates a new version of the original resource; extra files become new resources.
+A failed or unknown publication never yields a fabricated success/download link.
+Representative preview images use `scratch/previews/<full-output-filename>.png`
+(or `.jpg`) and are published with the resource.
+
+Uncertain outcomes are reported once to Go's `/suspend` endpoint. Go locks and
+fences the matching current lease, writes `run.needs_confirmation` immediately,
+and preserves original dispatch identities for late inbox deposits. Already
+fenced or cancelled runs cannot be revived. A five-minute expired-credential
+grace applies only to reporting a stop, never to model/tool dispatch or renewal.
+
+## Task budgets and public model profiles
+
+Workbench settings define per-user chat/office concurrency (defaults 3/1, caps
+8/2), model/tool call counts, per-call output and active run duration. Counts,
+output and duration cannot exceed deployment limits. Each run snapshots these
+values; official model context/output capabilities remain unchanged.
+
+An optional `max_run_credits` uses original `usage_logs.charge_credits` and exact
+run/user/key/request correlation. Zero adds no task credit cap. With a cap,
+model admission is serialized per run; one in-flight supplier response can
+exceed the remaining cap because it settles afterwards. A successful previous
+call must appear in the original asynchronous ledger before another call is
+admitted. Go waits at most five seconds by polling unsent admission only; if
+settlement is still absent, it writes a clear `BILLING_PENDING` suspension.
+Completed inbox replay remains readable after the cap is reached. No supplier
+request, pricing calculation or billing write is duplicated.
+
+Custom public IDs may explicitly bind an official profile through the independent
+`workbench_model_profiles_v1` setting. Only the public ID and that binding are
+used; supplier model mappings and desktop-client settings are never consulted.
+The official remote profile directory is shared read-only. Binding `override`
+must remain false, so task settings cannot invent or replace official maxima.
+
+## Context and visual checks
+
+The manifest accepts at most 2,000 selected messages and 2 MiB decoded text. Long
+contexts are explicitly compacted through the same billed model bridge, then
+saved by conversation CAS before the final question is answered. The current
+question stays intact. Previous turns are not silently dropped. A preflight
+checks that at most four compaction calls can cover the selected history; if not,
+it asks for fewer selected turns or a larger-context model before spending calls.
+
+Compaction uses server-provided official `context_window`, configured output and
+transport bounds. UTF-8 bytes are a conservative token upper bound, not a claim
+of exact model tokenization. Compaction requests have purpose header
+`X-Office-Model-Purpose: context_compaction` and a 1 MiB request limit; normal model
+requests retain the 256 KiB limit. Go suppresses public answer deltas for this
+purpose while keeping the original usage/billing path. A saved summary has a
+stable assistant-message boundary and SHA256 of its ordered source message IDs.
+
+When Go declares `supports_vision=true`, office mode exposes
+`inspect_rendered_image`. It validates a task-local scratch PNG/JPEG (96 KiB,
+4096 maximum edge, four million maximum pixels), freezes its bytes under a hash
+path, and stores only an image reference in the graph. On the next normal model
+call, the adapter temporarily expands only the latest image as a user multimodal
+message. Image bytes/data URLs never enter checkpoints. There is no extra hidden
+vision call. Models without this capability can perform structural, recalculation
+and render checks, and must not claim visual inspection.
+
+## Running and building
+
+Python 3.12 is used for validation. Dependencies are frozen in `uv.lock`;
+`requirements.lock` is its production export with hashes. No Office libraries or
+browser binaries are installed in the trusted worker.
 
 ```sh
 cd services/office-agent
 uv sync --python 3.12 --frozen
 uv run pytest -q
 export OFFICE_CONTROL_ORIGIN=https://your-internal-control-origin
-export OFFICE_WORKER_TOKEN=your-separate-worker-bootstrap-token
+export OFFICE_WORKER_TOKEN=separate-worker-bootstrap-token
+export OFFICE_WORKER_PRESET=chat
 uv run office-agent --once
 ```
 
-Set the real token in a secret manager or protected process environment. Do not
-commit it or put it in a run manifest file. `--once` claims at most one run; omit
-it for the bounded polling loop. An empty queue sleeps five seconds. A process
-manager can restart a failed worker; it must not invent a replay of a paid run.
+Omit `--once` for continuous polling. Empty queues poll every five seconds;
+heartbeats renew an active lease every twenty seconds. Use separate chat and
+office processes. Office additionally requires `OFFICE_EXECUTOR_PILOT_ENABLED=true`,
+`OFFICE_EXECUTOR_ORIGIN` and `OFFICE_EXECUTOR_TOKEN`. The office worker reports
+cached executor health every thirty seconds from `/healthz`; chat reports null.
 
-`OFFICE_EXECUTOR_PILOT_ENABLED=true` additionally requires
-`OFFICE_EXECUTOR_ORIGIN` and `OFFICE_EXECUTOR_TOKEN`. This is for isolated Linux
-acceptance only, after the executor's doctor confirms `runsc`; it is **not** a
-public feature switch. The normal chat pilot does not need an executor or Office
-image. The executor receives no model/Go lease credential, only its separate
-internal service credential and a bounded task payload. Credentials are never
-added to graph state, tool arguments, operation IDs or logs. External LangSmith
-tracing is explicitly disabled even if enabled in the calling environment.
+The container runs as UID/GID 11001 and requires a digest-pinned base image:
 
-## Control-plane protocol
-
-The configured origin is trusted deployment configuration. The manifest can only
-provide the exact relative model path for its own run; it cannot redirect Bearer
-credentials to an arbitrary upstream.
-
-1. `POST /internal/office-agent/v1/claim`, bootstrap Bearer, body `{"worker_id":...}`.
-   `204` is no work. A successful response contains the `RunManifest` declared in
-   `contracts.py` (raw JSON or the standard `{code,data}` envelope).
-2. Run endpoints use the short-lived `lease_token` Bearer and decimal
-   `X-Office-Lease: <lease_epoch>`. A successful heartbeat replaces the in-memory
-   token; it never mutates the graph/checkpoint.
-3. `POST /runs/<id>/model/chat/completions` under the internal prefix additionally
-   uses `X-Office-Operation-ID: model-<sha256>`. The body is OpenAI-compatible,
-   not a provider's SDK client. All actual model calls pass the original router.
-4. `POST /runs/<id>/tools/<operation_id>/prepare`, body `{"input":...}`; execute
-   only for an affirmative `execute:true`. Then POST `/result`, body
-   `{"output":<safe result metadata>,"http_status":200}`. A transport uncertainty
-   is never treated as permission to retry.
-5. `POST /runs/<id>/events`, body `{"event_id":...,"type":"progress","payload":{"message":...}}`.
-   `POST /runs/<id>/finish`, body `{status,content,error_code,error_message}`.
-   The worker posts only `completed` or `failed`. For `needs_confirmation`, Go's
-   operation inbox/recovery sweep owns the state; the worker stops and does not
-   attempt a finish write with a lease Go may already have fenced.
-
-All run paths above start with `/internal/office-agent/v1`. No raw LangChain
-callbacks, model reasoning, script source, stack traces or internal paths are
-forwarded as public progress. The worker runs one graph at a time; Go enforces
-global/user budgets and operation identity independently.
-
-## Office executor protocol
-
-`POST <OFFICE_EXECUTOR_ORIGIN>/v1/runs/<run_id>` uses a separate Bearer and
-`X-Office-Operation-ID` matching the body. Body:
-
-```json
-{
-  "version": 1,
-  "run_id": "UUID",
-  "operation_id": "office-SHA256",
-  "lease_epoch": 1,
-  "script": "Python source",
-  "inputs": [{"path":"scratch/input.txt","sha256":"...","content_base64":"..."}],
-  "limits": {"timeout_seconds": 180}
-}
+```sh
+docker build --build-arg PYTHON_BASE_IMAGE='python@sha256:<reviewed-digest>' .
 ```
 
-Paths use Bisheng's `uploads/`, `scratch/`, `output/`, `skills/` conventions;
-the isolated script's cwd is `/workspace`. Skills are mounted read-only by the
-fixed image. Inputs and outputs are bounded, inline only for phase 0. The response
-contains `run_id,operation_id,lease_epoch,version,status,exit_code,stdout,stderr,outputs,workspace_manifest`.
-`workspace_manifest` is the **complete** output/scratch snapshot; every file has
-`path,size,sha256,mime,content_base64`. `outputs` is only output-file metadata
-(`path,size,sha256,mime`), so file bytes are never duplicated on the wire. The
-client's wire cap matches the executor's 40 MiB ceiling. The client checks paths, counts, bytes and
-integrity before atomically replacing its writable snapshot. Only metadata and
-bounded logs go back into the model. An interrupted request attempts the narrow
-executor cancellation endpoint; Go fences late task publication regardless.
-`unknown`/`cancelled` stop the graph without normal result completion;
-`timed_out`, `output_limit` and `invalid_output` record the known failure and stop.
-A known script failure can be corrected within the remaining shared budget;
-uncertain execution is never handed back to the model as permission to retry.
+Run it with a read-only root filesystem, bounded tmpfs/memory/process limits and
+private control/executor network access. There is no Docker socket in the worker.
+Do not place tokens in manifests, logs, source files or image build arguments.
+Public office enablement still requires actual Linux/runsc acceptance on its
+isolated executor; unit tests do not substitute for that deployment check.
 
-## Source changes and validation
+## Internal protocol
 
-Vendor commit: `dataelement/bisheng@a8e5be89c1b8d3a2e512c772e2a38de409336dc8`.
-The selected source is recorded file by file. The original prompt/loop middleware
-is loaded unmodified from fixed application paths. Skill instructions were adapted
-to this tool name, offline environment and budgets; DOCX/PPTX rendering uses
-Poppler rather than PyMuPDF. This avoids adding that library to the distribution;
-font and template licensing still needs an asset review before public release.
+All run paths have prefix `/internal/office-agent/v1/runs/<run_id>/` and use the
+short-lived lease Bearer plus `X-Office-Lease`. Mutating operations carry stable
+operation IDs; no request follows redirects or automatically retries.
 
-Tests exercise actual DeepAgents construction and tool dispatch with mocked
-network boundaries: model bridge auth/operation identity, no forbidden automatic
-tools, one-call behavior, no retries on uncertainty, parallel-tool serialization,
-executor journal/snapshot exchange, traversal and skill immutability, source
-integrity and explicit unsupported-feature gates. They do not claim to prove
-gVisor isolation or real LibreOffice rendering. The sibling executor owns real
-Linux document probes and resource/isolation acceptance.
+- `POST /internal/office-agent/v1/claim`: bootstrap Bearer,
+  `{worker_id,preset,executor_ready}`. HTTP 204 means no task.
+- `POST heartbeat`: replaces only the worker's in-memory lease token.
+- `POST suspend`: `{code}` with a current signed lease (or the stop-only grace);
+  server-owned safe text and immediate fencing, no automatic operation replay.
+- `POST model/chat/completions`: original OpenAI-shaped model bridge, real SSE or
+  durable completed response replay, with `X-Office-Operation-ID`.
+- `GET/POST checkpoint`: `{version,data}` / `{expected_version,write_id,data}`.
+- `GET/POST workspace`: immutable file snapshot and latest-head CAS.
+- `POST tools/<id>/prepare` and `/result`: dispatch once, store safe metadata and
+  workspace version, never base64 document bytes in tool/model messages.
+- `POST wait`: `{request_id,payload}` after checkpoint persistence.
+- `POST context-summary`: `{operation_id,expected_version,content,
+  through_message_id,source_hash}` with Go-owned conversation/boundary validation.
+- `POST artifacts`: snapshot-backed publication and optional explicit parent.
+- `POST events`: safe progress and task/tool cards. Artifact publication events
+  belong to Go's ready-resource transaction. No raw
+  LangChain callbacks, script source, reasoning or stack traces are public.
+- `POST finish`: only known completed/failed outcomes. `waiting_user` is owned by
+  `wait`; unknown outcomes remain owned by Go recovery and are not force-finished.
+
+## Sources and verification
+
+Bisheng source commit:
+`dataelement/bisheng@a8e5be89c1b8d3a2e512c772e2a38de409336dc8`.
+`vendor/bisheng/SOURCE_MANIFEST.json` records every selected source file, original
+path/hash and adaptation. Apache-2.0 attribution is preserved. The original prompt
+and loop middleware are loaded from fixed application paths; DOCX/PPTX rendering
+uses Poppler rather than PyMuPDF. Font/template asset review remains a deployment
+responsibility.
+
+Tests exercise actual DeepAgents construction, streaming/tool fragments,
+clarification interruption and reconstruction, full-state checkpoint recovery,
+completed tool replay across lease epochs, explicit resource versions, image
+references without checkpoint bytes, context compaction ordering and uncertainty,
+lease cancellation, bounded paths and vendored source integrity. Model/Go/executor
+network boundaries are mocked. These tests do not claim real upstream model
+quality, Linux isolation, or LibreOffice visual rendering acceptance.

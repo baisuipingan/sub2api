@@ -116,7 +116,8 @@ def main() -> None:
         return
 
     stem = os.path.splitext(os.path.basename(args.path))[0]
-    outdir = args.outdir or os.path.join("scratch", "preview", stem)
+    name = args.path.removeprefix("output/") if args.path.startswith("output/") else os.path.basename(args.path)
+    outdir = args.outdir or os.path.join("scratch", "preview", name)
 
     try:
         os.makedirs(outdir, exist_ok=True)
@@ -130,7 +131,8 @@ def main() -> None:
         for path in pages:
             print(f"  {path}")
         print()
-        print("当前预览图片供成果检查使用。运行时尚未开放图片读入模型。服务器使用预装中文字体，")
+        print("预览已生成；若当前任务提供 inspect_rendered_image 工具，请先缩图到工具上限后实际读图复查。")
+        print("只有实际读图才可声称完成视觉检查；无该工具时仅报告结构与渲染检查。服务器使用预装中文字体，")
         print("和用户 Word 里的实际字体宽度不同 —— 预览里的行长松紧只作参考，")
         print("不要为了预览效果反复微调字号，以 inspect_docx.py 的体检结果为准。")
     except Exception:

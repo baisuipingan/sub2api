@@ -144,3 +144,18 @@ func TestOfficeHandlerUncertainResultsAreExplicitWithoutLeakingInternalError(t *
 	require.Equal(t, 500, rec.Code)
 	require.NotContains(t, rec.Body.String(), "private-key")
 }
+
+func TestOfficeModelReplyMarksOnlyConfirmedInboxResponses(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest, http.StatusBadGateway} {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		writeOfficeModelReply(c, &service.OfficeGatewayReply{Status: status, ContentType: "application/json", Body: []byte(`{"error":{"code":"fixture"}}`), RequestID: "office-fixture"})
+		require.Equal(t, status, recorder.Code)
+		require.Equal(t, "completed", recorder.Header().Get("X-Office-Operation-State"))
+		require.Equal(t, "office-fixture", recorder.Header().Get("X-Client-Request-ID"))
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	officeHandlerError(c, service.ErrOfficeResultUnknown)
+	require.Empty(t, recorder.Header().Get("X-Office-Operation-State"), "unknown outcomes never claim inbox completion")
+}

@@ -2,7 +2,7 @@
   <section id="image-storage" class="card scroll-mt-24 p-5 sm:p-6" data-testid="image-storage-settings" :aria-busy="loading">
     <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.title') }}</h2>
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.workbenchSettings.storageTitle') }}</h2>
         <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.sharedStorageHint') }}</p>
       </div>
       <button type="button" class="btn btn-ghost btn-sm" :disabled="loading || saving || testing" @click="loadConfig">{{ t('common.refresh') }}</button>
@@ -63,10 +63,15 @@
         <Input id="image-storage-public-url" v-model="form.public_base_url" :label="t('admin.backup.imageStorage.publicBaseUrl')" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
         <Input id="image-storage-presign-hours" :model-value="form.presign_expiry_hours" type="number" min="1" step="1" :label="t('admin.backup.imageStorage.presignExpiryHours')" @update:model-value="form.presign_expiry_hours = Number($event)" />
       </div>
+      <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
+        <Input id="office-storage-bucket" v-model="form.office_bucket" label="办公文件存储桶（可选）" placeholder="留空时沿用上方存储桶" aria-describedby="office-storage-hint" />
+        <p id="office-storage-hint" class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">复用上方连接地址和凭证，办公资料使用私有访问。建议使用独立桶，避免图片的短期生命周期规则删除办公文档；需允许本站读取文件的 CORS 配置。已有办公文件时不能直接更换存储位置，需先完成迁移或清理。</p>
+      </div>
       <div class="flex flex-wrap gap-2">
         <button type="button" data-testid="image-storage-test" class="btn btn-secondary btn-sm" @click="testConnection">{{ testing ? t('common.loading') : t('admin.backup.s3.testConnection') }}</button>
         <button type="button" data-testid="image-storage-save" class="btn btn-primary btn-sm" @click="saveConfig">{{ saving ? t('common.loading') : t('common.save') }}</button>
       </div>
+      <p class="text-xs text-gray-500 dark:text-dark-400">连接测试会检查共用存储；配置办公文件桶时，也会检查该桶的读写和删除权限。</p>
     </fieldset>
     <TotpStepUpDialog :controller="stepUp" />
   </section>
@@ -94,7 +99,7 @@ const loadError = ref('')
 const secretConfigured = ref(false)
 const form = ref<ImageStorageConfig>({
   enabled: false, studio_gallery_enabled: false, studio_jobs_enabled: false, ticket_attachments_enabled: false,
-  reuse_backup_s3: true, bucket: '', prefix: 'images/', public_base_url: '',
+  reuse_backup_s3: true, bucket: '', office_bucket: '', prefix: 'images/', public_base_url: '',
   presign_expiry_hours: 24, max_download_bytes: 33554432, endpoint: '', region: 'auto',
   access_key_id: '', secret_access_key: '', force_path_style: false,
 })
@@ -114,6 +119,7 @@ async function loadConfig() {
     if (disposed) return
     form.value = {
       ...config,
+      office_bucket: config.office_bucket || '',
       studio_gallery_enabled: config.studio_gallery_enabled === true,
       studio_jobs_enabled: config.studio_gallery_enabled === true && config.studio_jobs_enabled === true,
       ticket_attachments_enabled: config.ticket_attachments_enabled === true,

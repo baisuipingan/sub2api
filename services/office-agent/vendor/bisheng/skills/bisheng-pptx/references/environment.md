@@ -1,4 +1,4 @@
-<!-- Modified by MiloRouter 2026-11-18: fixed offline executor and Poppler environment. -->
+<!-- Modified by MiloRouter 2026-11-19: fixed offline executor, durable resources, and verified preview environment. -->
 # 运行环境事实（照做，不要试探）
 
 SKILL.md §0 的探测已经覆盖最关键的三件事。下面是遇到问题时再查的细节。
@@ -6,9 +6,9 @@ SKILL.md §0 的探测已经覆盖最关键的三件事。下面是遇到问题�
 | 项 | 事实 |
 |---|---|
 | **生成方式** | **只有 `python-pptx`**，`import pptx` 直接可用。内置模板的 `Deck` 也基于它 |
-| 不存在的东西 | Node / npm / `pptxgenjs`、`markitdown`、`defusedxml`、`pdfplumber`/`pdfminer`/`PyPDF2`、`pdftoppm`、`zip`/`unzip` |
+| 不存在的东西 | Node / npm / `pptxgenjs`、`markitdown`、`pdfplumber`/`pdfminer`/`PyPDF2`、`zip`/`unzip` |
 | 存在但本技能不用 | `pandoc` 能 `-o out.pptx`，但只产出「标题＋项目符号」的裸版式，配色版式图表全不可控，做出来必是"一眼 AI" |
-| 其它可用库 | Pillow（图片）、Poppler(`pdfinfo`/`pdftoppm`)（读 PDF/渲染）、matplotlib（只在原生图表做不了时出图）、pandas/numpy、openpyxl、python-docx、lxml |
+| 其它可用库 | Pillow（图片）、Poppler(`pdfinfo`/`pdftoppm`)（读 PDF/渲染）、matplotlib（只在原生图表做不了时出图）、pandas/numpy、openpyxl、python-docx、lxml、defusedxml |
 | 禁止 | `pip install`、`npm install`、任何联网假设（生产多为离线内网） |
 | 工作目录 | 执行器 cwd = 工作区根，**一律用相对路径** |
 | `output/` | 唯一交付区，已自动创建 |
@@ -18,8 +18,8 @@ SKILL.md §0 的探测已经覆盖最关键的三件事。下面是遇到问题�
 | 绝对禁止 | 写 `/output/xxx.pptx` 这种带前导斜杠的路径 —— 文件会被静默丢弃 |
 | 单次执行上限 | 隔离办公执行器最多 180 秒（任务预算可更低）；构建、重算、渲染分多次调用 |
 | 日志规则 | 返回退出码、stdout 与 stderr；打印明确检查结果，不能仅以退出码 0 认定文档通过验证 |
-| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。文件生成与云端交付不同，首期尚未开放持久归档 |
-| 轮次 | 最后两轮代码执行器会被摘除 → PPT 必须尽早产出 |
+| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。检查完成后由系统归档 output 并提供成果卡；只有归档确认后才可宣称交付成功 |
+| 预算 | 模型和工具调用按任务预算计数，跨恢复继续累计；应预留生成、检查和有限修复的调用，不存在“最后两轮自动摘除工具”的规则 |
 
 ## 技能目录不可见时（`skills 可见: False`）
 
@@ -43,6 +43,6 @@ print(r.stdout or "(no stdout)")
 print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 ```
 
-它把每页渲染成 `scratch/preview/<名字>/slide-N.png`，再用 `read_file` 逐张查看。
+它把每页渲染成 `scratch/preview/<含扩展名的文件名>/slide-N.png`，当前模型提供 `inspect_rendered_image` 时，先压缩到该工具限制再逐张读取检查；`read_file` 不读二进制图片。
 渲染用的中文字体与用户 PowerPoint 里的不同，文字松紧只作参考，不要为预览效果反复微调字号。
 没有 LibreOffice（或没装 Impress 组件）时脚本会直说，跳过即可，不影响生成与交付。

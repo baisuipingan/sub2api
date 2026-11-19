@@ -1,10 +1,32 @@
 import { apiClient } from '../client'
+import type { ChatArtifact, ChatResourceAccess, ChatRun, ChatRunStatus } from '@/types/workbenchChat'
 
 export const WORKBENCH_TASK_STATUSES = ['queued', 'generating', 'saving', 'completed', 'partial', 'failed', 'unknown', 'cancelled'] as const
 export type WorkbenchTaskStatus = typeof WORKBENCH_TASK_STATUSES[number]
 export type WorkbenchDays = 7 | 30 | 90
 
+export interface WorkbenchExecutionLimits {
+  chat_concurrent_runs: number
+  office_concurrent_runs: number
+  max_model_calls: number
+  max_tool_calls: number
+  max_output_tokens: number
+  max_run_seconds: number
+}
 export interface WorkbenchConfig {
+ model_profiles?: Record<string, { profile_id: string; override: false }>
+ chat_concurrent_runs?: number
+ office_concurrent_runs?: number
+ max_model_calls?: number
+ max_tool_calls?: number
+ max_output_tokens?: number
+ max_run_seconds?: number
+ max_run_credits?: number
+ deployment_limits?: WorkbenchExecutionLimits
+ chat_enabled?: boolean
+ office_enabled?: boolean
+ search_enabled?: boolean
+ files_enabled?: boolean
   image_studio_enabled: boolean
   image_studio_group_id: number
 }
@@ -133,4 +155,48 @@ export async function getWorkbenchGalleryImage(task: Pick<WorkbenchGalleryTask, 
   const path = `/admin/workbench/gallery/${task.user_id}/tasks/${encodeURIComponent(task.task_id)}/images/${encodeURIComponent(imageId)}/url`
   const { data } = await apiClient.get<WorkbenchGalleryImage>(path, { params: { variant }, signal })
   return data
+}
+
+
+export const OFFICE_RUN_STATUSES: ChatRunStatus[] = ['queued', 'running', 'waiting_user', 'recovering', 'needs_confirmation', 'completed', 'partially_completed', 'failed', 'cancelled']
+export interface WorkbenchChatOverview {
+  since: string; until: string
+  total_runs: number; chat_runs: number; office_runs: number
+  completed: number; failed: number; queued: number; running: number; waiting_user: number; needs_confirmation: number
+  model_calls: number; tool_calls: number; input_tokens: number; output_tokens: number; charge_credits: number
+  used_bytes: number; resource_count: number
+  workers: { id: string; preset: string; last_seen_at: string; executor_ready: boolean | null }[]
+}
+export interface WorkbenchChatRun extends ChatRun {
+  user_id: number; user_email: string; user_name: string
+  input_tokens: number; output_tokens: number; charge_credits: number
+  started_at?: string; group_id: number
+}
+export interface WorkbenchChatRunQuery {
+  page?: number; page_size?: number; user_id?: number; mode?: 'chat' | 'office'; status?: ChatRunStatus; model?: string; days?: WorkbenchDays
+}
+export interface WorkbenchAdminPage<T> { items: T[]; total: number; page: number; page_size: number; pages: number }
+export interface WorkbenchChatOperation {
+  id: string; run_id: string; kind: string; state: string; request_id: string
+  created_at: string; dispatched_at?: string; completed_at?: string
+  usage?: { settled: boolean; input_tokens: number; output_tokens: number; cache_read_tokens: number; actual_cost: number; charge_credits: number; duration_ms?: number; upstreams: WorkbenchTaskRouteCall['upstreams'] }
+}
+export interface WorkbenchChatRunDetail {
+  run: ChatRun & { user_id: number; group_id: number }; user_email: string; user_name: string; operations: WorkbenchChatOperation[]
+}
+export interface WorkbenchAdminResource extends ChatArtifact { user_id: number; user_email: string; user_name: string; source?: 'upload' | 'generated' | 'gallery'; parent_version_id?: string }
+export async function getWorkbenchChatOverview(days: WorkbenchDays, signal?: AbortSignal): Promise<WorkbenchChatOverview> {
+  const { data } = await apiClient.get<WorkbenchChatOverview>('/admin/workbench/chat/overview', { params: { days }, signal }); return data
+}
+export async function listWorkbenchChatRuns(params: WorkbenchChatRunQuery, signal?: AbortSignal): Promise<WorkbenchAdminPage<WorkbenchChatRun>> {
+  const { data } = await apiClient.get<WorkbenchAdminPage<WorkbenchChatRun>>('/admin/workbench/chat/runs', { params, signal }); return data
+}
+export async function getWorkbenchChatRun(id: string, signal?: AbortSignal): Promise<WorkbenchChatRunDetail> {
+  const { data } = await apiClient.get<WorkbenchChatRunDetail>(`/admin/workbench/chat/runs/${encodeURIComponent(id)}`, { signal }); return data
+}
+export async function listWorkbenchChatResources(params: { page?: number; page_size?: number; user_id?: number }, signal?: AbortSignal): Promise<WorkbenchAdminPage<WorkbenchAdminResource>> {
+  const { data } = await apiClient.get<WorkbenchAdminPage<WorkbenchAdminResource>>('/admin/workbench/chat/resources', { params, signal }); return data
+}
+export async function getWorkbenchChatResourceAccess(versionId: string, variant: 'preview' | 'original' = 'preview'): Promise<ChatResourceAccess> {
+  const { data } = await apiClient.post<ChatResourceAccess>(`/admin/workbench/chat/resources/${encodeURIComponent(versionId)}/access`, undefined, { params: { variant } }); return data
 }

@@ -26,6 +26,7 @@ const (
 	OfficeOperationModel          = "model"
 	OfficeOperationTool           = "tool"
 	OfficeMaxOperationInputBytes  = 256 << 10
+	OfficeMaxCompactionInputBytes = 1 << 20
 	OfficeMaxOperationResultBytes = 2 << 20
 	OfficeMaxEventBytes           = 64 << 10
 )
@@ -38,6 +39,7 @@ var (
 	ErrOfficeLeaseLost           = errors.New("office agent lease is no longer valid")
 	ErrOfficeOperationDispatched = errors.New("office agent operation was already dispatched; replay its result instead")
 	ErrOfficeBudgetExceeded      = errors.New("office agent operation budget exceeded")
+	ErrOfficeSettlementPending   = errors.New("previous office model usage is not settled yet")
 	ErrOfficeResultUnknown       = errors.New("office agent operation result needs confirmation")
 )
 
@@ -47,10 +49,11 @@ type OfficeResourceVersion struct {
 }
 
 type OfficeRunLimits struct {
-	MaxModelCalls   int `json:"max_model_calls"`
-	MaxToolCalls    int `json:"max_tool_calls"`
-	MaxOutputTokens int `json:"max_output_tokens"`
-	MaxRunSeconds   int `json:"max_run_seconds"`
+	MaxModelCalls    int   `json:"max_model_calls"`
+	MaxToolCalls     int   `json:"max_tool_calls"`
+	MaxOutputTokens  int   `json:"max_output_tokens"`
+	MaxRunSeconds    int   `json:"max_run_seconds"`
+	MaxChargeCredits int64 `json:"max_charge_credits,omitempty"`
 }
 
 type OfficeConversation struct {
@@ -72,37 +75,56 @@ type OfficeMessage struct {
 }
 
 type OfficeRunAdmission struct {
-	UserID         int64
-	ConversationID string
-	RunID          string
-	IdempotencyKey string
-	RequestHash    string
-	APIKeyID       int64
-	GroupID        int64
-	Model          string
-	UserContent    json.RawMessage
-	InputResources []OfficeResourceVersion
-	Limits         OfficeRunLimits
+	Mode            string
+	SearchEnabled   bool
+	Parameters      json.RawMessage
+	ContextBoundary int64
+	RegenerationOf  string
+	MaxActiveRuns   int
+	UserID          int64
+	ConversationID  string
+	RunID           string
+	IdempotencyKey  string
+	RequestHash     string
+	APIKeyID        int64
+	GroupID         int64
+	Model           string
+	UserContent     json.RawMessage
+	InputResources  []OfficeResourceVersion
+	Limits          OfficeRunLimits
 }
 
 type OfficeRun struct {
-	ID             string                  `json:"id"`
-	UserID         int64                   `json:"user_id"`
-	ConversationID string                  `json:"conversation_id"`
-	APIKeyID       int64                   `json:"-"`
-	GroupID        int64                   `json:"group_id"`
-	Model          string                  `json:"model"`
-	Status         string                  `json:"status"`
-	Limits         OfficeRunLimits         `json:"limits"`
-	InputResources []OfficeResourceVersion `json:"input_resources"`
-	ModelCalls     int                     `json:"model_calls"`
-	ToolCalls      int                     `json:"tool_calls"`
-	ErrorCode      string                  `json:"error_code,omitempty"`
-	ErrorMessage   string                  `json:"error_message,omitempty"`
-	CreatedAt      time.Time               `json:"created_at"`
-	UpdatedAt      time.Time               `json:"updated_at"`
-	StartedAt      *time.Time              `json:"started_at,omitempty"`
-	FinishedAt     *time.Time              `json:"finished_at,omitempty"`
+	PausedSeconds   int64                   `json:"-"`
+	Mode            string                  `json:"mode"`
+	SearchEnabled   bool                    `json:"search_enabled"`
+	Parameters      json.RawMessage         `json:"parameters"`
+	ContextBoundary int64                   `json:"context_boundary"`
+	RegenerationOf  string                  `json:"regeneration_of,omitempty"`
+	Selected        bool                    `json:"selected"`
+	ResumeValue     json.RawMessage         `json:"resume_value,omitempty"`
+	InputRequestID  string                  `json:"input_request_id,omitempty"`
+	ID              string                  `json:"id"`
+	UserID          int64                   `json:"user_id"`
+	ConversationID  string                  `json:"conversation_id"`
+	APIKeyID        int64                   `json:"-"`
+	GroupID         int64                   `json:"group_id"`
+	Model           string                  `json:"model"`
+	Status          string                  `json:"status"`
+	Limits          OfficeRunLimits         `json:"limits"`
+	InputResources  []OfficeResourceVersion `json:"input_resources"`
+	// History projects durable file metadata separately from assistant text and
+	// event replay. A nil projection is omitted by ordinary/internal run reads;
+	// history explicitly includes an empty array when files were deleted.
+	Artifacts    *[]OfficeResource `json:"artifacts,omitempty"`
+	ModelCalls   int               `json:"model_calls"`
+	ToolCalls    int               `json:"tool_calls"`
+	ErrorCode    string            `json:"error_code,omitempty"`
+	ErrorMessage string            `json:"error_message,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+	StartedAt    *time.Time        `json:"started_at,omitempty"`
+	FinishedAt   *time.Time        `json:"finished_at,omitempty"`
 }
 
 type OfficeRunLease struct {
@@ -169,6 +191,7 @@ type OfficeAgentRepository interface {
 	CheckLease(context.Context, OfficeRunLease) error
 	CancelRun(context.Context, int64, string) (*OfficeRun, error)
 	FinishRun(context.Context, OfficeRunLease, string, json.RawMessage, string, string) (*OfficeRun, error)
+	SuspendRun(context.Context, OfficeRunLease, string, string) (*OfficeRun, error)
 	PrepareOperation(context.Context, OfficeRunLease, OfficeOperationPrepare) (*OfficeOperation, bool, error)
 	DispatchOperation(context.Context, OfficeRunLease, string) (*OfficeOperation, error)
 	RecordOperationResult(context.Context, OfficeRunLease, string, OfficeOperationResult) (*OfficeOperation, error)
@@ -176,4 +199,31 @@ type OfficeAgentRepository interface {
 	MarkOperationUnknown(context.Context, OfficeRunLease, string, string) error
 	AppendEvent(context.Context, OfficeRunLease, string, string, json.RawMessage) (*OfficeRunEvent, error)
 	ListEvents(context.Context, int64, string, int64, int) ([]OfficeRunEvent, error)
+}
+
+// OfficeChatRepository groups conversation/recovery capabilities separately from
+// the original run/operation journal and its focused test fixtures.
+type OfficeChatRepository interface {
+	MessagePage(context.Context, int64, string, int64) ([]OfficeMessage, []OfficeRun, bool, int64, error)
+	ListConversationPage(context.Context, int64, string, int) ([]OfficeConversation, string, error)
+	RenameConversation(context.Context, int64, string, string) (*OfficeConversation, error)
+	DeleteConversation(context.Context, int64, string) error
+	ClaimPreset(context.Context, string, string, time.Duration) (*OfficeRunLease, error)
+	ContextMessages(context.Context, OfficeRun) ([]OfficeMessage, error)
+	RegenerationSource(context.Context, int64, string, string) (*OfficeRun, *OfficeMessage, error)
+	ContextSummary(context.Context, OfficeRunLease) (*OfficeContextSummary, error)
+	SaveContextSummary(context.Context, OfficeRunLease, OfficeContextSummary, int64, string) (int64, error)
+	ListOperations(context.Context, int64, string) ([]OfficeOperation, error)
+	Checkpoint(context.Context, OfficeRunLease) (json.RawMessage, int64, error)
+	SaveCheckpoint(context.Context, OfficeRunLease, json.RawMessage, int64, string) (int64, error)
+	WaitForInput(context.Context, OfficeRunLease, string, json.RawMessage) (*OfficeRun, error)
+	ResumeInput(context.Context, int64, string, string, json.RawMessage) (*OfficeRun, error)
+	SelectAnswer(context.Context, int64, string) (*OfficeRun, error)
+}
+
+type OfficeContextSummary struct {
+	Version          int64  `json:"version"`
+	Content          string `json:"content"`
+	ThroughMessageID string `json:"through_message_id"`
+	SourceHash       string `json:"source_hash"`
 }

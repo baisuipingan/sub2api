@@ -14,13 +14,39 @@ import zipfile
 
 from office_executor.__main__ import parse_json
 from office_executor.contracts import ContractError, DEFAULT_LIMITS, MAX_RESULT_WIRE_BYTES, MIB, file_record, logical_path, maximum_result_json_estimate, public_output_metadata, validate_request
-from office_executor.runner import check_public_type, collect_workspace, read_regular
+from office_executor.runner import check_public_type, collect_workspace, read_regular, write_result
 from office_executor.supervisor import ExecutionError, Settings, Supervisor, container_command
 
 
 def request(**changes):
     return {"version": 1, "run_id": "run_123", "operation_id": "op_456", "lease_epoch": 1,
             "script": "print('office task')", "inputs": [], **changes}
+
+
+class RunnerTransportTest(unittest.TestCase):
+    def test_large_result_retries_short_and_interrupted_raw_writes(self):
+        result = {"text": "中文" * 30000}
+        received = bytearray()
+        interrupted = False
+
+        def short_write(descriptor, content):
+            nonlocal interrupted
+            self.assertLessEqual(len(content), 32 * 1024)
+            if not interrupted:
+                interrupted = True
+                raise InterruptedError()
+            length = min(17003, len(content))
+            received.extend(content[:length])
+            return length
+
+        with patch("office_executor.runner.os.write", side_effect=short_write):
+            write_result(result)
+        self.assertEqual(json.loads(received), result)
+
+    def test_closed_result_pipe_fails_instead_of_spinning(self):
+        with patch("office_executor.runner.os.write", return_value=0):
+            with self.assertRaisesRegex(OSError, "closed"):
+                write_result({"text": "result"})
 
 
 class ContractsTest(unittest.TestCase):

@@ -94,7 +94,7 @@ export async function testS3Connection(config: BackupS3Config): Promise<TestS3Re
   return data
 }
 
-// Image object storage shared by async image tasks, the Studio gallery and ticket screenshots.
+// Object storage shared by async images, gallery, ticket screenshots, and private office files.
 //
 // Shares the S3 client with backups, so `reuse_backup_s3` borrows the endpoint and
 // credentials configured above and only keeps its own bucket/prefix.
@@ -103,6 +103,7 @@ export interface ImageStorageConfig {
   studio_gallery_enabled: boolean
   studio_jobs_enabled: boolean
   ticket_attachments_enabled: boolean
+  office_bucket?: string
   reuse_backup_s3: boolean
   bucket: string
   prefix: string

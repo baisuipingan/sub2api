@@ -91,3 +91,56 @@ func TestWorkbenchConfigRejectsMissingUnknownAndTrailingFields(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, r.Code)
 	}
 }
+
+type workbenchConfigSettings struct {
+	service.SettingRepository
+	values map[string]string
+}
+
+func (r *workbenchConfigSettings) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	values := map[string]string{}
+	for _, key := range keys {
+		values[key] = r.values[key]
+	}
+	return values, nil
+}
+func (r *workbenchConfigSettings) SetMultiple(_ context.Context, values map[string]string) error {
+	for key, value := range values {
+		r.values[key] = value
+	}
+	return nil
+}
+
+func TestWorkbenchConfigBudgetAndAliasSettingsPreserveLegacyImagePayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &workbenchConfigSettings{values: map[string]string{}}
+	h := NewWorkbenchHandler(service.NewWorkbenchAdminService(nil, service.NewSettingService(repo, nil), nil))
+	router := gin.New()
+	router.PUT("/config", h.UpdateConfig)
+	send := func(body string) *httptest.ResponseRecorder {
+		t.Helper()
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/config", strings.NewReader(body)))
+		return w
+	}
+	first := send(`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":3,"max_run_credits":700,"model_profiles":{"office-alias":{"profile_id":"gpt-6.1-sol","override":false}}}`)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	require.Contains(t, first.Body.String(), `"deployment_limits"`)
+	legacy := send(`{"image_studio_enabled":false,"image_studio_group_id":0}`)
+	require.Equal(t, http.StatusOK, legacy.Code, legacy.Body.String())
+	require.Contains(t, legacy.Body.String(), `"max_model_calls":3`)
+	require.Contains(t, legacy.Body.String(), `"max_run_credits":700`)
+	require.Contains(t, legacy.Body.String(), `"office-alias"`)
+	for _, body := range []string{
+		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":0}`,
+		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":9999}`,
+		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_run_credits":-1}`,
+		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"office-alias":{"profile_id":"gpt-6.1-sol","override":true}}}`,
+		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"gpt-6.1-sol":{"profile_id":"gpt-6-luna","override":false}}}`,
+	} {
+		require.Equal(t, http.StatusBadRequest, send(body).Code, body)
+	}
+	cleared := send(`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{}}`)
+	require.Equal(t, http.StatusOK, cleared.Code, cleared.Body.String())
+	require.Contains(t, cleared.Body.String(), `"model_profiles":{}`)
+}

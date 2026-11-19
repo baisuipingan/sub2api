@@ -8,8 +8,8 @@
       "local_path": "skills/bisheng-docx/SKILL.md",
       "sha256": "456643ebd065f6688d535c692f8f35838dcfc73463dfd9c6f5863aa157fb5fac",
       "modified": true,
-      "local_sha256": "1e035041cf2a9e0f96a4eb947d223ff76eaa62da15e4b734379e59c8e3a0fa20",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "b5b406d81735b5d961005bc5fe63803fb0933fd4a4de864e3e6622841d5e77ab",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; DOCX uses the available isolated Python tool for all export routes; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/references/design-zh.md",
@@ -46,8 +46,8 @@
       "local_path": "skills/bisheng-docx/scripts/render_docx.py",
       "sha256": "1648a2617b20f9983f370a4ebd300da56d9deb9676c0b4de660fafaaee55158d",
       "modified": true,
-      "local_sha256": "a39f87d5224ac56708d988b5198dfb02cb12126be24b7121c2d306787752d701",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "c8bddc778813b6bd3fde514701cdfea2519e224bf9dd7281f8020a5e4a316751",
+      "modification": "MiloRouter 2026-11-19: fixed isolated executor and Poppler rendering; feature-gated inspect_rendered_image verification guidance; retained upstream license; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/scripts/style_profiles.py",
@@ -60,8 +60,8 @@
       "local_path": "skills/bisheng-pptx/SKILL.md",
       "sha256": "1162e66d4720e43cdbcd429ee50911df53a4d82893b3cc614802fbfdbea9a247",
       "modified": true,
-      "local_sha256": "34003ba3de1ebf90151ac0c609ab5ff38bfa4265c9a2cabccce3f0d34cebf89d",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "3b066f31fbd5071d3bc92b452195348a5cb6c5b7b1d4ffbfe8c28e8ee5b854b4",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/design-zh.md",
@@ -74,8 +74,8 @@
       "local_path": "skills/bisheng-pptx/references/environment.md",
       "sha256": "d8cbf6c47c90cf570273c335fae55123e84fb133549b927ba5584a0627f41b13",
       "modified": true,
-      "local_sha256": "69c68c166a9c1d4a9e7f04af127f08a4344542b49c727ba6419fb6df106cdac1",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "bfd0c3d4c35efe1f60d627c1a0b613730d7c4f20cc3ac0532d99aa253376b433",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/freeform.md",
@@ -136,8 +136,8 @@
       "local_path": "skills/bisheng-pptx/scripts/render_deck.py",
       "sha256": "a88bd349e684cda1f54ff0818570e4388674eeda554861a1dc2c72282f8e2922",
       "modified": true,
-      "local_sha256": "44a8436777eb5438865393e9accb0011f10d3f4b02f258d293f118396e35d3a6",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "84266b436d1d64199697e65d3934c90c99329fc66de6e99c7f3dff23115cf3c3",
+      "modification": "MiloRouter 2026-11-19: fixed isolated executor and Poppler rendering; feature-gated inspect_rendered_image verification guidance; retained upstream license; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/templates/blueprint/layouts.json",
@@ -210,8 +210,8 @@
       "local_path": "skills/bisheng-xlsx/SKILL.md",
       "sha256": "e239333e6b16530cd2935261346e2842221ba9bb39b8f5779bdd035262cf8bde",
       "modified": true,
-      "local_sha256": "cc3505779afc3e478a7c3e8d23d1568763ca2d428540a2a6ba8eaa63b2054419",
-      "modification": "MiloRouter 2026-11-18: fixed isolated executor tool/limits and Poppler rendering; retained upstream license"
+      "local_sha256": "3b8772c00ebad94b9f159c095e228e4730f9427067fbcf5654a84ffc0236ef65",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/references/design-zh.md",

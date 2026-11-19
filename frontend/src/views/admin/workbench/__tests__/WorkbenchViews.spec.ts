@@ -11,10 +11,11 @@ import { searchUsers } from '@/api/admin/usage'
 
 vi.mock('@/api/admin/usage', async importOriginal => ({ ...await importOriginal<typeof import('@/api/admin/usage')>(), searchUsers: vi.fn() }))
 
-const { getOverview, listTasks } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn() }))
+const { getOverview, listTasks, getChatOverview } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn(), getChatOverview: vi.fn() }))
 vi.mock('@/api/admin/workbench', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/admin/workbench')>(),
   getWorkbenchOverview: getOverview,
+  getWorkbenchChatOverview: getChatOverview,
   listWorkbenchTasks: listTasks,
 }))
 
@@ -71,6 +72,7 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 describe('workbench management pages', () => {
   beforeEach(() => {
     getOverview.mockReset().mockResolvedValue(overview())
+    getChatOverview.mockReset().mockResolvedValue({ total_runs: 0, chat_runs: 0, office_runs: 0, completed: 0, failed: 0, queued: 0, running: 0, waiting_user: 0, needs_confirmation: 0, model_calls: 0, tool_calls: 0, input_tokens: 0, output_tokens: 0, charge_credits: 0, used_bytes: 0, resource_count: 0, workers: [] })
     vi.mocked(searchUsers).mockReset().mockResolvedValue([])
     listTasks.mockReset().mockResolvedValue({ items: [task], total: 1, page: 1, page_size: 20, pages: 1 })
   })

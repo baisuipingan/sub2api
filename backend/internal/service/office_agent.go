@@ -32,11 +32,18 @@ var (
 
 const officeLeaseDuration = 90 * time.Second
 
-// The pilot has no user-facing tool execution or resource API. A trusted worker
-// gets a scoped model capability, never the user's existing Studio API key.
+// The service owns authenticated workbench runs, leases and the ordinary model
+// gateway bridge. A trusted worker receives a scoped capability, never the
+// user's existing Studio API key. Files use the separate resources service.
 type OfficeAgentService struct {
 	cfg        config.OfficeAgentConfig
 	repo       OfficeAgentRepository
+	settings   *SettingService
+	groups     *GroupService
+	catalog    DesktopAgentModelCatalog
+	profiles   *DesktopAgentProfileCatalogService
+	resources  *OfficeResourcesService
+	pinInputs  func(context.Context, int64, string) error
 	mu         sync.RWMutex
 	router     http.Handler
 	modelSlots chan struct{}
@@ -52,7 +59,7 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 	if cfg != nil {
 		options = cfg.OfficeAgent
 	}
-	s := &OfficeAgentService{repo: repo, cfg: options, modelSlots: make(chan struct{}, max(1, min(options.MaxConcurrentCalls, 4)))}
+	s := &OfficeAgentService{repo: repo, settings: settings, groups: groups, catalog: catalog, cfg: options, modelSlots: make(chan struct{}, max(1, min(options.MaxConcurrentCalls, 4)))}
 	currentGroup := func(ctx context.Context, model string) (*Group, error) {
 		if settings == nil || groups == nil || catalog == nil || keys == nil {
 			return nil, ErrOfficeDisabled
@@ -234,7 +241,7 @@ type officeLeaseCredential struct {
 func (s *OfficeAgentService) leaseCredential(lease OfficeRunLease) string {
 	until := time.Now().Add(10 * time.Minute)
 	if lease.Run.StartedAt != nil {
-		until = minOfficeTime(until, lease.Run.StartedAt.Add(time.Duration(lease.Run.Limits.MaxRunSeconds)*time.Second))
+		until = minOfficeTime(until, lease.Run.StartedAt.Add(time.Duration(int64(lease.Run.Limits.MaxRunSeconds)+lease.Run.PausedSeconds)*time.Second))
 	}
 	value, _ := json.Marshal(officeLeaseCredential{lease.Run.ID, lease.Run.UserID, lease.Owner, lease.Token, lease.Epoch, until.Unix()})
 	encoded := base64.RawURLEncoding.EncodeToString(value)
@@ -272,7 +279,17 @@ func (s *OfficeAgentService) AuthenticateResultLease(ctx context.Context, runID,
 	return s.authenticateLeaseIdentity(ctx, runID, epoch, token)
 }
 
+// Expired credentials may only report a stopped execution for a short grace
+// period. The repository still requires the exact current dispatch identity;
+// this grants no model, tool, resource-read or renewal capability.
+func (s *OfficeAgentService) AuthenticateSuspensionLease(ctx context.Context, runID, epoch, token string) (*OfficeRunLease, error) {
+	return s.authenticateLeaseIdentityGrace(ctx, runID, epoch, token, 5*time.Minute)
+}
+
 func (s *OfficeAgentService) authenticateLeaseIdentity(ctx context.Context, runID, epoch, token string) (*OfficeRunLease, error) {
+	return s.authenticateLeaseIdentityGrace(ctx, runID, epoch, token, 0)
+}
+func (s *OfficeAgentService) authenticateLeaseIdentityGrace(ctx context.Context, runID, epoch, token string, grace time.Duration) (*OfficeRunLease, error) {
 	if !s.Enabled() || len(token) > 2048 || uuid.Validate(runID) != nil {
 		return nil, ErrOfficeUnauthorized
 	}
@@ -283,7 +300,7 @@ func (s *OfficeAgentService) authenticateLeaseIdentity(ctx context.Context, runI
 	data, err := base64.RawURLEncoding.DecodeString(parts[0])
 	var credential officeLeaseCredential
 	if err != nil || json.Unmarshal(data, &credential) != nil || credential.RunID != runID ||
-		credential.Expiry <= time.Now().Unix() || strconv.FormatInt(credential.Epoch, 10) != epoch {
+		credential.Expiry <= time.Now().Add(-grace).Unix() || strconv.FormatInt(credential.Epoch, 10) != epoch {
 		return nil, ErrOfficeUnauthorized
 	}
 	run, err := s.repo.GetRun(ctx, credential.UserID, runID)
@@ -295,64 +312,152 @@ func (s *OfficeAgentService) authenticateLeaseIdentity(ctx context.Context, runI
 }
 
 type OfficeWorkerMessage struct {
+	ID      string `json:"id"`
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
 type OfficeWorkerManifest struct {
-	RunID          string                  `json:"run_id"`
-	ConversationID string                  `json:"conversation_id"`
-	ThreadID       string                  `json:"thread_id"`
-	LeaseEpoch     int64                   `json:"lease_epoch"`
-	LeaseToken     string                  `json:"lease_token"`
-	LeaseUntil     time.Time               `json:"lease_until"`
-	Model          string                  `json:"model"`
-	BridgePath     string                  `json:"bridge_path"`
-	Limits         OfficeRunLimits         `json:"limits"`
-	Messages       []OfficeWorkerMessage   `json:"messages"`
-	DurableResume  bool                    `json:"durable_resume"`
-	InputResources []OfficeResourceVersion `json:"input_resources"`
+	SupportsVision    bool                    `json:"supports_vision"`
+	ContextWindow     int                     `json:"context_window"`
+	ContextSummary    *OfficeContextSummary   `json:"context_summary,omitempty"`
+	CurrentQuestionID string                  `json:"current_question_id"`
+	OutputParent      json.RawMessage         `json:"output_parent,omitempty"`
+	Mode              string                  `json:"mode"`
+	SearchEnabled     bool                    `json:"search_enabled"`
+	Parameters        json.RawMessage         `json:"parameters"`
+	Resume            bool                    `json:"resume"`
+	ResumeValue       json.RawMessage         `json:"resume_value,omitempty"`
+	CheckpointVersion int64                   `json:"checkpoint_version"`
+	RunID             string                  `json:"run_id"`
+	ConversationID    string                  `json:"conversation_id"`
+	ThreadID          string                  `json:"thread_id"`
+	LeaseEpoch        int64                   `json:"lease_epoch"`
+	LeaseToken        string                  `json:"lease_token"`
+	LeaseUntil        time.Time               `json:"lease_until"`
+	Model             string                  `json:"model"`
+	BridgePath        string                  `json:"bridge_path"`
+	Limits            OfficeRunLimits         `json:"limits"`
+	Messages          []OfficeWorkerMessage   `json:"messages"`
+	DurableResume     bool                    `json:"durable_resume"`
+	InputResources    []OfficeResourceVersion `json:"input_resources"`
 }
 
 func (s *OfficeAgentService) Claim(ctx context.Context, owner string) (*OfficeWorkerManifest, error) {
+	return s.ClaimPreset(ctx, owner, "office")
+}
+func (s *OfficeAgentService) ClaimPreset(ctx context.Context, owner, preset string) (*OfficeWorkerManifest, error) {
 	if !s.Enabled() {
 		return nil, ErrOfficeDisabled
 	}
 	if !officeIdentifier(owner, 80) {
 		return nil, ErrOfficeInvalid
 	}
-	lease, err := s.repo.ClaimRun(ctx, owner, officeLeaseDuration)
+	var lease *OfficeRunLease
+	var err error
+	if repo, ok := s.repo.(OfficeChatRepository); ok {
+		lease, err = repo.ClaimPreset(ctx, owner, preset, officeLeaseDuration)
+	} else {
+		lease, err = s.repo.ClaimRun(ctx, owner, officeLeaseDuration)
+	}
 	if err != nil || lease == nil {
 		return nil, err
 	}
-	// Until the persistent LangGraph adapter passes fencing tests, the pilot
-	// never claims it can resume a graph from a partial tool/model sequence.
-	rows, err := s.repo.ListMessages(ctx, lease.Run.UserID, lease.Run.ConversationID, 0, 101)
+	// Only selected conversation messages enter the worker context. An office
+	// graph restores its separately fenced checkpoint and workspace below;
+	// uncertain dispatches remain blocked by repository claim policy.
+	var rows []OfficeMessage
+	if repo, ok := s.repo.(OfficeChatRepository); ok {
+		rows, err = repo.ContextMessages(ctx, lease.Run)
+	} else {
+		rows, err = s.repo.ListMessages(ctx, lease.Run.UserID, lease.Run.ConversationID, 0, 200)
+	}
+	if err == nil && s.pinInputs != nil && len(lease.Run.InputResources) > 0 {
+		err = s.pinInputs(ctx, lease.Run.UserID, lease.Run.ID)
+	}
+
 	if err != nil {
 		return nil, err
 	}
-	if len(rows) > 100 {
-		_, _ = s.repo.FinishRun(ctx, *lease, OfficeRunFailed, nil, "CONTEXT_LIMIT", "试验会话过长，请新建会话；尚未调用模型")
+	if len(rows) > 2000 {
+		_, _ = s.repo.FinishRun(ctx, *lease, OfficeRunFailed, nil, "CONTEXT_LIMIT", "会话超过安全处理上限，请新建会话；尚未调用模型")
 		return nil, ErrOfficeBudgetExceeded
 	}
-	manifest := &OfficeWorkerManifest{RunID: lease.Run.ID, ConversationID: lease.Run.ConversationID,
+	manifest := &OfficeWorkerManifest{Mode: lease.Run.Mode, SearchEnabled: lease.Run.SearchEnabled, Parameters: json.RawMessage(`{}`), ContextSummary: &OfficeContextSummary{}, Messages: []OfficeWorkerMessage{}, Resume: len(lease.Run.ResumeValue) > 0 && string(lease.Run.ResumeValue) != "null", ResumeValue: lease.Run.ResumeValue, RunID: lease.Run.ID, ConversationID: lease.Run.ConversationID,
 		ThreadID: lease.Run.ConversationID, LeaseEpoch: lease.Epoch, LeaseToken: s.leaseCredential(*lease), LeaseUntil: lease.Until,
 		Model: lease.Run.Model, BridgePath: "/internal/office-agent/v1/runs/" + lease.Run.ID + "/model/chat/completions",
 		Limits: lease.Run.Limits, DurableResume: false, InputResources: lease.Run.InputResources}
+	if manifest.Mode == "" {
+		manifest.Mode = "office"
+	}
+	if manifest.InputResources == nil {
+		manifest.InputResources = []OfficeResourceVersion{}
+	}
+	if repo, ok := s.repo.(OfficeChatRepository); ok && lease.Run.Mode == "office" {
+		_, version, e := repo.Checkpoint(ctx, *lease)
+		if e != nil {
+			return nil, e
+		}
+		manifest.CheckpointVersion = version
+		manifest.DurableResume = true
+	}
+	var params map[string]json.RawMessage
+	if json.Unmarshal(lease.Run.Parameters, &params) == nil {
+		manifest.OutputParent = params["output_parent"]
+		_ = json.Unmarshal(params["supports_vision"], &manifest.SupportsVision)
+		_ = json.Unmarshal(params["context_window"], &manifest.ContextWindow)
+		modelParams := map[string]json.RawMessage{}
+		if len(params["reasoning_effort"]) > 0 {
+			modelParams["reasoning_effort"] = params["reasoning_effort"]
+		}
+		manifest.Parameters, _ = json.Marshal(modelParams)
+	}
+	if repo, ok := s.repo.(OfficeChatRepository); ok {
+		manifest.ContextSummary, err = repo.ContextSummary(ctx, *lease)
+		if err != nil {
+			return nil, err
+		}
+		if manifest.ContextSummary == nil {
+			manifest.ContextSummary = &OfficeContextSummary{}
+		}
+	}
 	var total int
 	for _, row := range rows {
-		var content string
-		if json.Unmarshal(row.Content, &content) != nil || (row.Role != "user" && row.Role != "assistant") {
+		content, e := officeMessageText(row.Content)
+		if e != nil || (row.Role != "user" && row.Role != "assistant") {
 			return nil, ErrOfficeInvalid
 		}
 		total += len(content)
-		if total > 96<<10 {
-			_, _ = s.repo.FinishRun(ctx, *lease, OfficeRunFailed, nil, "CONTEXT_LIMIT", "试验会话超过输入预算，请新建会话；尚未调用模型")
+		if total > 2<<20 {
+			_, _ = s.repo.FinishRun(ctx, *lease, OfficeRunFailed, nil, "CONTEXT_LIMIT", "会话超过安全处理上限，请新建会话；尚未调用模型")
 			return nil, ErrOfficeBudgetExceeded
 		}
-		manifest.Messages = append(manifest.Messages, OfficeWorkerMessage{Role: row.Role, Content: content})
+		if row.RunID == lease.Run.ID && row.Role == "user" {
+			manifest.CurrentQuestionID = row.ID
+		}
+		manifest.Messages = append(manifest.Messages, OfficeWorkerMessage{ID: row.ID, Role: row.Role, Content: content})
 	}
 	return manifest, nil
+}
+
+// Suspension accepts a finite reason code, never a worker-supplied public error
+// body. It fences future work while keeping original paid inbox deposits valid.
+func (s *OfficeAgentService) Suspend(ctx context.Context, lease OfficeRunLease, code string) (*OfficeRun, error) {
+	messages := map[string]string{
+		"BILLING_PENDING":              "上一轮模型已完成，计费记录仍在入账；本步骤尚未调用，任务已暂停",
+		"RUN_TIMEOUT":                  "任务达到时间上限，已停止后续操作；已发出的调用不会自动重发",
+		"MODEL_STREAM_INCOMPLETE":      "模型响应中断，结果尚未确认；已停止后续操作，不会自动重发",
+		"ARTIFACT_PUBLICATION_UNKNOWN": "成果归档结果尚未确认；已停止后续操作，请检查文件记录",
+		"TRANSPORT_UNKNOWN":            "模型或工具连接中断，结果尚未确认；已停止后续操作，不会自动重发",
+		"WORKSPACE_SAVE_UNKNOWN":       "任务文件保存结果尚未确认；已停止后续操作",
+		"CHECKPOINT_WRITE_UNKNOWN":     "任务运行状态保存结果尚未确认；已停止自动恢复",
+		"CONTEXT_SUMMARY_SAVE_UNKNOWN": "上下文摘要保存结果尚未确认；已停止后续模型调用",
+	}
+	message, ok := messages[code]
+	if !ok {
+		code, message = "RUN_RESULT_UNCONFIRMED", "本次任务的执行或保存结果尚未确认；已停止后续操作，不会自动重发"
+	}
+	return s.repo.SuspendRun(ctx, lease, code, message)
 }
 
 func (s *OfficeAgentService) Heartbeat(ctx context.Context, lease OfficeRunLease) (string, error) {
@@ -371,7 +476,7 @@ func (s *OfficeAgentService) GetRun(ctx context.Context, userID int64, runID str
 }
 
 // Messages always establishes run ownership before looking up its conversation.
-// A pilot operator cannot read another user's conversation by guessing a run ID.
+// A caller cannot read another user's conversation by guessing a run ID.
 func (s *OfficeAgentService) Messages(ctx context.Context, userID int64, runID string, after int64) ([]OfficeMessage, error) {
 	if after < 0 {
 		return nil, ErrOfficeInvalid
@@ -398,7 +503,7 @@ func (s *OfficeAgentService) Events(ctx context.Context, userID int64, runID str
 }
 
 func (s *OfficeAgentService) Finish(ctx context.Context, lease OfficeRunLease, status, content, code, message string) (*OfficeRun, error) {
-	if status != OfficeRunCompleted && status != OfficeRunFailed {
+	if status != OfficeRunCompleted && status != OfficeRunPartiallyCompleted && status != OfficeRunFailed {
 		return nil, ErrOfficeInvalid
 	}
 	if len(content) > 96<<10 || !utf8.ValidString(content) || len(code) > 64 || len(message) > 1000 {
@@ -407,6 +512,20 @@ func (s *OfficeAgentService) Finish(ctx context.Context, lease OfficeRunLease, s
 	var encoded json.RawMessage
 	if strings.TrimSpace(content) != "" {
 		encoded, _ = json.Marshal(content)
+		if lease.Run.SearchEnabled && status != OfficeRunFailed {
+			if repo, ok := s.repo.(OfficeChatRepository); ok {
+				operations, err := repo.ListOperations(ctx, lease.Run.UserID, lease.Run.ID)
+				if err != nil {
+					return nil, err
+				}
+				if citations := officeCitations(operations); len(citations) > 0 {
+					encoded, _ = json.Marshal(struct {
+						Text      string           `json:"text"`
+						Citations []OfficeCitation `json:"citations"`
+					}{content, citations})
+				}
+			}
+		}
 	} else if status == OfficeRunCompleted {
 		return nil, ErrOfficeInvalid
 	}

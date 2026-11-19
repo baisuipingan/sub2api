@@ -128,10 +128,22 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	if !allowWorkbenchAdmin(c) {
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 	var body struct {
-		Enabled *bool  `json:"image_studio_enabled"`
-		GroupID *int64 `json:"image_studio_group_id"`
+		Enabled              *bool                                               `json:"image_studio_enabled"`
+		Chat                 *bool                                               `json:"chat_enabled"`
+		Office               *bool                                               `json:"office_enabled"`
+		Search               *bool                                               `json:"search_enabled"`
+		Files                *bool                                               `json:"files_enabled"`
+		GroupID              *int64                                              `json:"image_studio_group_id"`
+		ChatConcurrentRuns   *int                                                `json:"chat_concurrent_runs"`
+		OfficeConcurrentRuns *int                                                `json:"office_concurrent_runs"`
+		MaxModelCalls        *int                                                `json:"max_model_calls"`
+		MaxToolCalls         *int                                                `json:"max_tool_calls"`
+		MaxOutputTokens      *int                                                `json:"max_output_tokens"`
+		MaxRunSeconds        *int                                                `json:"max_run_seconds"`
+		MaxRunCredits        *int64                                              `json:"max_run_credits"`
+		ModelProfiles        *map[string]service.DesktopAgentModelProfileBinding `json:"model_profiles"`
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -143,7 +155,45 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 		workbenchAdminError(c, service.ErrWorkbenchInvalid)
 		return
 	}
-	result, err := h.service.UpdateConfig(c.Request.Context(), service.WorkbenchConfig{ImageStudioEnabled: *body.Enabled, ImageStudioGroupID: *body.GroupID})
+	cfg, err := h.service.GetConfig(c.Request.Context())
+	if err != nil {
+		workbenchAdminError(c, err)
+		return
+	}
+	cfg.ImageStudioEnabled = *body.Enabled
+	cfg.ImageStudioGroupID = *body.GroupID
+	if body.Chat != nil {
+		cfg.ChatEnabled = *body.Chat
+	}
+	if body.Office != nil {
+		cfg.OfficeEnabled = *body.Office
+	}
+	if body.Search != nil {
+		cfg.SearchEnabled = *body.Search
+	}
+	if body.Files != nil {
+		cfg.FilesEnabled = *body.Files
+	}
+	for _, field := range []struct{ input, target *int }{
+		{body.ChatConcurrentRuns, &cfg.ChatConcurrentRuns}, {body.OfficeConcurrentRuns, &cfg.OfficeConcurrentRuns},
+		{body.MaxModelCalls, &cfg.MaxModelCalls}, {body.MaxToolCalls, &cfg.MaxToolCalls},
+		{body.MaxOutputTokens, &cfg.MaxOutputTokens}, {body.MaxRunSeconds, &cfg.MaxRunSeconds},
+	} {
+		if field.input != nil {
+			if *field.input <= 0 {
+				workbenchAdminError(c, service.ErrWorkbenchInvalid)
+				return
+			}
+			*field.target = *field.input
+		}
+	}
+	if body.MaxRunCredits != nil {
+		cfg.MaxRunCredits = *body.MaxRunCredits
+	}
+	if body.ModelProfiles != nil {
+		cfg.ModelProfiles = *body.ModelProfiles
+	}
+	result, err := h.service.UpdateConfig(c.Request.Context(), *cfg)
 	if err != nil {
 		workbenchAdminError(c, err)
 		return

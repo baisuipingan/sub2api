@@ -11,14 +11,14 @@ from pathlib import PurePosixPath
 MIB = 1024 * 1024
 MAX_INPUT_BYTES = 24 * MIB
 MAX_SCRIPT_BYTES = 256 * 1024
-MAX_FILES = 128
+MAX_FILES = 64
 MAX_RESULT_WIRE_BYTES = 40 * MIB
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 DIGEST = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_LIMITS = {
     "timeout_seconds": 180, "memory_mb": 2048, "cpus": 1.0,
     "disk_mb": 256, "pids": 128, "max_output_bytes": 24 * MIB,
-    "max_output_files": 128, "max_log_bytes": 64 * 1024,
+    "max_output_files": 64, "max_log_bytes": 64 * 1024,
 }
 MIN_LIMITS = {
     "timeout_seconds": 1, "memory_mb": 256, "cpus": 0.1, "disk_mb": 16,

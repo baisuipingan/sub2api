@@ -91,6 +91,7 @@ func TestOfficePythonGraphThroughGoModelBridge(t *testing.T) {
 	manifest := OfficeWorkerManifest{RunID: repo.lease.Run.ID, ConversationID: repo.lease.Run.ConversationID,
 		ThreadID: repo.lease.Run.ConversationID, LeaseEpoch: repo.lease.Epoch, LeaseToken: svc.leaseCredential(repo.lease),
 		LeaseUntil: repo.lease.Until, Model: repo.lease.Run.Model, BridgePath: prefix + "model/chat/completions",
+		Mode: "office", Parameters: json.RawMessage(`{}`), InputResources: []OfficeResourceVersion{},
 		Limits: repo.lease.Run.Limits, Messages: []OfficeWorkerMessage{{Role: "user", Content: "请直接用中文回复测试成功。"}}}
 	input, err := json.Marshal(manifest)
 	require.NoError(t, err)
@@ -104,7 +105,7 @@ func TestOfficePythonGraphThroughGoModelBridge(t *testing.T) {
 	var diagnostics bytes.Buffer
 	command.Stderr = &diagnostics
 	output, err := command.Output()
-	require.NoError(t, err, "Python contract probe: %s", diagnostics.String())
+	require.NoError(t, err, "Python contract probe stderr: %s; public result: %s", diagnostics.String(), string(output))
 	var result struct {
 		Status  string `json:"status"`
 		Content string `json:"content"`

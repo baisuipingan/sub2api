@@ -526,3 +526,17 @@ func addMonthsClamped(t time.Time, months int) time.Time {
 	}
 	return time.Date(targetYear, targetMonth, d, 0, 0, 0, 0, time.UTC)
 }
+
+// HasAvailableProvider reports configured, unexpired providers without issuing
+// a search or reserving quota. Runtime dispatch still enforces quota/proxy state.
+func (m *Manager) HasAvailableProvider() bool {
+	if m == nil {
+		return false
+	}
+	for _, cfg := range m.configs {
+		if m.isProviderAvailable(cfg) {
+			return true
+		}
+	}
+	return false
+}

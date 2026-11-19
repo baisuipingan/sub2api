@@ -1,10 +1,9 @@
-<!-- Modified by MiloRouter 2026-11-18: fixed offline executor and Poppler environment. -->
 ---
 name: bisheng-xlsx
 description: >-
   制作或修改 Excel 表格（.xlsx）时使用：从零搭建数据表、明细表、汇总表、预算表、财务模型、
   测算表、报价单、台账、看板底表；把整理好的数据导出成带公式和格式的工作簿；读取、清洗、
-  改写用户上传的 .xlsx/.xls/.csv。当用户说到「Excel」「表格」「工作簿」「xlsx」「报表」「台账」
+  改写用户上传的 .xlsx/.csv。当用户说到「Excel」「表格」「工作簿」「xlsx」「报表」「台账」
   「预算表」「测算」「明细表」「数据透视」「导出成表」，或提出「把这些数据做成 Excel」
   「按这个模板填一张表」「帮我算一下并出个表」时触发。本技能给出当前代码执行器里
   唯一可行的 openpyxl 路径（该环境没有 markitdown，公式必须用 LibreOffice 重算才有值），
@@ -14,6 +13,8 @@ metadata:
   display-name: Excel 表格制作
 ---
 
+<!-- Modified by MiloRouter 2026-11-19: fixed offline executor, durable resources, and verified preview environment. -->
+
 # 制作 XLSX
 
 ## 0. 开工纪律
@@ -21,8 +22,8 @@ metadata:
 **这一轮只读文档，不要在同一轮里并行调用别的工具。** 读完本文件（必要时再读 references）之后，
 下一轮才开始动手。把「读 SKILL.md」和「产出交付物」放进同一轮并行调用，等于技能没读。
 
-**本技能要求已勾选代码执行器（`execute_office_python`）。** 没有它就无法生成 .xlsx ——
-直接告诉用户「请在工具里勾选代码执行器后重试」，不要用 Markdown 表格顶替。
+**本技能要求当前任务模式已提供隔离办公工具（`execute_office_python`）。** 没有它就无法生成 .xlsx ——
+直接告诉用户「请切换到办公任务模式后重试」，不要用 Markdown 表格顶替。
 
 ## 1. 环境事实（照做，不要试探）
 
@@ -30,20 +31,20 @@ metadata:
 |---|---|
 | **生成方式** | **只有 `openpyxl`**（后端 `pyproject.toml` 的正式依赖），`import openpyxl` 直接可用 |
 | **公式重算** | 靠 LibreOffice（`soffice`）。**openpyxl 写出的公式没有值**，不重算等于交了张空表 |
-| 不存在的东西 | `markitdown`、Node/npm、`defusedxml`、`pdftoppm`、`zip`/`unzip` 命令 |
+| 不存在的东西 | `markitdown`、Node/npm、`zip`/`unzip` 命令 |
 | `xlsxwriter` | 在，但只能新建、不能读改已有文件，也不能和 openpyxl 混用 → **一律用 openpyxl** |
-| 其它可用库 | pandas/numpy、Pillow、Poppler(`pdfinfo`/`pdftoppm`)、matplotlib、python-docx、python-pptx、lxml |
+| 其它可用库 | pandas/numpy、Pillow、Poppler(`pdfinfo`/`pdftoppm`)、matplotlib、python-docx、python-pptx、lxml、defusedxml |
 | 禁止 | `pip install`、`npm install`、任何联网假设（生产多为离线内网） |
 | 工作目录 | 执行器 cwd = 工作区根，**一律用相对路径** |
 | `output/` | 唯一交付区。每次运行自动创建 |
-| `scratch/` | 中间产物区，**不会交付**，需自己 `os.makedirs`；**跨轮追问时会丢** |
-| `uploads/` | 用户上传的原件在这里。跨轮追问时和 `output/` 一起被带进新会话 |
+| `scratch/` | 中间产物区，**不会交付**，需自己 `os.makedirs`；**同一任务的继续执行与澄清恢复会保留；新任务仅带入用户授权的输入资源** |
+| `uploads/` | 用户上传的原件在这里。只包含当前任务授权的输入；继续修改通过已有资源版本显式带入 |
 | `skills/bisheng-xlsx/` | 本技能包，脚本和参考资料在这里，只读 |
 | 绝对禁止 | 写 `/output/xxx.xlsx` 这种带前导斜杠的路径 —— 文件被静默丢弃，用户拿不到 |
 | 单次执行上限 | 隔离办公执行器最多 180 秒（任务预算可更低）；构建、重算、渲染分多次调用 |
 | 日志规则 | 返回退出码、stdout 与 stderr；打印明确检查结果，不能仅以退出码 0 认定文档通过验证 |
-| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。文件生成与云端交付不同，首期尚未开放持久归档 |
-| 轮次 | 最后两轮工具收窄到 `write_file`/`edit_file`/导出，代码执行器会被拦掉 → 表要尽早产出，不要拖到收尾 |
+| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。检查完成后由系统归档 output 并提供成果卡；只有归档确认后才可宣称交付成功 |
+| 预算 | 模型和工具调用按任务预算计数，跨恢复继续累计；应预留生成、检查和有限修复的调用，不存在“最后两轮自动摘除工具”的规则 |
 
 ### 1.1 先探一次环境（第一次执行代码时顺手做，只花一轮）
 
@@ -67,18 +68,16 @@ print("soffice:", shutil.which("soffice") or shutil.which("libreoffice") or "无
 |---|---|
 | 用户给了数据（或让你先查再整理），要一张新表 | §3 从零构建 |
 | 用户上传了 .xlsx 要改内容 / 填数 | §5 改已有文件（**先读懂它的约定，再动手**） |
-| 用户上传了 .csv/.xls 要清洗成规范表 | pandas 读进来清洗 → 按 §3 写出 |
+| 用户上传了 .csv 要清洗成规范表 | pandas 读进来清洗 → 按 §3 写出 |
 | 用户要的是图表图片、Word、PPT | 不属于本技能 |
 
 ## 3. 从零构建
 
 **第 1 步 · 定结构**。先想清楚分几个表、每个表的列。复杂测算把假设单独放一个表。
-草稿写 `scratch/`，**不要写进 `output/`** —— 交付物按类型排序，`.md`/`.docx`/`.pdf`/`.html` 排在
-`.xlsx` 前面，所以 `output/` 里只要有一个 `.md`，它就**永远**压过你的表成为用户看到的头条交付物。
-不是「同一轮才会」，是只要在就会。
+草稿写 `scratch/`，不要写进 `output/`。每个 output 文件都会成为独立成果卡，避免把过程稿当成最终交付。
 
 **第 2 步 · 写构建脚本**。用 `write_file` 把完整脚本写到 `scratch/build_sheet.py`，
-**不要把整段代码塞进代码执行器的参数里** —— 参数过长会被截断，导致反复重试却总差一截。
+优先将长脚本保存到 scratch，再用隔离工具执行。执行参数超过上限会明确拒绝，不会静默截断。
 写法读 `/skills/bisheng-xlsx/references/openpyxl-cookbook.md`（表格、样式、数字格式、公式、
 图表、批注都有可直接抄的片段），规范读 `/skills/bisheng-xlsx/references/design-zh.md`。
 
@@ -140,7 +139,7 @@ print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 - **原表的约定压倒本技能的一切规范** —— 它用什么字体、什么数字格式、什么配色，就跟着它。
 - **先找到它的输入格**（通常有独特的字色或填充），只在那里写值，**不要动任何已有公式**。
 - 用默认方式 `load_workbook(path)` 打开（**不要加 `data_only=True`**，那样保存会把公式全变成字面量）。
-- `.xlsm` 要 `keep_vba=True`，否则宏全丢。
+- 当前资源入口仅接受 `.xlsx` / `.csv`；不接受旧 `.xls`、`.xlsm` 或宏文件，不执行宏。
 - 改完另存到 `output/`，不要覆盖 `uploads/` 里的原件。
 - **不要给别人的表加示例行。**
 
@@ -165,6 +164,25 @@ print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 
 改完重新生成 → 重算 → 再体检，直到最后一行是 `结论: 通过`。
 只有 ERROR 挡交付；`结论: 通过` 之后仍要把 WARN 逐条看一遍，确实无碍再交付。
+
+
+## 6.1 浏览器预览与视觉复核
+
+体检和公式重算后，调用固定隔离渲染脚本（不能在可信 worker 本机执行）：
+
+```python
+import subprocess, sys
+r = subprocess.run([sys.executable, "-m", "office_executor.render_workbook", "output/xxx.xlsx"],
+                   capture_output=True, text=True, timeout=180)
+print(r.stdout or "(no stdout)")
+print(r.stderr[-2000:] if r.stderr else "(no stderr)")
+```
+
+它使用预装 LibreOffice 将工作簿安全导出为 `scratch/preview/<含扩展名的文件名>/<不含扩展名的文件名>.pdf`
+及代表页 `page-01.png`，系统将 PDF 关联到同名 XLSX 成果供浏览器预览。
+不要修改源工作簿的打印设置来适配预览，不执行宏或安装外部环境。
+当前提供 `inspect_rendered_image` 时，将代表 PNG 用 Pillow 缩放压缩至工具限制后实际读图；
+检查文字遮挡、列宽、分页和可读性，修复后重新渲染复查。没有视觉工具时如实报告仅做结构与渲染验证。
 
 ## 7. 公式红线（体检会拦，但你一开始就别写）
 
@@ -193,5 +211,5 @@ print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 - ❌ 有公式却不重算就交付。
 - ❌ 把表降级成 Markdown 表格或 CSV 交付。用户要的是 .xlsx。
 - ❌ `load_workbook(..., data_only=True)` 之后 `save()` —— 会永久毁掉所有公式。
-- ❌ 因为一次 `ls` 没看到刚生成的文件就重做一遍 —— `exitcode 0` + 日志就是产出的凭据。
+- ❌ 因为一次 ls 没看到刚生成的文件就盲目重做；先检查工具返回的文件清单与检查结论。退出码零不能代替重开验证和云端归档确认。
 - ❌ 把百分比、金额写成 `"15%"`、`"1,250,000"` 这种字符串 —— 不参与求和，体检会拦。

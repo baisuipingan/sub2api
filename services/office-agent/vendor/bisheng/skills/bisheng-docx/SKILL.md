@@ -1,4 +1,3 @@
-<!-- Modified by MiloRouter 2026-11-18: fixed offline executor and Poppler environment. -->
 ---
 name: bisheng-docx
 description: >-
@@ -12,11 +11,13 @@ description: >-
   内置 GB/T 9704-2012 公文版式为默认档，另有一档给简历宣传稿这类非公文文档；
   还包括目录页码写法、交付前自检与渲染脚本。
   本技能只负责版式落地：同时勾选了公文写作类技能时，文种、结构、文风、措辞以那个技能为准。
-  只是把已经写好的回答原样存成 Word、不要求目录页码表格版式的，用 export_docx 更省事。
+  简单的内容导出也通过隔离工具使用 python-docx 完成，可简化版式但仍需重读验证。
   如果用户要的是 Excel 表格、PPT 或纯 Markdown，不要用本技能。
 metadata:
   display-name: Word 文档制作
 ---
+
+<!-- Modified by MiloRouter 2026-11-19: fixed offline executor, durable resources, and verified preview environment. -->
 
 # 制作 DOCX
 
@@ -25,12 +26,10 @@ metadata:
 **这一轮只读文档，不要在同一轮里并行调用别的工具。** 读完本文件（必要时再读 references）之后，
 下一轮才开始动手。把「读 SKILL.md」和「产出交付物」放进同一轮并行调用，等于技能没读。
 
-**本技能要求已勾选代码执行器（`execute_office_python`）。** 没有它就无法生成 .docx ——
-直接告诉用户「请在工具里勾选代码执行器后重试」。
+**本技能要求当前任务模式已提供隔离办公工具（`execute_office_python`）。** 没有它就无法生成 .docx ——
+直接告诉用户「请切换到办公任务模式后重试」。
 
-> 灵思自带 `export_docx`（markdown → Word）。**两者分工是硬的，选错路线是本技能最大的失败风险
-> —— 动手前先看 §2 的边界表。** 一句话：只要「把刚才的内容存成 Word」用 `export_docx`；
-> 要目录、页码、A4 版式、表格列宽、封面、或改用户上传的 .docx，才用本技能。
+本工作台未提供独立的 Word 导出工具。简单导出和正式排版均通过 `execute_office_python` 使用 python-docx；不要请求不存在的工具。
 
 ## 1. 环境事实（照做，不要试探）
 
@@ -38,9 +37,9 @@ metadata:
 |---|---|
 | **生成方式** | **只有 `python-docx`**（后端 `pyproject.toml` 的正式依赖），`import docx` 直接可用 |
 | **中文字体** | `run.font.name` 只管西文；中文必须写 `w:eastAsia`。用本技能包的 `set_run_font()` |
-| 不存在的东西 | Node/npm/`docx-js`、`markitdown`、`defusedxml`、`pdftoppm`、`zip`/`unzip` 命令 |
+| 不存在的东西 | Node/npm/`docx-js`、`markitdown`、`zip`/`unzip` 命令 |
 | 可能没有 | `pandoc`（发布镜像有，手工部署的机器未必）、`soffice`（只影响可选的渲染预览） |
-| 其它可用库 | pandas/numpy、Pillow、Poppler(`pdfinfo`/`pdftoppm`)、matplotlib、openpyxl、python-pptx、lxml |
+| 其它可用库 | pandas/numpy、Pillow、Poppler(`pdfinfo`/`pdftoppm`)、matplotlib、openpyxl、python-pptx、lxml、defusedxml |
 | 禁止 | `pip install`、`npm install`、任何联网假设（生产多为离线内网） |
 | 工作目录 | 执行器 cwd = 工作区根，**一律用相对路径** |
 | `output/` | 唯一交付区 |
@@ -50,10 +49,10 @@ metadata:
 | 绝对禁止 | 写 `/output/xxx.docx` 这种带前导斜杠的路径 —— 文件被静默丢弃，用户拿不到 |
 | 单次执行上限 | 隔离办公执行器最多 180 秒（任务预算可更低）；构建、重算、渲染分多次调用 |
 | 日志规则 | 返回退出码、stdout 与 stderr；打印明确检查结果，不能仅以退出码 0 认定文档通过验证 |
-| 代码围栏 | 提交给执行器的代码里只要出现三反引号围栏，就**只执行围栏里的内容** —— 别在代码参数里贴 markdown |
-| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。文件生成与云端交付不同，首期尚未开放持久归档 |
-| 交付物排序 | `.md` 与 `.docx` **同为最高档**，同档比修改时间 → 后写的 `.md` 会直接压过 `.docx` 成为用户看到的头条。过程稿一律 `scratch/` |
-| 轮次 | 最后两轮代码执行器会被摘除 → 文档要尽早产出，不要拖到收尾 |
+| 代码参数 | 仅提交可直接运行的 Python 源码；不自动提取 Markdown 围栏 |
+| 可见性 | 返回完整 output/scratch 快照，虚拟工作区随即更新。检查完成后由系统归档 output 并提供成果卡；只有归档确认后才可宣称交付成功 |
+| 成果展示 | output 的每个最终文件独立显示成果卡；不要把过程稿或未完成版本放入 output |
+| 预算 | 模型和工具调用按任务预算计数，跨恢复继续累计；应预留生成、检查和有限修复的调用，不存在“最后两轮自动摘除工具”的规则 |
 
 ### 1.1 先探一次环境（第一次执行代码时顺手做，只花一轮）
 
@@ -71,30 +70,14 @@ print("pandoc :", shutil.which("pandoc") or "无（读 .docx 用 inspect_docx.py
 `python-docx MISSING` 正常部署不会出现。**不要 `pip install`**（共享的离线环境，装了会污染所有租户），
 如实告诉用户环境缺依赖、需要运维补装。
 
-## 2. 选路线（先划清与 `export_docx` 的边界）
-
-`export_docx` 走的是 MarkDocx：读 `output/` 下的 markdown，纯 python-docx 转成 Word。
-下面是它的实测产物特征 —— 对照着选，别凭感觉：
-
-| 维度 | `export_docx` | 本技能 |
-|---|---|---|
-| 输入 | 只吃 `output/` 下的 **markdown**，单向 | 直接写 .docx，也能读改已有 .docx |
-| 纸张 | **US Letter 21.6×27.9cm**（不是 A4），左右边距 3.2cm，改不了 | A4 纵/横随选，边距可调 |
-| 标题 | 用内置 Heading 样式，中文字体已设（黑体/楷体） | 同样用内置 Heading，字体字号全可控 |
-| 目录 / 页码 | **都没有**，也加不了 | `add_toc` + `add_page_number_footer` |
-| 表格 | 宽度 auto，无表头底纹、无列宽、不重复表头 | 列宽写到每个单元格、表头按档（企业档深底白字 / 公文档素表加粗）、跨页重复表头 |
-| 图片 | 固定 5.7 英寸宽 | 按版心等比缩放 + 图注 |
-| 封面、分节、页眉、分隔线 | 没有 | 都有 |
-| 代价 | 一次调用，零风险 | 写脚本 + 体检，2–4 轮 |
+## 2. 按用户需要选择制作方式
 
 | 情况 | 做法 |
 |---|---|
-| **用户给了参照文档**：模板、范文，或说「按第一个文件的格式」「照这个模板整理」 | **§5.1 照参照文档排版**。版式全部取自参照文档，§2.1 的版式档、§3 的骨架都不用 |
-| 用户只要「把刚才的内容存成 Word」，没提版式要求 | `export_docx`，**不要用本技能** |
-| 用户要目录 / 页码 / A4 / 表格列宽 / 封面 / 特定字体字号 | §3 从零构建 |
-| 用户上传了 .docx 要改 | §5 改已有文件（`export_docx` 做不到） |
-| 还勾选了公文写作类技能 | §2.1：文种文风听它的，版式落地仍走本技能 |
-| 拿不准 | 按用户原话里的名词判：出现「正式/对外/打印/汇报稿/公文/目录/页码」走本技能，否则走 `export_docx` |
+| 用户给了参照文档：模板、范文，或要求照原格式 | §5.1 照参照文档排版，版式取自参照文档 |
+| 用户只要把内容存成 Word，没提版式要求 | 用 python-docx 生成简洁文档；重开验证文字，按需渲染 |
+| 用户要目录、页码、A4、表格、封面或特定字体 | §3 从零构建，并完成体检和渲染 |
+| 用户上传 .docx 要改 | §5 改已有文件，保存到系统指定的新版本输出路径 |
 
 ### 2.1 定版式档（决定全篇字体字号，只需定一次）
 
@@ -141,7 +124,7 @@ apply_chinese_defaults(doc, profile="modern")   # 简历 / 宣传稿 / 周报
 后写的 `.md` 会顶掉 `.docx` 成为用户看到的头条文件。定清楚几级标题、哪里要表、哪里要图。
 
 **第 2 步 · 写构建脚本**。用 `write_file` 把完整脚本写到 `scratch/build_doc.py`，
-**不要把整段代码塞进代码执行器的参数里** —— 参数过长会被截断，导致反复重试却总差一截。
+优先将长脚本保存到 scratch，再用隔离工具执行。执行参数超过上限会明确拒绝，不会静默截断。
 写法读 `/skills/bisheng-docx/references/python-docx-cookbook.md`
 （中文字体、标题、目录、页码、表格、图片、列表都有可直接抄的片段），
 排版规范按 §2.1 定的档读：公文走 `references/gongwen-gbt9704.md`，
@@ -341,7 +324,7 @@ print(r.stdout or "(no stdout)")
 print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 ```
 
-它把每页渲染成 `scratch/preview/<名字>/page-01.png`，再用 `read_file` 逐张查看。
+它把每页渲染成 `scratch/preview/<含扩展名的文件名>/page-01.png`，当前模型提供 `inspect_rendered_image` 时，先压缩到该工具限制再逐张读取检查；`read_file` 不读二进制图片。
 **渲染用的中文字体只有文泉驿正黑**，和用户 Word 里的实际字体宽度不同 ——
 行长松紧只作参考，不要为了预览效果反复微调字号。
 环境里没有 LibreOffice（.docx 走的是 Writer 组件）时脚本会直说，跳过这一步、以体检结果为准即可。
@@ -351,7 +334,7 @@ print(r.stderr[-2000:] if r.stderr else "(no stderr)")
 - `output/` 里**只放最终的 `.docx`**。提纲、构建脚本、预览图、任何 `.md` 一律放 `scratch/`。
   **理由是硬的**：交付物排序里 `.md` 与 `.docx` 同为最高档、同档比修改时间，
   而过程稿总是后写的 → 一份 `output/outline.md` 会永久压在 `.docx` 前面当头条，
-  用户点开看到的是草稿。`scratch/` 不会交付，但**跨轮追问会丢**（`output/`、`uploads/` 才会带到下一轮）。
+  用户点开看到的是草稿。`scratch/` 不会交付，但同一任务恢复会保留；新任务仅显式带入用户选择的资源版本。
 - 文件名用有意义的中文名，如 `output/2024年度经营分析报告.docx`。
 - 收尾时如实说明做了什么、多少页/多少节、有没有目录和页码。
   **不要声称生成了实际不存在的文件。**

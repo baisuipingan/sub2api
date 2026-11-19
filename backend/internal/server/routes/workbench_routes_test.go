@@ -129,7 +129,7 @@ func TestWorkbenchGalleryRoutesAuthorizeBeforeReadingOtherUsersImages(t *testing
 			token, err := auth.GenerateToken(context.Background(), &service.User{ID: 9, Role: role, Status: service.StatusActive})
 			require.NoError(t, err)
 			repo := &workbenchRouteRepo{}
-			svc := service.ProvideWorkbenchAdminService(repo, nil, nil, &service.ImageStudioGalleryService{})
+			svc := service.ProvideWorkbenchAdminService(repo, nil, nil, &service.ImageStudioGalleryService{}, nil)
 			h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(svc)}}
 			router := gin.New()
 			admin := router.Group("/api/v1/admin")

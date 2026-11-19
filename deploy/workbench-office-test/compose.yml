@@ -1,0 +1,219 @@
+name: milo-office-test
+
+# Independent acceptance stack. No production DB, bucket, Redis or Docker
+# network is attached. Start only infrastructure until app/images are verified.
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?pinned PostgreSQL 16 image required}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    cpus: 1.0
+    environment:
+      POSTGRES_USER: office_test
+      POSTGRES_DB: office_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?test-only secret required}
+      PGDATA: /var/lib/postgresql/data
+    volumes: [postgres:/var/lib/postgresql/data]
+    networks: [control]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U office_test -d office_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: ${REDIS_IMAGE:?pinned Redis 7 image required}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 64mb, --maxmemory-policy, noeviction, --requirepass, "${REDIS_PASSWORD:?test-only secret required}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    networks: [control]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  minio:
+    image: ${MINIO_IMAGE:?pinned MinIO image required}
+    restart: unless-stopped
+    command: [server, /data, --console-address, ":9001"]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      MINIO_ROOT_USER: office-test
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?test-only secret required}
+      MINIO_BROWSER: "off"
+      MINIO_API_CORS_ALLOW_ORIGIN: https://llm.editor.vip,http://127.0.0.1:4000,http://localhost:4000
+    volumes: [minio:/data]
+    networks: [control, egress]
+    # Loopback only; optional SSH forwarding for test downloads. Never public.
+    ports: ["127.0.0.1:19000:9000"]
+  minio-init:
+    image: ${GO_IMAGE:?pinned Go bootstrap image required}
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    working_dir: /src
+    command: [go, run, /init_bucket.go]
+    volumes:
+      - ../source/backend:/src:ro
+      - ./init_bucket.go:/init_bucket.go:ro
+      - go-mod:/go/pkg/mod
+      - go-build:/root/.cache/go-build
+    environment:
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      GOTOOLCHAIN: local
+    depends_on: [minio]
+    networks: [control, egress]
+  app:
+    profiles: [app, workers]
+    image: ${APP_IMAGE:-milo-workbench-test:latest}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1024m
+    cpus: 2.0
+    ports: ["127.0.0.1:4000:8080"]
+    volumes: [app:/app/data]
+    environment:
+      AUTO_SETUP: "true"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      SERVER_MODE: release
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: office_test
+      DATABASE_DBNAME: office_test
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_SSLMODE: disable
+      DATABASE_MAX_OPEN_CONNS: "16"
+      DATABASE_MAX_IDLE_CONNS: "4"
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PORT: "6379"
+      REDIS_POOL_SIZE: "32"
+      REDIS_MIN_IDLE_CONNS: "2"
+      ADMIN_EMAIL: office-test@milo.invalid
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?test-only secret required}
+      JWT_SECRET: ${JWT_SECRET:?test-only secret required}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?test-only secret required}
+      OFFICE_AGENT_ENABLED: "true"
+      OFFICE_AGENT_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN:?test-only worker secret required}
+      OFFICE_AGENT_MAX_CONCURRENT_CALLS: "2"
+      OFFICE_AGENT_MAX_MODEL_CALLS: "${OFFICE_MAX_MODEL_CALLS:-16}"
+      OFFICE_AGENT_MAX_TOOL_CALLS: "${OFFICE_MAX_TOOL_CALLS:-24}"
+      OFFICE_AGENT_MAX_OUTPUT_TOKENS: "8192"
+      OFFICE_AGENT_MAX_RUN_SECONDS: "900"
+      IMAGE_STORAGE_ENABLED: "false"
+      IMAGE_STORAGE_ENDPOINT: http://minio:9000
+      IMAGE_STORAGE_REGION: us-east-1
+      IMAGE_STORAGE_BUCKET: office-test
+      IMAGE_STORAGE_ACCESS_KEY_ID: office-test
+      IMAGE_STORAGE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      IMAGE_STORAGE_FORCE_PATH_STYLE: "true"
+      SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP: "true"
+      SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS: "true"
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+    networks: [control, egress]
+    healthcheck:
+      test: [CMD, wget, -q, -T, "3", -O, /dev/null, http://127.0.0.1:8080/health]
+      interval: 15s
+      timeout: 4s
+      retries: 10
+      start_period: 90s
+  chat-worker:
+    profiles: [workers]
+    image: ${WORKER_IMAGE:-milo-office-worker-test:latest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 384m
+    cpus: 1.0
+    environment:
+      OFFICE_CONTROL_ORIGIN: http://app:8080
+      OFFICE_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN}
+      OFFICE_WORKER_PRESET: chat
+      OFFICE_WORKER_ID: office-test-chat
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    networks: [control]
+    depends_on: {app: {condition: service_healthy}}
+    stop_grace_period: 30s
+  office-worker:
+    profiles: [workers]
+    image: ${WORKER_IMAGE:-milo-office-worker-test:latest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      OFFICE_CONTROL_ORIGIN: http://app:8080
+      OFFICE_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN}
+      OFFICE_WORKER_PRESET: office
+      OFFICE_WORKER_ID: office-test-office
+      OFFICE_EXECUTOR_PILOT_ENABLED: "true"
+      OFFICE_EXECUTOR_ORIGIN: http://executor:8093
+      OFFICE_EXECUTOR_TOKEN: ${OFFICE_EXECUTOR_TOKEN:?test-only executor secret required}
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    networks: [control]
+    depends_on:
+      app: {condition: service_healthy}
+      executor: {condition: service_healthy}
+    stop_grace_period: 45s
+  executor:
+    profiles: [executor, workers]
+    image: ${SUPERVISOR_IMAGE:-milo-office-supervisor-test:latest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      OFFICE_EXECUTOR_IMAGE: ${TASK_IMAGE:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
+      OFFICE_EXECUTOR_STATE_DIR: /opt/milo-workbench-test/executor-state
+      OFFICE_EXECUTOR_CONCURRENCY: "1"
+      OFFICE_EXECUTOR_HOST: 0.0.0.0
+      OFFICE_EXECUTOR_PORT: "8093"
+      OFFICE_EXECUTOR_TOKEN_FILE: /run/secrets/executor_token
+    volumes:
+      - /opt/milo-workbench-test/executor-state:/opt/milo-workbench-test/executor-state
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../secrets/executor-token:/run/secrets/executor_token:ro
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
+    networks: [control]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/healthz', timeout=2).read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    stop_grace_period: 45s
+
+volumes:
+  postgres: {}
+  minio: {}
+  app: {}
+  go-mod: {external: true, name: milo-workbench-gomod}
+  go-build: {external: true, name: milo-workbench-gobuild}
+networks:
+  control: {internal: true}
+  egress: {}

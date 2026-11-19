@@ -3,8 +3,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -24,17 +29,26 @@ type OfficeGatewayReply struct {
 	RequestID   string `json:"request_id"`
 }
 
-// InvokeModel uses the ordinary gateway router. Phase 0 buffers the bounded
-// response (including SSE) before delivery so the result is durable first; it
-// does not advertise this as the future live-token conversation transport.
+// InvokeModel uses the ordinary gateway router and persists bounded results
+// before returning them to the worker. Assistant SSE text is exposed separately
+// as Go-owned conversation events; completed inbox replay never calls upstream.
 func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLease, operationID string, body []byte) (*OfficeGatewayReply, error) {
+	return s.InvokeModelPurpose(ctx, lease, operationID, body, "")
+}
+func (s *OfficeAgentService) InvokeModelPurpose(ctx context.Context, lease OfficeRunLease, operationID string, body []byte, purpose string) (*OfficeGatewayReply, error) {
+	maxInput := OfficeMaxOperationInputBytes
+	if purpose == "context_compaction" {
+		maxInput = OfficeMaxCompactionInputBytes
+	} else if purpose != "" {
+		return nil, ErrOfficeInvalid
+	}
 	if !s.Enabled() {
 		return nil, ErrOfficeDisabled
 	}
-	if !officeIdentifier(operationID, 128) || len(body) == 0 || len(body) > OfficeMaxOperationInputBytes {
+	if !officeIdentifier(operationID, 128) || len(body) == 0 || len(body) > maxInput {
 		return nil, ErrOfficeInvalid
 	}
-	normalized, err := normalizeOfficeModelRequest(body, lease.Run)
+	normalized, err := normalizeOfficeModelRequestLimit(body, lease.Run, maxInput)
 	if err != nil {
 		return nil, err
 	}
@@ -46,9 +60,16 @@ func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLea
 		return nil, err
 	}
 	requestID := "office-" + officeDigest([]byte(lease.Run.ID + ":" + operationID))[:40]
-	op, _, err := s.repo.PrepareOperation(ctx, lease, OfficeOperationPrepare{ID: operationID, Kind: OfficeOperationModel,
-		InputHash: officeDigest(normalized), Input: normalized, RequestID: requestID})
+	op, err := s.prepareOfficeModelOperation(ctx, lease, OfficeOperationPrepare{ID: operationID, Kind: OfficeOperationModel,
+		InputHash: officeDigest(append([]byte(purpose+":"), normalized...)), Input: normalized, RequestID: requestID}, 5*time.Second)
 	if err != nil {
+		if errors.Is(err, ErrOfficeSettlementPending) {
+			pauseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, pauseErr := s.Suspend(pauseCtx, lease, "BILLING_PENDING"); pauseErr != nil {
+				return nil, pauseErr
+			}
+		}
 		return nil, err
 	}
 	if op.State == OfficeOperationCompleted && op.Result != nil {
@@ -74,7 +95,7 @@ func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLea
 	// call may finish its usage/result after the worker connection disconnects.
 	deadline := time.Now().Add(time.Duration(min(lease.Run.Limits.MaxRunSeconds, 300)) * time.Second)
 	if lease.Run.StartedAt != nil {
-		deadline = minOfficeTime(deadline, lease.Run.StartedAt.Add(time.Duration(lease.Run.Limits.MaxRunSeconds)*time.Second))
+		deadline = minOfficeTime(deadline, lease.Run.StartedAt.Add(time.Duration(int64(lease.Run.Limits.MaxRunSeconds)+lease.Run.PausedSeconds)*time.Second))
 	}
 	callCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 	defer cancel()
@@ -91,6 +112,15 @@ func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLea
 	router := s.router
 	s.mu.RUnlock()
 	writer := &officeBoundedWriter{header: make(http.Header), limit: officeMaxModelResponse, cancel: cancel}
+	var requested struct {
+		Stream bool `json:"stream"`
+	}
+	_ = json.Unmarshal(normalized, &requested)
+	var live *officeLiveStream
+	if requested.Stream && purpose != "context_compaction" {
+		live = &officeLiveStream{ctx: callCtx, service: s, lease: lease, operation: operationID}
+		writer.onWrite = live.write
+	}
 	// Cancellation/lease loss stops new work; bounded monitoring also terminates
 	// this in-flight request. Any late usage remains the original gateway's job.
 	stop := make(chan struct{})
@@ -126,6 +156,9 @@ func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLea
 		router.ServeHTTP(writer, request)
 	}()
 	<-done
+	if live != nil && live.flush() != nil {
+		writer.failed = true
+	}
 	if writer.failed || !officeResponseComplete(writer) {
 		return nil, s.unknownOfficeOperation(lease, operationID)
 	}
@@ -146,6 +179,26 @@ func (s *OfficeAgentService) InvokeModel(ctx context.Context, lease OfficeRunLea
 	return reply, nil
 }
 
+// Only admission is polled, before any new provider request exists. The
+// ordinary gateway writes usage asynchronously; a short delay must neither
+// exhaust a valid task budget nor permit another charge before it is visible.
+func (s *OfficeAgentService) prepareOfficeModelOperation(ctx context.Context, lease OfficeRunLease, in OfficeOperationPrepare, waitBudget time.Duration) (*OfficeOperation, error) {
+	until := time.Now().Add(waitBudget)
+	for {
+		op, _, err := s.repo.PrepareOperation(ctx, lease, in)
+		if !errors.Is(err, ErrOfficeSettlementPending) || !time.Now().Before(until) {
+			return op, err
+		}
+		timer := time.NewTimer(min(100*time.Millisecond, time.Until(until)))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
 func (s *OfficeAgentService) unknownOfficeOperation(lease OfficeRunLease, operationID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -154,6 +207,9 @@ func (s *OfficeAgentService) unknownOfficeOperation(lease OfficeRunLease, operat
 }
 
 func normalizeOfficeModelRequest(body []byte, run OfficeRun) ([]byte, error) {
+	return normalizeOfficeModelRequestLimit(body, run, OfficeMaxOperationInputBytes)
+}
+func normalizeOfficeModelRequestLimit(body []byte, run OfficeRun, maxInput int) ([]byte, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(body, &fields) != nil || fields == nil {
 		return nil, ErrOfficeInvalid
@@ -176,18 +232,72 @@ func normalizeOfficeModelRequest(body []byte, run OfficeRun) ([]byte, error) {
 		ToolCalls json.RawMessage `json:"tool_calls"`
 		ToolID    string          `json:"tool_call_id"`
 	}
-	if json.Unmarshal(fields["messages"], &messages) != nil || len(messages) == 0 || len(messages) > 200 {
+	if json.Unmarshal(fields["messages"], &messages) != nil || len(messages) == 0 || len(messages) > 2000 {
 		return nil, ErrOfficeInvalid
 	}
+	var vision struct {
+		SupportsVision bool `json:"supports_vision"`
+	}
+	_ = json.Unmarshal(run.Parameters, &vision)
+	images := 0
 	for _, message := range messages {
 		if message.Role != "system" && message.Role != "user" && message.Role != "assistant" && message.Role != "tool" {
 			return nil, ErrOfficeInvalid
 		}
-		// Pilot inputs are text only. Resource/visual material will be assembled
-		// by the authorized resource layer, not fetched from arbitrary model URLs.
-		if len(message.Content) != 0 && string(message.Content) != "null" {
-			var text string
-			if json.Unmarshal(message.Content, &text) != nil {
+		if len(message.Content) == 0 || string(message.Content) == "null" {
+			continue
+		}
+		var text string
+		if json.Unmarshal(message.Content, &text) == nil {
+			continue
+		}
+		if !vision.SupportsVision || run.Mode != "office" || message.Role != "user" {
+			return nil, ErrOfficeInvalid
+		}
+		var parts []struct {
+			Type     string `json:"type"`
+			Text     string `json:"text"`
+			ImageURL *struct {
+				URL string `json:"url"`
+			} `json:"image_url"`
+		}
+		if json.Unmarshal(message.Content, &parts) != nil || len(parts) == 0 || len(parts) > 4 {
+			return nil, ErrOfficeInvalid
+		}
+		for _, part := range parts {
+			switch part.Type {
+			case "text":
+				if part.ImageURL != nil {
+					return nil, ErrOfficeInvalid
+				}
+			case "image_url":
+				images++
+				if images > 1 || part.ImageURL == nil {
+					return nil, ErrOfficeInvalid
+				}
+				u := part.ImageURL.URL
+				var encoded, mime string
+				if strings.HasPrefix(u, "data:image/png;base64,") {
+					mime = "png"
+					encoded = strings.TrimPrefix(u, "data:image/png;base64,")
+				} else if strings.HasPrefix(u, "data:image/jpeg;base64,") {
+					mime = "jpeg"
+					encoded = strings.TrimPrefix(u, "data:image/jpeg;base64,")
+				} else {
+					return nil, ErrOfficeInvalid
+				}
+				if len(encoded) > 128<<10 {
+					return nil, ErrOfficeInvalid
+				}
+				data, e := base64.StdEncoding.Strict().DecodeString(encoded)
+				if e != nil || len(data) > 96<<10 {
+					return nil, ErrOfficeInvalid
+				}
+				cfg, format, e := image.DecodeConfig(bytes.NewReader(data))
+				if e != nil || format != mime || cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 4096 || cfg.Height > 4096 || int64(cfg.Width)*int64(cfg.Height) > 4<<20 {
+					return nil, ErrOfficeInvalid
+				}
+			default:
 				return nil, ErrOfficeInvalid
 			}
 		}
@@ -217,7 +327,10 @@ func normalizeOfficeModelRequest(body []byte, run OfficeRun) ([]byte, error) {
 			return nil, ErrOfficeInvalid
 		}
 		for _, tool := range tools {
-			if tool.Type != "function" || !officeApprovedTool(tool.Function.Name) {
+			if tool.Function.Name == "inspect_rendered_image" && !vision.SupportsVision {
+				return nil, ErrOfficeInvalid
+			}
+			if tool.Type != "function" || !officeApprovedTool(tool.Function.Name) || ((tool.Function.Name == "web_search" || tool.Function.Name == "web_read") && !run.SearchEnabled) || (run.Mode == "chat" && tool.Function.Name != "web_search" && tool.Function.Name != "web_read") {
 				return nil, ErrOfficeInvalid
 			}
 		}
@@ -229,7 +342,7 @@ func normalizeOfficeModelRequest(body []byte, run OfficeRun) ([]byte, error) {
 		delete(fields, "parallel_tool_calls")
 	}
 	normalized, err := json.Marshal(fields)
-	if err != nil || len(normalized) > OfficeMaxOperationInputBytes {
+	if err != nil || len(normalized) > maxInput {
 		return nil, ErrOfficeInvalid
 	}
 	return normalized, nil
@@ -237,7 +350,7 @@ func normalizeOfficeModelRequest(body []byte, run OfficeRun) ([]byte, error) {
 
 func officeApprovedTool(name string) bool {
 	switch name {
-	case "execute_office_python", "read_file", "write_file", "edit_file", "ls", "glob", "grep", "write_todos", "ask_user":
+	case "execute_office_python", "read_file", "write_file", "edit_file", "ls", "glob", "grep", "write_todos", "ask_user", "web_search", "web_read", "inspect_rendered_image":
 		return true
 	default:
 		return false
@@ -245,12 +358,13 @@ func officeApprovedTool(name string) bool {
 }
 
 type officeBoundedWriter struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
-	limit  int
-	failed bool
-	cancel context.CancelFunc
+	header  http.Header
+	body    bytes.Buffer
+	status  int
+	limit   int
+	failed  bool
+	cancel  context.CancelFunc
+	onWrite func([]byte) error
 }
 
 func (w *officeBoundedWriter) Header() http.Header { return w.header }
@@ -267,6 +381,13 @@ func (w *officeBoundedWriter) Write(data []byte) (int, error) {
 		w.failed = true
 		w.cancel()
 		return 0, io.ErrShortBuffer
+	}
+	if w.onWrite != nil && w.status >= 200 && w.status < 300 && strings.HasPrefix(w.header.Get("Content-Type"), "text/event-stream") {
+		if err := w.onWrite(data); err != nil {
+			w.failed = true
+			w.cancel()
+			return 0, err
+		}
 	}
 	return w.body.Write(data)
 }

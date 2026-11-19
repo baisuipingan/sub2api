@@ -35,7 +35,8 @@ type ImageStorageSettings struct {
 	TicketAttachmentsEnabled bool `json:"ticket_attachments_enabled"`
 	ReuseBackupS3            bool `json:"reuse_backup_s3"`
 
-	Bucket           string `json:"bucket"` // 留空且复用备份时，沿用备份桶
+	Bucket           string `json:"bucket"`        // 留空且复用备份时，沿用备份桶
+	OfficeBucket     string `json:"office_bucket"` // 可选独立办公桶，复用连接与凭证；留空沿用图片桶
 	Prefix           string `json:"prefix"`
 	PublicBaseURL    string `json:"public_base_url"`
 	PresignExpiry    int    `json:"presign_expiry_hours"`
@@ -75,6 +76,8 @@ type ImageStorageSettingService struct {
 	activeAsyncTasks    int
 	activeTicketStorage int
 	ticketStorageUsage  func(context.Context) (bool, error)
+	activeOfficeStorage int
+	officeStorageUsage  func(context.Context) (bool, error)
 }
 
 func (s *ImageStorageSettingService) SetGalleryRepository(repo GalleryRepository) {
@@ -91,6 +94,12 @@ func (s *ImageStorageSettingService) SetTicketStorageUsage(check func(context.Co
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ticketStorageUsage = check
+}
+
+func (s *ImageStorageSettingService) SetOfficeStorageUsage(check func(context.Context) (bool, error)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.officeStorageUsage = check
 }
 
 var ErrGalleryStorageTargetInUse = infraerrors.Conflict("GALLERY_STORAGE_TARGET_IN_USE", "gallery contains assets; migrate or delete them before changing the S3 target")
@@ -251,6 +260,7 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 	hasAssets := false
 	hasStudioJobs := false
 	hasTicketAttachments := false
+	hasOfficeFiles := false
 	if s.galleryRepo != nil {
 		var err error
 		hasAssets, err = s.galleryRepo.HasAssets(ctx)
@@ -272,7 +282,14 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 			return nil, err
 		}
 	}
-	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs || hasTicketAttachments || s.activeTicketStorage > 0 {
+	if s.officeStorageUsage != nil {
+		var err error
+		hasOfficeFiles, err = s.officeStorageUsage(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs || hasTicketAttachments || s.activeTicketStorage > 0 || hasOfficeFiles || s.activeOfficeStorage > 0 {
 		previous, err := s.effectiveConfig(ctx)
 		if err != nil {
 			return nil, err
@@ -303,6 +320,22 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 				return nil, ErrGalleryStorageTargetInUse
 			}
 		}
+		if hasOfficeFiles || s.activeOfficeStorage > 0 {
+			if in.PublicBaseURL != "" {
+				return nil, ErrOfficeStorageUnavailable
+			}
+			previousOffice, err := s.officeStorageConfigLocked(ctx)
+			if err != nil {
+				return nil, err
+			}
+			nextOffice := *next
+			if in.OfficeBucket != "" {
+				nextOffice.Bucket = in.OfficeBucket
+			}
+			if !sameGalleryStorageTarget(previousOffice, &nextOffice) {
+				return nil, ErrOfficeStorageUnavailable
+			}
+		}
 	}
 
 	if in.ReuseBackupS3 {
@@ -329,6 +362,15 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 		cfg, err := s.toImageStorageConfig(ctx, &in)
 		if err != nil || !cfg.IsConfigured() {
 			return nil, ErrTicketStorageUnavailable
+		}
+	}
+	if hasOfficeFiles || s.activeOfficeStorage > 0 {
+		cfg, err := s.toImageStorageConfig(ctx, &in)
+		if cfg != nil && in.OfficeBucket != "" {
+			cfg.Bucket = in.OfficeBucket
+		}
+		if err != nil || !cfg.IsConfigured() {
+			return nil, ErrOfficeStorageUnavailable
 		}
 	}
 
@@ -384,6 +426,31 @@ func (s *ImageStorageSettingService) TestConnection(ctx context.Context, in Imag
 	}
 	if in.TicketAttachmentsEnabled && cfg.PublicBaseURL != "" {
 		return ErrTicketStorageUnavailable
+	}
+	if in.OfficeBucket != "" {
+		if cfg.PublicBaseURL != "" {
+			return ErrOfficeStorageUnavailable
+		}
+		officeCfg := *cfg
+		officeCfg.Bucket = in.OfficeBucket
+		officeCfg.Prefix = "workspace/v1/"
+		officeStore, err := s.factory(ctx, &officeCfg)
+		if err != nil {
+			return err
+		}
+		if prober, ok := officeStore.(interface {
+			ProbeReadWriteDeletePrefix(context.Context, string) error
+		}); ok {
+			if err = prober.ProbeReadWriteDeletePrefix(ctx, "workspace/v1/"); err != nil {
+				return err
+			}
+		} else if prober, ok := officeStore.(interface{ ProbeReadWriteDelete(context.Context) error }); ok {
+			if err = prober.ProbeReadWriteDelete(ctx); err != nil {
+				return err
+			}
+		} else {
+			return ErrOfficeStorageUnavailable
+		}
 	}
 	storage, err := s.factory(ctx, cfg)
 	if err != nil {
@@ -523,6 +590,80 @@ func (s *ImageStorageSettingService) AcquireTicketStorage(ctx context.Context, r
 	return cfg, release, nil
 }
 
+// Office storage is independent from image/gallery feature switches. It reuses
+// credentials and the private target, never the public native-async URL mode.
+func (s *ImageStorageSettingService) PrivateOfficeStorageConfig(ctx context.Context) (*config.ImageStorageConfig, error) {
+	if s == nil {
+		return nil, ErrOfficeStorageUnavailable
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.officeStorageConfigLocked(ctx)
+}
+func (s *ImageStorageSettingService) officeStorageConfigLocked(ctx context.Context) (*config.ImageStorageConfig, error) {
+	settings, err := s.load(ctx)
+	if err != nil {
+		return nil, ErrOfficeStorageUnavailable
+	}
+	if settings == nil {
+		fallback := s.fallback
+		if !fallback.IsConfigured() || fallback.PublicBaseURL != "" {
+			return nil, ErrOfficeStorageUnavailable
+		}
+		fallback.Enabled = true
+		fallback.Prefix = "workspace/v1/"
+		return &fallback, nil
+	}
+	cfg, err := s.toImageStorageConfig(ctx, settings)
+	if cfg != nil && settings.OfficeBucket != "" {
+		cfg.Bucket = settings.OfficeBucket
+	}
+	if err != nil || cfg == nil || !cfg.IsConfigured() || cfg.PublicBaseURL != "" {
+		return nil, ErrOfficeStorageUnavailable
+	}
+	copy := *cfg
+	copy.Enabled = true
+	copy.Prefix = "workspace/v1/"
+	copy.PublicBaseURL = ""
+	return &copy, nil
+}
+func (s *ImageStorageSettingService) AcquireOfficeStorage(ctx context.Context) (*config.ImageStorageConfig, func(), error) {
+	if s == nil {
+		return nil, nil, ErrOfficeStorageUnavailable
+	}
+	var targetRelease func()
+	if s.galleryRepo != nil {
+		var err error
+		targetRelease, err = s.galleryRepo.LockTarget(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	s.mu.Lock()
+	cfg, err := s.officeStorageConfigLocked(ctx)
+	if err == nil {
+		s.activeOfficeStorage++
+	}
+	s.mu.Unlock()
+	if err != nil {
+		if targetRelease != nil {
+			targetRelease()
+		}
+		return nil, nil, err
+	}
+	var once sync.Once
+	return cfg, func() {
+		once.Do(func() {
+			s.mu.Lock()
+			s.activeOfficeStorage--
+			s.mu.Unlock()
+			if targetRelease != nil {
+				targetRelease()
+			}
+		})
+	}, nil
+}
+
 func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {
 	cfg := &config.ImageStorageConfig{
 		Enabled:         in.Enabled,
@@ -608,6 +749,7 @@ func settingsFromConfig(cfg config.ImageStorageConfig) *ImageStorageSettings {
 
 func normalizeImageStorageSettings(in *ImageStorageSettings) {
 	in.Bucket = strings.TrimSpace(in.Bucket)
+	in.OfficeBucket = strings.TrimSpace(in.OfficeBucket)
 	in.Endpoint = strings.TrimSpace(in.Endpoint)
 	in.Region = strings.TrimSpace(in.Region)
 	in.AccessKeyID = strings.TrimSpace(in.AccessKeyID)
