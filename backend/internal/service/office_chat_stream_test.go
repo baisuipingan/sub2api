@@ -74,11 +74,11 @@ func TestOfficeLiveStreamBoundedUTF8AndLeaseFailure(t *testing.T) {
 		require.Less(t, len(e.Payload), 32<<10)
 		var p map[string]string
 		require.NoError(t, json.Unmarshal(e.Payload, &p))
-		got.WriteString(p["text"])
+		_, _ = got.WriteString(p["text"])
 	}
 	require.Equal(t, text, got.String())
 	repo.err = ErrOfficeLeaseLost
-	stream.text.WriteString("late")
+	_, _ = stream.text.WriteString("late")
 	require.ErrorIs(t, stream.flush(), ErrOfficeLeaseLost)
 	stream.pending = strings.Repeat("x", 256<<10)
 	require.ErrorIs(t, stream.write([]byte("x")), ErrOfficeBudgetExceeded)
