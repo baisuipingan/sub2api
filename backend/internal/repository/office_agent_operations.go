@@ -51,7 +51,7 @@ func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease serv
 	if err != nil {
 		return nil, false, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return nil, false, err
@@ -97,7 +97,7 @@ func (r *officeAgentRepository) DispatchOperation(ctx context.Context, lease ser
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (r *officeAgentRepository) RecordOperationResult(ctx context.Context, lease
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	// This lock serializes all run/operation state transitions in one order.
 	// It intentionally does not require a live lease: an original dispatcher
 	// may deposit the paid response after cancellation or recovery fencing.
@@ -178,7 +178,7 @@ func (r *officeAgentRepository) MarkOperationUnknown(ctx context.Context, lease 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func (r *officeAgentRepository) AppendEvent(ctx context.Context, lease service.O
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return nil, err
@@ -267,7 +267,7 @@ func (r *officeAgentRepository) ListEvents(ctx context.Context, userID int64, ru
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	events := []service.OfficeRunEvent{}
 	for rows.Next() {
 		event, err := scanOfficeEvent(rows)

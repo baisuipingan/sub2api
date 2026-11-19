@@ -236,12 +236,8 @@ func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group 
 	return result, nil
 }
 
-// 与CompositeRouteResolver一致：Responses显式路由优先，其次持久化精确映射
+// 与CompositeRouteResolver一致：请求端点的显式路由优先，其次持久化精确映射
 // 的唯一平台归属，最后才允许内置检测器；不将运行时补齐的默认映射当成归属声明。
-func desktopAgentCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute) CompositeRouteDecision {
-	return publicCompositeModelTarget(model, accounts, routes, CompositeRouteEndpointResponses)
-}
-
 func publicCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute, endpoint string) CompositeRouteDecision {
 	decision := CompositeRouteDecision{PublicModel: model, UpstreamModel: model, Endpoint: endpoint}
 	if route, matched := matchCompositeRoute(routes, model, endpoint); matched {

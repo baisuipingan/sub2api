@@ -107,7 +107,7 @@ func (r *officeAgentRepository) ListConversations(ctx context.Context, userID in
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []service.OfficeConversation{}
 	for rows.Next() {
 		var c service.OfficeConversation
@@ -127,7 +127,7 @@ func (r *officeAgentRepository) ListMessages(ctx context.Context, userID int64, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []service.OfficeMessage{}
 	for rows.Next() {
 		var m service.OfficeMessage
@@ -163,7 +163,7 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 	if err != nil {
 		return nil, false, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	// Serialize admission for this user, including different conversations. A
 	// unique partial index remains the independent database safety net.
 	var userID int64
@@ -234,7 +234,7 @@ func (r *officeAgentRepository) ListRuns(ctx context.Context, userID int64, conv
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	result := []service.OfficeRun{}
 	for rows.Next() {
 		run, err := scanOfficeRun(rows)
@@ -256,7 +256,7 @@ func (r *officeAgentRepository) ClaimRun(ctx context.Context, owner string, dura
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var id string
 	err = tx.QueryRowContext(ctx, `SELECT id::text FROM office_agent_runs WHERE status='queued' OR (status IN ('running','recovering') AND lease_until<clock_timestamp()) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -346,7 +346,7 @@ func (r *officeAgentRepository) CheckLease(ctx context.Context, lease service.Of
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err = checkOfficeLease(ctx, tx, lease); err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func (r *officeAgentRepository) RenewLease(ctx context.Context, lease service.Of
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return nil, err
@@ -381,7 +381,7 @@ func (r *officeAgentRepository) CancelRun(ctx context.Context, userID int64, id 
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := scanOfficeRun(tx.QueryRowContext(ctx, `SELECT `+officeRunColumns+` FROM office_agent_runs WHERE user_id=$1 AND id=$2 FOR UPDATE`, userID, id))
 	if err != nil {
 		return nil, err
@@ -420,7 +420,7 @@ func (r *officeAgentRepository) FinishRun(ctx context.Context, lease service.Off
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	run, err := checkOfficeLease(ctx, tx, lease)
 	if err != nil {
 		return nil, err

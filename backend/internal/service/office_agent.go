@@ -188,12 +188,16 @@ func officeIdentifier(value string, maxBytes int) bool {
 		return false
 	}
 	for _, ch := range value {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || strings.ContainsRune("._:-", ch)) {
-			return false
+		if officeIdentifierAlphanumeric(ch) || strings.ContainsRune("._:-", ch) {
+			continue
 		}
+		return false
 	}
-	first := value[0]
-	return (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || (first >= '0' && first <= '9')
+	return officeIdentifierAlphanumeric(rune(value[0]))
+}
+
+func officeIdentifierAlphanumeric(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 }
 
 func officeModelID(value string) bool {
