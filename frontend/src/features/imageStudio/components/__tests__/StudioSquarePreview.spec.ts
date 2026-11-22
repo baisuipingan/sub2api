@@ -17,6 +17,34 @@ beforeEach(() => {
   ensureImagePreviewUrl.mockResolvedValue('data:image/png;base64,aW1hZ2U=')
 })
 
+describe('StudioSquarePreview image status', () => {
+  it('keeps the loading status through URL lookup and image download', async () => {
+    const wrapper = mount(StudioSquarePreview, { props: { task, imageId: images[0] } })
+    expect(wrapper.get('[role="status"]:not([aria-hidden])').text()).toContain('imageStudio.result.loadingImage')
+    expect(wrapper.text()).not.toContain('imageStudio.result.imageUnavailable')
+    await flushPromises()
+
+    const zoom = wrapper.get('button[aria-label="imageStudio.result.zoomAria"]')
+    expect(zoom.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('imageStudio.result.loadingImage')
+    await zoom.get('img').trigger('load')
+
+    expect(zoom.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('imageStudio.result.loadingImage')
+    await zoom.get('img').trigger('error')
+    expect(wrapper.text()).toContain('imageStudio.result.imageUnavailable')
+    expect(wrapper.find('.spinner').exists()).toBe(false)
+  })
+
+  it('clears loading when no preview URL is available', async () => {
+    ensureImagePreviewUrl.mockResolvedValueOnce(undefined)
+    const wrapper = mount(StudioSquarePreview, { props: { task, imageId: images[0] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('imageStudio.result.imageUnavailable')
+    expect(wrapper.find('.spinner').exists()).toBe(false)
+  })
+})
+
 describe('StudioSquarePreview batch navigation', () => {
   it('keeps both edge navigation buttons visible, including a disabled first/last position', async () => {
     const wrapper = mount(StudioSquarePreview, { props: { task, imageId: images[0] } })
@@ -36,6 +64,7 @@ describe('StudioSquarePreview batch navigation', () => {
   it('keeps the full batch when opening the currently selected image in the lightbox', async () => {
     const wrapper = mount(StudioSquarePreview, { props: { task, imageId: images[3] } })
     await flushPromises()
+    await wrapper.get('img').trigger('load')
     await wrapper.get('button[aria-label="imageStudio.result.zoomAria"]').trigger('click')
     expect(setLightboxImageId).toHaveBeenCalledWith(images[3], images)
   })

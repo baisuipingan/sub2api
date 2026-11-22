@@ -34,19 +34,27 @@ describe('conversation preview lifetime', () => {
     const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
     store.history.runs = [run]
     const event = (sequence: number, type: string, payload: Record<string, unknown>): ChatEvent => ({ id: `event-${sequence}`, run_id: run.id, sequence, type, payload, created_at: '' })
+    const opener = event(1, 'assistant.delta', { operation_id: 'model-1', text: '先查资料。' })
+    store.events[run.id] = [opener]
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: true, Icon: true, ResourcePreview: true, ToolOperationDetails: true,
+    } } })
+    await flushPromises()
+    const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
+    expect(process.element.open).toBe(true)
+    expect(process.text()).toContain('先查资料。')
+    expect(wrapper.find('.bs-chat-result').exists()).toBe(false)
     store.events[run.id] = [
-      event(1, 'assistant.delta', { operation_id: 'model-1', text: '先查资料。' }),
+      opener,
       event(2, 'model.completed', { operation_id: 'model-1', tool_count: 1 }),
       event(3, 'tool.completed', { operation_id: 'tool-1', title: '联网搜索' }),
       event(4, 'model.started', { operation_id: 'model-2' }),
       event(5, 'assistant.delta', { operation_id: 'model-2', text: '实时回答。' }),
       event(6, 'model.completed', { operation_id: 'model-2', tool_count: 0 }),
     ]
-    wrapper = mount(WorkbenchChatView, { global: { stubs: {
-      WorkbenchChatLayout: { template: '<div><slot /></div>' },
-      ChatComposer: true, Icon: true, ResourcePreview: true, ToolOperationDetails: true,
-    } } })
-    await flushPromises()
+    await nextTick()
+    expect(process.element.open).toBe(true)
     expect(wrapper.get('.bs-chat-step-commentary').text()).toBe('先查资料。')
     expect(wrapper.findAll('.bs-chat-step-commentary')).toHaveLength(1)
     expect(wrapper.get('.bs-chat-result').text()).toBe('实时回答。')
@@ -54,6 +62,8 @@ describe('conversation preview lifetime', () => {
     store.history.runs = [{ ...run, status: 'completed' }]
     store.history.messages = [{ id: 'answer', conversation_id: 'conversation', run_id: run.id, role: 'assistant', sequence: 7, content: '保存后的回答。', created_at: '' }]
     await nextTick()
+    expect(process.element.open).toBe(false)
+    expect(process.find('.bs-chat-result').exists()).toBe(false)
     expect(wrapper.get('.bs-chat-step-commentary').text()).toBe('先查资料。')
     expect(wrapper.get('.bs-chat-result').text()).toBe('保存后的回答。')
     expect(wrapper.text()).not.toContain('实时回答。')

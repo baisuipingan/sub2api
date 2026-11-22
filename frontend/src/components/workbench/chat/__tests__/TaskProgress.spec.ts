@@ -23,7 +23,11 @@ describe('TaskProgress terminal status', () => {
     const wrapper = mount(TaskProgress, { props: {
       run: { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'completed', mode: 'office', created_at: '', updated_at: '' }, events: [],
     } })
-    const details = wrapper.get('details')
+    const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
+    expect(process.element.open).toBe(false)
+    await process.get('summary').trigger('click')
+    expect(process.element.open).toBe(true)
+    const details = process.get<HTMLDetailsElement>('.bs-chat-turn-process-body > details')
     expect((details.element as HTMLDetailsElement).open).toBe(false)
     ;(details.element as HTMLDetailsElement).open = true
     await details.trigger('toggle')
@@ -41,7 +45,9 @@ describe('TaskProgress terminal status', () => {
       events: [{ id: 'tool', run_id: run.id, sequence: 1, type: 'tool.started', payload: { operation_id: 'search', title: '搜索资料' }, created_at: '' }],
     } })
     expect(wrapper.get('[role="status"]').text()).toBe('搜索资料')
-    const details = wrapper.get('details')
+    const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
+    expect(process.element.open).toBe(true)
+    const details = process.get<HTMLDetailsElement>('.bs-chat-turn-process-body > details')
     expect((details.element as HTMLDetailsElement).open).toBe(false)
     expect(details.get('summary').text()).toContain('1 项')
     expect(details.get('li').text()).toContain('进行中')
@@ -50,13 +56,17 @@ describe('TaskProgress terminal status', () => {
   it('keeps status at the live edge through model and tool transitions', async () => {
     const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
     const events: ChatEvent[] = []
-    const wrapper = mount(TaskProgress, { props: { run, events }, slots: { default: '<p data-answer>实时回答</p>' } })
+    const wrapper = mount(TaskProgress, { props: { run, events, awaitingFinalAnswer: true, reasoningSummary: '推理过程' },
+      slots: { default: '<p data-answer>最终回答</p><button data-file>下载文件</button>' } })
+    const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
     async function append(type: string, operation_id: string, payload: ChatEvent['payload'] = {}) {
       const seq = events.length + 1
       events.push({ id: String(seq), run_id: run.id, sequence: seq, type, payload: { operation_id, ...payload }, created_at: '' })
       await wrapper.setProps({ events: [...events] })
     }
     expect(wrapper.get('[role="status"]').text()).toBe('正在生成回答…')
+    await process.get('summary').trigger('click')
+    expect(process.element.open).toBe(true)
     await append('model.started', 'first')
     await append('assistant.delta', 'first', { text: '我先查天气。' })
     await append('model.completed', 'first', { tool_count: 1 })
@@ -70,15 +80,24 @@ describe('TaskProgress terminal status', () => {
     await append('assistant.delta', 'second', { text: '核对后生成文档。' })
     await append('model.completed', 'second', { tool_count: 1 })
     await append('tool.completed', 'doc', { title: '生成文档' })
-    const children = wrapper.element.children
-    expect([...children].map(child => child.tagName)).toEqual(['P', 'DETAILS', 'P', 'DETAILS', 'P', 'DIV'])
+    const children = process.get('.bs-chat-turn-process-body').element.children
+    expect([...children].map(child => child.tagName)).toEqual(['P', 'DETAILS', 'P', 'DETAILS', 'DETAILS', 'DIV'])
     expect(wrapper.findAll('.bs-chat-step-commentary').map(block => block.text())).toEqual(['我先查天气。', '核对后生成文档。'])
-    expect(wrapper.get('[role="status"]').element.previousElementSibling?.hasAttribute('data-answer')).toBe(true)
+    expect(process.find('[data-answer], [data-file]').exists()).toBe(false)
     await wrapper.setProps({ connectionInterrupted: true })
     expect(wrapper.get('[role="status"]').text()).toBe('连接暂时异常，等待同步')
     expect(wrapper.get('[role="status"]').find('.bs-chat-spin').exists()).toBe(false)
-    await wrapper.setProps({ run: { ...run, status: 'completed' } })
+    await wrapper.setProps({ run: { ...run, status: 'completed' }, connectionInterrupted: false })
+    expect(process.element.open).toBe(true)
+    expect(wrapper.get('[role="status"]').text()).toBe('正在整理回答…')
+    await wrapper.setProps({ awaitingFinalAnswer: false })
+    expect(process.element.open).toBe(false)
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(await wrapper.get('[data-answer]').isVisible()).toBe(true)
+    expect(await wrapper.get('[data-file]').isVisible()).toBe(true)
+    await process.get('summary').trigger('click')
+    expect(process.element.open).toBe(true)
+    expect(process.text()).toContain('推理过程')
     wrapper.unmount()
   })
   it('corrects historical search status and lazily displays the recorded reasons', async () => {
@@ -96,7 +115,9 @@ describe('TaskProgress terminal status', () => {
       run,
       events: [{ id: 'legacy', run_id: run.id, sequence: 1, type: 'tool.completed', payload: { operation_id: failed.id, title: failed.title, status: 'completed' }, created_at: '' }],
     } })
-    const section = wrapper.get('details')
+    const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
+    await process.get('summary').trigger('click')
+    const section = process.get<HTMLDetailsElement>('.bs-chat-turn-process-body > details')
     ;(section.element as HTMLDetailsElement).open = true
     await section.trigger('toggle')
     await flushPromises()

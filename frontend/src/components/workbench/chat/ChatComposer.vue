@@ -22,7 +22,7 @@
         </div>
         <div class="bs-chat-composer-trailing">
           <Select class="bs-chat-model-select" :model-value="model" :options="modelOptions" :disabled="busy || !modelOptions.length" placeholder="暂无可用模型" searchable aria-label="选择模型" @update:model-value="emit('update:model', String($event))" />
-          <Select v-if="effortOptions.length" class="bs-chat-effort-select" :model-value="effort" :options="effortOptions" :disabled="busy" aria-label="推理强度" @update:model-value="emit('update:effort', String($event))">
+          <Select v-if="effortOptions.length" class="bs-chat-effort-select" :model-value="effort" :options="effortOptions" :disabled="busy" compact aria-label="推理强度" @update:model-value="emit('update:effort', String($event))">
             <template #selected>{{ labels[effort] || effort || '模型默认' }}</template>
           </Select>
           <button v-if="busy && !waiting" type="button" class="bs-chat-submit" title="停止生成" aria-label="停止生成" @click="emit('stop')"><span class="bs-chat-stop-square"></span></button>

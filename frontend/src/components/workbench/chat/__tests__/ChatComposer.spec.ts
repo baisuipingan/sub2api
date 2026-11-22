@@ -89,6 +89,7 @@ describe('Workbench composer controls', () => {
     })
     const select = wrapper.findAllComponents({ name: 'Select' })[1]!
     expect(select.props('modelValue')).toBe('medium')
+    expect(select.props('compact')).toBe(true)
     expect(select.props('options')).toEqual([
       { value: 'low', label: '低' },
       { value: 'medium', label: '中（推荐）' },

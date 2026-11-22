@@ -31,7 +31,7 @@
 .bs-native-composer .bs-chat-submit:active:enabled { transform:translateY(-2px) scale(.96); }
 .bs-native-composer .bs-chat-stop-square { width:10px; height:10px; border-radius:1.25px; background:currentColor; }
 .bs-native-composer .bs-chat-model-select { min-width:90px; max-width:230px; }
-.bs-native-composer .bs-chat-effort-select { width:92px; }
+.bs-native-composer .bs-chat-effort-select { width:max-content; }
 .bs-native-composer .select-trigger { min-height:28px; height:28px; gap:4px; padding:2px 6px; border:0; border-radius:8px; box-shadow:none; background:transparent; color:var(--bc-ink); font-size:12px; }
 .bs-native-composer .select-value { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bs-native-composer button:focus-visible,.bs-composer-menu button:focus-visible { outline:2px solid var(--bc-blue); outline-offset:2px; }
@@ -74,7 +74,7 @@
 .bs-composer-picker-footer { display:flex; width:100%; align-items:center; gap:8px; }.bs-composer-picker-footer>span { flex:1; color:#81858c; font-size:13px; }
 @media (hover:hover) and (pointer:fine) { .bs-composer-tool-tag:hover:enabled:not([aria-disabled=true]) { background:var(--bc-fill-2); }.bs-composer-tool-tag.is-active:hover:enabled { background:color-mix(in srgb,var(--bc-blue) 17%,var(--bc-composer)); }.bs-native-composer .bs-composer-add:hover,.bs-native-composer .select-trigger:hover { background:var(--bc-fill-2); }.bs-native-composer .bs-chat-submit:hover:enabled { background:#7aaaff; }.bs-composer-menu .bs-composer-command-row:hover:enabled,.bs-composer-menu .bs-composer-command-row:focus-visible { background:var(--bc-fill-2); } }
 @container (width <= 560px) { .bs-native-composer .bs-chat-composer-trailing { gap:8px; } }
-@media (max-width:767px) { .bs-native-composer .bs-composer-editor { font-size:16px; }.bs-native-composer .bs-chat-composer-toolbar,.bs-native-composer .bs-chat-composer-leading { gap:8px; }.bs-native-composer .bs-chat-model-select { max-width:160px; }.bs-native-composer .bs-chat-effort-select { width:76px; } }
+@media (max-width:767px) { .bs-native-composer .bs-composer-editor { font-size:16px; }.bs-native-composer .bs-chat-composer-toolbar,.bs-native-composer .bs-chat-composer-leading { gap:8px; }.bs-native-composer .bs-chat-model-select { max-width:160px; } }
 @media (max-width:420px) { .bs-native-composer .bs-chat-model-select { max-width:140px; min-width:70px; }.bs-native-composer .bs-chat-composer-trailing { gap:4px; }.bs-composer-command-description { font-size:11px; } }
 @media (pointer:coarse) { .bs-composer-resource-remove { opacity:1; } }
 @media (prefers-reduced-motion:reduce) { .bs-native-composer .bs-chat-submit { transition:none; } }

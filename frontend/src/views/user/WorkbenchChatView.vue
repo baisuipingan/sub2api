@@ -15,13 +15,13 @@
                   <article class="bs-chat-assistant-message bs-chat-selectable">
                     <input v-if="selectionActive && assistantMessageIds(turn.run.id).length" type="checkbox" class="bs-chat-message-check" aria-label="选择这条回答" :checked="assistantMessageIds(turn.run.id).every(id => selectedExportIds.has(id))" @change="toggleExportMessages(assistantMessageIds(turn.run.id))" />
                     <TaskProgress :run="turn.run" :events="eventsFor(turn.run.id)" :progress="turn.progress"
+                      :reasoning-summary="turn.reasoningSummary" :awaiting-final-answer="turn.awaitingFinalAnswer"
                       :connection-interrupted="store.activeRun?.id === turn.run.id && !!store.connectionError"
                       @stop="store.cancelRun" @preview="openFile" @updated="refreshCurrent">
-                      <details v-if="turn.reasoningSummary" class="bs-chat-process">
-                        <summary><Icon name="chevronRight" size="sm" />推理摘要</summary>
-                        <p class="bs-chat-reasoning-summary">{{ turn.reasoningSummary }}</p>
-                      </details>
-                      <ResultSection v-if="turn.text || turn.files.length" :text="turn.text" :files="turn.files" :citations="turn.citations" @preview="openFile" @download="download" @reference="openReferences(turn.run.id, $event.id)" />
+                      <template #streaming-answer>
+                        <ChatMarkdown v-if="turn.streamingText" :content="turn.streamingText" :files="turn.files" @preview="openFile" @reference="openReferences(turn.run.id, $event.id)" />
+                      </template>
+                      <ResultSection v-if="(turn.text && !turn.streamingText) || turn.files.length" :text="turn.streamingText ? '' : turn.text" :files="turn.files" :citations="turn.citations" @preview="openFile" @download="download" @reference="openReferences(turn.run.id, $event.id)" />
                     </TaskProgress>
 
                     <div v-if="!isWorking(turn.run) && turn.run.status !== 'waiting_user'" class="bs-chat-message-actions"><button v-if="turn.text" type="button" class="bs-chat-icon" :aria-label="copied === turn.run.id ? '已复制' : '复制回答'" :title="copied === turn.run.id ? '已复制' : '复制回答'" @click="copy(turn.run.id, turn.text)"><Icon :name="copied === turn.run.id ? 'check' : 'copy'" size="sm" /></button><button v-if="turn.users.length && !store.activeRun" type="button" class="bs-chat-icon" :aria-label="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :title="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :disabled="store.submitting || !selectedModel" @click="regenerate(turn.run, turn.users[0])"><Icon name="refresh" size="sm" /></button><span v-if="turn.versions.length > 1" class="bs-chat-answer-versions"><button type="button" class="bs-chat-icon" aria-label="上一个回答" :disabled="selectionActive || turn.versionIndex === 0" @click="showVersion(turn.root, turn.versions[turn.versionIndex - 1]!.run.id)"><Icon name="chevronLeft" size="sm" /></button>{{ turn.versionIndex + 1 }}/{{ turn.versions.length }}<button type="button" class="bs-chat-icon" aria-label="下一个回答" :disabled="selectionActive || turn.versionIndex === turn.versions.length - 1" @click="showVersion(turn.root, turn.versions[turn.versionIndex + 1]!.run.id)"><Icon name="chevronRight" size="sm" /></button></span><button v-if="turn.versions.length > 1 && !turn.run.selected && ['completed', 'partially_completed'].includes(turn.run.status)" type="button" class="bs-chat-text-button" :disabled="!!store.activeRun" @click="useAnswer(turn.run.id)">使用此回答继续</button><button v-if="turn.text" type="button" class="bs-chat-icon" aria-label="导出回答" title="导出" @click="openExport(turn.run.id)"><Icon name="download" size="sm" /></button><button v-if="turn.citations.length" type="button" class="bs-chat-reference-entry" @click="openReferences(turn.run.id)"><Icon name="globe" size="sm" />参考资料 <span>{{ turn.citations.length }}</span><Icon name="chevronRight" size="sm" /></button><time>{{ formatTime(turn.run.finished_at || turn.run.created_at) }}</time></div>
@@ -94,13 +94,14 @@ import { useAppStore } from '@/stores/app'
 import Icon from '@/components/icons/Icon.vue'
 import ChatComposer from '@/components/workbench/chat/ChatComposer.vue'
 import TaskProgress from '@/components/workbench/chat/TaskProgress.vue'
+import ChatMarkdown from '@/components/workbench/chat/ChatMarkdown.vue'
 import ResultSection from '@/components/workbench/chat/ResultSection.vue'
 import ResourcePreview from '@/components/workbench/chat/ResourcePreview.vue'
 import ChatReferencesPanel from '@/components/workbench/chat/ChatReferencesPanel.vue'
 import ChatExportToolbar from '@/components/workbench/chat/ChatExportToolbar.vue'
 import { useWorkbenchResize } from '@/components/workbench/chat/useWorkbenchResize'
 import { runArtifacts } from '@/components/workbench/chat/chatPresentation'
-import { workbenchProgress } from '@/components/workbench/chat/taskPresentation'
+import { isExecuting, workbenchProgress } from '@/components/workbench/chat/taskPresentation'
 import { useWorkbenchChatStore, chatError } from '@/stores/workbenchChat'
 import { useAuthStore } from '@/stores/auth'
 import { workbenchChatApi } from '@/api/workbenchChat'
@@ -192,7 +193,9 @@ const allTurns = computed(() => store.history.runs.map(run => {
   const files = new Map<string, ChatArtifact>(runArtifacts(runEvents, run).map(file => [file.version_id, file]))
   const citations: ChatCitation[] = []
   for (const message of assistants) { for (const file of chatArtifacts(message.content)) files.set(file.version_id, file); if (typeof message.content !== 'string') citations.push(...message.content.citations || []) }
-  return { run, users: messages.filter(m => m.role === 'user'), text, progress, reasoningSummary, files: [...files.values()], citations }
+  const awaitingFinalAnswer = !assistants.length && !(progress?.phase === 'answer' && liveText.trim())
+  const streamingText = progress?.phase === 'model' && !assistants.length && isExecuting(run) ? liveText : ''
+  return { run, users: messages.filter(m => m.role === 'user'), text, progress, reasoningSummary, awaitingFinalAnswer, streamingText, files: [...files.values()], citations }
 }))
 const visibleVersions = ref<Record<string, string>>({})
 watch(() => store.activeRun, run => {

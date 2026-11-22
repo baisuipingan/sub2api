@@ -97,7 +97,7 @@ imageStudio: {
     reloadImage: 'Reload image',
     zoomAria: 'Zoom in on generated image',
     imageAlt: 'Generated image',
-    loadingImage: 'Loading image',
+    loadingImage: 'Loading image…',
     alreadyReferenced: 'This image is already a reference',
     addAsReference: 'Add this image as reference',
     referenceUnavailable: 'Pick a model that supports references with remaining slots',

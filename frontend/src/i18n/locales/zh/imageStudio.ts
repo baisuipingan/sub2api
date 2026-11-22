@@ -97,7 +97,7 @@ imageStudio: {
     reloadImage: '重新加载图片',
     zoomAria: '放大查看生成图片',
     imageAlt: '生成图片',
-    loadingImage: '正在加载图片',
+    loadingImage: '正在加载图片…',
     alreadyReferenced: '当前图片已在参考图中',
     addAsReference: '将当前图片加入参考图',
     referenceUnavailable: '请选择支持参考图且有剩余名额的模型',

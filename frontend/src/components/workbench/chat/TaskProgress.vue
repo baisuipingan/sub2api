@@ -1,34 +1,47 @@
 <template>
   <div class="bs-chat-task-turn bso-task-turn" data-component="TaskTurnPanel">
-    <template v-for="group in groups" :key="group.id">
-      <p v-if="group.commentary.trim()" class="bs-chat-step-commentary">{{ group.commentary }}</p>
-      <details v-if="group.hasTools" class="bs-chat-process" @toggle="onProcessToggle(group.id, $event)">
-        <summary>
-          <Icon name="chevronRight" size="sm" />
-          <span>{{ groupTitle(group.tools) }}</span>
-          <span v-if="group.count" class="bs-chat-tool-count">{{ group.count }} 项</span>
-        </summary>
-        <p v-if="loadingProcess" class="bs-chat-muted" role="status">正在加载工具过程…</p>
-        <button v-if="processError" type="button" class="bs-chat-text-button" @click="loadProcess">重新加载</button>
-        <p v-if="processError" class="bs-chat-small-error" role="alert">{{ processError }}</p>
-        <ul v-if="(run.browser_driven || history.length) && group.tools.length" class="bs-chat-process-steps">
-          <li v-for="tool in group.tools" :key="tool.id">
-            <ToolOperationDetails v-if="run.browser_driven || persistedToolIDs.has(tool.id)" :run-id="run.id" :operation-id="tool.id" :title="tool.title" :status="tool.state"
-              :load-detail="workbenchChatApi.toolDetail" :can-preview="canPreview"
-              @preview="previewArtifact" />
-            <span v-else>{{ tool.title }}<small v-if="tool.message">{{ tool.message }}</small></span>
-          </li>
-        </ul>
-        <ExecutionTimeline v-else-if="!run.browser_driven" :events="events" :run="run" />
-        <p v-if="processLoaded && !group.tools.length && run.browser_driven" class="bs-chat-muted">没有记录到工具调用</p>
-      </details>
-    </template>
+    <details v-if="hasProcess" class="bs-chat-process bs-chat-turn-process" :open="processOpen">
+      <summary ref="processSummary" :aria-label="processLabel === '执行过程' ? processLabel : '执行过程，' + processLabel" :aria-disabled="keepProcessOpen || undefined" @click.prevent="toggleProcess">
+        <span>{{ processLabel }}</span>
+        <Icon name="chevronRight" size="sm" aria-hidden="true" />
+      </summary>
+      <div ref="processBody" class="bs-chat-turn-process-body">
+        <template v-for="group in groups" :key="group.id">
+          <p v-if="group.commentary.trim()" class="bs-chat-step-commentary">{{ group.commentary }}</p>
+          <details v-if="group.hasTools" class="bs-chat-process" @toggle="onProcessToggle(group.id, $event)">
+            <summary>
+              <Icon name="chevronRight" size="sm" />
+              <span>{{ groupTitle(group.tools) }}</span>
+              <span v-if="group.count" class="bs-chat-tool-count">{{ group.count }} 项</span>
+            </summary>
+            <p v-if="loadingProcess" class="bs-chat-muted" role="status">正在加载工具过程…</p>
+            <button v-if="processError" type="button" class="bs-chat-text-button" @click="loadProcess">重新加载</button>
+            <p v-if="processError" class="bs-chat-small-error" role="alert">{{ processError }}</p>
+            <ul v-if="(run.browser_driven || history.length) && group.tools.length" class="bs-chat-process-steps">
+              <li v-for="tool in group.tools" :key="tool.id">
+                <ToolOperationDetails v-if="run.browser_driven || persistedToolIDs.has(tool.id)" :run-id="run.id" :operation-id="tool.id" :title="tool.title" :status="tool.state"
+                  :load-detail="workbenchChatApi.toolDetail" :can-preview="canPreview"
+                  @preview="previewArtifact" />
+                <span v-else>{{ tool.title }}<small v-if="tool.message">{{ tool.message }}</small></span>
+              </li>
+            </ul>
+            <ExecutionTimeline v-else-if="!run.browser_driven" :events="events" :run="run" />
+            <p v-if="processLoaded && !group.tools.length && run.browser_driven" class="bs-chat-muted">没有记录到工具调用</p>
+          </details>
+        </template>
+        <details v-if="reasoningSummary" class="bs-chat-process">
+          <summary><Icon name="chevronRight" size="sm" />推理摘要</summary>
+          <p class="bs-chat-reasoning-summary">{{ reasoningSummary }}</p>
+        </details>
+        <slot name="streaming-answer" />
+        <div v-if="working || waitingForAnswer" class="bso-breathing" role="status">
+          <Icon :class="{ 'bs-chat-spin': !connectionInterrupted }" :name="connectionInterrupted ? 'exclamationCircle' : 'refresh'" size="sm" aria-hidden="true" />
+          <span>{{ waitingForAnswer ? '正在整理回答…' : progressLabel }}</span>
+        </div>
+      </div>
+    </details>
     <slot />
     <ClarifyCard v-if="ask" :key="ask.request_id" :request="ask" :busy="answering" :error="clarifyError" @submit="answer" />
-    <div v-if="working" class="bso-breathing" role="status">
-      <Icon :class="{ 'bs-chat-spin': !connectionInterrupted }" :name="connectionInterrupted ? 'exclamationCircle' : 'refresh'" size="sm" aria-hidden="true" />
-      <span>{{ progressLabel }}</span>
-    </div>
     <p v-if="run.status === 'waiting_user' && !ask" class="bs-chat-muted" role="status">等待你的补充</p>
     <p v-if="run.status === 'cancelled'" class="bs-chat-muted" role="status">已停止本次任务</p>
     <p v-else-if="run.error_message || run.status === 'failed' || run.status === 'needs_confirmation'" class="bs-chat-run-error" role="alert"><Icon name="exclamationCircle" size="sm" /><span>{{ runErrorMessage(run) }}<small v-if="run.error_code">{{ run.error_code }}</small><button v-if="run.status === 'needs_confirmation'" type="button" class="bs-chat-text-button" @click="emit('stop')">终止本次任务</button></span></p>
@@ -41,12 +54,19 @@ import ClarifyCard from './ClarifyCard.vue'
 import ExecutionTimeline from './ExecutionTimeline.vue'
 import ToolOperationDetails from './ToolOperationDetails.vue'
 import './workbenchArtifacts.css'
-import { clarification, runArtifacts, toolItems, runErrorMessage, type ToolItem } from './chatPresentation'
+import { clarification, runArtifacts, toolItems, runErrorMessage, runStatusLabel, type ToolItem } from './chatPresentation'
 import { isExecuting, workbenchProgress, type WorkbenchProgress } from './taskPresentation'
 import { workbenchChatApi } from '@/api/workbenchChat'
 import { chatError, useWorkbenchChatStore } from '@/stores/workbenchChat'
 import type { ChatArtifact, ChatEvent, ChatRun, ChatClarificationAnswer, ChatToolArtifact, ChatToolSummary } from '@/types/workbenchChat'
-const props = defineProps<{ run: ChatRun; events: ChatEvent[]; progress?: WorkbenchProgress; connectionInterrupted?: boolean }>()
+const props = defineProps<{
+  run: ChatRun
+  events: ChatEvent[]
+  progress?: WorkbenchProgress
+  reasoningSummary?: string
+  awaitingFinalAnswer?: boolean
+  connectionInterrupted?: boolean
+}>()
 const emit = defineEmits<{ stop: []; updated: []; preview: [file: ChatArtifact] }>()
 const working = computed(() => isExecuting(props.run))
 const progress = computed(() => props.progress ?? workbenchProgress(props.events))
@@ -84,6 +104,36 @@ const groups = computed(() => {
   }
   return groups
 })
+const ranHere = ref(working.value)
+const waitingForAnswer = computed(() => ranHere.value && props.awaitingFinalAnswer &&
+  (props.run.status === 'completed' || props.run.status === 'partially_completed'))
+const keepProcessOpen = computed(() => working.value || waitingForAnswer.value || props.run.status === 'waiting_user')
+const processExpanded = ref(false)
+const hasProcess = computed(() => working.value || waitingForAnswer.value || !!groups.value.length || !!props.reasoningSummary)
+const processOpen = computed(() => keepProcessOpen.value || processExpanded.value)
+const processSummary = ref<HTMLElement | null>(null)
+const processBody = ref<HTMLElement | null>(null)
+
+const processLabel = computed(() => {
+  if (working.value || waitingForAnswer.value) return '执行过程'
+  if (props.run.status === 'completed' && props.run.finished_at) {
+    const seconds = Math.floor((Date.parse(props.run.finished_at) - Date.parse(props.run.created_at)) / 1000)
+    if (seconds > 0) {
+      const minutes = Math.floor(seconds / 60)
+      const remaining = seconds % 60
+      return `用时 ${minutes ? minutes + ' 分钟 ' : ''}${remaining} 秒`
+    }
+  }
+  return runStatusLabel[props.run.status]
+})
+
+function toggleProcess() {
+  if (!keepProcessOpen.value) processExpanded.value = !processExpanded.value
+}
+
+watch(processOpen, open => {
+  if (!open && processBody.value?.contains(document.activeElement)) processSummary.value?.focus()
+})
 function groupTitle(groupTools: ToolItem[]) {
   if (!props.run.browser_driven || !groupTools.length) return '工具过程'
   const titles = [...new Set(groupTools.map(tool => tool.title))]
@@ -118,7 +168,7 @@ const store = useWorkbenchChatStore()
 function onProcessToggle(id: string, event: Event) {
   if ((event.currentTarget as HTMLDetailsElement).open) openGroups.add(id)
   else openGroups.delete(id)
-  if (openGroups.size && !working.value && !processLoaded.value) void loadProcess()
+  if (processOpen.value && openGroups.size && !working.value && !processLoaded.value) void loadProcess()
 }
 async function loadProcess() {
   if (loadingProcess.value) return
@@ -154,10 +204,18 @@ watch(() => props.run.id, () => {
   processError.value = ''
   loadingProcess.value = false
   processLoaded.value = false
-  if (openGroups.size && !working.value && (props.run.browser_driven || !!props.run.tool_calls)) void loadProcess()
+  openGroups.clear()
+  ranHere.value = working.value
+  processExpanded.value = false
 })
 watch(working, active => {
-  if (!active && openGroups.size && !processLoaded.value) void loadProcess()
+  if (active) {
+    ranHere.value = true
+    processExpanded.value = false
+  }
+})
+watch([working, processOpen], ([active, expanded]) => {
+  if (!active && expanded && openGroups.size && !processLoaded.value) void loadProcess()
 })
 onBeforeUnmount(() => {
   processRequest?.abort()

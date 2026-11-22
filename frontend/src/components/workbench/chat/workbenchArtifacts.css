@@ -2,6 +2,10 @@
  * Linsight/Execution and Linsight/Artifacts. Apache-2.0.
  * Kept local to the workbench; inherited colors also support its preview portal. */
 .bso-task-turn { min-width:0; }
+.bs-chat-process.bs-chat-turn-process > summary { padding:2px 0; background:transparent; }
+.bs-chat-turn-process > summary[aria-disabled="true"] { cursor:default; }
+.bs-chat-turn-process > summary:not([aria-disabled]):hover { color:var(--bc-ink); }
+.bs-chat-turn-process-body { margin-top:6px; }
 .bso-execution-timeline { width:100%; min-width:0; margin:8px 0; }
 .bso-deep-group { width:100%; min-width:0; padding-bottom:12px; }
 .bso-group-trigger { display:flex; align-items:center; width:100%; gap:8px; padding:4px 0; border:0; background:var(--bc-page,#fff); color:var(--bc-muted,#999); text-align:left; font-size:14px; line-height:22px; font-weight:500; cursor:pointer; }

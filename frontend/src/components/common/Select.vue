@@ -145,6 +145,7 @@ interface Props {
   disabled?: boolean
   error?: boolean
   searchable?: boolean | 'auto'
+  compact?: boolean
   searchPlaceholder?: string
   emptyText?: string
   valueKey?: string
@@ -193,7 +194,6 @@ const optionsListRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<'bottom' | 'top'>('bottom')
 const triggerRect = ref<DOMRect | null>(null)
 const dropdownViewportPadding = 8
-const dropdownMinimumWidth = 200
 
 // i18n placeholders
 const placeholderText = computed(() => props.placeholder ?? t('common.selectOption'))
@@ -217,16 +217,19 @@ const dropdownStyle = computed(() => {
 
   const rect = triggerRect.value
   const viewportRight = Math.max(dropdownViewportPadding, window.innerWidth - dropdownViewportPadding)
-  const left = Math.min(
-    Math.max(dropdownViewportPadding, rect.left),
+  // Compact selectors sit near the right edge of workbench toolbars.
+  const edge = props.compact ? 'right' : 'left'
+  const triggerOffset = props.compact ? window.innerWidth - rect.right : rect.left
+  const offset = Math.min(
+    Math.max(dropdownViewportPadding, triggerOffset),
     viewportRight
   )
-  const availableWidth = Math.max(0, viewportRight - left)
-  const preferredMinWidth = Math.max(dropdownMinimumWidth, rect.width)
+  const availableWidth = Math.max(0, viewportRight - offset)
+  const preferredMinWidth = Math.max(props.compact ? 112 : 200, rect.width)
   const minWidth = Math.min(preferredMinWidth, availableWidth)
   const style: Record<string, string> = {
     position: 'fixed',
-    left: `${left}px`,
+    [edge]: `${offset}px`,
     minWidth: `${minWidth}px`,
     maxWidth: `${availableWidth}px`,
     zIndex: '100000020'

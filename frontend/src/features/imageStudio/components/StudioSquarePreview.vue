@@ -21,20 +21,36 @@
           </div>
           <span class="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">{{ submissionStage ? runningLabel : t('imageStudio.result.rendering') }}</span>
         </template>
-        <button
-          v-else-if="source"
-          type="button"
-          class="group h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
-          :aria-label="t('imageStudio.result.zoomAria')"
-          @click="openLightbox"
-        >
-          <img :src="source" :data-image-id="imageId" :alt="t('imageStudio.result.imageAlt')" class="h-full w-full object-contain" @error="failed = true; source = null" />
-        </button>
-        <div v-else class="flex flex-col items-center gap-2 px-4 text-center text-sm text-gray-400">
-          <StudioIcon v-if="task.status === 'error'" name="ImageUploadIcon" class="h-10 w-10 text-gray-300 dark:text-dark-600" />
-          <LoadingSpinner v-else-if="loading" size="md" />
-          <span>{{ task.status === 'error' ? t('imageStudio.result.noOutput') : failed ? t('imageStudio.result.imageUnavailable') : t('imageStudio.result.unavailable') }}</span>
-        </div>
+        <template v-else>
+          <button
+            v-if="source"
+            :key="imageId"
+            type="button"
+            class="group h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500"
+            :class="{ 'opacity-0': loading }"
+            :disabled="loading"
+            :aria-hidden="loading || undefined"
+            :aria-label="t('imageStudio.result.zoomAria')"
+            @click="openLightbox"
+          >
+            <img
+              :src="source"
+              :data-image-id="imageId"
+              :alt="t('imageStudio.result.imageAlt')"
+              class="h-full w-full object-contain"
+              @load="loading = false"
+              @error="onImageError"
+            />
+          </button>
+          <div v-if="loading" class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm text-gray-400" role="status">
+            <LoadingSpinner size="md" aria-hidden="true" />
+            <span>{{ t('imageStudio.result.loadingImage') }}</span>
+          </div>
+          <div v-else-if="!source" class="flex flex-col items-center gap-2 px-4 text-center text-sm text-gray-400" role="status">
+            <StudioIcon v-if="task.status === 'error'" name="ImageUploadIcon" class="h-10 w-10 text-gray-300 dark:text-dark-600" />
+            <span>{{ t(task.status === 'error' ? 'imageStudio.result.noOutput' : 'imageStudio.result.imageUnavailable') }}</span>
+          </div>
+        </template>
       </div>
     </div>
     <button
@@ -64,7 +80,6 @@ const props = defineProps<{ task: TaskRecord; imageId?: string }>()
 const emit = defineEmits<{ selectImage: [index: number] }>()
 const { t } = useI18n()
 const source = ref<string | null>(null)
-const failed = ref(false)
 const loading = ref(false)
 const imageIndex = computed(() => Math.max(0, props.task.outputImages.indexOf(props.imageId ?? '')))
 const multiple = computed(() => props.task.outputImages.length > 1)
@@ -76,20 +91,22 @@ watch(() => props.imageId, async (id, _previous, onCleanup) => {
   let active = true
   onCleanup(() => { active = false })
   source.value = id ? getCachedPreviewUrl(id) ?? null : null
-  failed.value = false
-  loading.value = Boolean(id && !source.value)
+  loading.value = Boolean(id)
   if (!id || source.value) return
   try {
     const value = await ensureImagePreviewUrl(id)
     if (!active) return
     source.value = value ?? null
-    failed.value = !value
+    if (!value) loading.value = false
   } catch {
-    if (active) failed.value = true
-  } finally {
     if (active) loading.value = false
   }
 }, { immediate: true })
+
+function onImageError() {
+  source.value = null
+  loading.value = false
+}
 
 function selectImage(index: number) {
   if (index >= 0 && index < props.task.outputImages.length) emit('selectImage', index)
