@@ -55,7 +55,7 @@ func TestWorkbenchDOCXSplitRunsAndPartScope(t *testing.T) {
 
 	raw, err := result.Open("word/document.xml")
 	require.NoError(t, err)
-	defer raw.Close()
+	t.Cleanup(func() { require.NoError(t, raw.Close()) })
 	xmlData, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	require.Contains(t, string(xmlData), `xml:space="preserve" x:name="xml:space='ignored'">前甲&amp;乙 </w:t>`)
@@ -85,7 +85,7 @@ func TestWorkbenchDOCXCreateAndPaginate(t *testing.T) {
 		page, err := inspectWorkbenchDOCXPackage(ctx, book, options)
 		require.NoError(t, err)
 		for _, section := range page.Sections {
-			seen.WriteString(section.Text)
+			_, _ = seen.WriteString(section.Text)
 		}
 		if page.NextOffset == nil {
 			break

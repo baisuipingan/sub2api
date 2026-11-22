@@ -208,9 +208,9 @@ func newWorkbenchAnthropicBlock(raw json.RawMessage) (*workbenchAnthropicBlock, 
 	if json.Unmarshal(raw, &initial) != nil {
 		return nil, workbenchNativeDelta{}, workbenchNativeParseError("invalid Anthropic content block")
 	}
-	block.text.WriteString(initial.Text)
-	block.thinking.WriteString(initial.Thinking)
-	block.signature.WriteString(initial.Signature)
+	_, _ = block.text.WriteString(initial.Text)
+	_, _ = block.thinking.WriteString(initial.Thinking)
+	_, _ = block.signature.WriteString(initial.Signature)
 	if data := block.raw["citations"]; len(data) > 0 && json.Unmarshal(data, &block.citations) != nil {
 		return nil, workbenchNativeDelta{}, workbenchNativeParseError("invalid Anthropic citations")
 	}
@@ -223,16 +223,16 @@ func newWorkbenchAnthropicBlock(raw json.RawMessage) (*workbenchAnthropicBlock, 
 func (b *workbenchAnthropicBlock) apply(delta apicompat.AnthropicDelta, citation json.RawMessage) (workbenchNativeDelta, error) {
 	switch {
 	case b.typ == "text" && delta.Type == "text_delta":
-		b.text.WriteString(delta.Text)
+		_, _ = b.text.WriteString(delta.Text)
 		return workbenchNativeDelta{Text: delta.Text}, nil
 	case b.typ == "text" && delta.Type == "citations_delta" && workbenchJSONObject(citation):
 		b.citations = append(b.citations, citation)
 	case b.typ == "thinking" && delta.Type == "thinking_delta":
-		b.thinking.WriteString(delta.Thinking)
+		_, _ = b.thinking.WriteString(delta.Thinking)
 	case b.typ == "thinking" && delta.Type == "signature_delta":
-		b.signature.WriteString(delta.Signature)
+		_, _ = b.signature.WriteString(delta.Signature)
 	case b.typ == "tool_use" && delta.Type == "input_json_delta":
-		b.input.WriteString(delta.PartialJSON)
+		_, _ = b.input.WriteString(delta.PartialJSON)
 	default:
 		return workbenchNativeDelta{}, workbenchNativeParseError("unsupported Anthropic content delta")
 	}

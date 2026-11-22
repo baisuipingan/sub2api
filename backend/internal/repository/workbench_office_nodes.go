@@ -38,7 +38,7 @@ func (r *officeAgentRepository) ListOfficeNodes(ctx context.Context) ([]service.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	nodes := make([]service.OfficeNode, 0)
 	for rows.Next() {
 		node, err := scanOfficeNode(rows)

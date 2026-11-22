@@ -166,9 +166,13 @@ func (s *OfficeAgentService) finishOfficeDispatch(ctx context.Context, target *o
 	if target == nil {
 		return nil
 	}
+	repo, ok := s.repo.(officeDispatchRepository)
+	if !ok {
+		return ErrOfficeDisabled
+	}
 	finish, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	return s.repo.(officeDispatchRepository).FinishOfficeDispatch(finish, *target.item, state)
+	return repo.FinishOfficeDispatch(finish, *target.item, state)
 }
 
 func (s *OfficeAgentService) officeWorkerReceipt(ctx context.Context, target *officeDispatchTarget, endpoint string, submit func() ([]byte, error)) ([]byte, error) {
@@ -198,7 +202,11 @@ func (s *OfficeAgentService) officeWorkerReceipt(ctx context.Context, target *of
 			return nil, ErrOfficeStepBusy
 		}
 		if err == nil && receipt.Output != nil && (receipt.Status == "completed" || receipt.Status == "partial") {
-			if saveErr := s.repo.(officeDispatchRepository).SaveOfficeDispatchReceipt(ctx, *target.item, raw); saveErr != nil {
+			repo, ok := s.repo.(officeDispatchRepository)
+			if !ok {
+				return nil, ErrOfficeDisabled
+			}
+			if saveErr := repo.SaveOfficeDispatchReceipt(ctx, *target.item, raw); saveErr != nil {
 				return nil, saveErr
 			}
 		}

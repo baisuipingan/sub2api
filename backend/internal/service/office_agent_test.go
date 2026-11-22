@@ -328,7 +328,8 @@ func TestWorkbenchModelCatalogUsesProtocolSpecificRoutes(t *testing.T) {
 		{ID: 2, GroupID: 12, Enabled: true, PublicModel: "responses-only", MatchType: CompositeRouteMatchExact, Endpoint: CompositeRouteEndpointResponses, TargetPlatform: PlatformOpenAI, UpstreamModel: "target"},
 	}}
 	group := &Group{ID: 12, Platform: PlatformComposite}
-	workbench := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	workbench, ok := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	require.True(t, ok)
 	protocols, err := workbench.modelRoutes(context.Background(), group)
 	require.NoError(t, err)
 	require.Equal(t, workbenchModelRoute{protocol: workbenchProtocolChatCompletions}, protocols["chat-only"])

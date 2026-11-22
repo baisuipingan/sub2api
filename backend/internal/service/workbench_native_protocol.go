@@ -494,8 +494,8 @@ func (s *workbenchNativeStream) Write(data []byte) (workbenchNativeDelta, error)
 		if err != nil {
 			return workbenchNativeDelta{Text: text.String(), ReasoningSummary: summary.String()}, err
 		}
-		text.WriteString(part.Text)
-		summary.WriteString(part.ReasoningSummary)
+		_, _ = text.WriteString(part.Text)
+		_, _ = summary.WriteString(part.ReasoningSummary)
 	}
 	return workbenchNativeDelta{Text: text.String(), ReasoningSummary: summary.String()}, nil
 }
@@ -508,8 +508,8 @@ func (s *workbenchNativeStream) readLine(line []byte) (workbenchNativeDelta, err
 		delta, err := s.readFrame(s.frame)
 		s.frame = s.frame[:0]
 		if err == nil {
-			s.text.WriteString(delta.Text)
-			s.summary.WriteString(delta.ReasoningSummary)
+			_, _ = s.text.WriteString(delta.Text)
+			_, _ = s.summary.WriteString(delta.ReasoningSummary)
 		}
 		return delta, err
 	}
@@ -873,7 +873,7 @@ func (s *workbenchNativeStream) readChatFrame(payload []byte) (workbenchNativeDe
 			continue
 		}
 		delta.Text += choice.Delta.Content + choice.Delta.Refusal
-		s.chatReasoning.WriteString(choice.Delta.Reasoning)
+		_, _ = s.chatReasoning.WriteString(choice.Delta.Reasoning)
 		if choice.FinishReason != "" {
 			s.finish = choice.FinishReason
 		}

@@ -127,7 +127,7 @@ func (s *OfficeAgentService) callOfficeWorker(ctx context.Context, method, endpo
 	if err != nil {
 		return nil, ErrOfficeStepBusy
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, ErrOfficeStepBusy
@@ -570,7 +570,7 @@ func (s *OfficeAgentService) cancelRemoteOfficeTools(ctx context.Context, run *O
 			}
 			if item != nil {
 				if s.cancelAssignedOfficeJob(ctx, *item) {
-					_ = s.repo.(officeDispatchRepository).FinishOfficeDispatch(ctx, *item, "cancelled")
+					_ = s.finishOfficeDispatch(ctx, &officeDispatchTarget{item: item}, "cancelled")
 				}
 			} else if s.cfg.ToolsURL != "" {
 				_, _ = s.callOfficeWorker(ctx, http.MethodDelete, "/v1/jobs/"+key, nil, 64<<10)

@@ -183,10 +183,10 @@ func workbenchHistoryExcerpts(history []workbenchNativeMessage, budget int) stri
 		return ""
 	}
 	var output strings.Builder
-	output.WriteString(heading)
+	_, _ = output.WriteString(heading)
 	for i := len(excerpts) - 1; i >= 0; i-- {
-		output.WriteByte('\n')
-		output.WriteString(excerpts[i])
+		_ = output.WriteByte('\n')
+		_, _ = output.WriteString(excerpts[i])
 	}
 	return output.String()
 }

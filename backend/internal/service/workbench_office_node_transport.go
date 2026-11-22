@@ -38,7 +38,9 @@ func normalizeOfficeNodeOrigin(raw string) (string, error) {
 		}
 		host = ip.Unmap().String()
 	} else if net.ParseIP(host) != nil || host == "" || strings.IndexFunc(host, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '.')
+		isLetter := r >= 'a' && r <= 'z'
+		isDigit := r >= '0' && r <= '9'
+		return !isLetter && !isDigit && r != '-' && r != '.'
 	}) >= 0 || host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return "", ErrOfficeNodeInvalid
 	}
@@ -151,7 +153,7 @@ func (s *OfficeAgentService) sendOfficeNodeRequest(ctx context.Context, node Off
 	if err != nil {
 		return 0, nil, "", ErrOfficeNodeUnavailable
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	actualIdentity := resp.Header.Get(officeNodeIdentityHeader)
 	if resp.StatusCode == http.StatusUnauthorized || !officeIdentifier(actualIdentity, 128) {
 		return 0, nil, "", ErrOfficeNodeUnavailable

@@ -53,7 +53,7 @@ func (r *officeAgentRepository) AssignOfficeDispatch(ctx context.Context, key, n
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var state string
 	var cap int
@@ -107,7 +107,7 @@ ORDER BY next_check_at LIMIT $2 FOR UPDATE SKIP LOCKED) RETURNING `+officeDispat
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []service.OfficeDispatch
 	for rows.Next() {
 		item, err := scanOfficeDispatch(rows)

@@ -311,9 +311,9 @@ func readWorkbenchDOCXPart(part *zip.File) ([]byte, error) {
 	if err != nil {
 		return nil, ErrOfficeResourceType
 	}
-	defer file.Close()
 	raw, err := io.ReadAll(io.LimitReader(file, int64(part.UncompressedSize64)+1))
-	if err != nil || uint64(len(raw)) != part.UncompressedSize64 {
+	closeErr := file.Close()
+	if err != nil || closeErr != nil || uint64(len(raw)) != part.UncompressedSize64 {
 		return nil, ErrOfficeResourceType
 	}
 	return raw, nil
@@ -333,7 +333,7 @@ type workbenchDOCXParagraph struct {
 func (p *workbenchDOCXParagraph) text() string {
 	var out strings.Builder
 	for _, node := range p.nodes {
-		out.WriteString(node.text)
+		_, _ = out.WriteString(node.text)
 	}
 	return out.String()
 }
@@ -437,7 +437,7 @@ func parseWorkbenchDOCXPart(ctx context.Context, raw []byte, scope string) ([]*w
 			}
 		case xml.CharData:
 			if current != nil {
-				currentText.Write(node)
+				_, _ = currentText.Write(node)
 			} else if depth == 0 && len(bytes.TrimSpace(node)) != 0 {
 				return nil, ErrOfficeResourceType
 			}
@@ -538,7 +538,7 @@ func inspectWorkbenchDOCXPackage(ctx context.Context, book *zip.Reader, option W
 					_, size := utf8.DecodeRuneInString(content[end:])
 					end += size
 				}
-				section.WriteString(content[:end])
+				_, _ = section.WriteString(content[:end])
 				if section.Len() > 0 {
 					result.Sections = append(result.Sections, workbenchDOCXSection{sectionScope, part.file.Name, section.String()})
 				}
@@ -546,7 +546,7 @@ func inspectWorkbenchDOCXPackage(ctx context.Context, book *zip.Reader, option W
 				result.NextOffset = &next
 				return result, nil
 			}
-			section.WriteString(content)
+			_, _ = section.WriteString(content)
 			remaining -= runes
 		}
 		if section.Len() > 0 {
@@ -580,7 +580,7 @@ func (p *workbenchDOCXParagraph) edit(edit WorkbenchDOCXEdit, growthLeft *int64)
 		current := &p.nodes[node]
 		length := len(current.text)
 		if written != 0 {
-			output.WriteString(current.text[written:])
+			_, _ = output.WriteString(current.text[written:])
 			current.text = output.String()
 			output.Reset()
 			written = 0
@@ -598,8 +598,8 @@ func (p *workbenchDOCXParagraph) edit(edit WorkbenchDOCXEdit, growthLeft *int64)
 		for nodeStart+len(p.nodes[node].text) <= start {
 			advance()
 		}
-		output.WriteString(p.nodes[node].text[written : start-nodeStart])
-		output.WriteString(edit.NewText)
+		_, _ = output.WriteString(p.nodes[node].text[written : start-nodeStart])
+		_, _ = output.WriteString(edit.NewText)
 		for nodeStart+len(p.nodes[node].text) < end {
 			written = len(p.nodes[node].text)
 			advance()
@@ -631,25 +631,25 @@ func renderWorkbenchDOCXPart(raw []byte, paragraphs []*workbenchDOCXParagraph) (
 	var out bytes.Buffer
 	offset := 0
 	for _, node := range changes {
-		out.Write(raw[offset:node.start])
+		_, _ = out.Write(raw[offset:node.start])
 		tag := raw[node.start:node.content]
 		if strings.TrimSpace(node.text) != node.text {
 			if node.spaceAttribute {
 				for _, attribute := range workbenchDOCXXMLAttribute.FindAllSubmatchIndex(tag, -1) {
 					if string(tag[attribute[2]:attribute[3]]) == "xml:space" {
-						out.Write(tag[:attribute[0]])
-						out.WriteString(`xml:space="preserve"`)
+						_, _ = out.Write(tag[:attribute[0]])
+						_, _ = out.WriteString(`xml:space="preserve"`)
 						tag = tag[attribute[1]:]
 						break
 					}
 				}
 			} else {
-				out.Write(tag[:len(tag)-1])
-				out.WriteString(` xml:space="preserve"`)
+				_, _ = out.Write(tag[:len(tag)-1])
+				_, _ = out.WriteString(` xml:space="preserve"`)
 				tag = tag[len(tag)-1:]
 			}
 		}
-		out.Write(tag)
+		_, _ = out.Write(tag)
 		if err := xml.EscapeText(&out, []byte(node.text)); err != nil {
 			return nil, err
 		}
@@ -658,7 +658,7 @@ func renderWorkbenchDOCXPart(raw []byte, paragraphs []*workbenchDOCXParagraph) (
 			return nil, ErrOfficeResourceTooLarge
 		}
 	}
-	out.Write(raw[offset:])
+	_, _ = out.Write(raw[offset:])
 	if out.Len() > workbenchDOCXMaxXML {
 		return nil, ErrOfficeResourceTooLarge
 	}
@@ -791,11 +791,11 @@ func createWorkbenchDOCXPackage(ctx context.Context, input WorkbenchDOCXCreate) 
 	}
 	var paragraphs strings.Builder
 	if input.Title != "" {
-		paragraphs.WriteString(`<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">`)
+		_, _ = paragraphs.WriteString(`<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">`)
 		if err := xml.EscapeText(&paragraphs, []byte(input.Title)); err != nil {
 			return nil, err
 		}
-		paragraphs.WriteString(`</w:t></w:r></w:p>`)
+		_, _ = paragraphs.WriteString(`</w:t></w:r></w:p>`)
 	}
 	for _, paragraph := range input.Paragraphs {
 		if err := ctx.Err(); err != nil {
@@ -804,21 +804,21 @@ func createWorkbenchDOCXPackage(ctx context.Context, input WorkbenchDOCXCreate) 
 		if !workbenchDOCXText(paragraph) {
 			return nil, fmt.Errorf("%w: put each line of text in a separate paragraph", ErrOfficeInvalid)
 		}
-		paragraphs.WriteString(`<w:p><w:r><w:t xml:space="preserve">`)
+		_, _ = paragraphs.WriteString(`<w:p><w:r><w:t xml:space="preserve">`)
 		if err := xml.EscapeText(&paragraphs, []byte(paragraph)); err != nil {
 			return nil, err
 		}
-		paragraphs.WriteString(`</w:t></w:r></w:p>`)
+		_, _ = paragraphs.WriteString(`</w:t></w:r></w:p>`)
 		if paragraphs.Len() > workbenchDOCXMaxXML {
 			return nil, ErrOfficeResourceTooLarge
 		}
 	}
 	core := strings.Builder{}
-	core.WriteString(`<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="` + workbenchDOCXTitleNS + `"><dc:title>`)
+	_, _ = core.WriteString(`<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="` + workbenchDOCXTitleNS + `"><dc:title>`)
 	if err := xml.EscapeText(&core, []byte(input.Title)); err != nil {
 		return nil, err
 	}
-	core.WriteString(`</dc:title></cp:coreProperties>`)
+	_, _ = core.WriteString(`</dc:title></cp:coreProperties>`)
 	const officeRelationships = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
 	const packageRelationships = "http://schemas.openxmlformats.org/package/2006/relationships"
 	parts := []struct{ name, contents string }{

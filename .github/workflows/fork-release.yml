@@ -157,7 +157,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm test:run
           pnpm run typecheck
-          pnpm run build
+          NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 
       - name: Validate release scripts
         run: |

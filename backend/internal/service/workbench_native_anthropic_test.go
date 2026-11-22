@@ -37,7 +37,7 @@ func TestWorkbenchNativeAnthropicPreservesOrderedBlocksAcrossUserTurns(t *testin
 		delta, err := stream.Write([]byte(wire[index:min(index+17, len(wire))]))
 		require.NoError(t, err)
 		require.Empty(t, delta.ReasoningSummary)
-		text.WriteString(delta.Text)
+		_, _ = text.WriteString(delta.Text)
 	}
 	reply, err := stream.Result()
 	require.NoError(t, err)

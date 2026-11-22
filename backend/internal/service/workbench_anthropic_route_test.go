@@ -19,7 +19,8 @@ func TestWorkbenchMessagesPrefersNativeAnthropicRouteAndKeepsCompatibleEndpoint(
 	routes := compositeRouteRepoStub{routes: []CompositeModelRoute{
 		{ID: 1, GroupID: group.ID, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: model, Endpoint: CompositeRouteEndpointChatCompletions, TargetPlatform: PlatformOpenAI, UpstreamModel: "claude-compatible"},
 	}}
-	catalog := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	catalog, ok := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	require.True(t, ok)
 	ctx := context.Background()
 	protocols, err := catalog.modelRoutes(ctx, group)
 	require.NoError(t, err)
@@ -40,7 +41,8 @@ func TestWorkbenchMessagesUsesResponsesCapabilityWithoutLosingBridgedAliases(t *
 	routes := compositeRouteRepoStub{routes: []CompositeModelRoute{
 		{ID: 1, GroupID: group.ID, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: "bridge-public", Endpoint: CompositeRouteEndpointResponses, TargetPlatform: PlatformOpenAI, UpstreamModel: "bridge-target"},
 	}}
-	catalog := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	catalog, ok := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	require.True(t, ok)
 	choices, err := catalog.modelRoutes(context.Background(), group)
 	require.NoError(t, err)
 	require.Equal(t, workbenchModelRoute{protocol: workbenchProtocolResponses, nativeResponses: true}, choices["gpt-6-sol"])
