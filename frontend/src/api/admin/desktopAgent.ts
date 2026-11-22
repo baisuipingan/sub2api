@@ -32,7 +32,7 @@ export interface DesktopAgentConfig {
   model_profiles?: Record<string, DesktopAgentModelProfileBinding>
 }
 
-export interface DesktopAgentModels { group_id: number; models: string[] }
+export interface DesktopAgentModels { group_id: number; models: string[]; web_only?: string[] }
 export interface DesktopAgentModelProfileBinding { profile_id: string; override: boolean }
 export interface DesktopAgentProfile {
   id: string

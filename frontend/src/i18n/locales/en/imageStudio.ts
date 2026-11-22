@@ -271,6 +271,8 @@ imageStudio: {
     outputCount: '{count} generated images',
     assetCount: 'All image assets {count} / {limit}',
     usedSpace: 'Storage {used} / {limit}',
+    taskStorage: '{size} stored',
+    taskStorageHint: 'Originals, previews, and thumbnails linked to this task, including reference images and other attachments.',
     statsUnavailable: 'Cloud totals are temporarily unavailable',
     retrySync: 'Retry sync',
     retryAll: 'Retry failed items',

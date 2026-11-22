@@ -16,13 +16,14 @@ export const workbenchChatApi = {
   async tools(id: string, signal: AbortSignal) { return (await apiClient.get<{ items: ChatToolSummary[] }>(`${base}/runs/${segment(id)}/tools`, { signal })).data.items },
   async toolDetail(id: string, operation: string, signal: AbortSignal) { return (await apiClient.get<ChatToolDetail>(`${base}/runs/${segment(id)}/tools/${segment(operation)}`, { signal })).data },
   async advance(id: string, signal: AbortSignal) {
-    return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/advance`, undefined, { signal, timeout: 0 })).data
+    return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/advance`, undefined, { signal, timeout: 25000 })).data
   },
   async selectAnswer(id: string) { return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/select`)).data },
   async cancel(id: string) { return (await apiClient.delete<ChatRun>(`${base}/runs/${segment(id)}`)).data },
   async clarify(id: string, request_id: string, answers: ChatClarificationAnswer[]) { return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/input`, { request_id, answers })).data },
   async upload(file: File) { const body = new FormData(); body.append('file', file); return (await apiClient.post<ChatResource>(`${base}/resources`, body, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data },
-  async resources(cursor?: string) { return (await apiClient.get<{ items: ChatArtifact[]; next_cursor?: string }>(`${base}/resources`, { params: { cursor, limit: 40 } })).data },
+  async resources(cursor?: string, source?: 'gallery') { return (await apiClient.get<{ items: ChatArtifact[]; next_cursor?: string }>(`${base}/resources`, { params: { cursor, source, limit: 40 } })).data },
+  async attachGalleryImage(id: string) { return (await apiClient.post<ChatArtifact>(`${base}/gallery-images/${segment(id)}/attach`)).data },
   async deleteResource(id: string) { await apiClient.delete(`${base}/resources/${segment(id)}`) },
   async access(versionId: string, signal?: AbortSignal) { return (await apiClient.get<ChatResourceAccess>(`${base}/resources/${segment(versionId)}/access`, { signal })).data },
   async printPreview(versionId: string, signal: AbortSignal, retry = false) {

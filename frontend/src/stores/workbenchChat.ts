@@ -48,6 +48,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
   const error = ref('')
   const streamError = ref('')
   const advanceError = ref('')
+  const modelRouteChangedRunID = ref('')
   const connectionError = computed(() => advanceError.value || streamError.value)
   const nextCursor = ref<string | undefined>()
   const initialized = ref(false)
@@ -82,6 +83,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       // explicitly clear removed files with artifacts: [].
       const previous = history.value.runs[i]!
       if (!CHAT_ACTIVE_STATUSES.has(previous.status) && CHAT_ACTIVE_STATUSES.has(run.status)) return
+      if (CHAT_ACTIVE_STATUSES.has(previous.status) && run.error_code === 'MODEL_ROUTE_CHANGED') modelRouteChangedRunID.value = run.id
       history.value.runs.splice(i, 1, run.artifacts === undefined && previous.artifacts !== undefined ? { ...run, artifacts: previous.artifacts } : run)
     }
     else history.value.runs.push(run)
@@ -94,7 +96,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       last.payload.text += event.payload.text; last.sequence = event.sequence; last.id = event.id
     } else { list.push(event); list.sort((a, b) => a.sequence - b.sequence) }
     if (list.length > 2000) {
-      const disposable = list.findIndex(e => !['assistant.delta', 'assistant.partial', 'reasoning.delta', 'clarification.requested', 'artifact.published', 'task.updated'].includes(e.type))
+      const disposable = list.findIndex(e => !['assistant.delta', 'assistant.partial', 'reasoning.delta', 'model.started', 'model.completed', 'tool.started', 'tool.completed', 'clarification.requested', 'artifact.published', 'task.updated'].includes(e.type))
       if (disposable >= 0) list.splice(disposable, 1)
       else list.splice(0, 1)
     }
@@ -123,6 +125,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
         const code = event.payload.error_code ?? event.payload.code
         const message = event.payload.error_message ?? event.payload.message
         if (typeof code === 'string') run.error_code = code
+        if (code === 'MODEL_ROUTE_CHANGED') modelRouteChangedRunID.value = run.id
         if (typeof message === 'string') run.error_message = message
       }
     }
@@ -302,7 +305,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     try {
       let id = activeConversationId.value
       if (!id) {
-        const conversation = await createConversation(input.content.trim().slice(0, 60))
+        const conversation = await createConversation(Array.from(input.content.trim()).slice(0, 60).join(''))
         if (owner !== authEpoch || selected !== selectionEpoch) return
         id = conversation.id; activeConversationId.value = id
       }
@@ -346,6 +349,8 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     } catch (e) {
       if (epoch !== selectionEpoch) return
       error.value = chatError(e)
+      const current = activeRun.value
+      if (current?.id === run.id) watchRun(current, id, epoch)
     }
   }
   async function renameConversation(id: string, title: string) {
@@ -366,7 +371,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     if (activeConversationId.value === id) await selectConversation('')
   }
   function newConversation() { return selectConversation('') }
-  function reset() { stopWatching(); ++selectionEpoch; ++authEpoch; loading.value = false; submitting.value = false; loadingConversations.value = false; loadingEarlier.value = false; nextBefore.value = undefined; hasMoreHistory.value = false; error.value = ''; nextCursor.value = undefined; initialized.value = false; conversations.value = []; history.value = { messages: [], runs: [] }; events.value = {}; activeConversationId.value = ''; status.value = null; modelCatalog.value = { models: [] }; pending = undefined }
+  function reset() { stopWatching(); ++selectionEpoch; ++authEpoch; loading.value = false; submitting.value = false; loadingConversations.value = false; loadingEarlier.value = false; nextBefore.value = undefined; hasMoreHistory.value = false; error.value = ''; nextCursor.value = undefined; initialized.value = false; conversations.value = []; history.value = { messages: [], runs: [] }; events.value = {}; activeConversationId.value = ''; status.value = null; modelCatalog.value = { models: [] }; pending = undefined; modelRouteChangedRunID.value = '' }
   watch(() => auth.user?.id, () => reset(), { flush: 'sync' })
-  return { status, modelCatalog, models, conversations, activeConversationId, currentConversation, history, events, activeRun, loading, loadingEarlier, hasMoreHistory, loadEarlier, loadRunEvents, loadingConversations, submitting, error, connectionError, nextCursor, initialized, initialize, loadConversations, loadMore: () => loadConversations(true), selectConversation, createConversation, renameConversation, deleteConversation, newConversation, send, selectAnswer, cancelRun, pause, reset }
+  return { status, modelCatalog, models, conversations, activeConversationId, currentConversation, history, events, activeRun, loading, loadingEarlier, hasMoreHistory, loadEarlier, loadRunEvents, loadingConversations, submitting, error, connectionError, modelRouteChangedRunID, nextCursor, initialized, initialize, loadConversations, loadMore: () => loadConversations(true), selectConversation, createConversation, renameConversation, deleteConversation, newConversation, send, selectAnswer, cancelRun, pause, reset }
 })

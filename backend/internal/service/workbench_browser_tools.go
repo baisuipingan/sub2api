@@ -40,11 +40,6 @@ func (s *OfficeAgentService) runBrowserTool(ctx context.Context, repo workbenchB
 		WorkbenchDOCXInspectOptions
 	}
 	decodeErr := json.Unmarshal(call.Arguments, &args)
-	title := workbenchToolTitle(call.Name)
-	payload, _ := json.Marshal(map[string]string{"operation_id": id, "tool_name": call.Name, "title": title, "status": "running"})
-	if _, err := s.repo.AppendEvent(ctx, lease, id+":running", "tool.started", payload); err != nil {
-		return err
-	}
 	if decodeErr == nil && lease.Run.SearchEnabled {
 		switch {
 		case call.Name == "web_search" && strings.TrimSpace(args.Query) != "" && len(args.Query) <= 2000:

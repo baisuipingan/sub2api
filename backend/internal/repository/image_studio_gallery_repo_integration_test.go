@@ -93,21 +93,28 @@ func TestImageStudioGalleryRepositoryLifecycleAndSoftDeletedUser(t *testing.T) {
 	require.ErrorIs(t, err, service.ErrGalleryNotFound)
 
 	task := json.RawMessage(`{"id":"task-one","status":"done","outputImages":["image-one"]}`)
-	stored, err := repo.SaveTask(ctx, userID, "task-one", strings.Repeat("b", 64), task, []service.GalleryTaskLink{{ImageID: "image-one", Role: "output", Ordinal: 0}})
+	stored, err := repo.SaveTask(ctx, userID, "task-one", strings.Repeat("b", 64), task, []service.GalleryTaskLink{
+		{ImageID: "image-one", Role: "output", Ordinal: 0},
+		{ImageID: "image-one", Role: "input", Ordinal: 0},
+	})
 	require.NoError(t, err)
-	require.JSONEq(t, string(task), string(stored))
+	require.JSONEq(t, string(task), string(stored.Task))
+	require.Equal(t, int64(170), stored.StorageBytes)
 	stored, err = repo.SaveTask(ctx, userID, "task-one", strings.Repeat("b", 64), task, nil)
 	require.NoError(t, err)
-	require.JSONEq(t, string(task), string(stored))
+	require.JSONEq(t, string(task), string(stored.Task))
+	require.Equal(t, int64(170), stored.StorageBytes)
 	_, err = repo.SaveTask(ctx, userID, "task-one", strings.Repeat("c", 64), task, nil)
 	require.ErrorIs(t, err, service.ErrGalleryConflict)
 	page, err := repo.ListTasks(ctx, userID, "", 20)
 	require.NoError(t, err)
 	require.Len(t, page.Items, 1)
+	require.Equal(t, map[string]int64{"task-one": 170}, page.StorageBytesByTask)
 	require.Nil(t, page.NextCursor)
 	got, err := repo.GetTask(ctx, userID, "task-one")
 	require.NoError(t, err)
-	require.JSONEq(t, string(task), string(got))
+	require.JSONEq(t, string(task), string(got.Task))
+	require.Equal(t, int64(170), got.StorageBytes)
 
 	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET deleted_at=NOW() WHERE id=$1`, userID)
 	require.NoError(t, err)

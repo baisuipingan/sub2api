@@ -32,3 +32,19 @@ func workbenchModelProfile(id string, agent, legacy map[string]DesktopAgentModel
 	}
 	return nil
 }
+
+func workbenchReasoningEfforts(protocol workbenchProtocol, profile *DesktopAgentProfile) []string {
+	levels := append([]string{}, profile.OfficialReasoningLevels...)
+	switch protocol {
+	case workbenchProtocolAnthropic:
+		return slices.DeleteFunc(levels, func(effort string) bool {
+			return !workbenchAnthropicAcceptsEffort(effort)
+		})
+	case workbenchProtocolGemini:
+		return slices.DeleteFunc(levels, func(effort string) bool {
+			return !workbenchGeminiAcceptsEffort(profile.ID, effort)
+		})
+	default:
+		return levels
+	}
+}

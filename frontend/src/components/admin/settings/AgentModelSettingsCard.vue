@@ -4,6 +4,7 @@
       <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,0.55fr)_minmax(10rem,0.6fr)_auto] lg:items-end">
         <div class="min-w-0 space-y-2">
           <h3 class="break-all font-mono font-semibold text-gray-900 dark:text-white">{{ modelValue.id }}</h3>
+          <p v-if="webOnly" class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.webOnlySaved') }}</p>
           <p data-test="agent-capability-summary" class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ capabilitySummary }}</p>
           <label class="flex items-center gap-2 text-sm"><input data-test="agent-model-default" type="radio" name="agent-default-model" :checked="isDefault" :disabled="disabled" @change="$emit('make-default')" />{{ t('admin.agentSettings.defaultModel') }}</label>
         </div>
@@ -77,7 +78,7 @@ import type { DesktopAgentModel, DesktopAgentModelProfileBinding, DesktopAgentPr
 import { desktopAgentOutputBudgetCeiling, hasDesktopAgentOutputLimit, resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
 import Select from '@/components/common/Select.vue'
 
-const props = defineProps<{ modelValue: DesktopAgentModel; profiles: DesktopAgentProfile[]; binding?: DesktopAgentModelProfileBinding; profilesReady: boolean; index: number; isDefault: boolean; unavailable: boolean; disabled: boolean }>()
+const props = defineProps<{ modelValue: DesktopAgentModel; profiles: DesktopAgentProfile[]; binding?: DesktopAgentModelProfileBinding; profilesReady: boolean; index: number; isDefault: boolean; unavailable: boolean; webOnly?: boolean; disabled: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: DesktopAgentModel]; 'profile-change': [id: string]; 'override-change': [enabled: boolean]; 'restore-profile': []; remove: []; 'make-default': [] }>()
 const { t } = useI18n()
 const profile = computed(() => resolveDesktopAgentProfile(props.profiles, props.modelValue.id, props.binding))

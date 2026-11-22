@@ -642,6 +642,7 @@ export async function loadNextGalleryPage() {
       if (!task || pending.has(task.id)) continue
       const local = merged.get(task.id)
       if (local?.cloudCancelRequested || local?.cloudJobStatus === 'cancelled') continue
+      task.cloudStorageBytes = normalizeGalleryStorageBytes(page.storage_bytes_by_task?.[task.id])
       merged.set(task.id, task)
       await dbPutTask(task, session.scope)
     }
@@ -693,14 +694,21 @@ export async function syncGalleryTask(taskId: string, force = false) {
     if (!isGallerySessionCurrent(session)) return
     useStore.setState((current) => ({ gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'syncing' } }))
     try {
-      await uploadGalleryTask(task, () => isGallerySessionCurrent(session) && !deletingGalleryTasks.has(key), session.scope)
+      const archived = await uploadGalleryTask(task, () => isGallerySessionCurrent(session) && !deletingGalleryTasks.has(key), session.scope)
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
       await clearTaskPendingSync(taskId, session.scope)
       if (!isGallerySessionCurrent(session) || userId !== useStore.getState().galleryUserId || deletingGalleryTasks.has(key)) return
       registerCloudAssetIds(taskAssetIds(task))
       useStore.setState((current) => {
         const { [taskId]: _, ...gallerySyncErrorCode } = current.gallerySyncErrorCode
-        return { gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'synced' }, gallerySyncErrorCode }
+        const cloudStorageBytes = normalizeGalleryStorageBytes(archived?.storage_bytes)
+        return {
+          tasks: cloudStorageBytes === undefined
+            ? current.tasks
+            : current.tasks.map((item) => item.id === taskId ? { ...item, cloudStorageBytes } : item),
+          gallerySyncStatus: { ...current.gallerySyncStatus, [taskId]: 'synced' },
+          gallerySyncErrorCode,
+        }
       })
       void refreshGalleryStats()
     } catch (error) {
@@ -906,7 +914,11 @@ export function initStore(): Promise<void> {
         galleryHasMore: Boolean(status && userId),
       })
       const loadedTasks = (await getAllTasks())
-        .map(normalizeTask)
+        .map((cached) => {
+          const task = normalizeTask(cached)
+          if (task && userId) task.cloudStorageBytes = normalizeGalleryStorageBytes(cached.cloudStorageBytes)
+          return task
+        })
         .filter((task): task is TaskRecord => Boolean(task))
       if (session !== authSessionKey()) return
 
@@ -1047,6 +1059,7 @@ async function applyStudioJobNow(job: StudioJob, session: ReturnType<typeof capt
   if (!active) cloudNotificationSessions.delete(job.task_id)
   const task: TaskRecord = {
     ...normalized,
+    cloudStorageBytes: !active ? normalizeGalleryStorageBytes(job.storage_bytes) : undefined,
     execution: 'cloud',
     cloudJobStatus: job.status,
     status: active ? 'running' : done ? 'done' : 'error',
@@ -2080,7 +2093,7 @@ export async function exportData(options: { exportConfig?: boolean; exportTasks?
       options,
       exportedAt: Date.now(),
       settings: stripApiKeysFromSettings(state.settings),
-      tasks,
+      tasks: tasks.map(({ cloudStorageBytes: _cloudStorageBytes, ...task }) => task),
     }
     const plan = getExportZipPlan(params, sizes, { partBytes: 64 * 1024 * 1024 })
     for (const [index, part] of plan.entries()) {
@@ -2253,6 +2266,10 @@ function normalizeSettings(value: unknown): AppSettings {
     taskCompletionNotification: record.taskCompletionNotification === true,
     enterSubmit: record.enterSubmit === true,
   }
+}
+
+function normalizeGalleryStorageBytes(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
 }
 
 function normalizeTask(value: unknown): TaskRecord | null {

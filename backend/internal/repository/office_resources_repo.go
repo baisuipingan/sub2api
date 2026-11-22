@@ -31,6 +31,9 @@ func scanOfficeResource(row officeScanner) (*service.OfficeResource, error) {
 	} else {
 		v.Role = "input"
 	}
+	if v.Source == "gallery" && v.PreviewKey != "" {
+		v.PreviewMIME = service.GalleryStoredVariantMIME(v.PreviewKey)
+	}
 	return v, officeDBError(err)
 }
 
@@ -98,66 +101,118 @@ WHERE job_key=$1 AND user_id=$2 AND version_id=$3 FOR UPDATE`, assignment.Key, u
 	return tx.Commit()
 }
 
-// SyncGallery shares the gallery's user lock with deletion and cleanup. Pins
-// become visible atomically with adoption; no image object or bytes are copied.
-func (r *officeResourcesRepository) SyncGallery(ctx context.Context, userID int64) error {
+const officeGalleryImageColumns = "image_id,sha256,mime_type,byte_size,storage_endpoint,storage_region,storage_bucket,original_key,thumbnail_key,thumbnail_byte_size,created_at"
+
+func scanOfficeGalleryImage(row officeScanner, userID int64) (*service.OfficeResource, error) {
+	v := &service.OfficeResource{UserID: userID, Source: "gallery", Role: "input", PreviewKind: "image"}
+	if err := row.Scan(&v.GalleryImageID, &v.SHA256, &v.MIME, &v.Bytes, &v.Endpoint, &v.Region, &v.Bucket, &v.ObjectKey, &v.PreviewKey, &v.PreviewBytes, &v.CreatedAt); err != nil {
+		return nil, officeDBError(err)
+	}
+	if v.PreviewKey != "" {
+		v.PreviewMIME = service.GalleryStoredVariantMIME(v.PreviewKey)
+	}
+	ext := ".png"
+	switch v.MIME {
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
+	case "image/gif":
+		ext = ".gif"
+	}
+	v.Name = "图片-" + v.GalleryImageID + ext
+	return v, nil
+}
+
+// ListGalleryImages projects selectable images without creating office files or pins.
+func (r *officeResourcesRepository) ListGalleryImages(ctx context.Context, userID int64, cursor string, limit int) ([]service.OfficeResource, string, error) {
+	limit = officeLimit(limit)
+	var c officeResourceCursor
+	if cursor != "" {
+		data, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil || len(data) > 512 || json.Unmarshal(data, &c) != nil || c.At.IsZero() || c.ID == "" || len(c.ID) > 128 {
+			return nil, "", service.ErrOfficeInvalid
+		}
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT `+officeGalleryImageColumns+`
+		FROM image_studio_gallery_assets a WHERE a.user_id=$1 AND a.state='ready'
+		AND EXISTS(SELECT 1 FROM image_studio_gallery_task_assets l WHERE l.user_id=a.user_id AND l.image_id=a.image_id AND l.role='output')
+		AND ($2::timestamptz IS NULL OR (a.created_at,a.image_id)<($2,$3))
+		ORDER BY a.created_at DESC,a.image_id DESC LIMIT $4`, userID, officeNullableTime(c.At), c.ID, limit+1)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]service.OfficeResource, 0, limit)
+	for rows.Next() {
+		v, err := scanOfficeGalleryImage(rows, userID)
+		if err != nil {
+			return nil, "", err
+		}
+		v.ID = v.GalleryImageID
+		// Use the same version ID before and after selection so the picker
+		// can recognize images already selected or attached.
+		_, v.VersionID = officeGalleryResourceIDs(userID, v.GalleryImageID)
+		items = append(items, *v)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, "", err
+	}
+	if len(items) <= limit {
+		return items, "", nil
+	}
+	last := items[limit-1]
+	next, _ := json.Marshal(officeResourceCursor{At: last.CreatedAt, ID: last.GalleryImageID})
+	return items[:limit], base64.RawURLEncoding.EncodeToString(next), nil
+}
+
+func officeGalleryResourceIDs(userID int64, imageID string) (string, string) {
+	resourceID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("office-gallery:%d:%s", userID, imageID))).String()
+	return resourceID, uuid.NewSHA1(uuid.NameSpaceOID, []byte(resourceID+":original")).String()
+}
+
+// AttachGalleryImage adopts just the selected image under the gallery's user
+// lock. Its version and pin commit together with the current gallery target.
+func (r *officeResourcesRepository) AttachGalleryImage(ctx context.Context, userID int64, imageID string) (*service.OfficeResource, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err = galleryLockUser(ctx, tx, userID); err != nil {
-		return err
+		return nil, err
 	}
 	if err = galleryRequireActiveUser(ctx, tx, userID); err != nil {
-		return err
+		if errors.Is(err, service.ErrGalleryGone) {
+			return nil, service.ErrOfficeNotFound
+		}
+		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT image_id,sha256,mime_type,byte_size,storage_endpoint,storage_region,storage_bucket,original_key,thumbnail_key,thumbnail_byte_size,created_at FROM image_studio_gallery_assets a WHERE user_id=$1 AND state='ready' AND NOT EXISTS(SELECT 1 FROM office_resources r WHERE r.user_id=a.user_id AND r.gallery_image_id=a.image_id) ORDER BY a.created_at LIMIT 500`, userID)
+	v, err := scanOfficeGalleryImage(tx.QueryRowContext(ctx, `SELECT `+officeGalleryImageColumns+`
+		FROM image_studio_gallery_assets a WHERE a.user_id=$1 AND a.image_id=$2 AND a.state='ready'
+		AND EXISTS(SELECT 1 FROM image_studio_gallery_task_assets l WHERE l.user_id=a.user_id AND l.image_id=a.image_id AND l.role='output')`, userID, imageID), userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var items []service.OfficeResource
-	for rows.Next() {
-		var v service.OfficeResource
-		if err = rows.Scan(&v.GalleryImageID, &v.SHA256, &v.MIME, &v.Bytes, &v.Endpoint, &v.Region, &v.Bucket, &v.ObjectKey, &v.PreviewKey, &v.PreviewBytes, &v.CreatedAt); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		v.UserID = userID
-		items = append(items, v)
-	}
-	err = rows.Err()
-	_ = rows.Close()
+	v.ID, v.VersionID = officeGalleryResourceIDs(userID, imageID)
+	_, err = tx.ExecContext(ctx, `INSERT INTO office_resources(id,user_id,source,gallery_image_id,latest_version_id,created_at)
+		VALUES($1,$2,'gallery',$3,$4,$5) ON CONFLICT (user_id,gallery_image_id) DO UPDATE SET deleted_at=NULL,latest_version_id=EXCLUDED.latest_version_id`, v.ID, userID, imageID, v.VersionID, v.CreatedAt)
 	if err != nil {
-		return err
+		return nil, officeDBError(err)
 	}
-	for _, v := range items {
-		v.ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("office-gallery:%d:%s", userID, v.GalleryImageID))).String()
-		v.VersionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(v.ID+":original")).String()
-		ext := ".png"
-		if v.MIME == "image/jpeg" {
-			ext = ".jpg"
-		}
-		if v.MIME == "image/webp" {
-			ext = ".webp"
-		}
-		if v.MIME == "image/gif" {
-			ext = ".gif"
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO office_resources(id,user_id,source,gallery_image_id,latest_version_id,created_at) VALUES($1,$2,'gallery',$3,$4,$5)`, v.ID, userID, v.GalleryImageID, v.VersionID, v.CreatedAt)
-		if err != nil {
-			return officeDBError(err)
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO office_resource_versions(id,user_id,resource_id,publication_id,name,mime,byte_size,sha256,state,storage_endpoint,storage_region,storage_bucket,object_key,preview_key,preview_mime,preview_bytes,preview_kind,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ready',$9,$10,$11,$12,$13,'image/jpeg',$14,'image',$15)`, v.VersionID, userID, v.ID, "gallery:"+v.ID, "图片-"+v.GalleryImageID+ext, v.MIME, v.Bytes, v.SHA256, v.Endpoint, v.Region, v.Bucket, v.ObjectKey, v.PreviewKey, v.PreviewBytes, v.CreatedAt)
-		if err != nil {
-			return officeDBError(err)
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO office_gallery_pins(user_id,image_id,resource_id) VALUES($1,$2,$3)`, userID, v.GalleryImageID, v.ID)
-		if err != nil {
-			return err
-		}
+	_, err = tx.ExecContext(ctx, `INSERT INTO office_resource_versions(id,user_id,resource_id,publication_id,name,mime,byte_size,sha256,state,storage_endpoint,storage_region,storage_bucket,object_key,preview_key,preview_mime,preview_bytes,preview_kind,created_at)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,'ready',$9,$10,$11,$12,$13,$14,$15,'image',$16)
+		ON CONFLICT (id) DO UPDATE SET updated_at=NOW(),preview_mime=EXCLUDED.preview_mime`,
+		v.VersionID, userID, v.ID, "gallery:"+v.ID, v.Name, v.MIME, v.Bytes, v.SHA256, v.Endpoint, v.Region, v.Bucket, v.ObjectKey, v.PreviewKey, v.PreviewMIME, v.PreviewBytes, v.CreatedAt)
+	if err != nil {
+		return nil, officeDBError(err)
 	}
-	return tx.Commit()
+	_, err = tx.ExecContext(ctx, `INSERT INTO office_gallery_pins(user_id,image_id,resource_id)
+		VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, userID, imageID, v.ID)
+	if err != nil {
+		return nil, err
+	}
+	return v, tx.Commit()
 }
 
 type officeResourceCursor struct {
@@ -174,7 +229,7 @@ func (r *officeResourcesRepository) ListResources(ctx context.Context, userID in
 			return nil, "", service.ErrOfficeInvalid
 		}
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT `+officeResourceColumns+` FROM office_resources r JOIN office_resource_versions v ON v.id=r.latest_version_id WHERE r.user_id=$1 AND r.deleted_at IS NULL AND v.state='ready' AND ($2::timestamptz IS NULL OR (r.created_at,r.id)<($2,$3::uuid)) ORDER BY r.created_at DESC,r.id DESC LIMIT $4`, userID, officeNullableTime(c.At), officeNullableUUID(c.ID), limit+1)
+	rows, err := r.db.QueryContext(ctx, `SELECT `+officeResourceColumns+` FROM office_resources r JOIN office_resource_versions v ON v.id=r.latest_version_id WHERE r.user_id=$1 AND r.source IN ('upload','generated') AND r.deleted_at IS NULL AND v.state='ready' AND ($2::timestamptz IS NULL OR (r.created_at,r.id)<($2,$3::uuid)) ORDER BY r.created_at DESC,r.id DESC LIMIT $4`, userID, officeNullableTime(c.At), officeNullableUUID(c.ID), limit+1)
 	if err != nil {
 		return nil, "", err
 	}

@@ -168,11 +168,55 @@ func (r *officeAgentRepository) DispatchOperation(ctx context.Context, lease ser
 	if err != nil {
 		return nil, err
 	}
+	if run.BrowserDriven && op.Kind == service.OfficeOperationModel {
+		if err := appendWorkbenchModelPhase(ctx, tx, run.UserID, run.ID, op.ID, "started", 0); err != nil {
+			return nil, err
+		}
+	}
 	return op, tx.Commit()
 }
 
+// Progress only needs the operation identity and the number of tool requests.
+// The response itself stays in the existing bounded inbox and event stream.
+func appendWorkbenchModelPhase(ctx context.Context, tx *sql.Tx, userID int64, runID, operationID, phase string, toolCount int) error {
+	payload, err := json.Marshal(map[string]any{"operation_id": operationID, "tool_count": toolCount})
+	if err != nil {
+		return err
+	}
+	eventID := "model-" + phase + ":" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(operationID)).String()
+	_, err = appendOfficeEvent(ctx, tx, userID, runID, eventID, "model."+phase, payload)
+	if errors.Is(err, service.ErrOfficeBudgetExceeded) {
+		return nil
+	}
+	return err
+}
+
 func dispatchOfficeOperation(ctx context.Context, tx *sql.Tx, runID, operationID string, lease service.OfficeRunLease) (*service.OfficeOperation, error) {
-	return scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='dispatched',dispatch_epoch=$3,dispatch_token=$4,dispatched_at=NOW() WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns, runID, operationID, lease.Epoch, lease.Token))
+	op, err := scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='dispatched',dispatch_epoch=$3,dispatch_token=$4,dispatched_at=NOW() WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns, runID, operationID, lease.Epoch, lease.Token))
+	if err != nil {
+		return nil, err
+	}
+	if lease.Run.BrowserDriven && op.Kind == service.OfficeOperationTool {
+		if err := appendWorkbenchToolPhase(ctx, tx, lease.Run, *op, "started", operationID+":running"); err != nil {
+			return nil, err
+		}
+	}
+	return op, nil
+}
+
+func appendWorkbenchToolPhase(ctx context.Context, tx *sql.Tx, run service.OfficeRun, op service.OfficeOperation, phase, eventID string) error {
+	summary := service.WorkbenchToolOperationSummary(run, op)
+	payload, err := json.Marshal(map[string]string{
+		"operation_id": op.ID, "tool_name": summary.Name, "title": summary.Title, "status": summary.State,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = appendOfficeEvent(ctx, tx, run.UserID, run.ID, eventID, "tool."+phase, payload)
+	if errors.Is(err, service.ErrOfficeBudgetExceeded) {
+		return nil
+	}
+	return err
 }
 
 func (r *officeAgentRepository) GetOperation(ctx context.Context, userID int64, runID, id string) (*service.OfficeOperation, error) {
@@ -270,16 +314,23 @@ func (r *officeAgentRepository) recordOfficeOperationResult(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if publishEvent && op.Kind == service.OfficeOperationTool {
-		summary := service.WorkbenchToolOperationSummary(lease.Run, *op)
-		payload, err := json.Marshal(map[string]string{
-			"operation_id": op.ID, "tool_name": summary.Name, "title": summary.Title, "status": summary.State,
-		})
-		if err != nil {
+	if publishEvent && op.Kind == service.OfficeOperationModel {
+		var gateway struct {
+			Native *struct {
+				Calls []json.RawMessage `json:"calls"`
+			} `json:"native_reply"`
+		}
+		toolCount := 0
+		if json.Unmarshal(result.Output, &gateway) == nil && gateway.Native != nil {
+			toolCount = len(gateway.Native.Calls)
+		}
+		if err := appendWorkbenchModelPhase(ctx, tx, lease.Run.UserID, lease.Run.ID, op.ID, "completed", toolCount); err != nil {
 			return nil, err
 		}
+	}
+	if publishEvent && op.Kind == service.OfficeOperationTool {
 		eventID := "system:tool-result:" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(op.ID)).String()
-		if _, err := appendOfficeEvent(ctx, tx, lease.Run.UserID, lease.Run.ID, eventID, "tool.completed", payload); err != nil && !errors.Is(err, service.ErrOfficeBudgetExceeded) {
+		if err := appendWorkbenchToolPhase(ctx, tx, lease.Run, *op, "completed", eventID); err != nil {
 			return nil, err
 		}
 	}

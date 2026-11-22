@@ -131,8 +131,8 @@ export function getGalleryErrorMessage(error: unknown): string {
   return error.code === 'GALLERY_INVALID' || error.code?.endsWith('TIMEOUT') ? hint : `${hint}\n${detail}`
 }
 
-export function putGalleryTask(task: TaskRecord) {
-  return request<{ task: TaskRecord }>('/tasks', {
+export function putGalleryTask({ cloudStorageBytes: _cloudStorageBytes, ...task }: TaskRecord) {
+  return request<{ task: TaskRecord; storage_bytes?: number }>('/tasks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ task }),
@@ -142,11 +142,11 @@ export function putGalleryTask(task: TaskRecord) {
 export function listGalleryTasks(cursor: string | null = null, limit = 50) {
   const query = new URLSearchParams({ limit: String(limit) })
   if (cursor) query.set('cursor', cursor)
-  return request<{ items: TaskRecord[]; next_cursor: string | null }>('/tasks?' + query)
+  return request<{ items: TaskRecord[]; next_cursor: string | null; storage_bytes_by_task?: Record<string, number> }>('/tasks?' + query)
 }
 
 export function getGalleryTask(id: string) {
-  return request<{ task: TaskRecord }>('/tasks/' + encodeURIComponent(id))
+  return request<{ task: TaskRecord; storage_bytes?: number }>('/tasks/' + encodeURIComponent(id))
 }
 
 export function deleteGalleryTask(id: string) {

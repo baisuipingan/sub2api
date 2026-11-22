@@ -75,6 +75,7 @@ export type ImageApiKind = 'openai' | 'gemini'
 
 export interface TaskRecord {
   id: string
+  cloudStorageBytes?: number
   /** Cloud tasks can be recovered after a tab closes; legacy local requests cannot. */
   execution?: 'cloud'
   cloudJobStatus?: StudioJobStatus

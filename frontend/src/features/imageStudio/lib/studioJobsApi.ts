@@ -38,6 +38,7 @@ export interface StudioJobCall {
 export interface StudioJob {
   task_id: string
   status: StudioJobStatus
+  storage_bytes?: number
   task: TaskRecord
   calls: StudioJobCall[]
   created_at: string

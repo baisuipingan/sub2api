@@ -13,13 +13,14 @@ type WorkbenchGalleryFilter struct {
 
 // These projections deliberately omit task JSON, prompts and storage keys.
 type WorkbenchGalleryTask struct {
-	UserID      int64     `json:"user_id"`
-	UserEmail   string    `json:"user_email"`
-	TaskID      string    `json:"task_id"`
-	Model       string    `json:"model"`
-	CreatedAt   time.Time `json:"created_at"`
-	OutputCount int64     `json:"output_count"`
-	ImageIDs    []string  `json:"image_ids"`
+	UserID       int64     `json:"user_id"`
+	UserEmail    string    `json:"user_email"`
+	TaskID       string    `json:"task_id"`
+	Model        string    `json:"model"`
+	CreatedAt    time.Time `json:"created_at"`
+	OutputCount  int64     `json:"output_count"`
+	ImageIDs     []string  `json:"image_ids"`
+	StorageBytes int64     `json:"storage_bytes"`
 }
 
 type WorkbenchGalleryPage struct {

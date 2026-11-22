@@ -16,7 +16,7 @@ func (r *officeAgentRepository) RegenerationSource(ctx context.Context, user int
 	if e != nil {
 		return nil, nil, e
 	}
-	if run.ConversationID != conversation || (run.Status != service.OfficeRunCompleted && run.Status != service.OfficeRunPartiallyCompleted) {
+	if run.ConversationID != conversation || !officeCanRegenerate(run.Status) {
 		return nil, nil, service.ErrOfficeConflict
 	}
 	if run.RegenerationOf != "" {
@@ -24,10 +24,22 @@ func (r *officeAgentRepository) RegenerationSource(ctx context.Context, user int
 		if e != nil {
 			return nil, nil, e
 		}
+		if run.ConversationID != conversation || !officeCanRegenerate(run.Status) {
+			return nil, nil, service.ErrOfficeConflict
+		}
 	}
 	m := &service.OfficeMessage{}
 	e = r.db.QueryRowContext(ctx, `SELECT id::text,conversation_id::text,run_id::text,sequence,role,content,created_at FROM office_agent_messages WHERE user_id=$1 AND run_id=$2 AND role='user'`, user, run.ID).Scan(&m.ID, &m.ConversationID, &m.RunID, &m.Sequence, &m.Role, &m.Content, &m.CreatedAt)
 	return run, m, officeDBError(e)
+}
+
+func officeCanRegenerate(status string) bool {
+	switch status {
+	case service.OfficeRunCompleted, service.OfficeRunPartiallyCompleted, service.OfficeRunFailed, service.OfficeRunCancelled:
+		return true
+	default:
+		return false
+	}
 }
 
 func officeContextSourceHash(rows []service.OfficeMessage, through string) (string, bool) {

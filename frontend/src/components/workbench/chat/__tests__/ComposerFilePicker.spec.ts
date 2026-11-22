@@ -4,7 +4,7 @@ import ComposerFilePicker from '../ComposerFilePicker.vue'
 import { workbenchChatApi } from '@/api/workbenchChat'
 import type { ChatArtifact } from '@/types/workbenchChat'
 
-vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: { resources: vi.fn(), access: vi.fn() } }))
+vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: { resources: vi.fn(), access: vi.fn(), attachGalleryImage: vi.fn() } }))
 const first: ChatArtifact = { id: 'resource-1', version_id: 'version-1', name: '说明.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: 1024 }
 const second: ChatArtifact = { id: 'resource-2', version_id: 'version-2', name: '图片.png', mime: 'image/png', bytes: 2000 }
 const third: ChatArtifact = { id: 'resource-3', version_id: 'version-3', name: '数据.xlsx', mime: 'application/octet-stream', bytes: 3000 }
@@ -55,5 +55,22 @@ describe('Authorized composer file selection', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('数据.xlsx')
     expect(wrapper.text()).not.toContain('说明.docx')
+  })
+
+  it('adopts only a confirmed gallery selection', async () => {
+    const image = { ...second, id: 'studio-image', source: 'gallery' as const }
+    vi.mocked(workbenchChatApi.resources).mockResolvedValueOnce({ items: [first] }).mockResolvedValueOnce({ items: [image] })
+    vi.mocked(workbenchChatApi.attachGalleryImage).mockResolvedValue({ ...image, id: 'office-image' })
+    wrapper = mount(ComposerFilePicker, { props: { show: true, attachments: [], attachmentExtensions: ['.docx', '.png'] }, global })
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '云端图库')!.trigger('click')
+    await flushPromises()
+    await wrapper.get<HTMLInputElement>('input[type=checkbox]').setValue(true)
+    expect(workbenchChatApi.resources).toHaveBeenLastCalledWith(undefined, 'gallery')
+    expect(workbenchChatApi.attachGalleryImage).not.toHaveBeenCalled()
+    await wrapper.get('.btn-primary').trigger('click')
+    await flushPromises()
+    expect(workbenchChatApi.attachGalleryImage).toHaveBeenCalledWith('studio-image')
+    expect(wrapper.emitted('select')).toEqual([[[{ ...image, id: 'office-image' }]]])
   })
 })

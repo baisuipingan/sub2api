@@ -194,4 +194,33 @@ describe('workbench account isolation and durable submissions', () => {
     expect(readEvents).toHaveBeenCalledWith('legacy', 0, expect.any(AbortSignal), expect.any(Function))
     expect(api.advance).not.toHaveBeenCalled()
   })
+
+  it('resumes the same active task after a failed stop request', async () => {
+    const run = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    api.history.mockResolvedValue({ messages: [], runs: [run] })
+    api.run.mockResolvedValue(run)
+    api.advance.mockImplementation(() => new Promise(() => {}))
+    api.cancel.mockRejectedValueOnce({ status: 503, message: '停止请求失败' })
+    const store = useWorkbenchChatStore()
+    await store.selectConversation('conversation')
+    const original = api.advance.mock.calls[0]?.[1] as AbortSignal
+    await store.cancelRun()
+    expect(original.aborted).toBe(true)
+    expect(api.advance.mock.calls.map(([id]) => id)).toEqual(['run', 'run'])
+    expect(readEvents).toHaveBeenCalledTimes(2)
+    expect(store.error).toBe('停止请求失败')
+  })
+
+  it('surfaces a live MODEL_ROUTE_CHANGED error carried in a successful step response', async () => {
+    const run = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    const failed = { ...run, status: 'failed', error_code: 'MODEL_ROUTE_CHANGED' }
+    api.history.mockResolvedValueOnce({ messages: [], runs: [run] }).mockResolvedValue({ messages: [], runs: [failed] })
+    api.run.mockResolvedValue(failed)
+    api.advance.mockResolvedValue(failed)
+    const store = useWorkbenchChatStore()
+    await store.selectConversation('conversation')
+    await Promise.resolve()
+    expect(store.modelRouteChangedRunID).toBe('run')
+    expect(store.activeRun).toBeUndefined()
+  })
 })

@@ -22,17 +22,18 @@ const (
 )
 
 type workbenchNativeRequest struct {
-	Protocol                    workbenchProtocol
-	Model                       string
-	ProfileModel                string // Canonical capability profile, including when Model is a public alias.
-	System                      string
-	ReasoningEffort             string
-	StableDeveloperInstructions bool
-	ReplayToolReasoning         bool // Chat Completions suppliers that require reasoning_content replay.
-	History                     []workbenchNativeMessage
-	Tools                       []workbenchNativeTool
-	Transcript                  []workbenchNativeExchange
-	MaxOutputTokens             int
+	ConstrainGeminiThinkingBudget bool
+	Protocol                      workbenchProtocol
+	Model                         string
+	ProfileModel                  string // Canonical capability profile, including when Model is a public alias.
+	System                        string
+	ReasoningEffort               string
+	StableDeveloperInstructions   bool
+	ReplayToolReasoning           bool // Chat Completions suppliers that require reasoning_content replay.
+	History                       []workbenchNativeMessage
+	Tools                         []workbenchNativeTool
+	Transcript                    []workbenchNativeExchange
+	MaxOutputTokens               int
 }
 
 type workbenchNativeMessage struct {
@@ -216,6 +217,13 @@ func workbenchGeminiDefaultReasoningEffort(model string) string {
 	}
 }
 
+func workbenchGeminiAcceptsEffort(model, effort string) bool {
+	if strings.HasPrefix(model, "gemini-2.5") {
+		return slices.Contains([]string{"minimal", "low", "medium", "high"}, effort)
+	}
+	return slices.Contains([]string{"minimal", "low", "medium", "high", "xhigh"}, effort)
+}
+
 func workbenchGeminiThinking(in workbenchNativeRequest) map[string]any {
 	model := strings.ToLower(strings.TrimSpace(in.ProfileModel))
 	if model == "" {
@@ -231,8 +239,20 @@ func workbenchGeminiThinking(in workbenchNativeRequest) map[string]any {
 		}
 		budgets := map[string]int{"minimal": 512, "low": 1024, "medium": 8192, "high": 24576}
 		if budget, ok := budgets[effort]; ok {
-			return map[string]any{"includeThoughts": true, "thinkingBudget": budget}
+			if in.ConstrainGeminiThinkingBudget && in.MaxOutputTokens > 0 && budget >= in.MaxOutputTokens {
+				// Gemini 2.5 counts thinking and the visible response in the same
+				// output budget. Reserve room for an answer if they would collide.
+				budget = in.MaxOutputTokens / 2
+				switch {
+				case strings.Contains(model, "pro"):
+					budget = max(budget, gemini25ProMinThinkingBudget)
+				case strings.Contains(model, "flash-lite") && budget < gemini25FlashLiteMinThinkingBudget:
+					budget = 0
+				}
+			}
+			return map[string]any{"includeThoughts": budget > 0, "thinkingBudget": budget}
 		}
+		return map[string]any{"includeThoughts": true}
 	}
 	if slices.Contains([]string{"minimal", "low", "medium", "high", "xhigh"}, effort) {
 		return map[string]any{"includeThoughts": true, "thinkingLevel": strings.ToUpper(effort)}

@@ -37,6 +37,10 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 	return s.modelsForEndpoint(ctx, group, CompositeRouteEndpointResponses)
 }
 
+func (s *desktopAgentModelCatalog) workbenchModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	return (&workbenchChatModelCatalog{base: s}).ModelsForGroup(ctx, group)
+}
+
 // workbenchChatModelCatalog shares routing facts, not the desktop executor's
 // Responses-only projection. Keep the existing desktop catalog unchanged.
 type workbenchChatModelCatalog struct{ base *desktopAgentModelCatalog }

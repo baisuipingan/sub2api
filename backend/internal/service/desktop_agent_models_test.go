@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,6 +58,94 @@ func TestDesktopAgentModelCatalogPublicIDsRoutingAndAllowlist(t *testing.T) {
 	got, err = catalog.ModelsForGroup(ctx, group)
 	require.NoError(t, err)
 	require.Equal(t, []string{"route-alias", "public-alpha"}, got)
+}
+
+func TestDesktopAgentSharedSelectionWithNativeOnlyModels(t *testing.T) {
+	ctx := context.Background()
+	const desktop, gemini, claude = "gpt-6.1-sol", "carbon-office", "claude-office"
+	svc, settings, _, groups, keys := desktopFixture(t)
+	groups.group.ModelAllowlist = GroupModelAllowlist{Enabled: true, Models: []string{desktop, gemini, claude}}
+	accounts := &desktopModelAccounts{accounts: []Account{
+		desktopModelAccount(PlatformOpenAI, map[string]any{desktop: desktop}),
+		desktopModelAccount(PlatformGemini, map[string]any{"gemini-4-carbon": "gemini-4-carbon"}),
+		desktopModelAccount(PlatformAnthropic, map[string]any{"claude-opus-4-6": "claude-opus-4-6"}),
+	}}
+	routes := compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 12, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: gemini, Endpoint: CompositeRouteEndpointGemini, TargetPlatform: PlatformGemini, UpstreamModel: "gemini-4-carbon"},
+		{ID: 2, GroupID: 12, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: claude, Endpoint: CompositeRouteEndpointMessages, TargetPlatform: PlatformAnthropic, UpstreamModel: "claude-opus-4-6"},
+	}}
+	svc.catalog = NewDesktopAgentModelCatalog(accounts, routes)
+	candidates, err := svc.GetModels(ctx, 12)
+	require.NoError(t, err)
+	require.Equal(t, []string{gemini, claude, desktop}, candidates.Models)
+	require.Equal(t, []string{gemini, claude}, candidates.WebOnly)
+
+	cfg := DesktopAgentConfig{
+		Enabled: true, GroupID: 12, BaseURL: "https://gateway.example.test/v1", DefaultModelID: gemini,
+		ModelProfiles: map[string]DesktopAgentModelProfileBinding{
+			gemini: {ProfileID: "gemini-4-carbon"},
+			claude: {ProfileID: "claude-opus-4-6"},
+		},
+	}
+	for _, id := range []string{gemini, desktop, claude} {
+		profileID := id
+		if binding, exists := cfg.ModelProfiles[id]; exists {
+			profileID = binding.ProfileID
+		}
+		profiles := desktopAgentBuiltinProfiles()
+		index := slices.IndexFunc(profiles, func(profile DesktopAgentProfile) bool { return profile.ID == profileID })
+		require.NotEqual(t, -1, index, profileID)
+		model := profiles[index].Model
+		model.ID = id
+		cfg.Models = append(cfg.Models, model)
+	}
+	_, err = svc.UpdateConfig(ctx, cfg)
+	require.NoError(t, err)
+	for _, protocol := range []int{1, 2, 3, 4} {
+		bootstrap, err := svc.BootstrapForProtocol(ctx, 7, protocol)
+		require.NoError(t, err)
+		require.Equal(t, "ready", bootstrap.ServiceStatus)
+		require.Equal(t, "openai-responses", bootstrap.Provider.APIType)
+		require.Len(t, bootstrap.Models, 1)
+		require.Equal(t, desktop, bootstrap.Models[0].ID)
+		require.Empty(t, bootstrap.UnavailableModels)
+		if protocol < 3 {
+			require.Equal(t, desktop, bootstrap.SelectionPolicy.ModelID)
+		} else {
+			require.Equal(t, desktop, bootstrap.SelectionPolicyV3.Default.ModelID)
+		}
+	}
+	saved, err := svc.GetConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, gemini, saved.DefaultModelID)
+
+	settings.values["workbench_chat_enabled"] = "true"
+	workbench, _ := officeBridgeFixture(http.NotFoundHandler())
+	workbench.settings = svc.settings
+	workbench.groups = NewGroupService(&workbenchGroupStub{group: groups.group}, nil)
+	workbench.catalog = NewWorkbenchChatModelCatalog(accounts, routes, nil)
+	models, err := workbench.ChatModels(ctx)
+	require.NoError(t, err)
+	require.Equal(t, gemini, models.DefaultModel)
+	require.Len(t, models.Models, 3)
+	require.Equal(t, gemini, models.Models[0].ID)
+	require.Equal(t, workbenchProtocolGemini, models.Models[0].Protocol)
+	require.Equal(t, desktop, models.Models[1].ID)
+	require.Equal(t, workbenchProtocolResponses, models.Models[1].Protocol)
+	require.Equal(t, claude, models.Models[2].ID)
+	require.Equal(t, workbenchProtocolAnthropic, models.Models[2].Protocol)
+
+	cfg.Models = []DesktopAgentModel{cfg.Models[0], cfg.Models[2]}
+	_, err = svc.UpdateConfig(ctx, cfg)
+	require.NoError(t, err)
+	keyReads := keys.calls
+	for _, protocol := range []int{1, 2, 3, 4} {
+		bootstrap, err := svc.BootstrapForProtocol(ctx, 7, protocol)
+		require.NoError(t, err)
+		require.Equal(t, "not_configured", bootstrap.ServiceStatus)
+		require.Nil(t, bootstrap.Credential)
+	}
+	require.Equal(t, keyReads, keys.calls)
 }
 func TestDesktopAgentModelCatalogDoesNotInventDefaultsOrTreatPatternsAsIDs(t *testing.T) {
 	group := &Group{ID: 12, Platform: PlatformOpenAI}

@@ -145,6 +145,7 @@ export interface WorkbenchGalleryTask {
   created_at: string
   output_count: number
   image_ids: string[]
+  storage_bytes?: number
 }
 export interface WorkbenchGalleryPage {
   items: WorkbenchGalleryTask[]

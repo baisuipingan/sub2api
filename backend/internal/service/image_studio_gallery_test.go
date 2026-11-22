@@ -64,13 +64,13 @@ func (r *galleryTestRepo) GetAsset(_ context.Context, _ int64, id string) (*Gall
 	}
 	return &a, nil
 }
-func (r *galleryTestRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []GalleryTaskLink) (json.RawMessage, error) {
-	return task, nil
+func (r *galleryTestRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []GalleryTaskLink) (*GalleryTask, error) {
+	return &GalleryTask{Task: task}, nil
 }
-func (r *galleryTestRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error) {
+func (r *galleryTestRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (*GalleryTask, error) {
 	return r.SaveTask(ctx, userID, taskID, digest, task, links)
 }
-func (r *galleryTestRepo) GetTask(context.Context, int64, string) (json.RawMessage, error) {
+func (r *galleryTestRepo) GetTask(context.Context, int64, string) (*GalleryTask, error) {
 	return nil, ErrGalleryNotFound
 }
 func (r *galleryTestRepo) ListTasks(context.Context, int64, string, int) (GalleryTaskPage, error) {
@@ -222,7 +222,7 @@ func TestImageStudioGalleryOpaquePreviewUsesJPEGAndTransparentPreviewKeepsPNG(t 
 	require.NoError(t, png.Encode(&source, opaque))
 	require.NoError(t, svc.PutAsset(ctx, 17, "opaque-image", "image/png", source.Bytes()))
 	asset := repo.assets["opaque-image"]
-	require.Equal(t, "image/jpeg", galleryStoredVariantMIME(asset.PreviewKey))
+	require.Equal(t, "image/jpeg", GalleryStoredVariantMIME(asset.PreviewKey))
 	require.True(t, bytes.HasPrefix(store.objects[asset.PreviewKey], []byte{0xff, 0xd8}))
 	url, err := svc.AssetURL(ctx, 17, "opaque-image", "preview")
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestImageStudioGalleryOpaquePreviewUsesJPEGAndTransparentPreviewKeepsPNG(t 
 
 	require.NoError(t, svc.PutAsset(ctx, 17, "transparent-image", "image/png", galleryPNG(t, 16, 16)))
 	transparent := repo.assets["transparent-image"]
-	require.Equal(t, "image/png", galleryStoredVariantMIME(transparent.PreviewKey))
+	require.Equal(t, "image/png", GalleryStoredVariantMIME(transparent.PreviewKey))
 	require.True(t, bytes.HasPrefix(store.objects[transparent.PreviewKey], []byte{137, 80, 78, 71}))
 }
 

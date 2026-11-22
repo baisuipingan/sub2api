@@ -271,6 +271,8 @@ imageStudio: {
     outputCount: '生成结果 {count} 张',
     assetCount: '全部图片资产 {count} / {limit}',
     usedSpace: '存储 {used} / {limit}',
+    taskStorage: '占用 {size}',
+    taskStorageHint: '该任务关联的原图、预览图和缩略图合计，包含参考图等附件。',
     statsUnavailable: '暂时无法读取云端统计',
     retrySync: '重试同步',
     retryAll: '重试失败项',

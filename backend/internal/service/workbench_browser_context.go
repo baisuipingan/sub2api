@@ -73,7 +73,7 @@ func (s *OfficeAgentService) publicWorkbenchHistory(ctx context.Context, repo wo
 
 // fitWorkbenchRequestContext chooses a fixed history prefix for this turn.
 // Leave space for later tool exchanges without moving their signed prefix.
-func fitWorkbenchRequestContext(input *workbenchNativeRequest, contextWindow int) error {
+func fitWorkbenchRequestContext(input *workbenchNativeRequest, contextWindow, maxInputTokens int) error {
 	if len(input.History) == 0 {
 		return ErrOfficeInvalid
 	}
@@ -81,8 +81,8 @@ func fitWorkbenchRequestContext(input *workbenchNativeRequest, contextWindow int
 	for _, tool := range input.Tools {
 		base += 12 + workbenchContextTextTokens(tool.Name) + workbenchContextTextTokens(tool.Description) + workbenchContextTextTokens(string(tool.Schema))
 	}
-	if contextWindow > 0 {
-		inputBudget := contextWindow - min(input.MaxOutputTokens, contextWindow/2)
+	if contextWindow > 0 || maxInputTokens > 0 {
+		inputBudget := workbenchInputTokenLimit(contextWindow, maxInputTokens, input.MaxOutputTokens)
 		// Keep a quarter available for this turn's tool and model exchanges.
 		input.History = compactWorkbenchHistory(input.History, inputBudget-inputBudget/4-base)
 		for _, message := range input.History {
@@ -107,6 +107,17 @@ func fitWorkbenchRequestContext(input *workbenchNativeRequest, contextWindow int
 		}
 	}
 	return nil
+}
+
+func workbenchInputTokenLimit(contextWindow, maxInputTokens, maxOutputTokens int) int {
+	if contextWindow <= 0 {
+		return maxInputTokens
+	}
+	inputBudget := max(0, contextWindow-maxOutputTokens)
+	if maxInputTokens > 0 {
+		return min(inputBudget, maxInputTokens)
+	}
+	return inputBudget
 }
 
 func compactWorkbenchHistory(history []workbenchNativeMessage, budget int) []workbenchNativeMessage {

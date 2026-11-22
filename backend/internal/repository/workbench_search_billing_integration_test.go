@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -23,7 +24,7 @@ func workbenchSearchBillingFixture(t *testing.T, funding int64) (*officeAgentRep
 	base, input := officeTestAdmission(t)
 	repo := base.(*officeAgentRepository)
 	input.SearchEnabled, input.BrowserDriven, input.Mode = true, true, "chat"
-	input.Limits.MaxToolCalls = 8
+	input.Limits.MaxToolCalls = 10
 	_, err := integrationDB.ExecContext(ctx, `UPDATE users SET balance_credits=$2 WHERE id=$1`, input.UserID, funding)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -59,6 +60,50 @@ func assertWorkbenchSearchWallet(t *testing.T, userID, available, frozen int64) 
 		Scan(&balance, &held, &legacy, &legacyHeld)
 	require.NoError(t, err)
 	require.Equal(t, []int64{available, frozen, available, frozen}, []int64{balance, held, legacy, legacyHeld})
+}
+
+func TestWorkbenchSearchBillingParallelCallsShareWallet(t *testing.T) {
+	ctx := context.Background()
+	const perSearch = int64(75_000)
+	const parallel, funded = 10, 8
+	repo, lease := workbenchSearchBillingFixture(t, funded*perSearch)
+	quote := service.WorkbenchSearchQuote{Provider: "deepseek", AmountUSD: .00075, Billing: service.DefaultBillingCurrencyConfig()}
+	result := service.OfficeOperationResult{Output: json.RawMessage(`{"provider":"deepseek","results":[{"title":"confirmed"}]}`)}
+	operations := make([]*service.OfficeOperation, parallel)
+	for i := range operations {
+		operations[i] = prepareWorkbenchSearchBilling(t, repo, lease, fmt.Sprintf("browser:tool:0:%d", i))
+	}
+	var workers sync.WaitGroup
+	successes := make(chan string, parallel)
+	failures := make(chan error, parallel)
+	for _, operation := range operations {
+		workers.Go(func() {
+			if _, err := repo.DispatchWorkbenchSearch(ctx, lease, operation.ID, quote); err != nil {
+				failures <- err
+				return
+			}
+			successes <- operation.ID
+		})
+	}
+	workers.Wait()
+	require.Len(t, successes, funded)
+	require.Len(t, failures, parallel-funded)
+	for range parallel - funded {
+		require.ErrorIs(t, <-failures, service.ErrWorkbenchSearchInsufficientBalance)
+	}
+	assertWorkbenchSearchWallet(t, lease.Run.UserID, 0, funded*perSearch)
+	for range funded {
+		id := <-successes
+		workers.Go(func() {
+			_, err := repo.CompleteWorkbenchSearch(ctx, lease, id, result, true)
+			failures <- err
+		})
+	}
+	workers.Wait()
+	for range funded {
+		require.NoError(t, <-failures)
+	}
+	assertWorkbenchSearchWallet(t, lease.Run.UserID, 0, 0)
 }
 
 func TestWorkbenchSearchBillingReservesAndSettlesOnce(t *testing.T) {

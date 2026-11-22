@@ -35,7 +35,9 @@ type WorkbenchChatModel struct {
 	ReasoningEfforts       []string          `json:"reasoning_efforts"`
 	DefaultReasoningEffort string            `json:"default_reasoning_effort,omitempty"`
 	ContextWindow          *int              `json:"context_window,omitempty"`
+	MaxInputTokens         *int              `json:"max_input_tokens,omitempty"`
 	MaxOutputTokens        *int              `json:"max_output_tokens,omitempty"`
+	DefaultMaxOutputTokens int               `json:"default_max_output_tokens,omitempty"`
 	profileModel           string
 	replayToolReasoning    bool
 	nativeResponses        bool
@@ -84,7 +86,10 @@ func (s *OfficeAgentService) ChatStatus(ctx context.Context) (WorkbenchChatStatu
 		}
 	}
 	result.FilesEnabled = cfg.FilesEnabled
-	result.UploadsEnabled = cfg.FilesEnabled
+	if cfg.FilesEnabled && s.resources != nil {
+		_, err := s.resources.settings.PrivateOfficeStorageConfig(ctx)
+		result.UploadsEnabled = err == nil
+	}
 	return result, nil
 }
 func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatModelCatalog, error) {
@@ -135,8 +140,9 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatMode
 			m.DisplayName = p.DisplayName
 			m.profileModel = p.ID
 			m.ContextWindow = p.OfficialContextWindow
+			m.MaxInputTokens = p.MaxInputTokens
 			m.MaxOutputTokens = p.OfficialMaxOutputTokens
-			m.ReasoningEfforts = slices.Clone(p.OfficialReasoningLevels)
+			m.ReasoningEfforts = workbenchReasoningEfforts(m.Protocol, p)
 			if slices.Contains(m.ReasoningEfforts, agentModel.DefaultReasoning) {
 				m.DefaultReasoningEffort = agentModel.DefaultReasoning
 			} else if m.Protocol == workbenchProtocolGemini {
@@ -148,6 +154,13 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatMode
 			m.SupportsTools = p.Model.SupportsToolCall != nil && *p.Model.SupportsToolCall
 			m.SupportsVision = p.Model.Input != nil && p.Model.Input.Image != nil && *p.Model.Input.Image
 			m.replayToolReasoning = p.Source == "official_deepseek"
+		}
+		if desktopAgentString(agentModel.DisplayName, 128) {
+			m.DisplayName = agentModel.DisplayName
+		}
+		m.DefaultMaxOutputTokens = s.workbenchTurnLimits(m.MaxOutputTokens).MaxOutputTokens
+		if agentModel.DefaultMaxOutputTokens > 0 {
+			m.DefaultMaxOutputTokens = min(m.DefaultMaxOutputTokens, agentModel.DefaultMaxOutputTokens)
 		}
 		result.Models = append(result.Models, m)
 		if id == cfg.agentSelection.DefaultModelID {
@@ -226,7 +239,7 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		return nil, ErrOfficeSearchModelUnsupported
 	}
 	if in.ReasoningEffort != "" && !slices.Contains(model.ReasoningEfforts, in.ReasoningEffort) {
-		return nil, ErrOfficeInvalid
+		return nil, ErrOfficeRouteChanged
 	}
 	key, group, e := s.resolve(ctx, user, in.Model)
 	if e != nil {
@@ -265,6 +278,7 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		}
 	}
 	limits := s.workbenchTurnLimits(model.MaxOutputTokens)
+	limits.MaxOutputTokens = model.DefaultMaxOutputTokens
 	if model.Protocol == "" {
 		model.Protocol = workbenchProtocolChatCompletions
 	}
@@ -273,6 +287,9 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		"office_tools":        status.OfficeEnabled && status.FilesEnabled && model.SupportsTools,
 		"remote_office_tools": s.remoteOfficeConfigured(ctx),
 		"history_version":     workbenchReplayHistoryVersion,
+	}
+	if model.Protocol == workbenchProtocolGemini {
+		parameters["constrain_gemini_thinking_budget"] = true
 	}
 	if model.replayToolReasoning {
 		parameters["replay_tool_reasoning"] = true
@@ -292,6 +309,9 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	}
 	if model.ContextWindow != nil {
 		parameters["context_window"] = *model.ContextWindow
+	}
+	if model.MaxInputTokens != nil {
+		parameters["max_input_tokens"] = *model.MaxInputTokens
 	}
 	if in.TargetResourceVersionID != "" {
 		if !status.OfficeEnabled || !status.FilesEnabled || !model.SupportsTools || s.resources == nil {

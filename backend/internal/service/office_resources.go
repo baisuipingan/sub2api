@@ -102,10 +102,18 @@ func (s *OfficeResourcesService) PinRunInputs(ctx context.Context, run OfficeRun
 }
 
 func (s *OfficeResourcesService) List(ctx context.Context, userID int64, cursor string, limit int) ([]OfficeResource, string, error) {
-	if err := s.repo.SyncGallery(ctx, userID); err != nil {
-		return nil, "", err
-	}
 	return s.repo.ListResources(ctx, userID, cursor, limit)
+}
+
+func (s *OfficeResourcesService) ListGalleryImages(ctx context.Context, userID int64, cursor string, limit int) ([]OfficeResource, string, error) {
+	return s.repo.ListGalleryImages(ctx, userID, cursor, limit)
+}
+
+func (s *OfficeResourcesService) AttachGalleryImage(ctx context.Context, userID int64, imageID string) (*OfficeResource, error) {
+	if !galleryIDValid(imageID) {
+		return nil, ErrOfficeInvalid
+	}
+	return s.repo.AttachGalleryImage(ctx, userID, imageID)
 }
 func (s *OfficeResourcesService) Delete(ctx context.Context, userID int64, id string) error {
 	return s.repo.DeleteResource(ctx, userID, id)
@@ -116,19 +124,17 @@ func (s *OfficeResourcesService) storage(ctx context.Context, endpoint, region, 
 		return nil, ErrOfficeStorageUnavailable
 	}
 	cfg, err := s.settings.PrivateOfficeStorageConfig(ctx)
-	if err != nil {
-		return nil, err
+	if err == nil && cfg.Endpoint == endpoint && cfg.Region == region && cfg.Bucket == bucket {
+		return s.factory(ctx, cfg)
 	}
-	if cfg.Endpoint != endpoint || cfg.Region != region || cfg.Bucket != bucket {
-		// Adopted gallery versions keep their original target and quota. Office
-		// files can use a separate bucket without copying old image objects.
-		galleryCfg, e := s.settings.effectiveConfig(ctx)
-		if e != nil || galleryCfg == nil || galleryCfg.PublicBaseURL != "" || galleryCfg.Endpoint != endpoint || galleryCfg.Region != region || galleryCfg.Bucket != bucket {
-			return nil, ErrOfficeStorageUnavailable
-		}
-		cfg = galleryCfg
+	// Gallery attachments remain readable when Office uploads are disabled or
+	// configured on a different private target.
+	galleryCfg, err := s.settings.effectiveConfig(ctx)
+	if err != nil || galleryCfg == nil || !galleryCfg.IsConfigured() || galleryCfg.PublicBaseURL != "" ||
+		galleryCfg.Endpoint != endpoint || galleryCfg.Region != region || galleryCfg.Bucket != bucket {
+		return nil, ErrOfficeStorageUnavailable
 	}
-	return s.factory(ctx, cfg)
+	return s.factory(ctx, galleryCfg)
 }
 
 func (s *OfficeResourcesService) Access(ctx context.Context, userID int64, id string) (*OfficeResourceAccess, error) {

@@ -1,9 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { episodeActivity, executionEpisodes } from '../taskPresentation'
+import { episodeActivity, executionEpisodes, workbenchProgress } from '../taskPresentation'
 import type { ChatEvent, ChatRun } from '@/types/workbenchChat'
 
 const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'model', status: 'running', created_at: '', updated_at: '' }
 function event(sequence: number, type: string, payload: Record<string, unknown>): ChatEvent { return { id: `event-${sequence}`, run_id: run.id, sequence, type, payload, created_at: '' } }
+
+describe('browser workbench progress', () => {
+  it('groups interleaved tool results with the model round and separates the answer', () => {
+    const events = [
+      event(1, 'model.started', { operation_id: 'first' }),
+      event(2, 'assistant.delta', { operation_id: 'first', text: '我先查' }),
+      event(3, 'reasoning.delta', { operation_id: 'first', text: 'Provider summary' }),
+      event(4, 'assistant.delta', { operation_id: 'first', text: '一下。' }),
+      event(5, 'model.completed', { operation_id: 'first', tool_count: 2 }),
+      event(6, 'tool.started', { operation_id: 'search' }),
+      event(7, 'tool.completed', { operation_id: 'search' }),
+    ]
+    expect(workbenchProgress(events)).toEqual({
+      groups: [{ id: 'first', commentary: '我先查一下。', toolIds: ['search'] }], phase: 'tools', answer: '',
+    })
+    events.push(
+      event(8, 'tool.started', { operation_id: 'read' }),
+      event(9, 'tool.completed', { operation_id: 'read' }),
+    )
+    expect(workbenchProgress(events).phase).toBe('tool-results')
+    events.push(
+      event(10, 'model.started', { operation_id: 'second' }),
+      event(11, 'assistant.delta', { operation_id: 'second', text: '这是最终答案。' }),
+      event(12, 'model.completed', { operation_id: 'second', tool_count: 0 }),
+    )
+    expect(workbenchProgress(events)).toEqual({
+      groups: [{ id: 'first', commentary: '我先查一下。', toolIds: ['search', 'read'] }],
+      phase: 'answer', answer: '这是最终答案。',
+    })
+  })
+
+  it('uses existing operation identifiers for turns recorded before model phase events', () => {
+    expect(workbenchProgress([
+      event(1, 'assistant.delta', { operation_id: 'past', text: '先下载。' }),
+      event(2, 'tool.completed', { operation_id: 'download' }),
+      event(3, 'assistant.delta', { operation_id: 'current', text: '再检查。' }),
+      event(4, 'tool.completed', { operation_id: 'read' }),
+    ]).groups).toEqual([
+      { id: 'past', commentary: '先下载。', toolIds: ['download'] },
+      { id: 'current', commentary: '再检查。', toolIds: ['read'] },
+    ])
+  })
+})
 
 describe('public task execution presentation', () => {
   it('merges start/end events and never assigns an unscoped tool to a planned task', () => {

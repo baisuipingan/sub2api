@@ -161,12 +161,15 @@ func (r *studioJobRepository) Get(ctx context.Context, userID int64, taskID stri
 	var job service.StudioJob
 	var request []byte
 	var task []byte
-	err := r.db.QueryRowContext(ctx, `SELECT user_id,task_id,api_key_id,status,task_json,request_json,
-        storage_endpoint,storage_region,storage_bucket,created_at,updated_at,deleted_at
-        FROM image_studio_jobs WHERE user_id=$1 AND task_id=$2`,
+	err := r.db.QueryRowContext(ctx, `SELECT j.user_id,j.task_id,j.api_key_id,j.status,j.task_json,j.request_json,
+        j.storage_endpoint,j.storage_region,j.storage_bucket,j.created_at,j.updated_at,j.deleted_at,
+        CASE WHEN t.task_id IS NOT NULL THEN `+galleryTaskStorageBytesSQL+` END
+        FROM image_studio_jobs j LEFT JOIN image_studio_gallery_tasks t
+          ON t.user_id=j.user_id AND t.task_id=j.task_id AND t.deleted_at IS NULL
+        WHERE j.user_id=$1 AND j.task_id=$2`,
 		userID, taskID).Scan(&job.UserID, &job.TaskID, &job.APIKeyID, &job.Status, &task, &request,
 		&job.StorageEndpoint, &job.StorageRegion, &job.StorageBucket,
-		&job.CreatedAt, &job.UpdatedAt, &job.DeletedAt)
+		&job.CreatedAt, &job.UpdatedAt, &job.DeletedAt, &job.StorageBytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrStudioJobNotFound
 	}

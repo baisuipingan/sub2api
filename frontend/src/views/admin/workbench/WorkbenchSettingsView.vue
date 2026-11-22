@@ -99,7 +99,7 @@ const features = [
  {key:'chat_enabled' as const,label:'对话助手',hint:'开放云端对话。关闭后停止搜索和文档工具，历史会话和文件仍可查看。'},
  {key:'search_enabled' as const,label:t('admin.workbenchSettings.searchEnabled'),hint:t('admin.workbenchSettings.searchHint')},
  {key:'files_enabled' as const,label:'我的文件',hint:'保存私有资料、成果和版本，需配置对象存储。关闭后停用文档工具。'},
- {key:'office_enabled' as const,label:'文档工具',hint:'允许对话助手读取、生成和修改 DOCX 文档。启用时同时打开对话助手和我的文件。'},
+ {key:'office_enabled' as const,label:'文档工具',hint:'允许对话助手处理 Word 和文本文件。配置办公节点后还可处理 Excel、PPT 和文档压缩包。启用时同时打开对话助手和我的文件。'},
 ]
 type FeatureKey = typeof features[number]['key']
 function setFeature(key: FeatureKey, value: boolean) {

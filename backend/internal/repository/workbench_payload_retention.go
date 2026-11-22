@@ -224,12 +224,18 @@ func marshalWorkbenchToolProjection(op service.OfficeOperation) (any, error) {
 
 func compactWorkbenchDeltas(ctx context.Context, tx *sql.Tx, userID int64, runID string) error {
 	var text, reasoning string
-	if err := tx.QueryRowContext(ctx, `SELECT
+	if err := tx.QueryRowContext(ctx, `WITH deltas AS (
+		SELECT sequence, event_type, payload,
+			LAG(payload->>'operation_id') OVER (PARTITION BY event_type ORDER BY sequence) AS previous_operation
+		FROM office_agent_run_events WHERE user_id=$1 AND run_id=$2 AND event_type IN ('assistant.delta','reasoning.delta')
+	) SELECT
 		CASE WHEN EXISTS (SELECT 1 FROM office_agent_messages m WHERE m.user_id=$1 AND m.run_id=$2 AND m.role='assistant')
-			THEN '' ELSE LEFT(COALESCE(string_agg(payload->>'text','' ORDER BY sequence) FILTER (WHERE event_type='assistant.delta'),''),6000) END,
+			THEN '' ELSE LEFT(COALESCE(string_agg(
+				CASE WHEN previous_operation IS NOT NULL AND previous_operation<>payload->>'operation_id' THEN E'\n\n' ELSE '' END
+				|| (payload->>'text'), '' ORDER BY sequence) FILTER (WHERE event_type='assistant.delta'),''),6000) END,
 		CASE WHEN EXISTS (SELECT 1 FROM office_agent_messages m WHERE m.user_id=$1 AND m.run_id=$2 AND m.role='assistant' AND COALESCE(m.content->>'reasoning_summary','')<>'')
 			THEN '' ELSE LEFT(COALESCE(string_agg(payload->>'text','' ORDER BY sequence) FILTER (WHERE event_type='reasoning.delta'),''),2000) END
-		FROM office_agent_run_events WHERE user_id=$1 AND run_id=$2 AND event_type IN ('assistant.delta','reasoning.delta')`, userID, runID).
+		FROM deltas`, userID, runID).
 		Scan(&text, &reasoning); err != nil {
 		return err
 	}

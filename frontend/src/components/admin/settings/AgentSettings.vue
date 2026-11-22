@@ -51,6 +51,7 @@
               <button type="button" data-test="agent-refresh-models" class="btn btn-secondary shrink-0" :disabled="loading || saving || catalog.status === 'loading' || !selectedGroupEligible" @click="refreshModels">{{ t('admin.agentSettings.refreshModels') }}</button>
             </div>
             <p data-test="agent-model-catalog-status" class="text-sm" :class="catalog.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'">{{ t(catalogMessageKey) }}</p>
+            <p v-if="defaultIsWebOnly" class="text-sm text-gray-500 dark:text-gray-400">{{ t(hasDesktopModel ? 'admin.agentSettings.webOnlyDefault' : 'admin.agentSettings.webOnlyList') }}</p>
             <p v-if="draft.models.length === 0" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.agentSettings.noModels') }}</p>
             <div v-if="profilesFailed" class="flex flex-wrap items-center gap-3">
               <p data-test="agent-profiles-failed" role="alert" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.agentSettings.profilesFailed') }}</p>
@@ -58,7 +59,7 @@
             </div>
           </div>
           <div class="divide-y divide-gray-100 dark:divide-dark-700">
-            <AgentModelSettingsCard v-for="(model, index) in draft.models" :key="model.id" :model-value="model" :profiles="profiles" :binding="getDesktopAgentProfileBinding(draft, model.id)" :profiles-ready="profilesReady" :index="index" :is-default="draft.default_model_id === model.id" :unavailable="catalogCurrentReady && !catalog.models.includes(model.id)" :disabled="loading || saving" @update:model-value="updateModel(index, $event)" @profile-change="chooseProfile(index, $event)" @override-change="setOverride(index, $event)" @restore-profile="restoreProfile(index)" @remove="removeModel(index)" @make-default="makeDefault(model.id)" />
+            <AgentModelSettingsCard v-for="(model, index) in draft.models" :key="model.id" :model-value="model" :profiles="profiles" :binding="getDesktopAgentProfileBinding(draft, model.id)" :profiles-ready="profilesReady" :index="index" :is-default="draft.default_model_id === model.id" :unavailable="catalogCurrentReady && !catalog.models.includes(model.id)" :web-only="catalogCurrentReady && catalog.webOnly?.includes(model.id)" :disabled="loading || saving" @update:model-value="updateModel(index, $event)" @profile-change="chooseProfile(index, $event)" @override-change="setOverride(index, $event)" @restore-profile="restoreProfile(index)" @remove="removeModel(index)" @make-default="makeDefault(model.id)" />
           </div>
         </div>
       </fieldset>
@@ -105,7 +106,7 @@ const profiles = ref<DesktopAgentProfile[]>([])
 const profileStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
 const profilesReady = computed(() => profileStatus.value === 'ready')
 const profilesFailed = computed(() => profileStatus.value === 'error')
-const catalog = ref<{ status: 'idle' | 'loading' | 'ready' | 'error'; groupId: number; models: string[] }>({ status: 'idle', groupId: 0, models: [] })
+const catalog = ref<{ status: 'idle' | 'loading' | 'ready' | 'error'; groupId: number; models: string[]; webOnly?: string[] }>({ status: 'idle', groupId: 0, models: [] })
 const pickerSelection = ref<string | null>(null)
 const pickerKey = ref(0)
 const suggestedGateway = `${window.location.origin}/v1`
@@ -126,7 +127,12 @@ const groupOptions = computed(() => {
   return options
 })
 const catalogCurrentReady = computed(() => catalog.value.status === 'ready' && catalog.value.groupId === draft.value.group_id)
-const modelOptions = computed(() => catalogCurrentReady.value ? catalog.value.models.filter(id => !draft.value.models.some(model => model.id === id)).map(id => ({ value: id, label: id })) : [])
+const defaultIsWebOnly = computed(() => catalogCurrentReady.value && catalog.value.webOnly?.includes(draft.value.default_model_id))
+const hasDesktopModel = computed(() => draft.value.models.some(model => catalog.value.models.includes(model.id) && !catalog.value.webOnly?.includes(model.id)))
+const modelOptions = computed(() => catalogCurrentReady.value ? catalog.value.models.filter(id => !draft.value.models.some(model => model.id === id)).map(id => ({
+  value: id,
+  label: catalog.value.webOnly?.includes(id) ? t('admin.agentSettings.webOnlyModel', { id }) : id,
+})) : [])
 const canAddModel = computed(() => draft.value.models.length < 32 && modelOptions.value.some(option => option.value === pickerSelection.value))
 const catalogMessageKey = computed(() => {
   if (!selectedGroupEligible.value) return 'admin.agentSettings.catalogChooseGroup'
@@ -164,7 +170,7 @@ async function refreshModels() {
     // 原因：分组切换、刷新和隐藏不会取消网络响应；仅当前激活分组的本代目录可以成为保存依据。
     if (!alive || !props.active || generation !== catalogGeneration || draft.value.group_id !== groupId) return
     if (result.group_id !== groupId || !Array.isArray(result.models) || !result.models.every(id => typeof id === 'string' && id.length > 0) || new Set(result.models).size !== result.models.length) throw new Error('Invalid model catalog')
-    catalog.value = { status: 'ready', groupId, models: [...result.models] }
+    catalog.value = { status: 'ready', groupId, models: [...result.models], webOnly: result.web_only }
   } catch {
     if (alive && props.active && generation === catalogGeneration && draft.value.group_id === groupId) catalog.value = { status: 'error', groupId, models: [] }
   }

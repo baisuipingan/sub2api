@@ -68,6 +68,7 @@ func registerOfficeChatRoutes(authenticated *gin.RouterGroup, h *handler.Handler
 	if h.OfficeResources != nil {
 		c.GET("/resources", h.OfficeResources.List)
 		c.POST("/resources", h.OfficeResources.Upload)
+		c.POST("/gallery-images/:image_id/attach", h.OfficeResources.AttachGalleryImage)
 		c.GET("/resources/:version_id/access", h.OfficeResources.Access)
 		c.POST("/resources/:version_id/print-preview", h.OfficeResources.PrintPreview)
 		c.DELETE("/resources/:resource_id", h.OfficeResources.Delete)

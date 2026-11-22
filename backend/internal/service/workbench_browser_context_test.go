@@ -33,7 +33,7 @@ func TestWorkbenchHistoryCarriesConfirmedTextAndReferences(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"old-run"}, repo.runIDs)
 	input := workbenchNativeRequest{History: history}
-	require.NoError(t, fitWorkbenchRequestContext(&input, 10000))
+	require.NoError(t, fitWorkbenchRequestContext(&input, 10000, 0))
 	require.Len(t, input.History, 3)
 	require.Contains(t, input.History[0].Text, "original-version")
 	require.Contains(t, input.History[0].Text, "generated-version")
@@ -54,7 +54,7 @@ func TestWorkbenchHistoryCompactionKeepsATurnPrefixAndNativeToolExchange(t *test
 	input := workbenchNativeRequest{
 		Protocol: workbenchProtocolGemini, Model: "gemini", System: "Use the tool when necessary.", MaxOutputTokens: 200, History: history,
 	}
-	require.NoError(t, fitWorkbenchRequestContext(&input, 3000))
+	require.NoError(t, fitWorkbenchRequestContext(&input, 3000, 0))
 	require.Len(t, input.History, 4)
 	require.Contains(t, input.History[0].Text, "The client's legal name is Atlas.")
 	require.Contains(t, input.History[0].Text, "rendered-v1")
@@ -67,7 +67,7 @@ func TestWorkbenchHistoryCompactionKeepsATurnPrefixAndNativeToolExchange(t *test
 			Results: []workbenchNativeToolResult{{ID: "read-file", Name: "read_docx", Output: json.RawMessage(`{"text":"document content"}`)}},
 		}},
 	}
-	require.NoError(t, fitWorkbenchRequestContext(&followup, 3000))
+	require.NoError(t, fitWorkbenchRequestContext(&followup, 3000, 0))
 	require.Equal(t, input.History, followup.History)
 	_, body, err := buildWorkbenchNativeRequest(followup)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestWorkbenchHistoryCompactionKeepsATurnPrefixAndNativeToolExchange(t *test
 	followup.Transcript[0].Results[0].Output, err = json.Marshal(strings.Repeat("大", 3000))
 	require.NoError(t, err)
 	followup.History = history
-	require.ErrorIs(t, fitWorkbenchRequestContext(&followup, 3000), errWorkbenchContextTooLarge)
+	require.ErrorIs(t, fitWorkbenchRequestContext(&followup, 3000, 0), errWorkbenchContextTooLarge)
 }
 
 func TestWorkbenchHistoryCompactionKeepsFileReferenceWhenTextDoesNotFit(t *testing.T) {
@@ -88,9 +88,16 @@ func TestWorkbenchHistoryCompactionKeepsFileReferenceWhenTextDoesNotFit(t *testi
 		},
 		MaxOutputTokens: 100,
 	}
-	require.NoError(t, fitWorkbenchRequestContext(&input, 1000))
+	require.NoError(t, fitWorkbenchRequestContext(&input, 1000, 0))
 	require.Len(t, input.History, 2)
 	require.Contains(t, input.History[0].Text, reference)
 	require.NotContains(t, input.History[0].Text, "很长的历史消息")
 	require.Equal(t, "继续编辑这个文件。", input.History[1].Text)
+}
+
+func TestWorkbenchInputTokenLimitUsesIndependentAndSharedCeilings(t *testing.T) {
+	require.Equal(t, 922000, workbenchInputTokenLimit(1050000, 922000, 10000))
+	require.Equal(t, 900000, workbenchInputTokenLimit(1050000, 922000, 150000))
+	require.Equal(t, 922000, workbenchInputTokenLimit(0, 922000, 150000))
+	require.Equal(t, 900000, workbenchInputTokenLimit(1050000, 0, 150000))
 }

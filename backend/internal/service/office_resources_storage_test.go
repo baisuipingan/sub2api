@@ -169,6 +169,36 @@ func TestOfficeResourcesPrivateStorageIndependentAndGuarded(t *testing.T) {
 	require.NoError(t, err, "unrelated flags can still be saved")
 }
 
+func TestOfficeResourcesReadsPrivateGalleryWithoutOfficeUploadStorage(t *testing.T) {
+	ctx := context.Background()
+	settings, repo, _ := newOfficeStorageFixture(t, config.ImageStorageConfig{})
+	image := ImageStorageSettings{
+		Endpoint: "https://images.test", Region: "auto", Bucket: "gallery",
+		AccessKeyID: "key", SecretAccessKey: "secret", StudioGalleryEnabled: true,
+	}
+	_, err := settings.Update(ctx, image)
+	require.NoError(t, err)
+	require.NoError(t, repo.Set(ctx, settingKeyOfficeStorageConfig, `{"source":"custom"}`))
+	_, err = settings.PrivateOfficeStorageConfig(ctx)
+	require.Error(t, err)
+
+	calls := 0
+	store := &galleryTestStore{}
+	resources := NewOfficeResourcesService(nil, settings, func(_ context.Context, cfg *config.ImageStorageConfig) (GalleryObjectStore, error) {
+		calls++
+		require.Equal(t, image.Bucket, cfg.Bucket)
+		require.Equal(t, image.Endpoint, cfg.Endpoint)
+		require.Empty(t, cfg.PublicBaseURL)
+		return store, nil
+	}, nil)
+	resolved, err := resources.storage(ctx, image.Endpoint, image.Region, image.Bucket)
+	require.NoError(t, err)
+	require.Same(t, store, resolved)
+	_, err = resources.storage(ctx, image.Endpoint, image.Region, "some-other-bucket")
+	require.ErrorIs(t, err, ErrOfficeStorageUnavailable)
+	require.Equal(t, 1, calls)
+}
+
 func TestOfficeResourcesRejectPublicAndGuardReusedBackup(t *testing.T) {
 	ctx := context.Background()
 	settings, repo, _ := newImageStorageFixture(t, config.ImageStorageConfig{})

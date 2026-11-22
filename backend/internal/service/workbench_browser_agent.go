@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -27,21 +28,23 @@ type workbenchBrowserRepository interface {
 }
 
 type workbenchBrowserParameters struct {
-	HistoryVersion      int               `json:"history_version"`
-	ContextWindow       int               `json:"context_window"`
-	Protocol            workbenchProtocol `json:"protocol"`
-	ProfileModel        string            `json:"profile_model"`
-	ReasoningEffort     string            `json:"reasoning_effort"`
-	OfficeTools         bool              `json:"office_tools"`
-	RemoteOfficeTools   bool              `json:"remote_office_tools"`
-	NativeResponses     bool              `json:"native_responses"`
-	SupportsVision      bool              `json:"supports_vision"`
-	ReplayToolReasoning bool              `json:"replay_tool_reasoning"`
+	ConstrainGeminiThinkingBudget bool              `json:"constrain_gemini_thinking_budget"`
+	HistoryVersion                int               `json:"history_version"`
+	ContextWindow                 int               `json:"context_window"`
+	MaxInputTokens                int               `json:"max_input_tokens"`
+	Protocol                      workbenchProtocol `json:"protocol"`
+	ProfileModel                  string            `json:"profile_model"`
+	ReasoningEffort               string            `json:"reasoning_effort"`
+	OfficeTools                   bool              `json:"office_tools"`
+	RemoteOfficeTools             bool              `json:"remote_office_tools"`
+	NativeResponses               bool              `json:"native_responses"`
+	SupportsVision                bool              `json:"supports_vision"`
+	ReplayToolReasoning           bool              `json:"replay_tool_reasoning"`
 }
 
 const browserStepLease = 60 * time.Second
 
-// AdvanceWorkbench admits one model or tool operation. The browser drives the
+// AdvanceWorkbench admits one model operation, one tool, or a batch of independent reads. The browser drives the
 // next operation, while a disconnected request can finish the one it started.
 func (s *OfficeAgentService) AdvanceWorkbench(ctx context.Context, user int64, id string) (*OfficeRun, error) {
 	if !s.Enabled() {
@@ -111,6 +114,18 @@ type workbenchBrowserState struct {
 	Uncertain       string
 	RemoteOperation *OfficeOperation
 	ModelError      *OfficeGatewayReply
+	ParallelReads   []workbenchReadCall
+}
+
+type workbenchReadCall struct {
+	id   string
+	call workbenchNativeCall
+}
+
+const workbenchParallelReadLimit = 10
+
+func workbenchIndependentRead(call workbenchNativeCall) bool {
+	return call.Name == "web_search" || call.Name == "web_read"
 }
 
 func workbenchState(protocol workbenchProtocol, operations []OfficeOperation) (workbenchBrowserState, error) {
@@ -156,6 +171,22 @@ func workbenchState(protocol workbenchProtocol, operations []OfficeOperation) (w
 			switch tool.State {
 			case "", OfficeOperationPrepared:
 				state.Pending, state.ToolID = &call, id
+				if workbenchIndependentRead(call) {
+					for offset := position; offset < len(reply.Calls) && len(state.ParallelReads) < workbenchParallelReadLimit; offset++ {
+						next := reply.Calls[offset]
+						if !workbenchIndependentRead(next) {
+							break
+						}
+						readID := fmt.Sprintf("browser:tool:%d:%d", index, offset)
+						switch journal[readID].State {
+						case "", OfficeOperationPrepared:
+							state.ParallelReads = append(state.ParallelReads, workbenchReadCall{id: readID, call: next})
+						case OfficeOperationDispatched, OfficeOperationUnknown:
+							state.Uncertain = readID
+							return state, nil
+						}
+					}
+				}
 				return state, nil
 			case OfficeOperationDispatched, OfficeOperationUnknown:
 				state.Uncertain = tool.ID
@@ -231,7 +262,17 @@ func (s *OfficeAgentService) executeBrowserStep(ctx context.Context, repo workbe
 	if params.OfficeTools && (!status.OfficeEnabled || !status.FilesEnabled) {
 		return s.failBrowserStep(ctx, lease, "OFFICE_DISABLED", "办公文件功能暂时关闭。")
 	}
-	if state.Pending != nil {
+	if len(state.ParallelReads) > 1 {
+		var reads sync.WaitGroup
+		failures := make([]error, len(state.ParallelReads))
+		for index, read := range state.ParallelReads {
+			reads.Go(func() {
+				failures[index] = s.runBrowserTool(ctx, repo, lease, params, read.id, read.call)
+			})
+		}
+		reads.Wait()
+		err = errors.Join(failures...)
+	} else if state.Pending != nil {
 		err = s.runBrowserTool(ctx, repo, lease, params, state.ToolID, *state.Pending)
 	} else {
 		operation := fmt.Sprintf("browser:model:%d", state.NextModel)

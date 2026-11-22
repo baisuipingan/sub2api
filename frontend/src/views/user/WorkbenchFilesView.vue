@@ -12,7 +12,7 @@
                 <Icon name="document" size="lg" class="text-primary-500" />
               </span>
               <strong :title="file.name">{{ file.name }}</strong>
-              <small>{{ formatBytes(file.bytes) }} · {{ file.source === 'gallery' ? '图片生成' : file.source === 'generated' || file.role === 'output' ? '办公成果' : '上传资料' }}</small>
+              <small>{{ formatBytes(file.bytes) }} · {{ file.source === 'generated' || file.role === 'output' ? '对话成果' : '上传资料' }}</small>
             </button>
             <div class="bs-chat-library-actions">
               <button type="button" class="bs-chat-text-button" @click="download(file)"><Icon name="download" size="sm" />下载</button>
@@ -25,7 +25,7 @@
         </section>
         <div v-if="panelOpen" class="bs-chat-files-preview"><ResourcePreview ref="preview" :file="selected" :files="files" :docx-only="nativeChat" :editable-extensions="nativeChat ? officeExtensions : undefined" :read-only="!officeEnabled" hide-fullscreen @edit="editFile" @preview="selected = $event" @close="panelOpen = false" /></div>
       </div>
-      <ConfirmDialog :show="!!toDelete" title="删除文件" :message="`删除「${toDelete?.name || ''}」？已有消息会保留，但将无法继续访问此文件。`" danger :loading="deleting" @confirm="remove" @cancel="toDelete = null" />
+      <ConfirmDialog :show="!!toDelete" title="删除文件" :message="`从我的文件删除「${toDelete?.name || ''}」？已在对话中引用的文件仍可从原对话打开。`" danger :loading="deleting" @confirm="remove" @cancel="toDelete = null" />
     </div>
   </AppLayout>
 </template>

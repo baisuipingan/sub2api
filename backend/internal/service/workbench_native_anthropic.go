@@ -75,15 +75,22 @@ func configureWorkbenchAnthropicThinking(body map[string]any, in workbenchNative
 	}
 	// Submission already validates the selected level against the public model
 	// profile. Keep newly published Profiles usable without a second model list.
-	switch in.ReasoningEffort {
-	case "low", "medium", "high", "xhigh", "max":
-	default:
+	if !workbenchAnthropicAcceptsEffort(in.ReasoningEffort) {
 		return
 	}
 	body["output_config"] = apicompat.AnthropicOutputConfig{Effort: in.ReasoningEffort}
 	// Opus 4.5 accepts effort but only supports legacy extended thinking.
 	if !strings.HasPrefix(model, "claude-opus-4-5") {
 		body["thinking"] = map[string]string{"type": "adaptive", "display": "omitted"}
+	}
+}
+
+func workbenchAnthropicAcceptsEffort(effort string) bool {
+	switch effort {
+	case "low", "medium", "high", "xhigh", "max":
+		return true
+	default:
+		return false
 	}
 }
 

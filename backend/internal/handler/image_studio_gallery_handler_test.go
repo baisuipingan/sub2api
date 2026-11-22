@@ -65,18 +65,21 @@ func (r *galleryHandlerRepo) MarkAssetReady(context.Context, int64, string) erro
 	r.asset.State = "ready"
 	return nil
 }
-func (r *galleryHandlerRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []service.GalleryTaskLink) (json.RawMessage, error) {
+func (r *galleryHandlerRepo) SaveTask(_ context.Context, _ int64, _ string, _ string, task json.RawMessage, _ []service.GalleryTaskLink) (*service.GalleryTask, error) {
 	r.task = task
-	return task, nil
+	return &service.GalleryTask{Task: task, StorageBytes: 4}, nil
 }
-func (r *galleryHandlerRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+func (r *galleryHandlerRepo) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (*service.GalleryTask, error) {
 	return r.SaveTask(ctx, userID, taskID, digest, task, links)
 }
-func (r *galleryHandlerRepo) GetTask(_ context.Context, _ int64, _ string) (json.RawMessage, error) {
-	return r.task, nil
+func (r *galleryHandlerRepo) GetTask(_ context.Context, _ int64, _ string) (*service.GalleryTask, error) {
+	return &service.GalleryTask{Task: r.task, StorageBytes: 4}, nil
 }
 func (r *galleryHandlerRepo) ListTasks(_ context.Context, _ int64, _ string, _ int) (service.GalleryTaskPage, error) {
-	return service.GalleryTaskPage{Items: []json.RawMessage{r.task}}, nil
+	return service.GalleryTaskPage{
+		Items:              []json.RawMessage{r.task},
+		StorageBytesByTask: map[string]int64{"task-one": 4},
+	}, nil
 }
 func (r *galleryHandlerRepo) DeleteTask(context.Context, int64, string) ([]service.GalleryAsset, error) {
 	return nil, nil
@@ -129,12 +132,15 @@ func TestImageStudioGalleryCanonicalResponseEnvelope(t *testing.T) {
 	post := request(http.MethodPost, "/gallery/tasks", task, "application/json")
 	require.Equal(t, http.StatusOK, post.Code, post.Body.String())
 	require.Equal(t, "task-one", gjson.GetBytes(post.Body.Bytes(), "data.task.id").String())
+	require.Equal(t, int64(4), gjson.GetBytes(post.Body.Bytes(), "data.storage_bytes").Int())
 	list := request(http.MethodGet, "/gallery/tasks", nil, "")
 	require.Equal(t, http.StatusOK, list.Code)
 	require.Equal(t, "task-one", gjson.GetBytes(list.Body.Bytes(), "data.items.0.id").String())
+	require.Equal(t, int64(4), gjson.GetBytes(list.Body.Bytes(), "data.storage_bytes_by_task.task-one").Int())
 	require.True(t, gjson.GetBytes(list.Body.Bytes(), "data.next_cursor").Exists())
 	get := request(http.MethodGet, "/gallery/tasks/task-one", nil, "")
 	require.Equal(t, "task-one", gjson.GetBytes(get.Body.Bytes(), "data.task.id").String())
+	require.Equal(t, int64(4), gjson.GetBytes(get.Body.Bytes(), "data.storage_bytes").Int())
 	url := request(http.MethodGet, "/gallery/assets/image-one/url?variant=original", nil, "")
 	require.Equal(t, http.StatusOK, url.Code, url.Body.String())
 	require.Contains(t, gjson.GetBytes(url.Body.Bytes(), "data.url").String(), "https://s3.test/")

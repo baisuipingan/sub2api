@@ -29,7 +29,8 @@ func (r *workbenchAdminRepository) ListGalleryTasks(ctx context.Context, f servi
           LEFT(COALESCE(NULLIF(t.task_json->>'apiModel',''),t.task_json->>'modelId',''),128),t.created_at,
           (SELECT jsonb_agg(l.image_id ORDER BY l.ordinal) FROM image_studio_gallery_task_assets l
             JOIN image_studio_gallery_assets a ON a.user_id=l.user_id AND a.image_id=l.image_id
-            WHERE l.user_id=t.user_id AND l.task_id=t.task_id AND l.role='output' AND a.state='ready')`+where+`
+            WHERE l.user_id=t.user_id AND l.task_id=t.task_id AND l.role='output' AND a.state='ready'),
+          `+galleryTaskStorageBytesSQL+where+`
         ORDER BY t.created_at DESC,t.task_id DESC,t.user_id DESC LIMIT $3 OFFSET $4`, f.UserID, f.TaskID, f.PageSize, (f.Page-1)*f.PageSize)
 	if err != nil {
 		return nil, err
@@ -38,7 +39,7 @@ func (r *workbenchAdminRepository) ListGalleryTasks(ctx context.Context, f servi
 	for rows.Next() {
 		var item service.WorkbenchGalleryTask
 		var ids []byte
-		if err := rows.Scan(&item.UserID, &item.UserEmail, &item.TaskID, &item.Model, &item.CreatedAt, &ids); err != nil {
+		if err := rows.Scan(&item.UserID, &item.UserEmail, &item.TaskID, &item.Model, &item.CreatedAt, &ids, &item.StorageBytes); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(ids, &item.ImageIDs); err != nil {

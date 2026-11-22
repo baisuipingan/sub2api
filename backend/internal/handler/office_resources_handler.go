@@ -71,11 +71,38 @@ func (h *OfficeResourcesHandler) List(c *gin.Context) {
 		}
 		limit = value
 	}
-	items, next, err := h.resources.List(c.Request.Context(), user, c.Query("cursor"), limit)
+	list := h.resources.List
+	if c.Query("source") == "gallery" {
+		list = h.resources.ListGalleryImages
+	}
+	items, next, err := list(c.Request.Context(), user, c.Query("cursor"), limit)
 	if officeResourceHTTPError(c, err) {
 		return
 	}
 	response.Success(c, gin.H{"items": items, "next_cursor": next})
+}
+
+func (h *OfficeResourcesHandler) AttachGalleryImage(c *gin.Context) {
+	user, ok := h.user(c)
+	if !ok {
+		return
+	}
+	if h.agent == nil {
+		officeResourceHTTPError(c, service.ErrOfficeDisabled)
+		return
+	}
+	status, err := h.agent.ChatStatus(c.Request.Context())
+	if officeResourceHTTPError(c, err) {
+		return
+	}
+	if !status.Enabled || !status.FilesEnabled {
+		officeResourceHTTPError(c, service.ErrOfficeDisabled)
+		return
+	}
+	file, err := h.resources.AttachGalleryImage(c.Request.Context(), user, c.Param("image_id"))
+	if !officeResourceHTTPError(c, err) {
+		response.Success(c, file)
+	}
 }
 func (h *OfficeResourcesHandler) Upload(c *gin.Context) {
 	user, ok := h.user(c)
@@ -91,7 +118,11 @@ func (h *OfficeResourcesHandler) Upload(c *gin.Context) {
 		return
 	}
 	if !status.UploadsEnabled {
-		officeResourceHTTPError(c, service.ErrOfficeDisabled)
+		if status.FilesEnabled {
+			officeResourceHTTPError(c, service.ErrOfficeStorageUnavailable)
+		} else {
+			officeResourceHTTPError(c, service.ErrOfficeDisabled)
+		}
 		return
 	}
 	release, err := h.resources.AcquireIO()

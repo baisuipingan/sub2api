@@ -58,8 +58,9 @@ func (s *OfficeAgentService) browserModelInput(ctx context.Context, repo workben
 		remote = params.RemoteOfficeTools
 	}
 	input := workbenchNativeRequest{Protocol: params.Protocol, Model: run.Model, ProfileModel: params.ProfileModel,
-		System:          browserInstructions(params.Protocol, run.SearchEnabled, params.OfficeTools),
-		ReasoningEffort: params.ReasoningEffort, ReplayToolReasoning: params.ReplayToolReasoning,
+		System:                        browserInstructions(params.Protocol, run.SearchEnabled, params.OfficeTools),
+		ConstrainGeminiThinkingBudget: params.ConstrainGeminiThinkingBudget,
+		ReasoningEffort:               params.ReasoningEffort, ReplayToolReasoning: params.ReplayToolReasoning,
 		Tools: browserTools(run.SearchEnabled, params.OfficeTools, remote), Transcript: exchanges, MaxOutputTokens: run.Limits.MaxOutputTokens}
 	if params.HistoryVersion >= workbenchReplayHistoryVersion {
 		model := params.ProfileModel
@@ -80,7 +81,7 @@ func (s *OfficeAgentService) browserModelInput(ctx context.Context, repo workben
 	}
 	input.History, err = s.browserHistory(ctx, repo, run, params, messages)
 	if err == nil && params.HistoryVersion > 0 {
-		err = fitWorkbenchRequestContext(&input, params.ContextWindow)
+		err = fitWorkbenchRequestContext(&input, params.ContextWindow, params.MaxInputTokens)
 	}
 	return input, err
 }
@@ -467,8 +468,8 @@ func (usage *workbenchReplayUsage) addExchange(exchange workbenchNativeExchange)
 
 func (s *OfficeAgentService) workbenchReplayLimit(params workbenchBrowserParameters, input workbenchNativeRequest) workbenchReplayUsage {
 	limit := workbenchReplayUsage{tokens: 128 << 10, bytes: workbenchReplayMaxBytes}
-	if params.ContextWindow > 0 {
-		limit.tokens = params.ContextWindow - min(input.MaxOutputTokens, params.ContextWindow/2)
+	if params.ContextWindow > 0 || params.MaxInputTokens > 0 {
+		limit.tokens = workbenchInputTokenLimit(params.ContextWindow, params.MaxInputTokens, input.MaxOutputTokens)
 	}
 	if s.modelRequestBodyLimit > 0 && s.modelRequestBodyLimit < int64(limit.bytes) {
 		limit.bytes = int(s.modelRequestBodyLimit)

@@ -56,17 +56,12 @@ func TestOfficeAdminResourcesListsAssistantFilesAcrossUsers(t *testing.T) {
 		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM image_studio_gallery_tasks WHERE user_id=$1 AND task_id=$2`, first.UserID, galleryTaskID)
 		require.NoError(t, err)
 	})
-	require.NoError(t, resources.SyncGallery(ctx, first.UserID))
+	reference, err := resources.AttachGalleryImage(ctx, first.UserID, imageID)
+	require.NoError(t, err)
 	personal, _, err := resources.ListResources(ctx, first.UserID, "", 20)
 	require.NoError(t, err)
-	require.Len(t, personal, 2)
-	var galleryVersion string
-	for _, item := range personal {
-		if item.Source == "gallery" {
-			galleryVersion = item.VersionID
-		}
-	}
-	require.NotEmpty(t, galleryVersion, "the existing Studio reference is persisted")
+	require.Len(t, personal, 1)
+	require.Equal(t, upload.VersionID, personal[0].VersionID)
 
 	all, err := admin.AdminResources(ctx, filter)
 	require.NoError(t, err)
@@ -81,7 +76,7 @@ func TestOfficeAdminResourcesListsAssistantFilesAcrossUsers(t *testing.T) {
 	require.Equal(t, second.UserID, seen[generated.VersionID].OwnerID)
 	require.Equal(t, "generated", seen[generated.VersionID].Source)
 	require.Equal(t, "image/png", seen[generated.VersionID].MIME)
-	require.NotContains(t, seen, galleryVersion)
+	require.NotContains(t, seen, reference.VersionID)
 
 	filter.UserID = first.UserID
 	page, err := admin.AdminResources(ctx, filter)
@@ -102,7 +97,7 @@ func TestOfficeAdminResourcesListsAssistantFilesAcrossUsers(t *testing.T) {
 	owner, err := admin.AdminResourceOwner(ctx, generated.VersionID)
 	require.NoError(t, err)
 	require.Equal(t, second.UserID, owner)
-	owner, err = admin.AdminResourceOwner(ctx, galleryVersion)
+	owner, err = admin.AdminResourceOwner(ctx, reference.VersionID)
 	require.NoError(t, err, "conversation details still preview existing gallery attachments")
 	require.Equal(t, first.UserID, owner)
 }

@@ -14,6 +14,60 @@ export interface ExecutionStep {
 export interface ExecutionEpisode { id: string; task?: TaskItem; steps: ExecutionStep[]; active: boolean }
 export function isExecuting(run: ChatRun) { return ['queued', 'running', 'recovering'].includes(run.status) }
 
+export interface WorkbenchProgressGroup {
+  id: string
+  commentary: string
+  toolIds: string[]
+}
+
+export interface WorkbenchProgress {
+  groups: WorkbenchProgressGroup[]
+  answer: string
+  phase: 'model' | 'tools' | 'tool-results' | 'answer'
+}
+
+export function workbenchProgress(events: ChatEvent[]): WorkbenchProgress {
+  const groups: WorkbenchProgressGroup[] = []
+  let current: WorkbenchProgressGroup | undefined
+  let phase: WorkbenchProgress['phase'] = 'model'
+  let expectedTools = 0
+  const done = new Set<string>()
+
+  for (const { type, id, payload } of events) {
+    const operation = typeof payload.operation_id === 'string' ? payload.operation_id : ''
+    if (type === 'model.started' || type === 'assistant.delta') {
+      // Older runs have text and tool events without explicit model markers.
+      if (!current || operation && current.id !== operation || type === 'assistant.delta' && !operation && current.toolIds.length) {
+        current = { id: operation || id, commentary: '', toolIds: [] }
+        groups.push(current)
+        expectedTools = 0
+        phase = 'model'
+      }
+      if (type === 'assistant.delta' && typeof payload.text === 'string') current.commentary += payload.text
+    } else if (type === 'model.completed') {
+      expectedTools = typeof payload.tool_count === 'number' ? payload.tool_count : 0
+      phase = expectedTools > 0 ? 'tools' : 'answer'
+    } else if (type === 'tool.started' || type === 'tool.completed') {
+      if (!current) {
+        current = { id, commentary: '', toolIds: [] }
+        groups.push(current)
+      }
+      const toolId = operation || id
+      if (!current.toolIds.includes(toolId)) current.toolIds.push(toolId)
+      if (type === 'tool.completed') done.add(toolId)
+      else done.delete(toolId)
+      const allDone = current.toolIds.length >= expectedTools && current.toolIds.every(tool => done.has(tool))
+      phase = allDone ? 'tool-results' : 'tools'
+    }
+  }
+  const answer = current && !current.toolIds.length && phase !== 'tools' ? current.commentary : ''
+  return {
+    groups: groups.filter(group => group.toolIds.length || group.commentary.trim() && (group !== current || phase === 'tools')),
+    answer,
+    phase,
+  }
+}
+
 // Bisheng's session timeline and task-scoped timeline share the same leaf
 // components. Our current public tools are session scoped; associate a task
 // only when the server actually supplies task_id, never infer it from a todo.

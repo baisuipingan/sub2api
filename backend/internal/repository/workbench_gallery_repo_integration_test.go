@@ -22,7 +22,11 @@ func TestWorkbenchGalleryListsImportedOutputsWithoutPrivateTaskData(t *testing.T
 			require.NoError(t, err)
 			require.NoError(t, gallery.MarkAssetReady(ctx, user, id))
 		}
-		_, err := gallery.SaveTask(ctx, user, "same-imported-task", strings.Repeat("a", 64), json.RawMessage(`{"id":"same-imported-task","status":"done","apiModel":"gpt-image-2","prompt":"private-prompt-marker","inputImageIds":["reference-one"],"outputImages":["output-one"]}`), []service.GalleryTaskLink{{ImageID: "output-one", Role: "output", Ordinal: 0}, {ImageID: "reference-one", Role: "input", Ordinal: 0}})
+		_, err := gallery.SaveTask(ctx, user, "same-imported-task", strings.Repeat("a", 64), json.RawMessage(`{"id":"same-imported-task","status":"done","apiModel":"gpt-image-2","prompt":"private-prompt-marker","inputImageIds":["reference-one"],"maskTargetImageId":"reference-one","outputImages":["output-one"]}`), []service.GalleryTaskLink{
+			{ImageID: "output-one", Role: "output", Ordinal: 0},
+			{ImageID: "reference-one", Role: "input", Ordinal: 0},
+			{ImageID: "reference-one", Role: "mask_target", Ordinal: 0},
+		})
 		require.NoError(t, err)
 	}
 	repo := &workbenchAdminRepository{db: integrationDB}
@@ -32,6 +36,7 @@ func TestWorkbenchGalleryListsImportedOutputsWithoutPrivateTaskData(t *testing.T
 	require.Len(t, page.Items, 1)
 	require.Equal(t, []string{"output-one"}, page.Items[0].ImageIDs)
 	require.Equal(t, "gpt-image-2", page.Items[0].Model)
+	require.Equal(t, int64(340), page.Items[0].StorageBytes)
 	encoded, err := json.Marshal(page)
 	require.NoError(t, err)
 	for _, secret := range []string{"private-prompt-marker", "reference-one", "task_json", "storage_bucket", "original_key", "url", "https://"} {

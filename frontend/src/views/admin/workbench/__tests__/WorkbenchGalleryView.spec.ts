@@ -3,7 +3,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import WorkbenchGalleryView from '../WorkbenchGalleryView.vue'
 import { listWorkbenchGallery } from '@/api/admin/workbench'
-import i18n from '@/i18n'
+import i18n, { loadLocaleMessages } from '@/i18n'
 import { searchUsers } from '@/api/admin/usage'
 import { getById } from '@/api/admin/users'
 import UserSearchSelect from '@/components/admin/UserSearchSelect.vue'
@@ -17,9 +17,10 @@ afterEach(() => vi.useRealTimers())
 
 describe('administrator cloud gallery filters', () => {
   it('opens task links with exact user and task scope, including imported results', async () => {
+    await loadLocaleMessages('en')
     vi.mocked(getById).mockResolvedValue({ id: 7, username: '图库昵称', email: 'user@example.test' } as Awaited<ReturnType<typeof getById>>)
     vi.mocked(searchUsers).mockResolvedValue([])
-    vi.mocked(listWorkbenchGallery).mockResolvedValue({ items: [{ user_id: 7, user_email: 'user@example.test', task_id: 'imported-one', model: 'gpt-image-2', created_at: '2026-11-08T08:00:00Z', output_count: 1, image_ids: ['output-one'] }], page: 1, page_size: 20, total: 1, pages: 1 })
+    vi.mocked(listWorkbenchGallery).mockResolvedValue({ items: [{ user_id: 7, user_email: 'user@example.test', task_id: 'imported-one', model: 'gpt-image-2', created_at: '2026-11-08T08:00:00Z', output_count: 1, image_ids: ['output-one'], storage_bytes: 2 * 1024 * 1024 }], page: 1, page_size: 20, total: 1, pages: 1 })
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/admin/workbench/gallery', component: WorkbenchGalleryView }] })
     await router.push('/admin/workbench/gallery?user_id=7&task_id=imported-one')
     await router.isReady()
@@ -30,6 +31,7 @@ describe('administrator cloud gallery filters', () => {
     expect(getById).toHaveBeenCalledWith(7, true)
     expect((wrapper.get('#gallery-user').element as HTMLInputElement).value).toContain('user@example.test')
     expect(wrapper.findAll('[data-testid="thumbnail"]')).toHaveLength(1)
+    expect(wrapper.text()).toContain('2 MB')
     expect(wrapper.text()).not.toContain('prompt')
   })
 

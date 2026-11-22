@@ -21,6 +21,10 @@ export interface ChatModel {
   supports_vision?: boolean
   reasoning_efforts?: string[]
   default_reasoning_effort?: string
+  context_window?: number
+  max_input_tokens?: number
+  max_output_tokens?: number
+  default_max_output_tokens?: number
 }
 export interface ChatModels { models: ChatModel[]; default_model?: string }
 export interface ChatConversation { id: string; title: string; created_at: string; updated_at: string }

@@ -33,8 +33,10 @@ func (s *SettingService) GetWorkbenchConfig(ctx context.Context) (*WorkbenchConf
 }
 
 type workbenchAgentModel struct {
-	ID               string `json:"id"`
-	DefaultReasoning string `json:"default_reasoning"`
+	ID                     string `json:"id"`
+	DisplayName            string `json:"display_name"`
+	DefaultReasoning       string `json:"default_reasoning"`
+	DefaultMaxOutputTokens int    `json:"default_max_output_tokens"`
 }
 
 type workbenchAgentConfig struct {

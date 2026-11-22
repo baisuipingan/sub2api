@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import TaskProgress from '../TaskProgress.vue'
+import type { ChatEvent, ChatRun } from '@/types/workbenchChat'
 
 const mocks = vi.hoisted(() => ({ loadRunEvents: vi.fn(), tools: vi.fn(), toolDetail: vi.fn() }))
 vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: { tools: mocks.tools, toolDetail: mocks.toolDetail } }))
@@ -46,6 +47,40 @@ describe('TaskProgress terminal status', () => {
     expect(details.get('li').text()).toContain('进行中')
     wrapper.unmount()
   })
+  it('keeps status at the live edge through model and tool transitions', async () => {
+    const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    const events: ChatEvent[] = []
+    const wrapper = mount(TaskProgress, { props: { run, events }, slots: { default: '<p data-answer>实时回答</p>' } })
+    async function append(type: string, operation_id: string, payload: ChatEvent['payload'] = {}) {
+      const seq = events.length + 1
+      events.push({ id: String(seq), run_id: run.id, sequence: seq, type, payload: { operation_id, ...payload }, created_at: '' })
+      await wrapper.setProps({ events: [...events] })
+    }
+    expect(wrapper.get('[role="status"]').text()).toBe('正在生成回答…')
+    await append('model.started', 'first')
+    await append('assistant.delta', 'first', { text: '我先查天气。' })
+    await append('model.completed', 'first', { tool_count: 1 })
+    expect(wrapper.get('[role="status"]').text()).toBe('准备调用工具…')
+    await append('tool.started', 'search', { title: '联网搜索' })
+    expect(wrapper.get('[role="status"]').text()).toBe('联网搜索')
+    await append('tool.completed', 'search')
+    expect(wrapper.get('[role="status"]').text()).toBe('正在整理工具结果…')
+    await append('model.started', 'second')
+    expect(wrapper.get('[role="status"]').text()).toBe('正在生成回答…')
+    await append('assistant.delta', 'second', { text: '核对后生成文档。' })
+    await append('model.completed', 'second', { tool_count: 1 })
+    await append('tool.completed', 'doc', { title: '生成文档' })
+    const children = wrapper.element.children
+    expect([...children].map(child => child.tagName)).toEqual(['P', 'DETAILS', 'P', 'DETAILS', 'P', 'DIV'])
+    expect(wrapper.findAll('.bs-chat-step-commentary').map(block => block.text())).toEqual(['我先查天气。', '核对后生成文档。'])
+    expect(wrapper.get('[role="status"]').element.previousElementSibling?.hasAttribute('data-answer')).toBe(true)
+    await wrapper.setProps({ connectionInterrupted: true })
+    expect(wrapper.get('[role="status"]').text()).toBe('连接暂时异常，等待同步')
+    expect(wrapper.get('[role="status"]').find('.bs-chat-spin').exists()).toBe(false)
+    await wrapper.setProps({ run: { ...run, status: 'completed' } })
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
   it('corrects historical search status and lazily displays the recorded reasons', async () => {
     const run = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'completed' as const,
       browser_driven: true, tool_calls: 2, created_at: '', updated_at: '' }
@@ -70,7 +105,8 @@ describe('TaskProgress terminal status', () => {
     expect(steps[0]?.get('summary').text()).toContain('失败')
     expect(mocks.toolDetail).not.toHaveBeenCalled()
     for (const step of steps) {
-      ;(step.element as HTMLDetailsElement).open = true
+      const details = step.element as HTMLDetailsElement
+      details.open = true
       await step.trigger('toggle')
       await flushPromises()
     }

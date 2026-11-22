@@ -80,13 +80,18 @@
             ? 'ring-2 ring-primary-500'
             : 'ring-black/[0.06] hover:ring-primary-300 dark:ring-white/10 dark:hover:ring-primary-500/50'
         "
-        :aria-label="item.label"
+        :aria-label="item.storageSize ? item.label + ' · ' + t('imageStudio.gallery.taskStorage', { size: item.storageSize }) : item.label"
         :aria-current="item.task.id === activeTaskId ? 'true' : undefined"
         @click="emit('select', item.task.id, item.imageId)"
       >
         <span class="block aspect-square w-full bg-gray-100 dark:bg-white/[0.06]">
           <StudioImageThumbnail :image-id="item.imageId" :alt="item.label" />
         </span>
+        <span
+          v-if="item.storageSize"
+          :title="t('imageStudio.gallery.taskStorageHint')"
+          class="block h-5 bg-white text-center text-[10px] leading-5 tabular-nums text-gray-500 dark:bg-dark-950 dark:text-dark-400"
+        >{{ item.storageSize }}</span>
 
         <!-- 状态点：生成中转圈，失败标红 -->
         <LoadingSpinner
@@ -109,7 +114,8 @@
 
         <!-- 悬停显示时间，平时不打扰 -->
         <span
-          class="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[10px] text-white opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100"
+          class="pointer-events-none absolute inset-x-0 translate-y-full bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[10px] text-white opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100"
+          :class="item.storageSize ? 'bottom-5' : 'bottom-0'"
         >
           {{ item.timeLabel }}
         </span>
@@ -134,6 +140,7 @@
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatBytes } from '@/utils/format'
 import type { TaskRecord } from '../types'
 import StudioIcon from './StudioIcon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -156,6 +163,7 @@ interface HistoryItem {
   imageId: string
   label: string
   timeLabel: string
+  storageSize?: string
 }
 
 /** 每个任务取第一张图作为代表；同一任务多图时也只占一格 */
@@ -166,6 +174,7 @@ const items = computed<HistoryItem[]>(() =>
       task,
       imageId: task.outputImages[0] ?? '',
       label: task.prompt?.slice(0, 40) || t('imageStudio.task.noPrompt'),
+      storageSize: task.cloudStorageBytes == null ? undefined : formatBytes(task.cloudStorageBytes, 1),
       timeLabel: new Date(task.createdAt).toLocaleTimeString(undefined, {
         hour: '2-digit',
         minute: '2-digit',

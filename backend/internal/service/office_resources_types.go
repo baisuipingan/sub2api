@@ -116,7 +116,8 @@ type OfficeResourceCleanup struct {
 }
 
 type OfficeResourcesRepository interface {
-	SyncGallery(context.Context, int64) error
+	ListGalleryImages(context.Context, int64, string, int) ([]OfficeResource, string, error)
+	AttachGalleryImage(context.Context, int64, string) (*OfficeResource, error)
 	ListResources(context.Context, int64, string, int) ([]OfficeResource, string, error)
 	GetResourceVersion(context.Context, int64, string, bool) (*OfficeResource, error)
 	ResolveVersions(context.Context, int64, []string) ([]OfficeResourceVersion, error)

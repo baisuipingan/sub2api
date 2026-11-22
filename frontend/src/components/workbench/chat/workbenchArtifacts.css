@@ -28,8 +28,9 @@ button.bso-tool-trigger { cursor:pointer; }
 .bso-tool-trigger .bso-fold-arrow { margin-top:2px; }
 .bso-tool-state { flex:none; max-width:50%; font-size:11px; text-align:right; }
 .bso-tool-detail { padding:4px 8px 8px; margin-top:2px; border-left:2px solid var(--bc-border,#eef2f6); color:var(--bc-muted,#999); font-size:12px; line-height:20px; white-space:pre-wrap; overflow-wrap:anywhere; }
-.bso-breathing { display:flex; align-items:center; gap:8px; min-height:24px; margin:4px 0 12px; color:var(--bc-muted,#999); font-size:12px; line-height:20px; }
-.bso-breathing svg { color:var(--bc-blue,#4176e6); }
+.bs-chat-step-commentary { margin:12px 0 6px; color:var(--bc-ink); white-space:pre-wrap; }
+.bso-breathing { display:flex; align-items:center; gap:8px; min-height:24px; margin:10px 0 4px; color:var(--bc-muted,#999); font-size:13px; line-height:20px; }
+.bso-breathing svg { flex:none; color:var(--bc-blue,#4176e6); }
 .bso-clarify.bs-chat-clarify { border-color:var(--bc-border,#eef2f6); }
 .bso-clarify .bs-chat-clarify-question { font-size:14px; line-height:20px; }
 .bso-clarify .bs-chat-clarify-question>strong { font-weight:700; }

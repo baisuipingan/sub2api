@@ -64,6 +64,20 @@ describe('StudioHistoryRail', () => {
       expect(wrapper.get('[data-studio-history-task-id="failed"]').attributes('aria-label')).toBe('failed')
     })
   })
+
+  it('shows the archived size without guessing a size for local history', async () => {
+    const wrapper = mountRail(false)
+    await wrapper.setProps({
+      tasks: [
+        { ...task('archived', ['output', 'second-output']), cloudStorageBytes: 2.5 * 1024 * 1024 },
+        task('local', ['local-output']),
+      ],
+    })
+
+    expect(wrapper.get('[data-studio-history-task-id="archived"] [title="imageStudio.gallery.taskStorageHint"]').text()).toBe('2.5 MB')
+    expect(wrapper.get('[data-studio-history-task-id="local"]').find('[title="imageStudio.gallery.taskStorageHint"]').exists()).toBe(false)
+  })
+
   it('keeps one selected history item per task when another image in the batch is shown', async () => {
     const wrapper = mountRail(false)
     const entries = wrapper.findAll('[data-testid="studio-history-items"] > button')

@@ -22,9 +22,10 @@ func TestWorkbenchRetentionPreservesLateSearchSettlementAndPartialAnswer(t *test
 	_, err := repo.DispatchWorkbenchSearch(ctx, lease, op.ID, quote)
 	require.NoError(t, err)
 	for _, chunk := range []struct{ id, kind, text string }{
-		{"delta:a", "assistant.delta", `{"text":"部分"}`},
+		{"delta:a", "assistant.delta", `{"text":"部分","operation_id":"browser:model:0"}`},
 		{"summary:a", "reasoning.delta", `{"text":"摘要"}`},
-		{"delta:b", "assistant.delta", `{"text":"回答"}`},
+		{"delta:b", "assistant.delta", `{"text":"回答","operation_id":"browser:model:0"}`},
+		{"delta:c", "assistant.delta", `{"text":"下一步","operation_id":"browser:model:1"}`},
 	} {
 		_, err := repo.AppendEvent(ctx, lease, chunk.id, chunk.kind, json.RawMessage(chunk.text))
 		require.NoError(t, err)
@@ -43,7 +44,7 @@ func TestWorkbenchRetentionPreservesLateSearchSettlementAndPartialAnswer(t *test
 	var snapshot string
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT payload::text FROM office_agent_run_events
 		WHERE run_id=$1 AND event_type='assistant.partial'`, lease.Run.ID).Scan(&snapshot))
-	require.JSONEq(t, `{"text":"部分回答","reasoning_summary":"摘要"}`, snapshot)
+	require.JSONEq(t, `{"text":"部分回答\n\n下一步","reasoning_summary":"摘要"}`, snapshot)
 	// A late result can still settle with the original dispatch identity; it only
 	// stores a bounded projection and its replay fingerprint after compaction.
 	result := service.OfficeOperationResult{Output: json.RawMessage(`{"provider":"deepseek","results":[{"url":"https://example.org/","title":"来源","snippet":"temporary payload"}]}`)}

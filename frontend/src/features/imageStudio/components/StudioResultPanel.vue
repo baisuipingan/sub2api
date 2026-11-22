@@ -176,6 +176,9 @@
               <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400">
                 <span class="max-w-[14rem] truncate">{{ modelName }}</span>
                 <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: estimatedCost }) }}</span>
+                <span v-if="activeTask.cloudStorageBytes != null" :title="t('imageStudio.gallery.taskStorageHint')" class="tabular-nums">
+                  {{ t('imageStudio.gallery.taskStorage', { size: formatBytes(activeTask.cloudStorageBytes, 1) }) }}
+                </span>
                 <span v-if="showGallerySyncStatus" :title="syncReason" :class="activeSyncStatus === 'error' ? 'text-red-500' : ''">
                   {{ t('imageStudio.gallery.' + gallerySyncLabelKey(activeSyncStatus)) }}
                 </span>
@@ -228,6 +231,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBillingCurrency } from '@/composables/useBillingCurrency'
+import { formatBytes } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Input from '@/components/common/Input.vue'
 import StudioIcon from './StudioIcon.vue'

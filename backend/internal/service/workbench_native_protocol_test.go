@@ -62,6 +62,32 @@ func TestWorkbenchNativeGeminiParallelToolsPreserveParts(t *testing.T) {
 	require.EqualValues(t, 2, gjson.GetBytes(body, "contents.2.parts.1.functionResponse.response.results.0").Int())
 }
 
+func TestWorkbenchNativeGemini25ThinkingLeavesRoomForOutput(t *testing.T) {
+	for _, tc := range []struct {
+		model        string
+		output, want int
+		constrain    bool
+	}{
+		{"gemini-2.5-pro", 4000, 2000, true},
+		{"gemini-2.5-pro", 200, gemini25ProMinThinkingBudget, true},
+		{"gemini-2.5-flash-lite", 600, 0, true},
+		{"gemini-2.5-flash", 32000, 24576, true},
+		{"gemini-2.5-flash", 4000, 24576, false},
+	} {
+		_, body, err := buildWorkbenchNativeRequest(workbenchNativeRequest{
+			Protocol: workbenchProtocolGemini, Model: "gemini-office", ProfileModel: tc.model,
+			ReasoningEffort: "high", MaxOutputTokens: tc.output, ConstrainGeminiThinkingBudget: tc.constrain,
+			History: []workbenchNativeMessage{{Role: "user", Text: "Explain this"}},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, tc.output, gjson.GetBytes(body, "generationConfig.maxOutputTokens").Int())
+		thinking := gjson.GetBytes(body, "generationConfig.thinkingConfig")
+		require.EqualValues(t, tc.want, thinking.Get("thinkingBudget").Int(), tc.model)
+		require.Equal(t, tc.want > 0, thinking.Get("includeThoughts").Bool(), tc.model)
+		require.False(t, thinking.Get("thinkingLevel").Exists(), tc.model)
+	}
+}
+
 func TestWorkbenchNativeResponsesPreservesOriginalItemsAcrossUserTurns(t *testing.T) {
 	wire := `event: response.reasoning_summary_text.delta
 data: {"type":"response.reasoning_summary_text.delta","delta":"Needs a source."}

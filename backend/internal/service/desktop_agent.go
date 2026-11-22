@@ -553,31 +553,46 @@ func desktopAgentModelPolicyReason(group *Group, models []string, model *Desktop
 	return ""
 }
 
-func (s *DesktopAgentService) validateGroup(ctx context.Context, cfg DesktopAgentConfig) (*Group, string, error) {
-	group, models, reason, err := s.readGroupCatalog(ctx, cfg)
-	if err != nil || reason != "" {
-		return nil, reason, err
-	}
+func (s *DesktopAgentService) validateConfiguredModels(group *Group, models, webModels []string, cfg DesktopAgentConfig) string {
 	for i := range cfg.Models {
 		if _, profile := desktopAgentProfileBinding(cfg, cfg.Models[i].ID, s.profiles); profile == nil {
-			return nil, "configuration_invalid", nil
+			return "configuration_invalid"
 		}
 		switch desktopAgentModelPolicyReason(group, models, &cfg.Models[i]) {
 		case "model_unavailable":
-			return nil, "model_forbidden", nil
+			id := cfg.Models[i].ID
+			if !group.ModelAllowlist.Allows(id) || !slices.Contains(webModels, id) {
+				return "model_forbidden"
+			}
 		case "reasoning_policy_changed":
-			return nil, "configuration_invalid", nil
+			return "configuration_invalid"
 		}
 	}
-	return group, "", nil
+	return ""
 }
 
-// 运行期目录隔离单模型失效；管理员保存仍调用严格 validateGroup。
-func (s *DesktopAgentService) effectiveGroupModels(ctx context.Context, cfg DesktopAgentConfig) (*Group, []DesktopAgentModel, []DesktopAgentUnavailableModel, string, error) {
-	group, catalog, reason, err := s.readGroupCatalog(ctx, cfg)
-	if err != nil || reason != "" {
-		return nil, nil, nil, reason, err
+func (s *DesktopAgentService) workbenchModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	catalog, ok := s.catalog.(interface {
+		workbenchModelsForGroup(context.Context, *Group) ([]string, error)
+	})
+	if !ok {
+		return nil, nil
 	}
+	models, err := catalog.workbenchModelsForGroup(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(models))
+	for _, id := range models {
+		if !imageStudioImageModel(id) && group.ModelAllowlist.Allows(id) {
+			result = append(result, id)
+		}
+	}
+	return result, nil
+}
+
+// 运行期目录隔离单模型失效。网页独占模型不参与桌面端选择。
+func (s *DesktopAgentService) effectiveGroupModels(group *Group, catalog []string, cfg DesktopAgentConfig) ([]DesktopAgentModel, []DesktopAgentUnavailableModel) {
 	models := make([]DesktopAgentModel, 0, len(cfg.Models))
 	unavailable := make([]DesktopAgentUnavailableModel, 0)
 	for i := range cfg.Models {
@@ -593,24 +608,39 @@ func (s *DesktopAgentService) effectiveGroupModels(ctx context.Context, cfg Desk
 			models = append(models, *model)
 		}
 	}
-	return group, models, unavailable, "", nil
+	return models, unavailable
 }
 
-func (s *DesktopAgentService) GetModels(ctx context.Context, groupID int64) ([]string, error) {
+type DesktopAgentConfigurationModels struct {
+	GroupID int64    `json:"group_id"`
+	Models  []string `json:"models"`
+	WebOnly []string `json:"web_only,omitempty"`
+}
+
+func (s *DesktopAgentService) GetModels(ctx context.Context, groupID int64) (*DesktopAgentConfigurationModels, error) {
 	if groupID <= 0 {
 		return nil, ErrDesktopAgentInvalid
 	}
-	group, err := s.groups.GetByID(ctx, groupID)
+	group, desktopModels, reason, err := s.readGroupCatalog(ctx, DesktopAgentConfig{GroupID: groupID})
 	if err != nil {
 		return nil, err
 	}
-	if group == nil || group.ID != groupID || !group.IsActive() || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) {
+	if reason != "" {
 		return nil, ErrDesktopAgentInvalid
 	}
-	if s.catalog == nil {
-		return nil, errors.New("desktop model catalog unavailable")
+	webModels, err := s.workbenchModelsForGroup(ctx, group)
+	if err != nil {
+		return nil, err
 	}
-	return s.catalog.ModelsForGroup(ctx, group)
+	result := &DesktopAgentConfigurationModels{GroupID: groupID, Models: append([]string{}, desktopModels...)}
+	for _, id := range webModels {
+		if !slices.Contains(desktopModels, id) {
+			result.WebOnly = append(result.WebOnly, id)
+		}
+	}
+	result.Models = append(result.Models, result.WebOnly...)
+	slices.Sort(result.Models)
+	return result, nil
 }
 func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgentConfig) (*DesktopAgentConfig, error) {
 	if s.profiles == nil && s.profileCatalog != nil {
@@ -634,9 +664,20 @@ func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgent
 		return nil, err
 	}
 	if cfg.Enabled || len(cfg.Models) > 0 {
-		_, reason, err := s.validateGroup(ctx, cfg)
+		group, models, reason, err := s.readGroupCatalog(ctx, cfg)
 		if err != nil {
 			return nil, err
+		}
+		if reason != "" {
+			return nil, ErrDesktopAgentInvalid
+		}
+		reason = s.validateConfiguredModels(group, models, nil, cfg)
+		if reason == "model_forbidden" {
+			webModels, err := s.workbenchModelsForGroup(ctx, group)
+			if err != nil {
+				return nil, err
+			}
+			reason = s.validateConfiguredModels(group, models, webModels, cfg)
 		}
 		if reason != "" {
 			return nil, ErrDesktopAgentInvalid
@@ -721,30 +762,54 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	}
 	var effectiveModels []DesktopAgentModel
 	var unavailableModels []DesktopAgentUnavailableModel
+	defaultModelID := cfg.DefaultModelID
 	validateBootstrapGroup := func() (*Group, string, error) {
+		group, catalog, reason, err := s.readGroupCatalog(ctx, *cfg)
+		if err != nil || reason != "" {
+			return nil, reason, err
+		}
+		compatible := *cfg
+		if slices.ContainsFunc(cfg.Models, func(model DesktopAgentModel) bool { return !slices.Contains(catalog, model.ID) }) {
+			webModels, err := s.workbenchModelsForGroup(ctx, group)
+			if err != nil {
+				return nil, "", err
+			}
+			compatible.Models = slices.DeleteFunc(slices.Clone(cfg.Models), func(model DesktopAgentModel) bool {
+				return !slices.Contains(catalog, model.ID) && slices.Contains(webModels, model.ID)
+			})
+		}
+		if len(compatible.Models) == 0 {
+			return nil, "model_forbidden", nil
+		}
+		webOnlyDefault := !slices.ContainsFunc(compatible.Models, func(model DesktopAgentModel) bool { return model.ID == cfg.DefaultModelID })
 		if protocol < 3 {
-			for _, model := range cfg.Models {
+			for _, model := range compatible.Models {
 				if !desktopAgentLegacyModel(model) {
 					return nil, "configuration_invalid", nil
 				}
 			}
-			return s.validateGroup(ctx, *cfg)
-		}
-		group, models, unavailable, reason, err := s.effectiveGroupModels(ctx, *cfg)
-		if protocol == 3 {
-			compatible := make([]DesktopAgentModel, 0, len(models))
-			for _, model := range models {
-				if desktopAgentLegacyModel(model) {
-					model.OutputLimitKind = ""
-					compatible = append(compatible, model)
-				} else {
-					unavailable = append(unavailable, DesktopAgentUnavailableModel{ModelID: model.ID, DisplayName: model.DisplayName, ReasonCode: "model_unavailable"})
+			effectiveModels = compatible.Models
+			reason = s.validateConfiguredModels(group, catalog, nil, compatible)
+		} else {
+			effectiveModels, unavailableModels = s.effectiveGroupModels(group, catalog, compatible)
+			if protocol == 3 {
+				effectiveModels = slices.DeleteFunc(effectiveModels, func(model DesktopAgentModel) bool {
+					if desktopAgentLegacyModel(model) {
+						return false
+					}
+					unavailableModels = append(unavailableModels, DesktopAgentUnavailableModel{ModelID: model.ID, DisplayName: model.DisplayName, ReasonCode: "model_unavailable"})
+					return true
+				})
+				for i := range effectiveModels {
+					effectiveModels[i].OutputLimitKind = ""
 				}
 			}
-			models = compatible
 		}
-		effectiveModels, unavailableModels = models, unavailable
-		return group, reason, err
+		defaultModelID = cfg.DefaultModelID
+		if webOnlyDefault && len(effectiveModels) > 0 {
+			defaultModelID = effectiveModels[0].ID
+		}
+		return group, reason, nil
 	}
 	group, reason, err := validateBootstrapGroup()
 	if err != nil {
@@ -820,13 +885,13 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 	result.ReasonCode = "ready"
 	result.Provider = &DesktopAgentProvider{ID: DesktopAgentProviderID, APIType: "openai-responses", BaseURL: cfg.BaseURL}
 	var selected DesktopAgentModel
-	for _, model := range cfg.Models {
-		if model.ID == cfg.DefaultModelID {
+	for _, model := range effectiveModels {
+		if model.ID == defaultModelID {
 			selected = model
 			break
 		}
 	}
-	result.Models = append([]DesktopAgentModel(nil), cfg.Models...)
+	result.Models = append([]DesktopAgentModel(nil), effectiveModels...)
 	if protocol < 4 {
 		for i := range result.Models {
 			result.Models[i].OutputLimitKind = ""
@@ -843,7 +908,7 @@ func (s *DesktopAgentService) BootstrapForProtocol(ctx context.Context, userID i
 		result.SelectionPolicy = nil
 		result.SelectionPolicyV3 = &DesktopAgentSelectionV3{Auxiliary: "inherit-main"}
 		for _, model := range effectiveModels {
-			if model.ID == cfg.DefaultModelID {
+			if model.ID == defaultModelID {
 				result.SelectionPolicyV3.Default = &DesktopAgentDefaultSelection{ModelID: model.ID, ReasoningLevel: model.DefaultReasoning, MaxOutputTokens: model.DefaultMaxOutputTokens}
 				break
 			}

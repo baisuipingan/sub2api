@@ -240,8 +240,12 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 		in.ContextBoundary = seq - 1
 	} else {
 		var boundary int64
-		if err = tx.QueryRowContext(ctx, `SELECT context_boundary FROM office_agent_runs WHERE id=$1 AND user_id=$2 AND conversation_id=$3 AND status IN ('completed','partially_completed') AND regeneration_of IS NULL`, in.RegenerationOf, in.UserID, in.ConversationID).Scan(&boundary); err != nil {
+		var status string
+		if err = tx.QueryRowContext(ctx, `SELECT context_boundary,status FROM office_agent_runs WHERE id=$1 AND user_id=$2 AND conversation_id=$3 AND regeneration_of IS NULL`, in.RegenerationOf, in.UserID, in.ConversationID).Scan(&boundary, &status); err != nil {
 			return nil, false, officeDBError(err)
+		}
+		if !officeCanRegenerate(status) {
+			return nil, false, service.ErrOfficeConflict
 		}
 		in.ContextBoundary = boundary
 	}
@@ -250,7 +254,7 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 		in.InputResources = []service.OfficeResourceVersion{}
 	}
 	refs, _ := json.Marshal(in.InputResources)
-	_, err = tx.ExecContext(ctx, `INSERT INTO office_agent_runs(id,user_id,conversation_id,idempotency_key,request_hash,api_key_id,group_id,model,limits_json,input_resources,mode,search_enabled,parameters,context_boundary,regeneration_of,browser_driven) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULLIF($15,'')::uuid,$16)`, in.RunID, in.UserID, in.ConversationID, in.IdempotencyKey, in.RequestHash, in.APIKeyID, in.GroupID, in.Model, limits, refs, in.Mode, in.SearchEnabled, []byte(in.Parameters), in.ContextBoundary, in.RegenerationOf, in.BrowserDriven)
+	_, err = tx.ExecContext(ctx, `INSERT INTO office_agent_runs(id,user_id,conversation_id,idempotency_key,request_hash,api_key_id,group_id,model,limits_json,input_resources,mode,search_enabled,parameters,context_boundary,regeneration_of,browser_driven,selected) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULLIF($15,'')::uuid,$16,$15='')`, in.RunID, in.UserID, in.ConversationID, in.IdempotencyKey, in.RequestHash, in.APIKeyID, in.GroupID, in.Model, limits, refs, in.Mode, in.SearchEnabled, []byte(in.Parameters), in.ContextBoundary, in.RegenerationOf, in.BrowserDriven)
 	if err != nil {
 		return nil, false, officeDBError(err)
 	}

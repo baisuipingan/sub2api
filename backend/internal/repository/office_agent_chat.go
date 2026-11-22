@@ -101,20 +101,26 @@ func (r *officeAgentRepository) DeleteConversation(ctx context.Context, user int
 	return tx.Commit()
 }
 func (r *officeAgentRepository) ContextMessages(ctx context.Context, run service.OfficeRun) ([]service.OfficeMessage, error) {
-	// An interrupted root turn still has a user question. Carry it forward
-	// without promoting an incomplete assistant result or a regeneration's
-	// duplicate question. Regeneration still uses the original turn boundary.
+	// A replacement answer occupies the original turn's position. A stopped
+	// root contributes its question until a completed retry replaces it.
 	rows, e := r.db.QueryContext(ctx, `
+WITH history AS (
 SELECT m.id::text,m.conversation_id::text,m.run_id::text,m.sequence,m.role,m.content,m.created_at
+     ,COALESCE(root.sequence,m.sequence) AS turn_sequence
+     ,m.run_id=$5 AS current_turn
 FROM office_agent_messages m
 JOIN office_agent_runs r ON r.id=m.run_id
+LEFT JOIN office_agent_messages root ON root.run_id=r.regeneration_of AND root.user_id=m.user_id
+  AND root.conversation_id=m.conversation_id AND root.role='user'
 WHERE m.user_id=$1 AND m.conversation_id=$2
-  AND ((m.sequence<=$3
+  AND ((COALESCE(root.sequence,m.sequence)<=$3
         AND ($4='' OR (r.id<>NULLIF($4,'')::uuid AND r.regeneration_of IS DISTINCT FROM NULLIF($4,'')::uuid))
         AND ((r.selected AND r.status IN ('completed','partially_completed'))
-          OR (m.role='user' AND r.regeneration_of IS NULL AND r.status IN ('cancelled','failed'))))
+          OR (m.role='user' AND r.selected AND r.regeneration_of IS NULL AND r.status IN ('cancelled','failed'))))
     OR (m.run_id=$5 AND m.role='user'))
-ORDER BY m.sequence DESC LIMIT 2001`, run.UserID, run.ConversationID, run.ContextBoundary, run.RegenerationOf, run.ID)
+)
+SELECT id,conversation_id,run_id,sequence,role,content,created_at FROM history
+ORDER BY current_turn DESC,turn_sequence DESC,sequence DESC LIMIT 2001`, run.UserID, run.ConversationID, run.ContextBoundary, run.RegenerationOf, run.ID)
 	if e != nil {
 		return nil, e
 	}

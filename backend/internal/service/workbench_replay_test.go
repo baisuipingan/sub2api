@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -53,6 +55,42 @@ func workbenchReplayTestOperation(t *testing.T, operationID string, value any) O
 	data, err := json.Marshal(value)
 	require.NoError(t, err)
 	return OfficeOperation{ID: operationID, State: OfficeOperationCompleted, Result: &OfficeOperationResult{Output: data}}
+}
+
+func TestWorkbenchParallelReadsRespectModelOrderAndRecoverUncertainOperations(t *testing.T) {
+	calls := []workbenchNativeCall{{ID: "search", Name: "web_search"}}
+	for i := 1; i <= 10; i++ {
+		calls = append(calls, workbenchNativeCall{ID: fmt.Sprintf("page-%d", i), Name: "web_read"})
+	}
+	calls = append(calls, workbenchNativeCall{ID: "document", Name: "create_docx"}, workbenchNativeCall{ID: "other-page", Name: "web_read"})
+	journal := []OfficeOperation{workbenchReplayTestOperation(t, "browser:model:0", OfficeGatewayReply{
+		Status: 200, Native: &workbenchNativeReply{Native: json.RawMessage(`[]`), Calls: calls},
+	})}
+	state, err := workbenchState(workbenchProtocolResponses, journal)
+	require.NoError(t, err)
+	require.Len(t, state.ParallelReads, 10)
+	require.Equal(t, "browser:tool:0:9", state.ParallelReads[9].id)
+
+	state, err = workbenchState(workbenchProtocolResponses, append(slices.Clone(journal), OfficeOperation{ID: "browser:tool:0:1", State: OfficeOperationDispatched}))
+	require.NoError(t, err)
+	require.Equal(t, "browser:tool:0:1", state.Uncertain, "an interrupted batch must reconcile before sending more calls")
+
+	for i := 9; i >= 0; i-- {
+		journal = append(journal, workbenchReplayTestOperation(t, fmt.Sprintf("browser:tool:0:%d", i), map[string]bool{"ok": true}))
+	}
+	state, err = workbenchState(workbenchProtocolResponses, journal)
+	require.NoError(t, err)
+	require.Len(t, state.ParallelReads, 1, "the next pending write bounds the read batch")
+	for _, id := range []string{"browser:tool:0:12", "browser:tool:0:10", "browser:tool:0:11"} {
+		journal = append(journal, workbenchReplayTestOperation(t, id, map[string]bool{"ok": true}))
+	}
+	state, err = workbenchState(workbenchProtocolResponses, journal)
+	require.NoError(t, err)
+	require.Equal(t, 1, state.NextModel)
+	require.Len(t, state.Exchanges, 1)
+	for index, call := range calls {
+		require.Equal(t, call.ID, state.Exchanges[0].Results[index].ID)
+	}
 }
 
 func TestWorkbenchReplayContinuesExactResponsesPrefix(t *testing.T) {

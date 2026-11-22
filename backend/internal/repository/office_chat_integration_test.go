@@ -253,6 +253,64 @@ func TestOfficeChatFollowUpRetainsInterruptedQuestions(t *testing.T) {
 	}
 }
 
+func TestOfficeChatRetriesStoppedTurnAtItsOriginalBoundary(t *testing.T) {
+	ctx := context.Background()
+	base, first := officeTestAdmission(t)
+	repo := officeChatRepo(t, base)
+	first.Mode, first.UserContent = "chat", json.RawMessage(`{"text":"first question"}`)
+	_, _, err := base.AdmitRun(ctx, first)
+	require.NoError(t, err)
+	officeFinishText(t, base, *officeClaimPreset(t, repo, "chat", first.RunID), "first answer")
+
+	stopped := officeNextAdmission(first, "stopped question")
+	_, _, err = base.AdmitRun(ctx, stopped)
+	require.NoError(t, err)
+	_, err = base.CancelRun(ctx, first.UserID, stopped.RunID)
+	require.NoError(t, err)
+
+	later := officeNextAdmission(first, "later question")
+	_, _, err = base.AdmitRun(ctx, later)
+	require.NoError(t, err)
+	officeFinishText(t, base, *officeClaimPreset(t, repo, "chat", later.RunID), "later answer")
+
+	root, question, err := repo.RegenerationSource(ctx, first.UserID, first.ConversationID, stopped.RunID)
+	require.NoError(t, err)
+	retry := officeNextAdmission(stopped, "unused")
+	retry.RegenerationOf, retry.UserContent = root.ID, question.Content
+	retry.Model = "selected-model"
+	retryRun, _, err := base.AdmitRun(ctx, retry)
+	require.NoError(t, err)
+	require.Equal(t, "selected-model", retryRun.Model)
+	require.Equal(t, root.ContextBoundary, retryRun.ContextBoundary)
+	require.False(t, retryRun.Selected, "an in-progress replacement keeps the prior selection")
+	rows, err := repo.ContextMessages(ctx, *retryRun)
+	require.NoError(t, err)
+	require.Equal(t, []string{"first question", "first answer", "stopped question"}, officeContextTexts(t, rows))
+
+	retryLease := officeClaimPreset(t, repo, "chat", retry.RunID)
+	failed, err := base.FinishRun(ctx, *retryLease, service.OfficeRunFailed, nil, "FAILED", "fixture failure")
+	require.NoError(t, err)
+	require.False(t, failed.Selected, "a failed retry cannot become the selected answer")
+	previous, err := base.GetRun(ctx, first.UserID, stopped.RunID)
+	require.NoError(t, err)
+	require.True(t, previous.Selected)
+	root, question, err = repo.RegenerationSource(ctx, first.UserID, first.ConversationID, retry.RunID)
+	require.NoError(t, err)
+	require.Equal(t, stopped.RunID, root.ID)
+	replacement := officeNextAdmission(retry, "unused")
+	replacement.RegenerationOf, replacement.UserContent = root.ID, question.Content
+	_, _, err = base.AdmitRun(ctx, replacement)
+	require.NoError(t, err)
+	officeFinishText(t, base, *officeClaimPreset(t, repo, "chat", replacement.RunID), "retried answer")
+
+	current := officeNextAdmission(first, "current question")
+	currentRun, _, err := base.AdmitRun(ctx, current)
+	require.NoError(t, err)
+	rows, err = repo.ContextMessages(ctx, *currentRun)
+	require.NoError(t, err)
+	require.Equal(t, []string{"first question", "first answer", "stopped question", "retried answer", "later question", "later answer", "current question"}, officeContextTexts(t, rows))
+}
+
 func TestOfficeChatSummaryCASAndRegenerationInvalidatesBoundary(t *testing.T) {
 	ctx := context.Background()
 	base, first := officeTestAdmission(t)

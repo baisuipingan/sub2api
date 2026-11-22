@@ -26,7 +26,8 @@ func (r *officeResourcesRepository) ListCleanup(ctx context.Context, limit int) 
 		return nil, err
 	}
 	rows, err := r.db.QueryContext(ctx, `SELECT r.user_id,r.id::text FROM office_resources r JOIN users u ON u.id=r.user_id WHERE
- (u.deleted_at IS NOT NULL OR r.deleted_at IS NOT NULL OR (r.latest_version_id IS NULL AND r.created_at<NOW()-INTERVAL '1 hour'))
+ (u.deleted_at IS NOT NULL OR r.deleted_at IS NOT NULL OR (r.latest_version_id IS NULL AND r.created_at<NOW()-INTERVAL '1 hour')
+ OR (r.source='gallery' AND EXISTS(SELECT 1 FROM office_resource_versions v WHERE v.id=r.latest_version_id AND v.updated_at<NOW()-INTERVAL '1 day')))
  AND NOT EXISTS(SELECT 1 FROM office_resource_refs f JOIN office_resource_versions v ON v.id=f.version_id WHERE v.resource_id=r.id)
  AND (r.source<>'gallery' OR EXISTS(SELECT 1 FROM office_resource_versions v WHERE v.resource_id=r.id))
  ORDER BY r.created_at LIMIT $1`, limit)
@@ -63,7 +64,10 @@ func (r *officeResourcesRepository) ListCleanup(ctx context.Context, limit int) 
 		}
 		var source string
 		var eligible bool
-		e = tx.QueryRowContext(ctx, `SELECT r.source,(u.deleted_at IS NOT NULL OR r.deleted_at IS NOT NULL OR (r.latest_version_id IS NULL AND r.created_at<NOW()-INTERVAL '1 hour')) AND NOT EXISTS(SELECT 1 FROM office_resource_refs f JOIN office_resource_versions v ON v.id=f.version_id WHERE v.resource_id=r.id) FROM office_resources r JOIN users u ON u.id=r.user_id WHERE r.user_id=$1 AND r.id=$2 FOR UPDATE OF r`, c.user, c.id).Scan(&source, &eligible)
+		e = tx.QueryRowContext(ctx, `SELECT r.source,(u.deleted_at IS NOT NULL OR r.deleted_at IS NOT NULL OR (r.latest_version_id IS NULL AND r.created_at<NOW()-INTERVAL '1 hour')
+		 OR (r.source='gallery' AND EXISTS(SELECT 1 FROM office_resource_versions v WHERE v.id=r.latest_version_id AND v.updated_at<NOW()-INTERVAL '1 day')))
+		 AND NOT EXISTS(SELECT 1 FROM office_resource_refs f JOIN office_resource_versions v ON v.id=f.version_id WHERE v.resource_id=r.id)
+		 FROM office_resources r JOIN users u ON u.id=r.user_id WHERE r.user_id=$1 AND r.id=$2 FOR UPDATE OF r`, c.user, c.id).Scan(&source, &eligible)
 		if e == sql.ErrNoRows {
 			_ = tx.Rollback()
 			continue

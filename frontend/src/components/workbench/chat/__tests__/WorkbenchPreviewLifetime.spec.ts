@@ -1,31 +1,64 @@
 import { createPinia, defineStore, setActivePinia } from 'pinia'
-import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineComponent, h, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WorkbenchChatView from '@/views/user/WorkbenchChatView.vue'
 import { useWorkbenchChatStore } from '@/stores/workbenchChat'
 import { useAuthStore } from '@/stores/auth'
-import type { ChatMessage, ChatModel, ChatRun } from '@/types/workbenchChat'
+import type { ChatEvent, ChatMessage, ChatModel, ChatRun } from '@/types/workbenchChat'
 
 const mocks = vi.hoisted(() => ({ mounts: vi.fn(), unmounts: vi.fn(), send: vi.fn(), initialize: vi.fn() }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ params: { conversationId: 'conversation' }, query: {} }), useRouter: () => ({ replace: vi.fn() }) }))
+const route = reactive({ params: { conversationId: 'conversation' as string | undefined }, query: {} })
+vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ replace: vi.fn() }) }))
 vi.mock('@vueuse/core', () => ({ useMediaQuery: () => ref(false) }))
-vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: {} }))
+vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: { toolDetail: vi.fn() } }))
 vi.mock('@/stores/app', () => ({ useAppStore: defineStore('preview-view-app', () => ({ siteName: ref('MiloRouter'), siteLogo: ref('') })) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: defineStore('preview-view-auth', () => ({ user: ref({ id: 1 }) })) }))
 vi.mock('@/stores/workbenchChat', () => ({
   chatError: () => '请求失败',
   useWorkbenchChatStore: defineStore('preview-view-chat', () => ({
     status: ref({ enabled: true, office_enabled: true, search_enabled: true, search_allowed: true, search_price_per_1000_usd: 0 }), models: ref<ChatModel[]>([{ id: 'gpt', supports_tools: true }, { id: 'text', supports_tools: false }]), modelCatalog: ref({ default_model: 'gpt' }),
-    history: ref({ messages: [], runs: [{ id: 'run', model: 'gpt', status: 'completed', mode: 'office', created_at: '' }] }), events: ref({}),
+    history: ref({ messages: [], runs: [{ id: 'run', model: 'gpt', status: 'completed', mode: 'office', created_at: '' }] }), events: ref<Record<string, ChatEvent[]>>({}),
+    modelRouteChangedRunID: ref(''),
     activeConversationId: ref('conversation'), activeRun: computed(() => null), initialize: mocks.initialize, selectConversation: vi.fn(), pause: vi.fn(), send: mocks.send,
   })),
 }))
 const Preview = defineComponent({ name: 'ResourcePreview', props: ['fullscreen'], emits: ['fullscreen', 'close'], setup(props, { emit }) { onMounted(mocks.mounts); onUnmounted(mocks.unmounts); return () => h('section', { 'data-preview': '' }, [h('iframe', { src: 'about:blank' }), h('button', { 'data-toggle-fullscreen': '', onClick: () => emit('fullscreen') }, props.fullscreen ? '退出全屏' : '全屏预览')]) } })
 let wrapper: ReturnType<typeof mount> | undefined
 describe('conversation preview lifetime', () => {
-  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
+  beforeEach(() => { setActivePinia(createPinia()); vi.resetAllMocks(); route.params.conversationId = 'conversation'; localStorage.clear() })
   afterEach(() => { wrapper?.unmount(); wrapper = undefined; document.body.innerHTML = ''; localStorage.clear() })
+
+  it('renders a zero-tool model completion once, then replaces the stream with the saved answer', async () => {
+    const store = useWorkbenchChatStore()
+    const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    store.history.runs = [run]
+    const event = (sequence: number, type: string, payload: Record<string, unknown>): ChatEvent => ({ id: `event-${sequence}`, run_id: run.id, sequence, type, payload, created_at: '' })
+    store.events[run.id] = [
+      event(1, 'assistant.delta', { operation_id: 'model-1', text: '先查资料。' }),
+      event(2, 'model.completed', { operation_id: 'model-1', tool_count: 1 }),
+      event(3, 'tool.completed', { operation_id: 'tool-1', title: '联网搜索' }),
+      event(4, 'model.started', { operation_id: 'model-2' }),
+      event(5, 'assistant.delta', { operation_id: 'model-2', text: '实时回答。' }),
+      event(6, 'model.completed', { operation_id: 'model-2', tool_count: 0 }),
+    ]
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: true, Icon: true, ResourcePreview: true, ToolOperationDetails: true,
+    } } })
+    await flushPromises()
+    expect(wrapper.get('.bs-chat-step-commentary').text()).toBe('先查资料。')
+    expect(wrapper.findAll('.bs-chat-step-commentary')).toHaveLength(1)
+    expect(wrapper.get('.bs-chat-result').text()).toBe('实时回答。')
+    expect(wrapper.get('.bso-breathing').text()).toBe('正在整理回答…')
+    store.history.runs = [{ ...run, status: 'completed' }]
+    store.history.messages = [{ id: 'answer', conversation_id: 'conversation', run_id: run.id, role: 'assistant', sequence: 7, content: '保存后的回答。', created_at: '' }]
+    await nextTick()
+    expect(wrapper.get('.bs-chat-step-commentary').text()).toBe('先查资料。')
+    expect(wrapper.get('.bs-chat-result').text()).toBe('保存后的回答。')
+    expect(wrapper.text()).not.toContain('实时回答。')
+    expect(wrapper.find('.bso-breathing').exists()).toBe(false)
+  })
   it('moves one preview between dock and full screen without remounting its iframe', async () => {
     const store = useWorkbenchChatStore()
     store.history.runs[0]!.artifacts = [{ id: 'report', version_id: 'report', name: '报告.docx', mime: '', bytes: 1 }]
@@ -93,7 +126,7 @@ describe('conversation preview lifetime', () => {
     }
     wrapper = mount(WorkbenchChatView, { global: { stubs: {
       WorkbenchChatLayout: { template: '<div><slot /></div>' },
-      ChatComposer: { name: 'ChatComposer', props: ['effort'], template: '<div />' },
+      ChatComposer: { name: 'ChatComposer', props: ['effort', 'modelValue'], template: '<div />' },
       Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
     } } })
     await flushPromises()
@@ -110,8 +143,52 @@ describe('conversation preview lifetime', () => {
     composer.vm.$emit('update:model', 'flash')
     await nextTick()
     expect(composer.props('effort')).toBe('high')
+    composer.vm.$emit('update:modelValue', '还没有发送的新稿')
+    mocks.send.mockResolvedValueOnce('conversation')
     await wrapper.get('[aria-label="重试任务"]').trigger('click')
-    expect(mocks.send).toHaveBeenLastCalledWith({ model: 'flash', content: '重试这条消息', web_search: false, reasoning_effort: 'high' })
+    await flushPromises()
+    expect(mocks.send).toHaveBeenLastCalledWith({ model: 'flash', content: '重试这条消息', web_search: false, regenerate_run_id: 'run', reasoning_effort: 'high' })
+    expect(composer.props('modelValue')).toBe('还没有发送的新稿')
+  })
+
+  it('clears the old conversation draft when the sidebar already reset the store selection', async () => {
+    const store = useWorkbenchChatStore()
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: { name: 'ChatComposer', props: ['modelValue'], template: '<div />' },
+      Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
+    } } })
+    await flushPromises()
+    const composer = wrapper.getComponent({ name: 'ChatComposer' })
+    composer.vm.$emit('update:modelValue', '上一场会话的草稿')
+    await nextTick()
+    expect(composer.props('modelValue')).toBe('上一场会话的草稿')
+    store.activeConversationId = ''
+    route.params.conversationId = undefined
+    await flushPromises()
+    expect(composer.props('modelValue')).toBe('')
+  })
+
+  it('refreshes the catalog when a live task reports a changed model route', async () => {
+    const store = useWorkbenchChatStore()
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: { name: 'ChatComposer', props: ['modelValue', 'model'], template: '<div />' },
+      Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
+    } } })
+    await flushPromises()
+    const composer = wrapper.getComponent({ name: 'ChatComposer' })
+    composer.vm.$emit('update:modelValue', '保留我的草稿')
+    mocks.initialize.mockImplementationOnce(async () => {
+      store.models = [{ id: 'gemini' }]
+      store.modelCatalog.default_model = 'gemini'
+    })
+    store.modelRouteChangedRunID = 'run'
+    await flushPromises()
+    expect(mocks.initialize).toHaveBeenCalledTimes(2)
+    expect(composer.props('model')).toBe('gemini')
+    expect(composer.props('modelValue')).toBe('保留我的草稿')
+    expect(mocks.send).not.toHaveBeenCalled()
   })
 
   it('blocks sending and retrying when the shared catalog is empty and reloads it on request', async () => {
