@@ -2,26 +2,24 @@ package service
 
 import "slices"
 
-// Workbench capabilities are declared against the public ID only. Supplier
-// credentials, upstream model mappings and desktop-agent settings are never
-// consulted. A custom alias may explicitly name an official capability profile.
-func workbenchModelProfile(id string, bindings map[string]DesktopAgentModelProfileBinding, profiles []DesktopAgentProfile) *DesktopAgentProfile {
-	binding, explicit := bindings[id]
-	if explicit && (binding.Override || binding.ProfileID == "") {
-		return nil
-	}
+// Agent owns the binding for a custom public ID. Older Workbench bindings
+// are only read when Agent has no binding for that ID.
+func workbenchModelProfile(id string, agent, legacy map[string]DesktopAgentModelProfileBinding, profiles []DesktopAgentProfile) *DesktopAgentProfile {
 	for i := range profiles {
 		profile := &profiles[i]
-		if profile.ID != id && !slices.Contains(profile.Aliases, id) {
-			continue
+		if profile.ID == id || slices.Contains(profile.Aliases, id) {
+			return profile
 		}
-		if explicit && binding.ProfileID != profile.ID {
-			return nil
+	}
+	binding, explicit := agent[id]
+	if !explicit {
+		old, ok := legacy[id]
+		if ok && !old.Override && old.ProfileID != "" {
+			binding = old
 		}
-		return profile
 	}
 	profileID := binding.ProfileID
-	if !explicit && id == "deepseek-v4.1-flash" {
+	if !explicit && profileID == "" && id == "deepseek-v4.1-flash" {
 		// OpenCode advertises this exact public ID for DeepSeek V4.1 Flash.
 		// https://opencode.ai/docs/console/go/#endpoints
 		// DeepSeek's official API identifies the same model as deepseek-flash.
@@ -33,16 +31,4 @@ func workbenchModelProfile(id string, bindings map[string]DesktopAgentModelProfi
 		}
 	}
 	return nil
-}
-
-func validWorkbenchModelProfiles(bindings map[string]DesktopAgentModelProfileBinding, profiles []DesktopAgentProfile) bool {
-	if len(bindings) > 128 {
-		return false
-	}
-	for id, binding := range bindings {
-		if !officeModelID(id) || binding.Override || binding.ProfileID == "" || workbenchModelProfile(id, bindings, profiles) == nil {
-			return false
-		}
-	}
-	return true
 }

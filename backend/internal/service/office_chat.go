@@ -42,8 +42,10 @@ type WorkbenchChatModel struct {
 }
 
 type WorkbenchChatModelCatalog struct {
-	Models       []WorkbenchChatModel `json:"models"`
-	DefaultModel string               `json:"default_model,omitempty"`
+	Models              []WorkbenchChatModel `json:"models"`
+	DefaultModel        string               `json:"default_model,omitempty"`
+	agentGroupID        int64
+	agentConfigRevision string
 }
 
 func (s *OfficeAgentService) BindWorkbenchProfiles(profiles *DesktopAgentProfileCatalogService) {
@@ -97,16 +99,23 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatMode
 	if e != nil {
 		return nil, e
 	}
-	var ids []string
+	result := &WorkbenchChatModelCatalog{
+		Models:              make([]WorkbenchChatModel, 0, len(cfg.agentSelection.Models)),
+		agentGroupID:        g.ID,
+		agentConfigRevision: cfg.agentSelection.Revision,
+	}
+	if len(cfg.agentSelection.Models) == 0 {
+		return result, nil
+	}
 	routes := map[string]workbenchModelRoute{}
 	if catalog, ok := s.catalog.(*workbenchChatModelCatalog); ok {
 		routes, e = catalog.modelRoutes(ctx, g)
-		for id := range routes {
-			ids = append(ids, id)
-		}
-		slices.Sort(ids)
 	} else {
+		var ids []string
 		ids, e = s.catalog.ModelsForGroup(ctx, g)
+		for _, id := range ids {
+			routes[id] = workbenchModelRoute{}
+		}
 	}
 	if e != nil {
 		return nil, e
@@ -115,22 +124,22 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatMode
 	if s.profiles != nil {
 		profiles = s.profiles.Snapshot()
 	}
-	result := &WorkbenchChatModelCatalog{Models: make([]WorkbenchChatModel, 0, len(ids))}
-	for _, id := range ids {
-		// Use the advertised ID's public contract. Private supplier mappings
-		// must not determine whether a text alias appears in the catalog.
-		if !workbenchChatModelID(id) {
+	for _, agentModel := range cfg.agentSelection.Models {
+		id := agentModel.ID
+		route, routable := routes[id]
+		if !routable || imageStudioImageModel(id) {
 			continue
 		}
-		route := routes[id]
 		m := WorkbenchChatModel{ID: id, Protocol: route.protocol, DisplayName: id, ReasoningEfforts: []string{}, nativeResponses: route.nativeResponses}
-		if p := workbenchModelProfile(id, cfg.ModelProfiles, profiles); p != nil {
+		if p := workbenchModelProfile(id, cfg.agentSelection.ModelProfiles, cfg.ModelProfiles, profiles); p != nil {
 			m.DisplayName = p.DisplayName
 			m.profileModel = p.ID
 			m.ContextWindow = p.OfficialContextWindow
 			m.MaxOutputTokens = p.OfficialMaxOutputTokens
 			m.ReasoningEfforts = slices.Clone(p.OfficialReasoningLevels)
-			if m.Protocol == workbenchProtocolGemini {
+			if slices.Contains(m.ReasoningEfforts, agentModel.DefaultReasoning) {
+				m.DefaultReasoningEffort = agentModel.DefaultReasoning
+			} else if m.Protocol == workbenchProtocolGemini {
 				effort := workbenchGeminiDefaultReasoningEffort(m.profileModel)
 				if effort != "" && slices.Contains(m.ReasoningEfforts, effort) {
 					m.DefaultReasoningEffort = effort
@@ -141,20 +150,11 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatMode
 			m.replayToolReasoning = p.Source == "official_deepseek"
 		}
 		result.Models = append(result.Models, m)
-		if id == cfg.agentDefaultModelID {
+		if id == cfg.agentSelection.DefaultModelID {
 			result.DefaultModel = id
 		}
 	}
 	return result, nil
-}
-
-func workbenchChatModelID(id string) bool {
-	switch id {
-	case "deepseek-asr", "deepseek-tts", "deepseek-ocr", "deepseek-fetch", "deepseek-search":
-		return false
-	default:
-		return !imageStudioImageModel(id)
-	}
 }
 
 func (s *OfficeAgentService) loadWorkbenchAgentGroup(ctx context.Context) (*WorkbenchConfig, *Group, error) {
@@ -232,6 +232,9 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	if e != nil {
 		return nil, e
 	}
+	if group != catalog.agentGroupID {
+		return nil, ErrOfficeRouteChanged
+	}
 	var boundary int64
 	if in.RegenerateRunID != "" {
 		repo, e := s.ChatRepository()
@@ -280,8 +283,12 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	if in.WebSearch && in.SearchPricePer1000USD > 0 {
 		parameters["search_price_per_1000_usd"] = in.SearchPricePer1000USD
 	}
-	if in.ReasoningEffort != "" {
-		parameters["reasoning_effort"] = in.ReasoningEffort
+	effort := in.ReasoningEffort
+	if effort == "" {
+		effort = model.DefaultReasoningEffort
+	}
+	if effort != "" {
+		parameters["reasoning_effort"] = effort
 	}
 	if model.ContextWindow != nil {
 		parameters["context_window"] = *model.ContextWindow
@@ -333,7 +340,13 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		artifacts = append(artifacts, attachment)
 	}
 	content, _ := json.Marshal(map[string]any{"text": in.Content, "artifacts": artifacts})
-	run, _, e := s.repo.AdmitRun(ctx, OfficeRunAdmission{BrowserDriven: true, UserID: user, ConversationID: conversation, RunID: in.RunID, IdempotencyKey: in.RunID, RequestHash: officeDigest(encoded), APIKeyID: key, GroupID: group, Model: in.Model, UserContent: content, InputResources: refs, Mode: "chat", SearchEnabled: in.WebSearch, Parameters: params, ContextBoundary: boundary, RegenerationOf: in.RegenerateRunID, Limits: limits})
+	run, _, e := s.repo.AdmitRun(ctx, OfficeRunAdmission{
+		BrowserDriven: true, UserID: user, ConversationID: conversation, RunID: in.RunID,
+		IdempotencyKey: in.RunID, RequestHash: officeDigest(encoded), APIKeyID: key, GroupID: group,
+		Model: in.Model, UserContent: content, InputResources: refs, Mode: "chat", SearchEnabled: in.WebSearch,
+		Parameters: params, ContextBoundary: boundary, RegenerationOf: in.RegenerateRunID, Limits: limits,
+		AgentConfigRevision: catalog.agentConfigRevision,
+	})
 	return run, e
 }
 

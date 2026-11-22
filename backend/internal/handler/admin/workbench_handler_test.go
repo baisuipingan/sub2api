@@ -118,9 +118,10 @@ func (r *workbenchConfigSettings) SetMultiple(_ context.Context, values map[stri
 	return nil
 }
 
-func TestWorkbenchConfigAcceptsOldBudgetPayloadWithoutPersistingIt(t *testing.T) {
+func TestWorkbenchConfigAcceptsLegacyFieldsWithoutWritingThem(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	repo := &workbenchConfigSettings{values: map[string]string{}}
+	const savedBindings = `{"existing-alias":{"profile_id":"gpt-6.1-sol","override":false}}`
+	repo := &workbenchConfigSettings{values: map[string]string{"workbench_model_profiles_v1": savedBindings}}
 	h := NewWorkbenchHandler(service.NewWorkbenchAdminService(nil, service.NewSettingService(repo, nil), nil))
 	router := gin.New()
 	router.PUT("/config", h.UpdateConfig)
@@ -139,14 +140,11 @@ func TestWorkbenchConfigAcceptsOldBudgetPayloadWithoutPersistingIt(t *testing.T)
 	require.Equal(t, http.StatusOK, legacy.Code, legacy.Body.String())
 	require.NotContains(t, legacy.Body.String(), `"max_model_calls"`)
 	require.NotContains(t, legacy.Body.String(), `"max_run_credits"`)
-	require.Contains(t, legacy.Body.String(), `"office-alias"`)
-	for _, body := range []string{
-		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"office-alias":{"profile_id":"gpt-6.1-sol","override":true}}}`,
-		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"gpt-6.1-sol":{"profile_id":"gpt-6-luna","override":false}}}`,
-	} {
-		require.Equal(t, http.StatusBadRequest, send(body).Code, body)
-	}
-	cleared := send(`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{}}`)
+	require.Contains(t, legacy.Body.String(), `"existing-alias"`)
+	require.NotContains(t, first.Body.String(), `"office-alias"`)
+	cleared := send(`{"image_studio_enabled":false,"image_studio_group_id":0,"files_enabled":true,"model_profiles":{}}`)
 	require.Equal(t, http.StatusOK, cleared.Code, cleared.Body.String())
-	require.Contains(t, cleared.Body.String(), `"model_profiles":{}`)
+	require.Contains(t, cleared.Body.String(), `"existing-alias"`)
+	require.Equal(t, savedBindings, repo.values["workbench_model_profiles_v1"])
+	require.Equal(t, "true", repo.values["workbench_files_enabled"])
 }

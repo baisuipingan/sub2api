@@ -4,7 +4,7 @@
 
 ## 模型与计费
 
-模型目录从工作台绑定的 Agent 分组读取。原生路线分别使用 `/v1/responses`、`/v1/messages` 和 Gemini `streamGenerateContent`。目录根据聚合路由和上游账号能力选择协议，兼容渠道仍可使用 Responses 或 Chat Completions。模型界面使用公开模型 ID 对应的能力档案，别名可绑定官方档案。每次模型请求使用用户已有的 Agent Key，经网关执行分组授权、模型路由、RPM、并发和用量计费。图片生成的分组单独配置。
+对话助手使用 Agent 设置中保存的模型名单、排序和默认模型，并核对每个模型的网页对话路由。模型的默认推理档位在网页协议支持时生效，用户可以在发送前调整。原生路线分别使用 `/v1/responses`、`/v1/messages` 和 Gemini `streamGenerateContent`。目录根据聚合路由和上游账号能力选择协议，兼容渠道仍可使用 Responses 或 Chat Completions。模型界面根据公开模型 ID 读取官方能力档案，自定义公开别名可沿用 Agent 已绑定的档案。每次模型请求使用用户已有的 Agent Key，经网关执行分组授权、模型路由、RPM、并发和用量计费。图片生成的分组单独配置。
 
 Claude 原生 Messages 使用支持该端点的 Anthropic API Key 账号。官方 Anthropic 地址自动启用缓存。已确认支持顶层 `cache_control` 的中转渠道可在账号 `extra` 中设置 `workbench_anthropic_prompt_cache: true`。聚合分组同时接入同名 Claude 兼容账号时，可以用 `messages` 精确规则选 Anthropic，并用 `any` 精确规则保留其他端点的原路由。[Anthropic 缓存文档](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
 

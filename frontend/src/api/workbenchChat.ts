@@ -24,7 +24,7 @@ export const workbenchChatApi = {
   async upload(file: File) { const body = new FormData(); body.append('file', file); return (await apiClient.post<ChatResource>(`${base}/resources`, body, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })).data },
   async resources(cursor?: string) { return (await apiClient.get<{ items: ChatArtifact[]; next_cursor?: string }>(`${base}/resources`, { params: { cursor, limit: 40 } })).data },
   async deleteResource(id: string) { await apiClient.delete(`${base}/resources/${segment(id)}`) },
-  async access(versionId: string) { return (await apiClient.get<ChatResourceAccess>(`${base}/resources/${segment(versionId)}/access`)).data },
+  async access(versionId: string, signal?: AbortSignal) { return (await apiClient.get<ChatResourceAccess>(`${base}/resources/${segment(versionId)}/access`, { signal })).data },
   async printPreview(versionId: string, signal: AbortSignal, retry = false) {
     return (await apiClient.post<ChatPrintPreview>(`${base}/resources/${segment(versionId)}/print-preview`, undefined, { signal, params: retry ? { retry: 1 } : undefined })).data
   },

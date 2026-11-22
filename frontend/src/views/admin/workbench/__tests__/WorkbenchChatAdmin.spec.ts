@@ -47,7 +47,29 @@ describe('workbench conversation administrator views', () => {
     await wrapper.get('[data-message-id="older"] button').trigger('click')
     expect(mocks.detail).toHaveBeenLastCalledWith('old-run', expect.any(AbortSignal))
   })
-  it('lists resource metadata without issuing object access or offering write actions', async () => { const wrapper = render(WorkbenchResourcesView); await flushPromises(); expect(wrapper.text()).toContain('测试.docx'); expect(mocks.access).not.toHaveBeenCalled(); expect(wrapper.text()).not.toContain('删除文件'); await wrapper.findAll('button').find(button => button.text() === '查看文件')!.trigger('click'); await flushPromises(); expect(wrapper.findComponent({ name: 'ResourcePreview' }).exists()).toBe(true); expect(mocks.access).not.toHaveBeenCalled() })
+  it('lists resources across users and filters by the selected user', async () => {
+    const image = { ...file, id: 'image', version_id: 'v2', name: '图表.png', mime: 'image/png', user_id: 12, user_name: '另一位用户' }
+    mocks.resources.mockResolvedValueOnce({ items: [file, image], total: 2, page: 1, pages: 1 })
+    const wrapper = render(WorkbenchResourcesView)
+    await flushPromises()
+    expect(mocks.resources).toHaveBeenLastCalledWith({ page: 1, page_size: 20 }, expect.any(AbortSignal))
+    expect(wrapper.text()).toContain('测试.docx')
+    expect(wrapper.text()).toContain('图表.png')
+    expect(wrapper.text()).toContain('另一位用户')
+    expect(wrapper.text()).toContain('助手生成')
+    expect(wrapper.text()).not.toContain('云端图库')
+    expect(wrapper.text()).not.toContain('删除文件')
+    expect(mocks.access).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-user]').trigger('click')
+    await flushPromises()
+    expect(mocks.resources).toHaveBeenLastCalledWith({ page: 1, page_size: 20, user_id: 9 }, expect.any(AbortSignal))
+    expect(wrapper.text()).not.toContain('图表.png')
+    await wrapper.findAll('button').find(button => button.text() === '查看文件')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'ResourcePreview' }).exists()).toBe(true)
+    expect(mocks.access).not.toHaveBeenCalled()
+  })
   it('contains long metadata within the file cells and displays a short format', async () => {
     const name = `${'很长的测试文件名'.repeat(30)}.docx`
     const email = `${'long'.repeat(36)}@example.test`

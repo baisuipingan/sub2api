@@ -3,8 +3,12 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/png"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -12,6 +16,96 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOfficeAdminResourcesListsAssistantFilesAcrossUsers(t *testing.T) {
+	ctx := context.Background()
+	agent, first, resources, files, _ := officeResourceFixture(t)
+	secondAgent, second, _, secondFiles, _ := officeResourceFixture(t)
+	admin := agent.(service.OfficeAdminRepository)
+	filter := service.OfficeAdminFilter{Page: 1, PageSize: 100}
+	before, err := admin.AdminResources(ctx, filter)
+	require.NoError(t, err)
+
+	upload, err := files.Upload(ctx, first.UserID, "meeting-notes.txt", []byte("notes"), "admin-file-upload")
+	require.NoError(t, err)
+	lease := officeResourceClaim(t, secondAgent, second)
+	var imageData bytes.Buffer
+	require.NoError(t, png.Encode(&imageData, image.NewNRGBA(image.Rect(0, 0, 8, 8))))
+	document := officeWorkspaceFile("output/assistant-image.png", imageData.Bytes())
+	document.MIME = "image/png"
+	workspace, err := secondFiles.SaveWorkspace(ctx, *lease, service.OfficeWorkspaceSave{
+		OperationID: "admin-file-snapshot", Files: []service.OfficeWorkspaceFile{document},
+	})
+	require.NoError(t, err)
+	generated, err := secondFiles.PublishArtifact(ctx, *lease, service.OfficeArtifactPublish{
+		PublicationID: "admin-file-artifact", WorkspaceVersion: workspace.Version, Path: document.Path,
+		MIME: document.MIME, Size: document.Size, SHA256: document.SHA256,
+	})
+	require.NoError(t, err)
+
+	gallery := NewImageStudioGalleryRepository(integrationDB)
+	imageID := "gallery-" + uuid.NewString()
+	_, err = gallery.ReserveAsset(ctx, galleryTestAsset(first.UserID, imageID))
+	require.NoError(t, err)
+	require.NoError(t, gallery.MarkAssetReady(ctx, first.UserID, imageID))
+	galleryTaskID := uuid.NewString()
+	_, err = gallery.SaveTask(ctx, first.UserID, galleryTaskID, strings.Repeat("b", 64),
+		json.RawMessage(`{"status":"done"}`), []service.GalleryTaskLink{{ImageID: imageID, Role: "output"}})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM image_studio_gallery_tasks WHERE user_id=$1 AND task_id=$2`, first.UserID, galleryTaskID)
+		require.NoError(t, err)
+	})
+	require.NoError(t, resources.SyncGallery(ctx, first.UserID))
+	personal, _, err := resources.ListResources(ctx, first.UserID, "", 20)
+	require.NoError(t, err)
+	require.Len(t, personal, 2)
+	var galleryVersion string
+	for _, item := range personal {
+		if item.Source == "gallery" {
+			galleryVersion = item.VersionID
+		}
+	}
+	require.NotEmpty(t, galleryVersion, "the existing Studio reference is persisted")
+
+	all, err := admin.AdminResources(ctx, filter)
+	require.NoError(t, err)
+	require.Equal(t, before.Total+2, all.Total)
+	require.Len(t, all.Items, int(before.Total+2))
+	seen := make(map[string]service.OfficeAdminResource, len(all.Items))
+	for _, item := range all.Items {
+		seen[item.VersionID] = item
+	}
+	require.Equal(t, first.UserID, seen[upload.VersionID].OwnerID)
+	require.Equal(t, "upload", seen[upload.VersionID].Source)
+	require.Equal(t, second.UserID, seen[generated.VersionID].OwnerID)
+	require.Equal(t, "generated", seen[generated.VersionID].Source)
+	require.Equal(t, "image/png", seen[generated.VersionID].MIME)
+	require.NotContains(t, seen, galleryVersion)
+
+	filter.UserID = first.UserID
+	page, err := admin.AdminResources(ctx, filter)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, page.Total)
+	require.Len(t, page.Items, 1)
+	require.Equal(t, upload.VersionID, page.Items[0].VersionID)
+	filter.UserID = second.UserID
+	page, err = admin.AdminResources(ctx, filter)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, page.Total)
+	require.Len(t, page.Items, 1)
+	require.Equal(t, generated.VersionID, page.Items[0].VersionID)
+
+	overview, err := admin.AdminOverview(ctx, 7)
+	require.NoError(t, err)
+	require.Equal(t, all.Total, overview.ResourceCount)
+	owner, err := admin.AdminResourceOwner(ctx, generated.VersionID)
+	require.NoError(t, err)
+	require.Equal(t, second.UserID, owner)
+	owner, err = admin.AdminResourceOwner(ctx, galleryVersion)
+	require.NoError(t, err, "conversation details still preview existing gallery attachments")
+	require.Equal(t, first.UserID, owner)
+}
 
 func TestRetireLegacyWorkbenchRunKeepsHistoryAndAllowsNewBrowserTurn(t *testing.T) {
 	ctx := context.Background()

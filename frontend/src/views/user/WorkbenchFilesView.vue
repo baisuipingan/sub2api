@@ -5,7 +5,20 @@
       <div v-if="error" class="bs-chat-page-error" role="alert">{{ error }}</div>
       <div class="bs-chat-files-body">
         <section class="bs-chat-files-grid" aria-label="文件列表">
-          <div v-for="file in files" :key="file.version_id" class="bs-chat-library-file"><button type="button" class="bs-chat-library-preview" @click="selected = file; panelOpen = true"><Icon name="document" size="lg" /><strong :title="file.name">{{ file.name }}</strong><small>{{ formatBytes(file.bytes) }} · {{ file.source === 'gallery' ? '图片生成' : file.source === 'generated' || file.role === 'output' ? '办公成果' : '上传资料' }}</small></button><div class="bs-chat-library-actions"><button type="button" class="bs-chat-text-button" @click="download(file)"><Icon name="download" size="sm" />下载</button><button type="button" class="bs-chat-icon" :aria-label="`删除${file.name}`" @click="toDelete = file"><Icon name="trash" size="sm" /></button></div></div>
+          <div v-for="file in files" :key="file.version_id" class="bs-chat-library-file">
+            <button type="button" class="bs-chat-library-preview" @click="selected = file; panelOpen = true">
+              <FileCardThumbnail v-if="file.mime.startsWith('image/') && file.preview_kind === 'image'" :version-id="file.version_id" />
+              <span v-else class="flex h-16 items-center" aria-hidden="true">
+                <Icon name="document" size="lg" class="text-primary-500" />
+              </span>
+              <strong :title="file.name">{{ file.name }}</strong>
+              <small>{{ formatBytes(file.bytes) }} · {{ file.source === 'gallery' ? '图片生成' : file.source === 'generated' || file.role === 'output' ? '办公成果' : '上传资料' }}</small>
+            </button>
+            <div class="bs-chat-library-actions">
+              <button type="button" class="bs-chat-text-button" @click="download(file)"><Icon name="download" size="sm" />下载</button>
+              <button type="button" class="bs-chat-icon" :aria-label="`删除${file.name}`" @click="toDelete = file"><Icon name="trash" size="sm" /></button>
+            </div>
+          </div>
           <p v-if="!files.length && !loading" class="bs-chat-empty-library"><Icon name="document" size="lg" />还没有文件。你可以在对话中上传资料或生成办公文档。</p>
           <p v-if="loading" class="bs-chat-muted" role="status">正在加载文件…</p>
           <button v-if="cursor" type="button" class="bs-chat-text-button" :disabled="loading" @click="load(true)">加载更多</button>
@@ -22,6 +35,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import FileCardThumbnail from '@/components/workbench/chat/FileCardThumbnail.vue'
 import ResourcePreview from '@/components/workbench/chat/ResourcePreview.vue'
 import { workbenchChatApi } from '@/api/workbenchChat'
 import { chatError } from '@/stores/workbenchChat'

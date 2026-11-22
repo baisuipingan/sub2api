@@ -203,6 +203,20 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, false, err
 	}
+	if in.AgentConfigRevision != "" {
+		// Keep the same Agent config that supplied the model and group until
+		// admission commits, even when an edit does not move the API key.
+		var matched int
+		err := tx.QueryRowContext(ctx, `SELECT 1 FROM settings WHERE key=$1
+			AND encode(sha256(convert_to(value,'UTF8')),'hex')=$2 FOR SHARE`,
+			service.SettingKeyDesktopAgentConfig, in.AgentConfigRevision).Scan(&matched)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, false, service.ErrOfficeRouteChanged
+		}
+		if err != nil {
+			return nil, false, err
+		}
+	}
 	var active int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM office_agent_runs WHERE user_id=$1 AND mode=$2 AND status IN ('queued','running','recovering')`, in.UserID, in.Mode).Scan(&active); err != nil {
 		return nil, false, err

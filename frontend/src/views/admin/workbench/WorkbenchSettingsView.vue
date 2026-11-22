@@ -42,25 +42,11 @@
                 <span id="workbench-agent-group" class="min-w-0 break-words">{{ agentGroupLabel }}</span>
                 <router-link to="/admin/settings#agent" class="font-medium text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.workbenchSettings.manageAgentGroup') }}</router-link>
               </div>
+              <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.agentModelsHint') }}</p>
               <p v-if="loaded && form.chat_enabled && !agentGroupAvailable" class="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300" role="note">{{ t('admin.workbenchSettings.agentGroupRequired') }}</p>
             </div>
           </div>
           <p class="text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.rateLimitHint') }}</p>
-          <details class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
-            <summary class="cursor-pointer text-sm font-medium">自定义模型能力</summary>
-            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">官方模型名会自动识别。仅在分组使用自定义公开别名时，将它关联到对应的官方能力档案；不会修改模型路由、价格或官方参数上限。</p>
-            <p v-if="profileLoadError" role="alert" class="mt-3 text-sm text-amber-700 dark:text-amber-300">{{ profileLoadError }} <button type="button" class="underline" :disabled="profilesLoading" @click="loadProfiles">重新加载</button></p>
-            <div v-for="(row, index) in profileRows" :key="row.key" class="mt-4 grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid="workbench-model-profile">
-              <Input :id="`workbench-model-alias-${row.key}`" v-model="row.modelId" :label="`公开模型 ID ${index + 1}`" placeholder="分组向用户展示的模型 ID" />
-              <div>
-                <label :for="`workbench-model-profile-${row.key}`" class="mb-2 block text-sm font-medium text-gray-700 dark:text-dark-200">官方能力档案</label>
-                <Select :id="`workbench-model-profile-${row.key}`" v-model="row.profileId" :options="profileOptions(row.profileId)" searchable :aria-label="`官方能力档案 ${index + 1}`" placeholder="选择官方模型" :disabled="!profilesReady" />
-              </div>
-              <button type="button" class="btn btn-ghost btn-sm" :aria-label="`删除模型能力关联 ${index + 1}`" @click="profileRows.splice(index, 1)">删除</button>
-            </div>
-            <button type="button" class="btn btn-secondary btn-sm mt-4" :disabled="!profilesReady || profileRows.length >= 128" @click="addProfile">添加模型别名</button>
-            <p v-if="profileError" role="alert" class="mt-3 text-sm text-red-600">{{ profileError }}</p>
-          </details>
           <div class="flex flex-wrap items-center gap-3">
             <button type="button" data-testid="workbench-access-save" class="btn btn-primary btn-sm" :disabled="!canSave" @click="saveConfig">{{ saving ? t('common.loading') : t('common.save') }}</button>
             <router-link to="/admin/groups" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('admin.workbenchSettings.manageGroups') }}</router-link>
@@ -91,14 +77,12 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
 import { getWorkbenchConfig, updateWorkbenchConfig, type WorkbenchConfig } from '@/api/admin/workbench'
-import { getDesktopAgentProfiles, type DesktopAgentProfile } from '@/api/admin/desktopAgent'
-import { isDesktopAgentGroupEligible, resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
+import { isDesktopAgentGroupEligible } from '@/utils/desktopAgentConfig'
 import type { AdminGroup } from '@/types'
 import { useAppStore } from '@/stores'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import Input from '@/components/common/Input.vue'
 import ImageStorageSettings from '@/components/admin/workbench/ImageStorageSettings.vue'
 import OfficeStorageSettings from '@/components/admin/workbench/OfficeStorageSettings.vue'
 import WorkbenchSearchSettings from '@/components/admin/workbench/WorkbenchSearchSettings.vue'
@@ -108,48 +92,6 @@ import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from
 const { t } = useI18n()
 const appStore = useAppStore()
 const stepUp = useStepUp()
-const profiles = ref<DesktopAgentProfile[]>([])
-const profilesReady = ref(false), profilesLoading = ref(false)
-const profileLoadError = ref(''), profileError = ref('')
-const profileRows = ref<{ key: number; modelId: string; profileId: string }[]>([])
-let profileRowKey = 0
-function loadBindings(config: WorkbenchConfig) {
-  profileRows.value = Object.entries(config.model_profiles || {}).map(([modelId, binding]) => ({ key: ++profileRowKey, modelId, profileId: binding.profile_id }))
-  profileError.value = ''
-}
-async function loadProfiles() {
-  profilesLoading.value = true
-  profileLoadError.value = ''
-  try {
-    const result = await getDesktopAgentProfiles()
-    if (disposed) return
-    profiles.value = result.profiles
-    profilesReady.value = true
-  } catch {
-    if (!disposed) profileLoadError.value = '官方能力档案暂时无法加载，已有模型关联会保留。'
-  } finally { if (!disposed) profilesLoading.value = false }
-}
-function profileOptions(selected: string) {
-  return [
-    { value: '', label: '选择官方模型' },
-    ...(selected && !profiles.value.some(profile => profile.id === selected) ? [{ value: selected, label: `${selected}（档案暂不可用）` }] : []),
-    ...profiles.value.map(profile => ({ value: profile.id, label: profile.display_name })),
-  ]
-}
-function addProfile() { profileRows.value.push({ key: ++profileRowKey, modelId: '', profileId: '' }) }
-function profilePayload(): NonNullable<WorkbenchConfig['model_profiles']> {
-  const bindings: NonNullable<WorkbenchConfig['model_profiles']> = Object.create(null)
-  if (profileRows.value.length > 128) throw new Error('最多配置 128 个模型别名')
-  for (const row of profileRows.value) {
-    const modelId = row.modelId.trim()
-    if (!modelId || !row.profileId) throw new Error('请填写公开模型 ID 并选择官方能力档案，或删除空行')
-    if (Object.prototype.hasOwnProperty.call(bindings, modelId)) throw new Error(`公开模型 ID 重复：${modelId}`)
-    const binding = { profile_id: row.profileId, override: false as const }
-    if (profilesReady.value && !resolveDesktopAgentProfile(profiles.value, modelId, binding)) throw new Error(`模型 ${modelId} 的官方能力档案不匹配`)
-    bindings[modelId] = binding
-  }
-  return bindings
-}
 const form = ref({ image_studio_enabled: true, image_studio_group_id: 0, chat_enabled:false,office_enabled:false,search_enabled:false,files_enabled:false })
 const agentGroupID = ref(0)
 const searchProviderStatus = ref<WorkbenchConfig['search_provider_status']>()
@@ -207,7 +149,6 @@ async function loadConfig() {
     form.value = { image_studio_enabled: config.image_studio_enabled, image_studio_group_id: config.image_studio_group_id,chat_enabled:!!config.chat_enabled,office_enabled:!!config.office_enabled,search_enabled:!!config.search_enabled,files_enabled:!!config.files_enabled }
     agentGroupID.value = config.agent_group_id ?? 0
     searchProviderStatus.value = config.search_provider_status
-    loadBindings(config)
     groups.value = availableGroups
     loaded.value = true
   } catch (error) {
@@ -217,18 +158,14 @@ async function loadConfig() {
 
 async function saveConfig() {
   if (!canSave.value) return
-  let modelProfiles: NonNullable<WorkbenchConfig['model_profiles']>
-  profileError.value = ''
-  try { modelProfiles = profilePayload() } catch (error) { profileError.value = errorMessage(error); appStore.showError(profileError.value); return }
   saving.value = true
-  const payload = { ...form.value, model_profiles: modelProfiles }
+  const payload = { ...form.value }
   try {
     const saved = await stepUp.run(() => updateWorkbenchConfig(payload))
     if (disposed) return
     form.value = { image_studio_enabled: saved.image_studio_enabled, image_studio_group_id: saved.image_studio_group_id,chat_enabled:!!saved.chat_enabled,office_enabled:!!saved.office_enabled,search_enabled:!!saved.search_enabled,files_enabled:!!saved.files_enabled }
     agentGroupID.value = saved.agent_group_id ?? 0
     searchProviderStatus.value = saved.search_provider_status
-    loadBindings(saved)
     appStore.showSuccess(t('admin.workbenchSettings.saved'))
     await appStore.fetchPublicSettings(true)
   } catch (error) {
@@ -236,6 +173,6 @@ async function saveConfig() {
   } finally { if (!disposed) saving.value = false }
 }
 
-onMounted(() => { void loadConfig(); void loadProfiles() })
+onMounted(loadConfig)
 onBeforeUnmount(() => { disposed = true })
 </script>

@@ -13,11 +13,14 @@
       <div class="grid gap-4 md:grid-cols-2">
         <div>
           <label for="office-storage-source" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-dark-200">{{ t(section + 'source') }}</label>
-          <select id="office-storage-source" v-model="form.source" class="input">
-            <option value="backup">{{ t(section + 'backup') }}</option>
-            <option value="images">{{ t(section + 'images') }}</option>
-            <option value="custom">{{ t(section + 'custom') }}</option>
-          </select>
+          <Select
+            id="office-storage-source"
+            :model-value="form.source"
+            :options="sourceOptions"
+            :aria-label="t(section + 'source')"
+            :disabled="!settings || busy"
+            @update:model-value="selectSource"
+          />
         </div>
         <Input
           id="office-storage-bucket"
@@ -57,12 +60,18 @@ import { adminAPI } from '@/api'
 import type { OfficeStorageConfig, OfficeStorageConfigResponse } from '@/api/admin/backup'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Input from '@/components/common/Input.vue'
+import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores'
 
 const section = 'admin.workbenchSettings.officeStorage.'
 const { t } = useI18n()
+const sourceOptions = computed(() => [
+  { value: 'backup', label: t(section + 'backup') },
+  { value: 'images', label: t(section + 'images') },
+  { value: 'custom', label: t(section + 'custom') },
+])
 const app = useAppStore()
 const stepUp = useStepUp()
 const settings = ref<OfficeStorageConfigResponse>()
@@ -75,6 +84,12 @@ const testing = ref(false)
 const error = ref('')
 const busy = computed(() => loading.value || saving.value || testing.value)
 let disposed = false
+
+function selectSource(source: unknown) {
+  if (source === 'backup' || source === 'images' || source === 'custom') {
+    form.value.source = source
+  }
+}
 
 function apply(response: OfficeStorageConfigResponse) {
   settings.value = response

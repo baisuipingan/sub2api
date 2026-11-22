@@ -21,7 +21,7 @@
           <span v-if="searchPriceLabel" :id="searchPriceId" class="bs-composer-search-price">{{ searchPriceLabel }}</span>
         </div>
         <div class="bs-chat-composer-trailing">
-          <Select class="bs-chat-model-select" :model-value="model" :options="modelOptions" :disabled="busy" searchable aria-label="选择模型" @update:model-value="emit('update:model', String($event))" />
+          <Select class="bs-chat-model-select" :model-value="model" :options="modelOptions" :disabled="busy || !modelOptions.length" placeholder="暂无可用模型" searchable aria-label="选择模型" @update:model-value="emit('update:model', String($event))" />
           <Select v-if="effortOptions.length" class="bs-chat-effort-select" :model-value="effort" :options="effortOptions" :disabled="busy" aria-label="推理强度" @update:model-value="emit('update:effort', String($event))">
             <template #selected>{{ labels[effort] || effort || '模型默认' }}</template>
           </Select>
@@ -81,7 +81,7 @@ const effortOptions = computed(() => {
   }))
   return recommended && levels.includes(recommended) ? options : [{ value: '', label: '模型默认' }, ...options]
 })
-const canSend = computed(() => !props.disabled && !props.busy && !props.waiting && !props.uploading && !(props.webSearch && !props.searchEnabled) && !!props.modelValue.trim() && !!props.model)
+const canSend = computed(() => !props.disabled && !props.busy && !props.waiting && !props.uploading && !(props.webSearch && !props.searchEnabled) && !!props.modelValue.trim() && modelOptions.value.some(option => option.value === props.model))
 function send() { if (canSend.value) emit('send') }
 function toggleSearch() {
   if (props.disabled || props.busy || props.waiting) return

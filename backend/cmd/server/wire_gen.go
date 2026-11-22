@@ -209,7 +209,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	workbenchAdminRepository := repository.NewWorkbenchAdminRepository(db)
 	imageStudioGalleryService := service.ProvideImageStudioGalleryService(galleryRepository, imageStorageSettingService, galleryObjectStoreFactory)
 	desktopAgentProfileCatalogService := service.ProvideDesktopAgentProfileCatalogService(configConfig, settingService)
-	workbenchAdminService := service.ProvideWorkbenchAdminService(workbenchAdminRepository, settingService, groupRepository, imageStudioGalleryService, desktopAgentProfileCatalogService)
+	workbenchAdminService := service.ProvideWorkbenchAdminService(workbenchAdminRepository, settingService, groupRepository, imageStudioGalleryService)
 	workbenchHandler := admin.NewWorkbenchHandler(workbenchAdminService)
 	adminGroupRepository := repository.NewAdminGroupRepository(client, db)
 	adminAccountRepository := repository.NewAdminAccountRepository(client, db, schedulerCache)

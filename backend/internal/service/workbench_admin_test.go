@@ -113,7 +113,6 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 		"workbench_office_enabled":    "false",
 		"workbench_search_enabled":    "false",
 		"workbench_files_enabled":     "false",
-		"workbench_model_profiles_v1": "{}",
 	}, repo.written)
 	require.Equal(t, "keep", repo.values["site_name"])
 	require.Equal(t, 1, invalidated)

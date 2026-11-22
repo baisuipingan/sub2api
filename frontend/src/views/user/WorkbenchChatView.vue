@@ -21,7 +21,7 @@
                     </details>
                     <ResultSection v-if="turn.text || turn.files.length" :text="turn.text" :files="turn.files" :citations="turn.citations" @preview="openFile" @download="download" @reference="openReferences(turn.run.id, $event.id)" />
 
-                    <div v-if="!isWorking(turn.run) && turn.run.status !== 'waiting_user'" class="bs-chat-message-actions"><button v-if="turn.text" type="button" class="bs-chat-icon" :aria-label="copied === turn.run.id ? '已复制' : '复制回答'" :title="copied === turn.run.id ? '已复制' : '复制回答'" @click="copy(turn.run.id, turn.text)"><Icon :name="copied === turn.run.id ? 'check' : 'copy'" size="sm" /></button><button v-if="turn.users.length && !store.activeRun" type="button" class="bs-chat-icon" :aria-label="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :title="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :disabled="store.submitting" @click="regenerate(turn.run, turn.users[0])"><Icon name="refresh" size="sm" /></button><span v-if="turn.versions.length > 1" class="bs-chat-answer-versions"><button type="button" class="bs-chat-icon" aria-label="上一个回答" :disabled="selectionActive || turn.versionIndex === 0" @click="showVersion(turn.root, turn.versions[turn.versionIndex - 1]!.run.id)"><Icon name="chevronLeft" size="sm" /></button>{{ turn.versionIndex + 1 }}/{{ turn.versions.length }}<button type="button" class="bs-chat-icon" aria-label="下一个回答" :disabled="selectionActive || turn.versionIndex === turn.versions.length - 1" @click="showVersion(turn.root, turn.versions[turn.versionIndex + 1]!.run.id)"><Icon name="chevronRight" size="sm" /></button></span><button v-if="turn.versions.length > 1 && !turn.run.selected && ['completed', 'partially_completed'].includes(turn.run.status)" type="button" class="bs-chat-text-button" :disabled="!!store.activeRun" @click="useAnswer(turn.run.id)">使用此回答继续</button><button v-if="turn.text" type="button" class="bs-chat-icon" aria-label="导出回答" title="导出" @click="openExport(turn.run.id)"><Icon name="download" size="sm" /></button><button v-if="turn.citations.length" type="button" class="bs-chat-reference-entry" @click="openReferences(turn.run.id)"><Icon name="globe" size="sm" />参考资料 <span>{{ turn.citations.length }}</span><Icon name="chevronRight" size="sm" /></button><time>{{ formatTime(turn.run.finished_at || turn.run.created_at) }}</time></div>
+                    <div v-if="!isWorking(turn.run) && turn.run.status !== 'waiting_user'" class="bs-chat-message-actions"><button v-if="turn.text" type="button" class="bs-chat-icon" :aria-label="copied === turn.run.id ? '已复制' : '复制回答'" :title="copied === turn.run.id ? '已复制' : '复制回答'" @click="copy(turn.run.id, turn.text)"><Icon :name="copied === turn.run.id ? 'check' : 'copy'" size="sm" /></button><button v-if="turn.users.length && !store.activeRun" type="button" class="bs-chat-icon" :aria-label="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :title="['failed', 'cancelled'].includes(turn.run.status) ? '重试任务' : '重新生成'" :disabled="store.submitting || !selectedModel" @click="regenerate(turn.run, turn.users[0])"><Icon name="refresh" size="sm" /></button><span v-if="turn.versions.length > 1" class="bs-chat-answer-versions"><button type="button" class="bs-chat-icon" aria-label="上一个回答" :disabled="selectionActive || turn.versionIndex === 0" @click="showVersion(turn.root, turn.versions[turn.versionIndex - 1]!.run.id)"><Icon name="chevronLeft" size="sm" /></button>{{ turn.versionIndex + 1 }}/{{ turn.versions.length }}<button type="button" class="bs-chat-icon" aria-label="下一个回答" :disabled="selectionActive || turn.versionIndex === turn.versions.length - 1" @click="showVersion(turn.root, turn.versions[turn.versionIndex + 1]!.run.id)"><Icon name="chevronRight" size="sm" /></button></span><button v-if="turn.versions.length > 1 && !turn.run.selected && ['completed', 'partially_completed'].includes(turn.run.status)" type="button" class="bs-chat-text-button" :disabled="!!store.activeRun" @click="useAnswer(turn.run.id)">使用此回答继续</button><button v-if="turn.text" type="button" class="bs-chat-icon" aria-label="导出回答" title="导出" @click="openExport(turn.run.id)"><Icon name="download" size="sm" /></button><button v-if="turn.citations.length" type="button" class="bs-chat-reference-entry" @click="openReferences(turn.run.id)"><Icon name="globe" size="sm" />参考资料 <span>{{ turn.citations.length }}</span><Icon name="chevronRight" size="sm" /></button><time>{{ formatTime(turn.run.finished_at || turn.run.created_at) }}</time></div>
                   </article>
                 </section>
                 <div v-if="!turns.length && !store.error" class="bs-chat-empty-conversation">这段对话还没有消息</div>
@@ -38,13 +38,13 @@
             <ChatComposer
               ref="composer"
               v-model="draft"
-              v-model:model="model"
+              :model="model"
               v-model:effort="effort"
               v-model:web-search="webSearch"
               :models="store.models"
               :attachments="attachments"
               :edit-target="editTarget"
-              :disabled="!store.models.length || store.loading || hasIncompatibleFiles"
+              :disabled="!selectedModel || store.loading || hasIncompatibleFiles"
               :busy="!!store.activeRun || store.submitting"
               :waiting="store.activeRun?.status === 'waiting_user'"
               :uploading="uploading"
@@ -58,6 +58,7 @@
               :max-files="store.status.max_files || 10"
               :attachment-extensions="attachmentExtensions"
               @send="send"
+              @update:model="selectModel"
               @stop="store.cancelRun"
               @files="uploadFiles"
               @select-resources="selectResources"
@@ -66,7 +67,7 @@
             />
           </div>
           <div v-if="store.error || store.connectionError || actionError" class="bs-chat-page-error" role="alert">{{ actionError || store.error || store.connectionError }}<button v-if="(store.error || store.connectionError) && !store.submitting" type="button" class="bs-chat-text-button" @click="refreshCurrent">同步会话</button></div>
-          <div v-if="!store.models.length" class="bs-chat-page-error">当前工作台分组没有可用的文本模型。</div>
+          <div v-if="!store.models.length" class="bs-chat-page-error"><span role="status">对话助手暂无可用模型，请联系管理员检查 Agent 设置。</span><button type="button" class="bs-chat-text-button" :disabled="refreshingModels" @click="reloadModels()">{{ refreshingModels ? '正在刷新…' : '刷新模型列表' }}</button></div>
         </template>
       </div>
       <div class="bs-chat-preview-dock" :class="{ open: panelOpen && !previewIsOverlay }" :style="panelOpen && !previewIsOverlay ? resize.panelStyle.value : undefined">
@@ -104,6 +105,7 @@ import type { ChatArtifact, ChatCitation, ChatMessage, ChatResource, ChatRun, Ch
 import '@/components/workbench/chat/chat.css'
 const store = useWorkbenchChatStore(), auth = useAuthStore(), app = useAppStore(), route = useRoute(), router = useRouter()
 const initializing = ref(true), startupError = ref(''), draft = ref(''), model = ref('')
+const refreshingModels = ref(false)
 const effortOverride = ref('')
 const searchPreference = ref(true)
 const editTarget = ref<{ version_id: string; name: string } | null>(null)
@@ -159,6 +161,7 @@ watch(searchPreferenceKey, key => {
   catch { /* Default to search when browser storage is unavailable. */ }
 }, { immediate: true, flush: 'sync' })
 const searchUnavailableReason = computed(() => {
+  if (!selectedModel.value) return ''
   if (!store.status?.search_enabled) return store.status?.search_allowed ? '工作台搜索供应商尚未就绪，请联系管理员。' : ''
   return supportsTools.value ? '' : '当前模型未确认支持工具调用，请更换模型。'
 })
@@ -214,7 +217,50 @@ function toggleAllExportMessages() { selectedExportIds.value = selectedExportMes
 function closeExportSelection() { selectionActive.value = false; selectedExportIds.value = new Set() }
 const allFiles = computed(() => { const files = new Map<string, ChatArtifact>(); for (const message of store.history.messages) for (const file of chatArtifacts(message.content)) files.set(file.version_id, file); for (const turn of allTurns.value) for (const file of turn.files) files.set(file.version_id, file); return [...files.values()] })
 const preferredKey = computed(() => `workbench-chat-model:${auth.user?.id || ''}`)
-async function initialize() { initializing.value = true; startupError.value = ''; try { await store.initialize(); const preferred = localStorage.getItem(preferredKey.value); model.value = store.models.some(m => m.id === preferred) ? preferred! : store.modelCatalog.default_model || store.models[0]?.id || ''; await loadRoute(true) } catch (e) { startupError.value = chatError(e) } finally { initializing.value = false } }
+function applyModelSelection(preferred = model.value) {
+  const available = store.models.find(item => item.id === preferred)
+    || store.models.find(item => item.id === store.modelCatalog.default_model)
+    || store.models[0]
+  model.value = available?.id ?? ''
+}
+function selectModel(value: string) {
+  if (!store.models.some(item => item.id === value)) return
+  model.value = value
+  try { localStorage.setItem(preferredKey.value, value) }
+  catch { /* Keep the choice for this page if browser storage is unavailable. */ }
+}
+async function initialize() {
+  initializing.value = true
+  startupError.value = ''
+  try {
+    await store.initialize(true)
+    let preferred = ''
+    try { preferred = localStorage.getItem(preferredKey.value) ?? '' }
+    catch { /* Use the configured default if browser storage is unavailable. */ }
+    applyModelSelection(preferred)
+    await loadRoute(true)
+  } catch (error) {
+    startupError.value = chatError(error)
+  } finally {
+    initializing.value = false
+  }
+}
+async function reloadModels(afterRefresh = '') {
+  if (refreshingModels.value) return
+  const owner = auth.user?.id
+  actionError.value = ''
+  refreshingModels.value = true
+  try {
+    await store.initialize(true)
+    if (owner !== auth.user?.id) return
+    applyModelSelection()
+    if (afterRefresh) actionError.value = afterRefresh
+  } catch (error) {
+    if (owner === auth.user?.id) actionError.value = chatError(error)
+  } finally {
+    refreshingModels.value = false
+  }
+}
 function readEditTarget() {
   const version = route.query.edit_version, name = route.query.edit_name
   if (typeof version !== 'string' || !/^[a-f0-9-]{36}$/i.test(version)) return
@@ -227,7 +273,7 @@ async function loadRoute(refresh = false) { const changed = store.activeConversa
 watch(conversationId, () => { if (!initializing.value) void loadRoute() })
 watch(() => auth.user?.id, () => { ++pageEpoch; uploading.value = false; uploadError.value = ''; actionError.value = ''; draft.value = ''; attachments.value = []; editTarget.value = null; closePanel(); closeExportSelection(); startupError.value = ''; model.value = '' }, { flush: 'sync' })
 watch(() => route.query.edit_version, () => { if (!initializing.value) readEditTarget() })
-watch(model, value => { effortOverride.value = ''; if (value) localStorage.setItem(preferredKey.value, value) }, { flush: 'sync' })
+watch(model, () => { effortOverride.value = '' }, { flush: 'sync' })
 watch(mobile, () => { resize.stop(); fullscreen.value = false })
 watch(previewIsOverlay, async value => {
   if (value) {
@@ -268,7 +314,10 @@ async function submit(input: Omit<ChatSubmit, 'run_id'>) {
       await router.replace(`/workbench/chat/${store.activeConversationId}`)
     }
     const failure = error as { code?: string; reason?: string; error?: { code?: string } } | null
-    if ([failure?.code, failure?.reason, failure?.error?.code].includes('WORKBENCH_SEARCH_PRICE_CHANGED')) {
+    const codes = [failure?.code, failure?.reason, failure?.error?.code]
+    if (codes.includes('MODEL_ROUTE_CHANGED')) {
+      await reloadModels('工作台模型配置已更新，请确认当前模型后再发送。')
+    } else if (codes.includes('WORKBENCH_SEARCH_PRICE_CHANGED')) {
       actionError.value = '联网搜索价格已变更，请确认输入栏显示的新单价后再发送。'
       try {
         await store.initialize()
@@ -279,7 +328,7 @@ async function submit(input: Omit<ChatSubmit, 'run_id'>) {
   }
 }
 function send() {
-  if (!draft.value.trim() || !model.value || uploading.value || hasIncompatibleFiles.value) return
+  if (!draft.value.trim() || !selectedModel.value || uploading.value || hasIncompatibleFiles.value) return
   if (new TextEncoder().encode(draft.value).byteLength > 32768) {
     uploadError.value = '消息过长，请精简后发送（最多 32 KB）'
     return
@@ -293,13 +342,14 @@ function send() {
   })
 }
 async function regenerate(run: ChatRun, message: ChatMessage) {
+  if (!selectedModel.value) return
   const oldFiles = chatArtifacts(message.content)
   if (oldFiles.some(file => !acceptsChatAttachment(file, attachmentExtensions.value))) {
     actionError.value = '当前模型无法处理这条消息中的附件，请切换模型后重试。'
     return
   }
   await submit({
-    model: model.value || run.model, content: chatText(message.content), web_search: webSearch.value,
+    model: model.value, content: chatText(message.content), web_search: webSearch.value,
     ...(['completed', 'partially_completed'].includes(run.status) ? { regenerate_run_id: run.regeneration_of || run.id } : {}),
     ...(effort.value ? { reasoning_effort: effort.value } : {}),
     ...(oldFiles.length ? { resource_version_ids: oldFiles.map(file => file.version_id) } : {}),

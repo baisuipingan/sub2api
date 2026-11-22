@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import WorkbenchSettingsView from '../WorkbenchSettingsView.vue'
 
-const { getConfig, updateConfig, getGroups, getProfiles, showError, showSuccess, refreshPublicSettings, stepUpRun } = vi.hoisted(() => ({
-  getConfig: vi.fn(), updateConfig: vi.fn(), getGroups: vi.fn(), getProfiles: vi.fn(), showError: vi.fn(), showSuccess: vi.fn(), refreshPublicSettings: vi.fn(),
+const { getConfig, updateConfig, getGroups, showError, showSuccess, refreshPublicSettings, stepUpRun } = vi.hoisted(() => ({
+  getConfig: vi.fn(), updateConfig: vi.fn(), getGroups: vi.fn(), showError: vi.fn(), showSuccess: vi.fn(), refreshPublicSettings: vi.fn(),
   stepUpRun: vi.fn((action: () => unknown) => action()),
 }))
 vi.mock('@/api', () => ({ adminAPI: { groups: { getAll: getGroups } } }))
 vi.mock('@/api/admin/workbench', () => ({ getWorkbenchConfig: getConfig, updateWorkbenchConfig: updateConfig }))
-vi.mock('@/api/admin/desktopAgent', () => ({ DESKTOP_AGENT_REASONING_LEVELS: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], getDesktopAgentProfiles: getProfiles }))
+vi.mock('@/api/admin/desktopAgent', () => ({ DESKTOP_AGENT_REASONING_LEVELS: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }))
 vi.mock('@/stores', () => ({ useAppStore: () => ({ showError, showSuccess, fetchPublicSettings: refreshPublicSettings }) }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params?.id ? `${key}:${params.id}` : key }) }))
@@ -37,10 +37,6 @@ describe('WorkbenchSettingsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getConfig.mockResolvedValue({ ...base })
-    getProfiles.mockResolvedValue({ profiles: [
-      { id: 'deepseek-v4-pro', display_name: 'DeepSeek V4 Pro', aliases: ['deepseek-v4-pro'] },
-      { id: 'gpt-5.6-luna', display_name: 'GPT 5.6 Luna', aliases: ['gpt-5.6-luna'] },
-    ] })
     updateConfig.mockImplementation(async payload => ({ ...payload, agent_group_id: base.agent_group_id }))
     getGroups.mockResolvedValue([
       { id: 7, name: 'Image group', status: 'active', allow_image_generation: true },
@@ -62,6 +58,7 @@ describe('WorkbenchSettingsView', () => {
     expect(wrapper.get('#workbench-entry-enabled').attributes('aria-checked')).toBe('true')
     expect(wrapper.get('#workbench-agent-group').text()).toBe('Chat only')
     expect(wrapper.get('a[href="/admin/settings#agent"]').text()).toBe('admin.workbenchSettings.manageAgentGroup')
+    expect(wrapper.text()).toContain('admin.workbenchSettings.agentModelsHint')
   })
 
   it('saves only workbench access values through step-up and refreshes public settings', async () => {
@@ -71,7 +68,7 @@ describe('WorkbenchSettingsView', () => {
     await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
     await flushPromises()
     expect(stepUpRun).toHaveBeenCalledTimes(1)
-    expect(updateConfig).toHaveBeenCalledWith({ image_studio_enabled: false, image_studio_group_id: 7, chat_enabled: false, office_enabled: false, search_enabled: false, files_enabled: false, model_profiles: {} })
+    expect(updateConfig).toHaveBeenCalledWith({ image_studio_enabled: false, image_studio_group_id: 7, chat_enabled: false, office_enabled: false, search_enabled: false, files_enabled: false })
     expect(refreshPublicSettings).toHaveBeenCalledWith(true)
     expect(showSuccess).toHaveBeenCalledWith('admin.workbenchSettings.saved')
   })
@@ -96,7 +93,7 @@ describe('WorkbenchSettingsView', () => {
     await wrapper.get('#workbench-entry-enabled').trigger('click')
     await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
     await flushPromises()
-    expect(updateConfig).toHaveBeenCalledWith({ image_studio_enabled: false, image_studio_group_id: 0, chat_enabled: false, office_enabled: false, search_enabled: false, files_enabled: false, model_profiles: {} })
+    expect(updateConfig).toHaveBeenCalledWith({ image_studio_enabled: false, image_studio_group_id: 0, chat_enabled: false, office_enabled: false, search_enabled: false, files_enabled: false })
   })
 
   it('requires the shared Agent group and allows chat without an image group', async () => {
@@ -180,36 +177,16 @@ describe('WorkbenchSettingsView', () => {
     expect(updateConfig).not.toHaveBeenCalled()
   })
 
-  it('binds public model aliases independently to official capability profiles without overrides', async () => {
-    const wrapper = mountSettings()
-    await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === '添加模型别名')!.trigger('click')
-    const row = wrapper.get('[data-testid="workbench-model-profile"]')
-    await row.get('input').setValue('company-deepseek')
-    await row.get('select').setValue('deepseek-v4-pro')
-    await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
-    await flushPromises()
-    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ model_profiles: { 'company-deepseek': { profile_id: 'deepseek-v4-pro', override: false } } }))
-  })
-
-  it('rejects rebinding a known official model to a different family', async () => {
-    getConfig.mockResolvedValue({ ...base, model_profiles: { 'deepseek-v4-pro': { profile_id: 'gpt-5.6-luna', override: false } } })
-    const wrapper = mountSettings()
-    await flushPromises()
-    await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
-    await flushPromises()
-    expect(updateConfig).not.toHaveBeenCalled()
-    expect(showError).toHaveBeenCalledWith('模型 deepseek-v4-pro 的官方能力档案不匹配')
-  })
-
-  it('preserves existing aliases when the shared profile directory cannot load', async () => {
+  it('leaves model capability editing to Agent Settings and omits legacy bindings from access saves', async () => {
     getConfig.mockResolvedValue({ ...base, model_profiles: { 'company-deepseek': { profile_id: 'deepseek-v4-pro', override: false } } })
-    getProfiles.mockRejectedValue(new Error('catalog offline'))
     const wrapper = mountSettings()
     await flushPromises()
+    expect(wrapper.text()).not.toContain('自定义模型能力')
+    expect(wrapper.findAll('a[href="/admin/settings#agent"]')).toHaveLength(1)
     await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
     await flushPromises()
-    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ model_profiles: { 'company-deepseek': { profile_id: 'deepseek-v4-pro', override: false } } }))
+    expect(updateConfig).toHaveBeenCalledOnce()
+    expect(updateConfig.mock.calls[0]![0]).not.toHaveProperty('model_profiles')
   })
 
   it('links routing edits to the existing console pages', async () => {

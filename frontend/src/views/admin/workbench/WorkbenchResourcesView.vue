@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <TablePageLayout>
-      <template #filters><div class="card p-4 sm:p-6"><header class="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-lg font-semibold">用户文件</h2><p class="mt-1 text-xs text-gray-500 dark:text-dark-400">工作台上传资料、办公成果与云端图库。点击文件后才加载内容。</p></div><button type="button" class="btn btn-secondary" :disabled="loading" @click="load"><Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />刷新</button></header><form class="flex flex-wrap items-end gap-3" @submit.prevent="search"><div class="w-full sm:w-80"><UserSearchSelect ref="userPicker" id="office-files-user" v-model="userId" label="用户" placeholder="搜索名称、昵称或邮箱" :error="filterError" @change="onUserChange" /></div><button type="submit" class="btn btn-primary" :disabled="loading">搜索</button><button type="button" class="btn btn-secondary" @click="reset">重置</button></form><p v-if="error" role="alert" class="mt-3 text-sm text-red-600">{{ error }}</p></div></template>
+      <template #filters><div class="card p-4 sm:p-6"><header class="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-lg font-semibold">用户文件</h2><p class="mt-1 text-xs text-gray-500 dark:text-dark-400">查看用户上传的资料和对话助手生成的文件。点击文件后加载内容。</p></div><button type="button" class="btn btn-secondary" :disabled="loading" @click="load"><Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />刷新</button></header><form class="flex flex-wrap items-end gap-3" @submit.prevent="search"><div class="w-full sm:w-80"><UserSearchSelect ref="userPicker" id="office-files-user" v-model="userId" label="用户" placeholder="搜索名称、昵称或邮箱" :error="filterError" @change="onUserChange" /></div><button type="submit" class="btn btn-primary" :disabled="loading">搜索</button><button type="button" class="btn btn-secondary" @click="reset">重置</button></form><p v-if="error" role="alert" class="mt-3 text-sm text-red-600">{{ error }}</p></div></template>
       <template #table><DataTable class="workbench-resources-table" :data="items" :columns="columns" :loading="loading" row-key="version_id">
         <template #cell-name="{ row }">
           <div class="min-w-0 md:w-[clamp(11rem,22vw,22rem)]">
@@ -26,7 +26,7 @@
         </template>
         <template #cell-created_at="{ row }"><p class="whitespace-nowrap text-xs">{{ officeTime(row.created_at) }}</p></template>
         <template #cell-actions="{ row }"><button class="btn btn-secondary whitespace-nowrap text-xs" type="button" @click="openPreview(row)">查看文件</button></template>
-        <template #empty><EmptyState title="没有匹配的文件" description="用户上传资料或生成办公成果后，将在这里显示。" /></template>
+        <template #empty><EmptyState title="没有匹配的文件" description="用户上传资料或通过对话助手生成文件后，将在这里显示。" /></template>
       </DataTable></template>
       <template #pagination><Pagination v-if="total" :total="total" :page="page" :page-size="pageSize" @update:page="setPage" @update:page-size="setPageSize" /></template>
     </TablePageLayout>
@@ -87,7 +87,10 @@ function onUserChange() { if (!resetting) search() }
 function reset() { resetting = true; userId.value = undefined; userPicker.value?.clear(); resetting = false; search() }
 function setPage(value: number) { page.value = value; void load() }
 function setPageSize(value: number) { pageSize.value = value; page.value = 1; void load() }
-function sourceLabel(value?: string) { return ({ upload: '用户上传', generated: '办公生成', gallery: '云端图库' } as Record<string, string>)[value || ''] || value || '—' }
+const resourceSources = { upload: '用户上传', generated: '助手生成' }
+function sourceLabel(value: WorkbenchAdminResource['source']) {
+  return resourceSources[value] ?? '—'
+}
 function openPreview(file: WorkbenchAdminResource) { selected.value = file }
 const loadAccess = (version: string) => getWorkbenchChatResourceAccess(version)
 onMounted(() => { void load() })

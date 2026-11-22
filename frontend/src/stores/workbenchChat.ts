@@ -237,18 +237,18 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       nextCursor.value = page.next_cursor
     } finally { if (owner === authEpoch) loadingConversations.value = false }
   }
-  async function initialize() {
+  async function initialize(refreshModels = false) {
     const owner = authEpoch
     const wasEnabled = status.value?.enabled
     const flags = await workbenchChatApi.status()
     if (owner !== authEpoch) return
     status.value = flags
-    if (initialized.value && wasEnabled === flags.enabled) return
+    if (initialized.value && wasEnabled === flags.enabled && !refreshModels) return
     if (flags.enabled) {
       const catalog = await workbenchChatApi.models()
       if (owner !== authEpoch) return
       modelCatalog.value = catalog
-      await loadConversations()
+      if (!initialized.value || wasEnabled !== flags.enabled) await loadConversations()
     }
     if (owner === authEpoch) initialized.value = true
   }

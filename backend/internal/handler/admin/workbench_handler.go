@@ -130,21 +130,21 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 	var body struct {
-		Enabled       *bool                                               `json:"image_studio_enabled"`
-		Chat          *bool                                               `json:"chat_enabled"`
-		Office        *bool                                               `json:"office_enabled"`
-		Search        *bool                                               `json:"search_enabled"`
-		Files         *bool                                               `json:"files_enabled"`
-		GroupID       *int64                                              `json:"image_studio_group_id"`
-		ModelProfiles *map[string]service.DesktopAgentModelProfileBinding `json:"model_profiles"`
-		// Recognize old browser payloads while task limits move to deployment policy.
-		ChatConcurrentRuns   *int   `json:"chat_concurrent_runs"`
-		OfficeConcurrentRuns *int   `json:"office_concurrent_runs"`
-		MaxModelCalls        *int   `json:"max_model_calls"`
-		MaxToolCalls         *int   `json:"max_tool_calls"`
-		MaxOutputTokens      *int   `json:"max_output_tokens"`
-		MaxRunSeconds        *int   `json:"max_run_seconds"`
-		MaxRunCredits        *int64 `json:"max_run_credits"`
+		Enabled *bool  `json:"image_studio_enabled"`
+		Chat    *bool  `json:"chat_enabled"`
+		Office  *bool  `json:"office_enabled"`
+		Search  *bool  `json:"search_enabled"`
+		Files   *bool  `json:"files_enabled"`
+		GroupID *int64 `json:"image_studio_group_id"`
+		// Older browsers still include settings now managed elsewhere.
+		ModelProfiles        json.RawMessage `json:"model_profiles"`
+		ChatConcurrentRuns   *int            `json:"chat_concurrent_runs"`
+		OfficeConcurrentRuns *int            `json:"office_concurrent_runs"`
+		MaxModelCalls        *int            `json:"max_model_calls"`
+		MaxToolCalls         *int            `json:"max_tool_calls"`
+		MaxOutputTokens      *int            `json:"max_output_tokens"`
+		MaxRunSeconds        *int            `json:"max_run_seconds"`
+		MaxRunCredits        *int64          `json:"max_run_credits"`
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -174,9 +174,6 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	}
 	if body.Files != nil {
 		cfg.FilesEnabled = *body.Files
-	}
-	if body.ModelProfiles != nil {
-		cfg.ModelProfiles = *body.ModelProfiles
 	}
 	result, err := h.service.UpdateConfig(c.Request.Context(), *cfg)
 	if err != nil {

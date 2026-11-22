@@ -4,6 +4,8 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,6 +18,56 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOfficeAgentAdmissionRejectsStaleAgentCatalog(t *testing.T) {
+	ctx := context.Background()
+	repo, input := officeTestAdmission(t)
+	// Settings are global to the isolated integration database.
+	key := service.SettingKeyDesktopAgentConfig
+	var previous string
+	if err := integrationDB.QueryRowContext(ctx, `SELECT value FROM settings WHERE key=$1`, key).Scan(&previous); err == nil {
+		t.Cleanup(func() {
+			_, err := integrationDB.ExecContext(context.Background(), `UPDATE settings SET value=$2 WHERE key=$1`, key, previous)
+			require.NoError(t, err)
+		})
+	} else {
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		t.Cleanup(func() {
+			_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM settings WHERE key=$1`, key)
+			require.NoError(t, err)
+		})
+	}
+	save := func(model string) string {
+		t.Helper()
+		raw := fmt.Sprintf(`{"enabled":true,"group_id":%d,"models":[{"id":%q}]}`, input.GroupID, model)
+		_, err := integrationDB.ExecContext(ctx, `INSERT INTO settings(key,value) VALUES($1,$2)
+			ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`, key, raw)
+		require.NoError(t, err)
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(raw)))
+	}
+	input.Mode = "chat"
+	input.BrowserDriven = true
+	input.AgentConfigRevision = save(input.Model)
+	run, created, err := repo.AdmitRun(ctx, input)
+	require.NoError(t, err)
+	require.True(t, created)
+
+	newRevision := save("replacement-model")
+	replay, created, err := repo.AdmitRun(ctx, input)
+	require.NoError(t, err)
+	require.False(t, created)
+	require.Equal(t, run.ID, replay.ID)
+
+	input.RunID, input.IdempotencyKey = uuid.NewString(), uuid.NewString()
+	_, _, err = repo.AdmitRun(ctx, input)
+	require.ErrorIs(t, err, service.ErrOfficeRouteChanged)
+	_, err = repo.CancelRun(ctx, input.UserID, run.ID)
+	require.NoError(t, err)
+	input.AgentConfigRevision, input.Model = newRevision, "replacement-model"
+	_, created, err = repo.AdmitRun(ctx, input)
+	require.NoError(t, err)
+	require.True(t, created)
+}
 
 func officeTestAdmission(t *testing.T) (service.OfficeAgentRepository, service.OfficeRunAdmission) {
 	t.Helper()

@@ -15,46 +15,45 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestWorkbenchPublicModelAliasUsesOnlyExplicitOfficialProfile(t *testing.T) {
+func TestWorkbenchPublicModelAliasCapabilityPrecedence(t *testing.T) {
 	profiles := desktopAgentBuiltinProfiles()
-	alias := "公司办公助理"
-	require.Nil(t, workbenchModelProfile(alias, nil, profiles), "unknown public IDs must not guess a supplier family")
-	bindings := map[string]DesktopAgentModelProfileBinding{alias: {ProfileID: "gpt-6.1-sol"}}
-	require.True(t, validWorkbenchModelProfiles(bindings, profiles))
-	profile := workbenchModelProfile(alias, bindings, profiles)
+	const alias = "公司办公助理"
+	legacy := map[string]DesktopAgentModelProfileBinding{
+		alias:         {ProfileID: "gpt-6-luna"},
+		"gpt-6.1-sol": {ProfileID: "gpt-6-luna"},
+	}
+	agent := map[string]DesktopAgentModelProfileBinding{alias: {ProfileID: "gpt-6.1-sol", Override: true}}
+	profile := workbenchModelProfile(alias, agent, legacy, profiles)
 	require.NotNil(t, profile)
 	require.Equal(t, "gpt-6.1-sol", profile.ID)
 	require.EqualValues(t, 1050000, *profile.OfficialContextWindow)
 	require.EqualValues(t, 128000, *profile.OfficialMaxOutputTokens)
-	for _, invalid := range []map[string]DesktopAgentModelProfileBinding{
-		{alias: {ProfileID: "not-a-profile"}},
-		{alias: {ProfileID: "gpt-6.1-sol", Override: true}},
-		{"bad\nmodel": {ProfileID: "gpt-6.1-sol"}},
-		{"gpt-6.1-sol": {ProfileID: "gpt-6-luna"}},
-		{alias: {ProfileID: ""}},
-	} {
-		require.False(t, validWorkbenchModelProfiles(invalid, profiles))
-	}
-	require.Equal(t, "gpt-6.1-sol", workbenchModelProfile("gpt-6.1-sol", nil, profiles).ID)
-	require.Nil(t, workbenchModelProfile("gpt-6.1-sol-provider-suffix", nil, profiles), "public IDs use exact catalog declarations, never a prefix guess")
+	require.Equal(t, "gpt-6-luna", workbenchModelProfile(alias, nil, legacy, profiles).ID)
+
+	agent[alias] = DesktopAgentModelProfileBinding{ProfileID: "missing-profile"}
+	require.Nil(t, workbenchModelProfile(alias, agent, legacy, profiles), "an explicit Agent binding takes precedence")
+	legacy[alias] = DesktopAgentModelProfileBinding{ProfileID: "gpt-6-luna", Override: true}
+	require.Nil(t, workbenchModelProfile(alias, nil, legacy, profiles))
+	require.Equal(t, "gpt-6.1-sol", workbenchModelProfile("gpt-6.1-sol", nil, legacy, profiles).ID)
+	require.Nil(t, workbenchModelProfile("gpt-6.1-sol-provider-suffix", nil, nil, profiles))
 }
 
 func TestWorkbenchDeepSeekV41FlashUsesOfficialFlashProfile(t *testing.T) {
 	profiles := desktopAgentBuiltinProfiles()
 	const publicID = "deepseek-v4.1-flash"
-	profile := workbenchModelProfile(publicID, nil, profiles)
+	profile := workbenchModelProfile(publicID, nil, nil, profiles)
 	require.NotNil(t, profile)
 	require.Equal(t, "deepseek-flash", profile.ID)
 	require.Equal(t, []string{"none", "low", "high", "max"}, profile.OfficialReasoningLevels)
 	require.True(t, *profile.Model.SupportsToolCall)
-	require.Nil(t, workbenchModelProfile(publicID+"-custom", nil, profiles))
+	require.Nil(t, workbenchModelProfile(publicID+"-custom", nil, nil, profiles))
 
 	// A saved administrator binding remains authoritative for a public alias.
 	bindings := map[string]DesktopAgentModelProfileBinding{publicID: {ProfileID: "deepseek-v4-pro"}}
-	require.Equal(t, "deepseek-v4-pro", workbenchModelProfile(publicID, bindings, profiles).ID)
+	require.Equal(t, "deepseek-v4-pro", workbenchModelProfile(publicID, bindings, nil, profiles).ID)
 }
 
-func TestWorkbenchChatCatalogFiltersDedicatedServicesAndUsesAvailableDefault(t *testing.T) {
+func TestWorkbenchChatCatalogUsesSavedAgentSelection(t *testing.T) {
 	const preferred = "gpt-6.1-sol"
 	settings := &workbenchSettingsStub{values: map[string]string{"workbench_chat_enabled": "true"}}
 	svc, _ := officeBridgeFixture(http.NotFoundHandler())
@@ -70,23 +69,48 @@ func TestWorkbenchChatCatalogFiltersDedicatedServicesAndUsesAvailableDefault(t *
 		}),
 	}}
 	svc.catalog = NewWorkbenchChatModelCatalog(accounts, compositeRouteRepoStub{}, nil)
-	for _, tc := range []struct{ name, config, expected string }{
-		{"shared default", `{"enabled":true,"group_id":12,"default_model_id":"gpt-6.1-sol"}`, preferred},
-		{"legacy default", `{"enabled":true,"group_id":12,"model":{"id":"gpt-6.1-sol"}}`, preferred},
-		{"excluded default", `{"enabled":true,"group_id":12,"default_model_id":"deepseek-asr"}`, ""},
-		{"unavailable default", `{"enabled":true,"group_id":12,"default_model_id":"not-routed"}`, ""},
-		{"malformed optional default", `{"enabled":true,"group_id":12,"default_model_id":7}`, ""},
+	for _, tc := range []struct {
+		name, config, expectedDefault string
+		models, efforts               []string
+	}{
+		{
+			name: "saved order, defaults and Agent alias profile",
+			config: `{"enabled":true,"group_id":12,"default_model_id":"deepseek-search-assistant",
+				"models":[{"id":"gpt-6.1-sol","default_reasoning":"high"},{"id":"deepseek-search-assistant","default_reasoning":"low"}],
+				"model_profiles":{"deepseek-search-assistant":{"profile_id":"gpt-6.1-sol"}}}`,
+			expectedDefault: "deepseek-search-assistant",
+			models:          []string{preferred, "deepseek-search-assistant"}, efforts: []string{"high", "low"},
+		},
+		{
+			name:            "legacy model",
+			config:          `{"enabled":true,"group_id":12,"model":{"id":"gpt-6.1-sol","default_reasoning":"medium"}}`,
+			expectedDefault: preferred, models: []string{preferred}, efforts: []string{"medium"},
+		},
+		{
+			name: "lost route and incompatible reasoning",
+			config: `{"enabled":true,"group_id":12,"default_model_id":"not-routed",
+				"models":[{"id":"not-routed"},{"id":"gpt-6.1-sol","default_reasoning":"minimal"}]}`,
+			models: []string{preferred}, efforts: []string{""},
+		},
+		{
+			name:   "empty selection does not expose all group models",
+			config: `{"enabled":true,"group_id":12,"models":[]}`,
+			models: []string{}, efforts: []string{},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			settings.values[SettingKeyDesktopAgentConfig] = tc.config
 			catalog, err := svc.ChatModels(context.Background())
 			require.NoError(t, err)
 			ids := make([]string, 0, len(catalog.Models))
+			efforts := make([]string, 0, len(catalog.Models))
 			for _, model := range catalog.Models {
 				ids = append(ids, model.ID)
+				efforts = append(efforts, model.DefaultReasoningEffort)
 			}
-			require.Equal(t, []string{"deepseek-search-assistant", "deepseek-v4.1-flash", preferred}, ids)
-			require.Equal(t, tc.expected, catalog.DefaultModel)
+			require.Equal(t, tc.models, ids)
+			require.Equal(t, tc.efforts, efforts)
+			require.Equal(t, tc.expectedDefault, catalog.DefaultModel)
 		})
 	}
 }
@@ -98,8 +122,10 @@ func TestWorkbenchGeminiCatalogDefaultMatchesNativeRequest(t *testing.T) {
 	const responsesAlias = "carbon-responses"
 	svc, _ := officeBridgeFixture(http.NotFoundHandler())
 	svc.settings = NewSettingService(&workbenchSettingsStub{values: map[string]string{
-		"workbench_chat_enabled":      "true",
-		SettingKeyDesktopAgentConfig:  `{"enabled":true,"group_id":12}`,
+		"workbench_chat_enabled": "true",
+		SettingKeyDesktopAgentConfig: `{"enabled":true,"group_id":12,"models":[
+			{"id":"gemini-4-carbon"},{"id":"carbon-office","default_reasoning":"low"},
+			{"id":"gemini-4-carbon-low"},{"id":"carbon-responses"}]}`,
 		"workbench_model_profiles_v1": `{"carbon-office":{"profile_id":"gemini-4-carbon"},"carbon-responses":{"profile_id":"gemini-4-carbon"}}`,
 	}}, nil)
 	svc.groups = NewGroupService(&workbenchGroupStub{group: &Group{
@@ -122,17 +148,21 @@ func TestWorkbenchGeminiCatalogDefaultMatchesNativeRequest(t *testing.T) {
 	}
 	for _, id := range []string{carbon, carbonAlias} {
 		model := models[id]
+		expectedEffort := "medium"
+		if id == carbonAlias {
+			expectedEffort = "low"
+		}
 		require.Equal(t, workbenchProtocolGemini, model.Protocol)
 		require.Equal(t, []string{"low", "medium", "high"}, model.ReasoningEfforts)
-		require.Equal(t, "medium", model.DefaultReasoningEffort)
+		require.Equal(t, expectedEffort, model.DefaultReasoningEffort)
 		catalog, err := json.Marshal(model)
 		require.NoError(t, err)
-		require.Equal(t, "medium", gjson.GetBytes(catalog, "default_reasoning_effort").String())
-		request := workbenchNativeRequest{Protocol: model.Protocol, Model: model.ID, ProfileModel: model.profileModel,
+		require.Equal(t, expectedEffort, gjson.GetBytes(catalog, "default_reasoning_effort").String())
+		request := workbenchNativeRequest{Protocol: model.Protocol, Model: model.ID, ProfileModel: model.profileModel, ReasoningEffort: model.DefaultReasoningEffort,
 			History: []workbenchNativeMessage{{Role: "user", Text: "Hello"}}}
 		_, payload, err := buildWorkbenchNativeRequest(request)
 		require.NoError(t, err)
-		require.Equal(t, "MEDIUM", gjson.GetBytes(payload, "generationConfig.thinkingConfig.thinkingLevel").String())
+		require.Equal(t, strings.ToUpper(expectedEffort), gjson.GetBytes(payload, "generationConfig.thinkingConfig.thinkingLevel").String())
 		request.ReasoningEffort = "high"
 		_, payload, err = buildWorkbenchNativeRequest(request)
 		require.NoError(t, err)
@@ -191,26 +221,27 @@ func TestWorkbenchDeepSeekReasoningAndToolsReachRawGateway(t *testing.T) {
 	}
 }
 
-func TestWorkbenchModelBindingsPersistSeparatelyFromDesktopSettings(t *testing.T) {
+func TestWorkbenchLegacyModelBindingsAreReadOnly(t *testing.T) {
 	ctx := context.Background()
-	repo := &workbenchSettingsStub{values: map[string]string{SettingKeyDesktopAgentProfileCatalog: "unchanged-catalog", "desktop_agent_config_v1": "unchanged-desktop"}}
+	const key = "workbench_model_profiles_v1"
+	const legacy = `{"my-office-model":{"profile_id":"removed-profile"}}`
+	repo := &workbenchSettingsStub{values: map[string]string{
+		key: legacy, SettingKeyDesktopAgentProfileCatalog: "unchanged-catalog", SettingKeyDesktopAgentConfig: "unchanged-desktop",
+	}}
 	settings := NewSettingService(repo, nil)
 	svc := NewWorkbenchAdminService(nil, settings, nil)
-	cfg := WorkbenchConfig{ModelProfiles: map[string]DesktopAgentModelProfileBinding{"my-office-model": {ProfileID: "gpt-6.1-sol"}}}
-	_, err := svc.UpdateConfig(ctx, cfg)
+	saved, err := svc.UpdateConfig(ctx, WorkbenchConfig{FilesEnabled: true})
 	require.NoError(t, err)
-	loaded, err := settings.GetWorkbenchConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, cfg.ModelProfiles, loaded.ModelProfiles)
+	require.True(t, saved.FilesEnabled)
+	require.Equal(t, "removed-profile", saved.ModelProfiles["my-office-model"].ProfileID)
+	require.Equal(t, legacy, repo.values[key])
 	require.Equal(t, "unchanged-catalog", repo.values[SettingKeyDesktopAgentProfileCatalog])
-	require.Equal(t, "unchanged-desktop", repo.values["desktop_agent_config_v1"])
-	require.Contains(t, repo.written, "workbench_model_profiles_v1")
-	require.NotContains(t, repo.written, SettingKeyDesktopAgentProfileCatalog)
-	bad := *loaded
-	bad.ModelProfiles = map[string]DesktopAgentModelProfileBinding{"gpt-6.1-sol": {ProfileID: "gpt-6-luna"}}
-	_, err = svc.UpdateConfig(ctx, bad)
-	require.ErrorIs(t, err, ErrWorkbenchInvalid)
-	loadedAgain, err := settings.GetWorkbenchConfig(ctx)
+	require.Equal(t, "unchanged-desktop", repo.values[SettingKeyDesktopAgentConfig])
+	require.NotContains(t, repo.written, key)
+
+	repo.values[key] = "invalid legacy data"
+	saved, err = svc.UpdateConfig(ctx, WorkbenchConfig{})
 	require.NoError(t, err)
-	require.Equal(t, cfg.ModelProfiles, loadedAgain.ModelProfiles, "an invalid draft must not overwrite the last valid mapping")
+	require.Empty(t, saved.ModelProfiles)
+	require.Equal(t, "invalid legacy data", repo.values[key])
 }

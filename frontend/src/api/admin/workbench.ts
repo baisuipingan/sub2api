@@ -201,7 +201,13 @@ export interface WorkbenchChatOperation {
 export interface WorkbenchChatRunDetail {
   run: ChatRun & { user_id: number; group_id: number }; user_email: string; user_name: string; operations: WorkbenchChatOperation[]
 }
-export interface WorkbenchAdminResource extends ChatArtifact { user_id: number; user_email: string; user_name: string; source?: 'upload' | 'generated' | 'gallery'; parent_version_id?: string }
+export interface WorkbenchAdminResource extends ChatArtifact {
+  user_id: number
+  user_email: string
+  user_name: string
+  source: 'upload' | 'generated'
+  parent_version_id?: string
+}
 export async function getWorkbenchChatOverview(days: WorkbenchDays, signal?: AbortSignal): Promise<WorkbenchChatOverview> {
   const { data } = await apiClient.get<WorkbenchChatOverview>('/admin/workbench/chat/overview', { params: { days }, signal }); return data
 }

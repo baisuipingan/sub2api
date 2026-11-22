@@ -76,24 +76,25 @@ type OfficeMessage struct {
 }
 
 type OfficeRunAdmission struct {
-	BrowserDriven   bool
-	Mode            string
-	SearchEnabled   bool
-	Parameters      json.RawMessage
-	ContextBoundary int64
-	RegenerationOf  string
-	MaxActiveRuns   int
-	UserID          int64
-	ConversationID  string
-	RunID           string
-	IdempotencyKey  string
-	RequestHash     string
-	APIKeyID        int64
-	GroupID         int64
-	Model           string
-	UserContent     json.RawMessage
-	InputResources  []OfficeResourceVersion
-	Limits          OfficeRunLimits
+	BrowserDriven       bool
+	Mode                string
+	SearchEnabled       bool
+	Parameters          json.RawMessage
+	ContextBoundary     int64
+	RegenerationOf      string
+	MaxActiveRuns       int
+	UserID              int64
+	ConversationID      string
+	RunID               string
+	IdempotencyKey      string
+	RequestHash         string
+	APIKeyID            int64
+	GroupID             int64
+	AgentConfigRevision string
+	Model               string
+	UserContent         json.RawMessage
+	InputResources      []OfficeResourceVersion
+	Limits              OfficeRunLimits
 }
 
 type OfficeRun struct {

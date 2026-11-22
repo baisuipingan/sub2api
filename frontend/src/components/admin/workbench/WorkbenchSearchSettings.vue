@@ -11,7 +11,7 @@
       <div class="grid max-w-3xl items-start gap-4 sm:grid-cols-2">
         <div>
           <label for="workbench-search-provider" class="input-label mb-1.5 block">{{ t('admin.workbenchSettings.searchProviders.provider') }}</label>
-          <Select id="workbench-search-provider" :model-value="provider" :options="providers" :disabled="busy || !saved" @update:model-value="selectProvider" />
+          <Select id="workbench-search-provider" :model-value="provider" :options="providers" :aria-label="t('admin.workbenchSettings.searchProviders.provider')" :disabled="busy || !saved" @update:model-value="selectProvider" />
         </div>
         <Input v-if="provider" id="workbench-search-key" v-model="apiKey" type="password" autocomplete="new-password" :maxlength="1024" :label="t('admin.workbenchSettings.searchProviders.key')" :placeholder="keyCanBeKept ? t('admin.workbenchSettings.searchProviders.keepKey') : undefined" />
         <Input

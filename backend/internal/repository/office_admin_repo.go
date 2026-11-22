@@ -70,7 +70,8 @@ FROM runs CROSS JOIN models CROSS JOIN searches`, o.Since, o.Until, service.Cred
 	// earlier versions and snapshots, and excludes gallery objects held by reference.
 	e = tx.QueryRowContext(ctx, `SELECT
     (SELECT COUNT(*) FROM office_resources r JOIN office_resource_versions v ON v.id=r.latest_version_id
-      JOIN users u ON u.id=r.user_id WHERE r.deleted_at IS NULL AND v.state='ready' AND u.deleted_at IS NULL),
+      JOIN users u ON u.id=r.user_id WHERE r.source IN ('upload','generated')
+      AND r.deleted_at IS NULL AND v.state='ready' AND u.deleted_at IS NULL),
     (SELECT COALESCE(SUM(v.byte_size+v.preview_bytes),0) FROM office_resource_versions v
       JOIN office_resources r ON r.id=v.resource_id JOIN users u ON u.id=r.user_id
       WHERE r.source<>'gallery' AND u.deleted_at IS NULL) +
@@ -293,7 +294,11 @@ func (r *officeAgentRepository) AdminResources(ctx context.Context, f service.Of
 		return nil, service.ErrOfficeInvalid
 	}
 	p := &service.OfficeAdminResourcePage{Items: []service.OfficeAdminResource{}, Page: f.Page, PageSize: f.PageSize}
-	const where = ` FROM office_resources r JOIN office_resource_versions v ON v.id=r.latest_version_id JOIN users u ON u.id=r.user_id WHERE r.deleted_at IS NULL AND v.state='ready' AND u.deleted_at IS NULL AND ($1::bigint=0 OR r.user_id=$1)`
+	const where = ` FROM office_resources r
+		JOIN office_resource_versions v ON v.id=r.latest_version_id
+		JOIN users u ON u.id=r.user_id
+		WHERE r.source IN ('upload','generated') AND r.deleted_at IS NULL AND v.state='ready'
+		AND u.deleted_at IS NULL AND ($1::bigint=0 OR r.user_id=$1)`
 	if e := r.db.QueryRowContext(ctx, `SELECT COUNT(*)`+where, f.UserID).Scan(&p.Total); e != nil {
 		return nil, e
 	}
@@ -317,6 +322,9 @@ func (r *officeAgentRepository) AdminResourceOwner(ctx context.Context, version 
 		return 0, service.ErrOfficeNotFound
 	}
 	var user int64
-	e := r.db.QueryRowContext(ctx, `SELECT v.user_id FROM office_resource_versions v JOIN office_resources r ON r.id=v.resource_id JOIN users u ON u.id=v.user_id WHERE v.id=$1 AND v.state='ready' AND r.deleted_at IS NULL AND u.deleted_at IS NULL`, version).Scan(&user)
+	e := r.db.QueryRowContext(ctx, `SELECT v.user_id FROM office_resource_versions v
+		JOIN office_resources r ON r.id=v.resource_id JOIN users u ON u.id=v.user_id
+		WHERE v.id=$1 AND v.state='ready'
+		AND r.deleted_at IS NULL AND u.deleted_at IS NULL`, version).Scan(&user)
 	return user, officeDBError(e)
 }

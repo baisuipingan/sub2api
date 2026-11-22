@@ -139,7 +139,7 @@ type WorkbenchConfig struct {
 	ImageStudioGroupID   int64                                      `json:"image_studio_group_id"`
 	AgentGroupID         int64                                      `json:"agent_group_id"`
 	ModelProfiles        map[string]DesktopAgentModelProfileBinding `json:"model_profiles"`
-	agentDefaultModelID  string
+	agentSelection       workbenchAgentConfig
 }
 
 type WorkbenchAdminRepository interface {
@@ -152,7 +152,6 @@ type WorkbenchAdminService struct {
 	settings *SettingService
 	groups   GroupRepository
 	gallery  *ImageStudioGalleryService
-	profiles *DesktopAgentProfileCatalogService
 }
 
 func NewWorkbenchAdminService(repo WorkbenchAdminRepository, settings *SettingService, groups GroupRepository) *WorkbenchAdminService {
@@ -222,13 +221,6 @@ func (s *WorkbenchAdminService) GetConfig(ctx context.Context) (*WorkbenchConfig
 }
 
 func (s *WorkbenchAdminService) UpdateConfig(ctx context.Context, cfg WorkbenchConfig) (*WorkbenchConfig, error) {
-	profiles := desktopAgentBuiltinProfiles()
-	if s.profiles != nil {
-		profiles = s.profiles.Snapshot()
-	}
-	if !validWorkbenchModelProfiles(cfg.ModelProfiles, profiles) {
-		return nil, ErrWorkbenchInvalid
-	}
 	if cfg.ImageStudioGroupID < 0 || cfg.ImageStudioEnabled && cfg.ImageStudioGroupID == 0 || cfg.OfficeEnabled && (!cfg.ChatEnabled || !cfg.FilesEnabled) || cfg.SearchEnabled && !cfg.ChatEnabled {
 		return nil, ErrWorkbenchInvalid
 	}
@@ -243,6 +235,7 @@ func (s *WorkbenchAdminService) UpdateConfig(ctx context.Context, cfg WorkbenchC
 		return nil, err
 	}
 	cfg.AgentGroupID = current.AgentGroupID
+	cfg.ModelProfiles = current.ModelProfiles
 	if cfg.ChatEnabled {
 		if cfg.AgentGroupID <= 0 {
 			return nil, ErrWorkbenchInvalid

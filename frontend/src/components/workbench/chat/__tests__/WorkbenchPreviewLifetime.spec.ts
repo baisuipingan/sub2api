@@ -83,8 +83,8 @@ describe('conversation preview lifetime', () => {
   it('uses the model recommendation until changed and retries a stopped turn with the selected model', async () => {
     const store = useWorkbenchChatStore()
     store.models = [
-      { id: 'carbon', reasoning_efforts: ['low', 'medium', 'high'], default_reasoning_effort: 'medium' },
-      { id: 'flash', reasoning_efforts: ['high', 'max'] },
+      { id: 'carbon', reasoning_efforts: ['none', 'low', 'medium', 'high'], default_reasoning_effort: 'medium' },
+      { id: 'flash', reasoning_efforts: ['none', 'high', 'max'], default_reasoning_effort: 'high' },
     ]
     store.modelCatalog.default_model = 'carbon'
     store.history = {
@@ -103,15 +103,81 @@ describe('conversation preview lifetime', () => {
     composer.vm.$emit('send')
     expect(mocks.send).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'carbon', reasoning_effort: 'medium' }))
 
-    composer.vm.$emit('update:effort', 'low')
+    composer.vm.$emit('update:effort', 'none')
     composer.vm.$emit('send')
-    expect(mocks.send).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'carbon', reasoning_effort: 'low' }))
+    expect(mocks.send).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'carbon', reasoning_effort: 'none' }))
 
     composer.vm.$emit('update:model', 'flash')
     await nextTick()
-    expect(composer.props('effort')).toBe('')
+    expect(composer.props('effort')).toBe('high')
     await wrapper.get('[aria-label="重试任务"]').trigger('click')
-    expect(mocks.send).toHaveBeenLastCalledWith({ model: 'flash', content: '重试这条消息', web_search: false })
+    expect(mocks.send).toHaveBeenLastCalledWith({ model: 'flash', content: '重试这条消息', web_search: false, reasoning_effort: 'high' })
+  })
+
+  it('blocks sending and retrying when the shared catalog is empty and reloads it on request', async () => {
+    const store = useWorkbenchChatStore()
+    const preference = 'workbench-chat-model:1'
+    localStorage.setItem(preference, 'retired')
+    store.models = []
+    store.modelCatalog.default_model = 'retired'
+    store.history = {
+      runs: [{ id: 'run', conversation_id: 'conversation', model: 'retired', status: 'cancelled', created_at: '', updated_at: '' }],
+      messages: [{ id: 'msg', conversation_id: 'conversation', run_id: 'run', role: 'user', sequence: 1, content: '历史消息', created_at: '' }],
+    }
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: { name: 'ChatComposer', props: ['disabled', 'model'], template: '<div />' },
+      Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
+    } } })
+    await flushPromises()
+    const composer = wrapper.getComponent({ name: 'ChatComposer' })
+    expect(composer.props('disabled')).toBe(true)
+    expect(composer.props('model')).toBe('')
+    expect(wrapper.get('[role="status"]').text()).toContain('对话助手暂无可用模型')
+    composer.vm.$emit('update:modelValue', '测试消息')
+    composer.vm.$emit('send')
+    const retry = wrapper.get<HTMLButtonElement>('[aria-label="重试任务"]')
+    expect(retry.element.disabled).toBe(true)
+    await retry.trigger('click')
+    expect(mocks.send).not.toHaveBeenCalled()
+
+    mocks.initialize.mockImplementationOnce(async () => {
+      store.models = [{ id: 'gpt' }, { id: 'claude' }]
+      store.modelCatalog.default_model = 'claude'
+    })
+    const refresh = wrapper.get('.bs-chat-page-error button')
+    await refresh.trigger('click')
+    await flushPromises()
+    expect(mocks.initialize).toHaveBeenLastCalledWith(true)
+    expect(composer.props('model')).toBe('claude')
+    expect(composer.props('disabled')).toBe(false)
+    expect(localStorage.getItem(preference)).toBe('retired')
+    composer.vm.$emit('update:model', 'gpt')
+    expect(localStorage.getItem(preference)).toBe('gpt')
+  })
+
+  it('refreshes a changed model list without resending or losing the draft', async () => {
+    const store = useWorkbenchChatStore()
+    mocks.send.mockRejectedValueOnce({ status: 409, error: { code: 'MODEL_ROUTE_CHANGED' } })
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: { name: 'ChatComposer', props: ['modelValue', 'model'], template: '<div />' },
+      Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
+    } } })
+    await flushPromises()
+    mocks.initialize.mockImplementationOnce(async () => {
+      store.models = [{ id: 'claude' }]
+      store.modelCatalog.default_model = 'claude'
+    })
+    const composer = wrapper.getComponent({ name: 'ChatComposer' })
+    composer.vm.$emit('update:modelValue', '测试目录刷新')
+    composer.vm.$emit('send')
+    await flushPromises()
+    expect(mocks.send).toHaveBeenCalledOnce()
+    expect(mocks.initialize).toHaveBeenLastCalledWith(true)
+    expect(composer.props('model')).toBe('claude')
+    expect(composer.props('modelValue')).toBe('测试目录刷新')
+    expect(wrapper.get('[role="alert"]').text()).toContain('工作台模型配置已更新')
   })
 
   it('sends the displayed search quote and refreshes a stale quote without resubmitting', async () => {
