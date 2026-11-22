@@ -107,12 +107,12 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 	_, err := svc.UpdateConfig(context.Background(), WorkbenchConfig{ImageStudioEnabled: true, ImageStudioGroupID: 12})
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
-		SettingKeyImageStudioEnabled:  "true",
-		SettingKeyImageStudioGroupID:  "12",
-		"workbench_chat_enabled":      "false",
-		"workbench_office_enabled":    "false",
-		"workbench_search_enabled":    "false",
-		"workbench_files_enabled":     "false",
+		SettingKeyImageStudioEnabled: "true",
+		SettingKeyImageStudioGroupID: "12",
+		"workbench_chat_enabled":     "false",
+		"workbench_office_enabled":   "false",
+		"workbench_search_enabled":   "false",
+		"workbench_files_enabled":    "false",
 	}, repo.written)
 	require.Equal(t, "keep", repo.values["site_name"])
 	require.Equal(t, 1, invalidated)
