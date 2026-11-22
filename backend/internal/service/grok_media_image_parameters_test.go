@@ -55,7 +55,8 @@ func TestGrokImageEditTwoPointZeroHasModelSpecificReferenceLimit(t *testing.T) {
 			body := grokEditParametersBody(t, tc.model, tc.count)
 			out, _, err := prepareGrokMediaForwardBody(GrokMediaEndpointImagesEdits, body, "application/json", tc.model)
 			if !tc.allow {
-				require.Error(t, err)
+				var validationErr *GrokMediaInputValidationError
+				require.ErrorAs(t, err, &validationErr)
 				require.Nil(t, out)
 				return
 			}
@@ -109,7 +110,9 @@ func TestForwardGrokImageEditReferenceLimitUsesActualMappedModel(t *testing.T) {
 			}}
 			_, err := svc.ForwardGrokMedia(context.Background(), c, account, GrokMediaEndpointImagesEdits, "", body, "application/json")
 			if !tc.allow {
-				require.ErrorContains(t, err, "maximum of 3 source images")
+				var validationErr *GrokMediaInputValidationError
+				require.ErrorAs(t, err, &validationErr)
+				require.Contains(t, validationErr.Error(), "maximum of 3 source images")
 				require.Nil(t, upstream.lastReq)
 				return
 			}

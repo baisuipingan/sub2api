@@ -32,9 +32,17 @@ const (
 	GrokMediaEndpointVideoStatus       GrokMediaEndpoint = "video_status"
 	GrokMediaEndpointVideoContent      GrokMediaEndpoint = "video_content"
 
-	// Official xAI Imagine image-edit limit.
-	grokMediaMaxEditSourceImages = 3
+	grokMediaLegacyEditSourceImages = 3
+	grokMediaMaxEditSourceImages    = 5
 )
+
+type GrokMediaInputValidationError struct {
+	Reason string
+}
+
+func (e *GrokMediaInputValidationError) Error() string {
+	return e.Reason
+}
 
 func (e GrokMediaEndpoint) RequiresRequestBody() bool {
 	return !e.IsVideoLookupRequest()
@@ -975,9 +983,9 @@ func grokMediaEditSourceImageLimit(model string) int {
 	// The documented five-image contract belongs to 2.0. Preserve the existing
 	// three-image limit for legacy models and unrecognized provider aliases.
 	if strings.EqualFold(strings.TrimSpace(model), "grok-imagine-image-2.0") {
-		return 5
+		return grokMediaMaxEditSourceImages
 	}
-	return grokMediaMaxEditSourceImages
+	return grokMediaLegacyEditSourceImages
 }
 
 func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType, model string) ([]byte, string, error) {
@@ -1029,7 +1037,7 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 		images = append(images, grokMediaImageObject(dataURL))
 	}
 	if len(images) > maxSources {
-		return nil, "", fmt.Errorf("a maximum of %d source images is supported for image edits", maxSources)
+		return nil, "", &GrokMediaInputValidationError{Reason: fmt.Sprintf("a maximum of %d source images is supported for image edits", maxSources)}
 	}
 	if len(images) == 1 {
 		payload["image"] = images[0]
@@ -1059,7 +1067,7 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 func normalizeGrokMediaJSONImageRefs(body []byte, maxSources int) ([]byte, error) {
 	info := ParseGrokMediaRequest("application/json", body)
 	if len(info.InputImageURLs) > maxSources {
-		return nil, fmt.Errorf("a maximum of %d source images is supported for image edits", maxSources)
+		return nil, &GrokMediaInputValidationError{Reason: fmt.Sprintf("a maximum of %d source images is supported for image edits", maxSources)}
 	}
 	out := body
 	var err error
