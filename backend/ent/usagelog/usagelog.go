@@ -20,6 +20,8 @@ const (
 	FieldAPIKeyID = "api_key_id"
 	// FieldAccountID holds the string denoting the account_id field in the database.
 	FieldAccountID = "account_id"
+	// FieldSearchProvider holds the string denoting the search_provider field in the database.
+	FieldSearchProvider = "search_provider"
 	// FieldRequestID holds the string denoting the request_id field in the database.
 	FieldRequestID = "request_id"
 	// FieldModel holds the string denoting the model field in the database.
@@ -177,6 +179,7 @@ var Columns = []string{
 	FieldUserID,
 	FieldAPIKeyID,
 	FieldAccountID,
+	FieldSearchProvider,
 	FieldRequestID,
 	FieldModel,
 	FieldRequestedModel,
@@ -241,6 +244,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// SearchProviderValidator is a validator for the "search_provider" field. It is called by the builders before save.
+	SearchProviderValidator func(string) error
 	// RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
 	RequestIDValidator func(string) error
 	// ModelValidator is a validator for the "model" field. It is called by the builders before save.
@@ -350,6 +355,11 @@ func ByAPIKeyID(opts ...sql.OrderTermOption) OrderOption {
 // ByAccountID orders the results by the account_id field.
 func ByAccountID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAccountID, opts...).ToFunc()
+}
+
+// BySearchProvider orders the results by the search_provider field.
+func BySearchProvider(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSearchProvider, opts...).ToFunc()
 }
 
 // ByRequestID orders the results by the request_id field.

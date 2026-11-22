@@ -22,18 +22,25 @@ type officeHandlerRepo struct {
 	service.OfficeAgentRepository
 	claims int
 	userID int64
+	lease  *service.OfficeRunLease
 }
 
 func (r *officeHandlerRepo) ClaimRun(context.Context, string, time.Duration) (*service.OfficeRunLease, error) {
 	r.claims++
-	return nil, nil
+	return r.lease, nil
 }
 func (r *officeHandlerRepo) GetRun(_ context.Context, userID int64, id string) (*service.OfficeRun, error) {
 	r.userID = userID
+	if r.lease != nil && r.lease.Run.UserID == userID && r.lease.Run.ID == id {
+		return &r.lease.Run, nil
+	}
 	if userID != 7 {
 		return nil, service.ErrOfficeNotFound
 	}
 	return &service.OfficeRun{ID: id, UserID: userID, ConversationID: uuid.NewString()}, nil
+}
+func (r *officeHandlerRepo) CheckLease(context.Context, service.OfficeRunLease) error {
+	return nil
 }
 func (r *officeHandlerRepo) ListMessages(_ context.Context, userID int64, _ string, _ int64, _ int) ([]service.OfficeMessage, error) {
 	return []service.OfficeMessage{{Role: "assistant", Content: json.RawMessage(`"stored reply"`)}}, nil
@@ -45,8 +52,9 @@ func officeHandlerFixture(t *testing.T, enabled, authenticated bool) (*gin.Engin
 	r := gin.New()
 	repo := &officeHandlerRepo{}
 	token := strings.Repeat("office-test-", 4)
-	cfg := &config.Config{OfficeAgent: config.OfficeAgentConfig{Enabled: enabled, WorkerToken: token,
-		MaxConcurrentCalls: 1, MaxModelCalls: 8, MaxToolCalls: 16, MaxOutputTokens: 8192, MaxRunSeconds: 600}}
+	cfg := &config.Config{Server: config.ServerConfig{MaxRequestBodySize: 512 << 10}, Gateway: config.GatewayConfig{MaxBodySize: 640 << 10},
+		OfficeAgent: config.OfficeAgentConfig{Enabled: enabled, WorkerToken: token,
+			MaxConcurrentCalls: 1, MaxModelCalls: 8, MaxToolCalls: 16, MaxOutputTokens: 8192, MaxRunSeconds: 600}}
 	svc := service.NewOfficeAgentService(repo, cfg, nil, nil, nil, nil, nil, nil)
 	svc.BindGatewayRouter(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	h := NewOfficeAgentHandler(svc)
@@ -63,6 +71,44 @@ func officeHandlerFixture(t *testing.T, enabled, authenticated bool) (*gin.Engin
 	r.GET("/runs/:id/events", h.Events)
 	r.POST("/runs/:id/model", h.Model)
 	return r, repo, token
+}
+
+func TestOfficeModelIngressAppliesGatewaySizeWithValidLease(t *testing.T) {
+	r, repo, workerToken := officeHandlerFixture(t, true, false)
+	repo.lease = &service.OfficeRunLease{
+		Run:   service.OfficeRun{ID: uuid.NewString(), UserID: 7, ConversationID: uuid.NewString(), Model: "test-model", Limits: service.OfficeRunLimits{MaxOutputTokens: 1024}},
+		Owner: "worker-1", Token: uuid.NewString(), Epoch: 1, Until: time.Now().Add(time.Minute),
+	}
+	claimed := officeHandlerRequest(r, "POST", "/claim", `{"worker_id":"worker-1"}`, workerToken)
+	require.Equal(t, http.StatusOK, claimed.Code, claimed.Body.String())
+	var response struct {
+		Data service.OfficeWorkerManifest `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(claimed.Body.Bytes(), &response))
+	call := func(size int, contentLengthKnown bool) *httptest.ResponseRecorder {
+		body := `{"model":"test-model","messages":[{"role":"user","content":"` + strings.Repeat("x", size) + `"}],"max_tokens":512}`
+		req := httptest.NewRequest(http.MethodPost, "/runs/"+repo.lease.Run.ID+"/model", strings.NewReader(body))
+		if !contentLengthKnown {
+			req.ContentLength = -1
+		}
+		req.Header.Set("Authorization", "Bearer "+response.Data.LeaseToken)
+		req.Header.Set("X-Office-Lease", "1")
+		req.Header.Set("X-Office-Operation-ID", "test-request")
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, req)
+		return recorder
+	}
+	// Fixture lacks a configured provider. Route authorization is reached only
+	// after the authenticated body has been read and normalized.
+	admitted := call(320<<10, true)
+	require.Equal(t, http.StatusConflict, admitted.Code, admitted.Body.String())
+	require.Contains(t, admitted.Body.String(), "MODEL_ROUTE_CHANGED")
+	for _, contentLengthKnown := range []bool{true, false} {
+		rejected := call(512<<10, contentLengthKnown)
+		require.Equal(t, http.StatusRequestEntityTooLarge, rejected.Code, rejected.Body.String())
+		require.Contains(t, rejected.Body.String(), "MODEL_INPUT_TOO_LARGE")
+		require.Empty(t, rejected.Header().Get("X-Office-Operation-State"))
+	}
 }
 
 func officeHandlerRequest(r *gin.Engine, method, path, body, token string) *httptest.ResponseRecorder {

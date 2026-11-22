@@ -82,6 +82,11 @@ type desktopAgentKeyRepository interface {
 	EnsureDesktopAgentKey(context.Context, *APIKey) (*APIKey, bool, error)
 }
 
+func managedAgentGroupEligible(group *Group, groupID int64) bool {
+	return group != nil && group.ID == groupID && group.IsActive() && group.SubscriptionType == SubscriptionTypeStandard &&
+		(group.Platform == PlatformOpenAI || group.Platform == PlatformComposite)
+}
+
 // GetDesktopAgentCredential 是独立用途唯一领取入口，不复用或修改图片工作台 Key。
 func (s *APIKeyService) GetDesktopAgentCredential(ctx context.Context, userID, groupID int64) (*APIKey, string, error) {
 	repo, ok := s.apiKeyRepo.(desktopAgentKeyRepository)
@@ -99,7 +104,7 @@ func (s *APIKeyService) GetDesktopAgentCredential(ctx context.Context, userID, g
 	if err != nil {
 		return nil, "", err
 	}
-	if group == nil || group.ID != groupID || group.Status != StatusActive || group.SubscriptionType != SubscriptionTypeStandard || (group.Platform != PlatformOpenAI && group.Platform != PlatformComposite) || !user.CanBindGroup(group.ID, group.IsExclusive) {
+	if !managedAgentGroupEligible(group, groupID) || !user.CanBindGroup(group.ID, group.IsExclusive) {
 		return nil, "", ErrGroupNotAllowed
 	}
 	generated, err := s.GenerateKey()

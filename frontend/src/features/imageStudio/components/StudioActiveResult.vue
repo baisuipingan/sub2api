@@ -151,7 +151,7 @@
           </time>
           <span>{{ elapsedLabel }}</span>
           <span class="tabular-nums text-gray-500 dark:text-dark-400">
-            {{ t('imageStudio.result.consumed', { value: consumedQuota }) }}
+            {{ t('imageStudio.result.consumed', { value: estimatedCost }) }}
           </span>
         </div>
       </div>
@@ -230,6 +230,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import type { TaskRecord } from '../types'
 import { getUserFacingApiErrorMessage } from '../lib/apiErrors'
 import {
@@ -239,7 +240,7 @@ import {
   reuseConfig,
   retryTask,
 } from '../stores/store'
-import { getEstimatedCredits } from '../lib/generationEstimate'
+import { getEstimatedCostUSD } from '../lib/generationEstimate'
 import { resolveUnitPrice } from '../lib/studioPricing'
 import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 import { formatImageRatio, parseRatio } from '../lib/size'
@@ -250,6 +251,7 @@ import StudioResultImage from './StudioResultImage.vue'
 
 const props = defineProps<{ task: TaskRecord }>()
 const { t } = useI18n()
+const { formatUSD } = useBillingCurrency()
 
 const retrying = ref(false)
 const editing = ref(false)
@@ -371,7 +373,7 @@ const ratioLabel = computed(() =>
     : t('imageStudio.result.ratioAuto'),
 )
 
-const consumedQuota = computed(() => {
+const estimatedCost = computed(() => {
   if (props.task.status === 'running') return t('imageStudio.result.calculating')
 
   const resolution = getModelResolution(
@@ -381,7 +383,7 @@ const consumedQuota = computed(() => {
   )
   const count = props.task.status === 'done' ? props.task.outputImages.length : 0
 
-  // 用后端实价还原本次花费；取不到时退回内置估算
+  // 按当前单价和成功图片数估算。
   const price = resolveUnitPrice(
     state.imagePricing,
     taskModel.value,
@@ -389,11 +391,7 @@ const consumedQuota = computed(() => {
     props.task.params.resolution,
   )
 
-  return getEstimatedCredits(
-    resolution,
-    count,
-    typeof price === 'number' && Number.isFinite(price) ? price : undefined,
-  ).toFixed(4)
+  return formatUSD(getEstimatedCostUSD(resolution, count, price), 4)
 })
 
 const createdIso = computed(() => new Date(props.task.createdAt).toISOString())

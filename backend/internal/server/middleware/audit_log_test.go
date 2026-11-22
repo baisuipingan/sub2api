@@ -258,7 +258,7 @@ func TestAuditRecordsEveryMCPOAuthReadWithGrant(t *testing.T) {
 	require.Equal(t, "admin_list_users", logs[0].Extra["mcp_tool"])
 }
 
-func TestWorkbenchGallerySensitiveReadsAreAuditedWithoutImageOrPromptContents(t *testing.T) {
+func TestWorkbenchSensitiveReadsAreAuditedWithoutResponseContents(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repository := &auditCaptureRepository{}
 	auditService := service.NewAuditLogService(repository, nil)
@@ -278,9 +278,13 @@ func TestWorkbenchGallerySensitiveReadsAreAuditedWithoutImageOrPromptContents(t 
 	}
 	router.GET("/api/v1/admin/workbench/gallery", respond)
 	router.GET("/api/v1/admin/workbench/gallery/:user_id/tasks/:task_id/images/:image_id/url", respond)
+	router.GET("/api/v1/admin/workbench/chat/runs/:id/messages", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"messages": []string{"transcript-message-canary"}})
+	})
 	for _, path := range []string{
 		"/api/v1/admin/workbench/gallery?user_id=7&task_id=task-one",
 		"/api/v1/admin/workbench/gallery/7/tasks/task-one/images/image-one/url?variant=thumbnail",
+		"/api/v1/admin/workbench/chat/runs/run-one/messages?before_seq=7",
 	} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
@@ -290,7 +294,7 @@ func TestWorkbenchGallerySensitiveReadsAreAuditedWithoutImageOrPromptContents(t 
 	repository.mu.Lock()
 	logs := append([]*service.AuditLog(nil), repository.logs...)
 	repository.mu.Unlock()
-	require.Len(t, logs, 2)
+	require.Len(t, logs, 3)
 	byAction := make(map[string]*service.AuditLog, len(logs))
 	for _, entry := range logs {
 		byAction[entry.Action] = entry
@@ -303,9 +307,11 @@ func TestWorkbenchGallerySensitiveReadsAreAuditedWithoutImageOrPromptContents(t 
 	}
 	require.NotNil(t, byAction["admin.workbench.gallery.list"])
 	require.NotNil(t, byAction["admin.workbench.gallery.image.read"])
+	require.NotNil(t, byAction["admin.workbench.chat.messages.read"])
+	require.Equal(t, map[string]string{"id": "run-one"}, byAction["admin.workbench.chat.messages.read"].Extra["params"])
 	encoded, err := json.Marshal(logs)
 	require.NoError(t, err)
-	for _, secret := range []string{"gallery-signed-url-canary", "gallery-signature-canary", "gallery-prompt-canary", "private-store.test"} {
+	for _, secret := range []string{"gallery-signed-url-canary", "gallery-signature-canary", "gallery-prompt-canary", "private-store.test", "transcript-message-canary"} {
 		require.NotContains(t, string(encoded), secret)
 	}
 }

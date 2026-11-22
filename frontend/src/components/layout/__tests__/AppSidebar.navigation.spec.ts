@@ -28,6 +28,12 @@ vi.mock('@/stores', () => ({
   useOnboardingStore: () => ({ isCurrentStep: () => false, nextStep: vi.fn() }),
   useTicketStore: () => ({ userUnreadCount: 0, adminUnreadCount: 0 }),
 }))
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({ ...appState, fetchPublicSettings: async () => appState.cachedPublicSettings }),
+}))
+vi.mock('@/api/workbenchChat', () => ({
+  workbenchChatApi: { status: async () => ({ enabled: false, files_enabled: false }) },
+}))
 vi.mock('@/utils/featureFlags', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/utils/featureFlags')>(),
   makeSidebarFlag: (flag: { key: string }) => () => appState.cachedPublicSettings[flag.key] !== false,
@@ -124,6 +130,14 @@ describe('workspace sidebar interactions', () => {
     expect(wrapper.find('a[href^="/admin/"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('nav.workbenchManagement')
     wrapper.unmount()
+  })
+
+  it('hides the personal image link even inside workbench management when disabled', async () => {
+    const { wrapper } = await setup('/admin/workbench/settings')
+    appState.cachedPublicSettings.image_studio_enabled = false
+    await flushPromises()
+    expect(wrapper.find('a[href="/workbench/image"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/admin/workbench/settings"]').exists()).toBe(true)
   })
 
   it('keeps modified link clicks native and clears the same-user return memory on logout', async () => {

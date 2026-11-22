@@ -45,6 +45,28 @@ func (_c *UsageLogCreate) SetAccountID(v int64) *UsageLogCreate {
 	return _c
 }
 
+// SetNillableAccountID sets the "account_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableAccountID(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetAccountID(*v)
+	}
+	return _c
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (_c *UsageLogCreate) SetSearchProvider(v string) *UsageLogCreate {
+	_c.mutation.SetSearchProvider(v)
+	return _c
+}
+
+// SetNillableSearchProvider sets the "search_provider" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSearchProvider(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetSearchProvider(*v)
+	}
+	return _c
+}
+
 // SetRequestID sets the "request_id" field.
 func (_c *UsageLogCreate) SetRequestID(v string) *UsageLogCreate {
 	_c.mutation.SetRequestID(v)
@@ -913,8 +935,10 @@ func (_c *UsageLogCreate) check() error {
 	if _, ok := _c.mutation.APIKeyID(); !ok {
 		return &ValidationError{Name: "api_key_id", err: errors.New(`ent: missing required field "UsageLog.api_key_id"`)}
 	}
-	if _, ok := _c.mutation.AccountID(); !ok {
-		return &ValidationError{Name: "account_id", err: errors.New(`ent: missing required field "UsageLog.account_id"`)}
+	if v, ok := _c.mutation.SearchProvider(); ok {
+		if err := usagelog.SearchProviderValidator(v); err != nil {
+			return &ValidationError{Name: "search_provider", err: fmt.Errorf(`ent: validator failed for field "UsageLog.search_provider": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.RequestID(); !ok {
 		return &ValidationError{Name: "request_id", err: errors.New(`ent: missing required field "UsageLog.request_id"`)}
@@ -1089,9 +1113,6 @@ func (_c *UsageLogCreate) check() error {
 	if len(_c.mutation.APIKeyIDs()) == 0 {
 		return &ValidationError{Name: "api_key", err: errors.New(`ent: missing required edge "UsageLog.api_key"`)}
 	}
-	if len(_c.mutation.AccountIDs()) == 0 {
-		return &ValidationError{Name: "account", err: errors.New(`ent: missing required edge "UsageLog.account"`)}
-	}
 	return nil
 }
 
@@ -1119,6 +1140,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec = sqlgraph.NewCreateSpec(usagelog.Table, sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.SearchProvider(); ok {
+		_spec.SetField(usagelog.FieldSearchProvider, field.TypeString, value)
+		_node.SearchProvider = &value
+	}
 	if value, ok := _c.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)
 		_node.RequestID = value
@@ -1485,6 +1510,30 @@ func (u *UsageLogUpsert) SetAccountID(v int64) *UsageLogUpsert {
 // UpdateAccountID sets the "account_id" field to the value that was provided on create.
 func (u *UsageLogUpsert) UpdateAccountID() *UsageLogUpsert {
 	u.SetExcluded(usagelog.FieldAccountID)
+	return u
+}
+
+// ClearAccountID clears the value of the "account_id" field.
+func (u *UsageLogUpsert) ClearAccountID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldAccountID)
+	return u
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (u *UsageLogUpsert) SetSearchProvider(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldSearchProvider, v)
+	return u
+}
+
+// UpdateSearchProvider sets the "search_provider" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSearchProvider() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSearchProvider)
+	return u
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (u *UsageLogUpsert) ClearSearchProvider() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldSearchProvider)
 	return u
 }
 
@@ -2466,6 +2515,34 @@ func (u *UsageLogUpsertOne) SetAccountID(v int64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateAccountID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateAccountID()
+	})
+}
+
+// ClearAccountID clears the value of the "account_id" field.
+func (u *UsageLogUpsertOne) ClearAccountID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAccountID()
+	})
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (u *UsageLogUpsertOne) SetSearchProvider(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSearchProvider(v)
+	})
+}
+
+// UpdateSearchProvider sets the "search_provider" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSearchProvider() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSearchProvider()
+	})
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (u *UsageLogUpsertOne) ClearSearchProvider() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSearchProvider()
 	})
 }
 
@@ -3762,6 +3839,34 @@ func (u *UsageLogUpsertBulk) SetAccountID(v int64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateAccountID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateAccountID()
+	})
+}
+
+// ClearAccountID clears the value of the "account_id" field.
+func (u *UsageLogUpsertBulk) ClearAccountID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAccountID()
+	})
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (u *UsageLogUpsertBulk) SetSearchProvider(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSearchProvider(v)
+	})
+}
+
+// UpdateSearchProvider sets the "search_provider" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSearchProvider() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSearchProvider()
+	})
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (u *UsageLogUpsertBulk) ClearSearchProvider() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearSearchProvider()
 	})
 }
 

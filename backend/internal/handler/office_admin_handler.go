@@ -20,7 +20,7 @@ func officeFullAdmin(c *gin.Context) bool {
 	return true
 }
 func officeAdminFilter(c *gin.Context) (service.OfficeAdminFilter, error) {
-	f := service.OfficeAdminFilter{Page: 1, PageSize: 20, Mode: c.Query("mode"), Status: c.Query("status"), Model: c.Query("model")}
+	f := service.OfficeAdminFilter{Page: 1, PageSize: 20, Mode: c.Query("mode"), Status: c.Query("status"), Model: c.Query("model"), Execution: c.Query("execution")}
 	for name, ptr := range map[string]*int{"page": &f.Page, "page_size": &f.PageSize, "days": &f.Days} {
 		if v, ok := c.GetQuery(name); ok {
 			n, e := strconv.Atoi(v)
@@ -43,6 +43,9 @@ func officeAdminFilter(c *gin.Context) (service.OfficeAdminFilter, error) {
 	if f.Status != "" && !strings.Contains("|queued|running|recovering|waiting_user|needs_confirmation|completed|partially_completed|failed|cancelled|", "|"+f.Status+"|") {
 		return f, service.ErrOfficeInvalid
 	}
+	if f.Execution != "" && f.Execution != "browser" && f.Execution != "historical" {
+		return f, service.ErrOfficeInvalid
+	}
 	return f, nil
 }
 func (h *OfficeAgentHandler) AdminOverview(c *gin.Context) {
@@ -58,16 +61,36 @@ func (h *OfficeAgentHandler) AdminOverview(c *gin.Context) {
 			return
 		}
 	}
-	repo, e := h.service.AdminRepository()
-	if officeHandlerError(c, e) {
-		return
-	}
-	result, e := repo.AdminOverview(c.Request.Context(), days)
+	result, e := h.service.AdminOverview(c.Request.Context(), days)
 	if officeHandlerError(c, e) {
 		return
 	}
 	response.Success(c, result)
 }
+
+func (h *OfficeAgentHandler) AdminSearchUsage(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	page, pageSize := response.ParsePagination(c)
+	start, end, ok := workbenchSearchUsageDates(c)
+	if !ok {
+		return
+	}
+	var userID int64
+	if raw, exists := c.GetQuery("user_id"); exists {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "Invalid user_id")
+			return
+		}
+		userID = id
+	}
+	items, total, err := h.service.ListAdminSearchCharges(c.Request.Context(), userID, page, pageSize, start, end)
+	if officeHandlerError(c, err) {
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
 func (h *OfficeAgentHandler) AdminRuns(c *gin.Context) {
 	if !officeFullAdmin(c) {
 		return
@@ -100,6 +123,40 @@ func (h *OfficeAgentHandler) AdminRun(c *gin.Context) {
 	}
 	response.Success(c, result)
 }
+
+func (h *OfficeAgentHandler) AdminRunMessages(c *gin.Context) {
+	if !officeFullAdmin(c) {
+		return
+	}
+	var before int64
+	if raw, ok := c.GetQuery("before_seq"); ok {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed < 0 {
+			officeHandlerError(c, service.ErrOfficeInvalid)
+			return
+		}
+		before = parsed
+	}
+	repo, err := h.service.AdminRepository()
+	if officeHandlerError(c, err) {
+		return
+	}
+	result, err := repo.AdminRunMessages(c.Request.Context(), c.Param("id"), before)
+	if !officeHandlerError(c, err) {
+		response.Success(c, result)
+	}
+}
+
+func (h *OfficeAgentHandler) AdminToolDetail(c *gin.Context) {
+	if !officeFullAdmin(c) {
+		return
+	}
+	item, err := h.service.WorkbenchToolDetail(c.Request.Context(), 0, c.Param("id"), c.Param("operation"), true)
+	if !officeHandlerError(c, err) {
+		response.Success(c, item)
+	}
+}
+
 func (h *OfficeAgentHandler) AdminResources(c *gin.Context) {
 	if !officeFullAdmin(c) {
 		return

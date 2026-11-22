@@ -2,6 +2,9 @@ import base64
 from copy import deepcopy
 import hashlib
 import json
+import random
+import struct
+import zlib
 
 import httpx
 import pytest
@@ -120,6 +123,8 @@ async def test_completed_json_model_response_uses_same_strict_tool_validation(na
     (502, True, "MODEL_UPSTREAM_FAILED", False),
     (500, True, "MODEL_UPSTREAM_FAILED", False),
     (402, True, "MODEL_UPSTREAM_FAILED", False),
+    (413, True, "MODEL_UPSTREAM_FAILED", False),
+    (413, False, "MODEL_INPUT_TOO_LARGE", False),
     (502, False, "OPERATION_UNKNOWN", True),
     (500, False, "OPERATION_UNKNOWN", True),
 ])
@@ -557,25 +562,50 @@ PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4
 @pytest.mark.asyncio
 async def test_real_graph_image_inspection_expands_only_at_model_boundary_not_checkpoint():
     state, model_calls = DurableState(), []
-    state.snapshots[0] = [{"path": "scratch/page.png", "size": len(PNG), "sha256": hashlib.sha256(PNG).hexdigest(),
-                            "mime": "image/png", "content_base64": base64.b64encode(PNG).decode()}]
+    def png_chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    # A valid, poorly compressible preview that still fits the image tool's limit.
+    pixels = random.Random(42)
+    scanlines = b"".join(b"\x00" + pixels.randbytes(300) for _ in range(300))
+    preview = (PNG[:8] + png_chunk(b"IHDR", struct.pack(">IIBBBBB", 300, 300, 8, 0, 0, 0, 0))
+               + png_chunk(b"IDAT", zlib.compress(scanlines)) + png_chunk(b"IEND", b""))
+    encoded = base64.b64encode(preview).decode()
+    result_file = b"Validated result."
+    state.snapshots[0] = [
+        {"path": path, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+         "mime": mime, "content_base64": base64.b64encode(data).decode()}
+        for path, data, mime in [("scratch/page.png", preview, "image/png"),
+                                ("output/report.txt", result_file, "text/plain")]
+    ]
+    messages = [
+        {"role": "user", "content": "请整理此前的资料"},
+        {"role": "assistant", "content": "资料" * 12500},
+        {"role": "user", "content": "请追加一份资料"},
+        {"role": "assistant", "content": "补充" * 12500},
+        {"role": "user", "content": "请检查文档版式并交付"},
+    ]
     async def respond(request):
         body = json.loads(request.content)
         model_calls.append(body)
         if len(model_calls) == 1:
+            assert len(request.content) < 256 * 1024
             assert "inspect_rendered_image" in {row["function"]["name"] for row in body["tools"]}
             message = {"role": "assistant", "content": "", "tool_calls": [{"id": "inspect1", "type": "function", "function": {
                 "name": "inspect_rendered_image", "arguments": '{"path":"scratch/page.png"}'}}]}
         else:
+            assert len(request.content) > 256 * 1024
             images = [message for message in body["messages"] if isinstance(message["content"], list)]
             assert len(images) == 1 and images[0]["role"] == "user"
-            assert images[0]["content"][1]["image_url"]["url"] == "data:image/png;base64," + base64.b64encode(PNG).decode()
+            assert images[0]["content"][1]["image_url"]["url"] == "data:image/png;base64," + encoded
             message = {"role": "assistant", "content": "已检查渲染图"}
         return httpx.Response(200, json={"choices": [{"message": message}]})
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-        control = state.control(manifest(durable_resume=True, supports_vision=True), client)
+        control = state.control(manifest(durable_resume=True, supports_vision=True, messages=messages), client)
         ws = VirtualWorkspace(with_skills=False)
         result = await OfficeRuntime(control, workspace=ws, resources=ResourceClient(control, ws), executor=object()).execute()
+        assert result.status == "completed", result
+        assert [file["path"] for file in state.published] == ["output/report.txt"]
         # A worker restarted after the final graph checkpoint must recover the
         # final answer, without silently losing messages or billing another call.
         restarted_control = state.control(control.manifest.model_copy(update={"lease_epoch": 2}), client)
@@ -583,10 +613,9 @@ async def test_real_graph_image_inspection_expands_only_at_model_boundary_not_ch
         restarted = await OfficeRuntime(restarted_control, workspace=restarted_ws,
                                         resources=ResourceClient(restarted_control, restarted_ws), executor=object()).execute()
         assert restarted.status == "completed" and restarted.content == "已检查渲染图"
-    assert result.status == "completed", result
     checkpoint = json.dumps(state.checkpoint)
     assert "office_image_ref" in checkpoint
-    assert "data:image" not in checkpoint and base64.b64encode(PNG).decode() not in checkpoint
+    assert "data:image" not in checkpoint and encoded not in checkpoint
     assert len(model_calls) == 2
 
 

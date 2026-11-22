@@ -3,13 +3,17 @@ package repository
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 type s3ImageStudioGalleryStore struct {
@@ -46,6 +50,10 @@ func (s *s3ImageStudioGalleryStore) Get(ctx context.Context, key string, maxByte
 	}
 	result, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &key})
 	if err != nil {
+		var api smithy.APIError
+		if errors.As(err, &api) && (api.ErrorCode() == "NoSuchKey" || api.ErrorCode() == "NotFound") {
+			return nil, service.ErrGalleryNotFound
+		}
 		return nil, fmt.Errorf("gallery GetObject: %w", err)
 	}
 	defer func() { _ = result.Body.Close() }()
@@ -77,4 +85,24 @@ func (s *s3ImageStudioGalleryStore) PresignGet(ctx context.Context, key string, 
 		return "", fmt.Errorf("gallery PresignGetObject: %w", err)
 	}
 	return result.URL, nil
+}
+
+func (s *s3ImageStudioGalleryStore) PresignOfficePut(ctx context.Context, key, mime string, size int64, checksum string, createOnly bool, expiry time.Duration) (string, http.Header, error) {
+	input := &s3.PutObjectInput{
+		Bucket: &s.bucket, Key: &key, ContentType: &mime, ContentLength: &size, ContentMD5: &checksum,
+	}
+	if createOnly {
+		input.IfNoneMatch = aws.String("*")
+	}
+	result, err := s3.NewPresignClient(s.client).PresignPutObject(ctx, input, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", nil, err
+	}
+	headers := result.SignedHeader.Clone()
+	headers.Del("Host")
+	if headers.Get("Content-MD5") != checksum {
+		return "", nil, fmt.Errorf("office upload checksum missing from signed headers")
+	}
+	headers.Set("Content-Type", mime)
+	return result.URL, headers, nil
 }

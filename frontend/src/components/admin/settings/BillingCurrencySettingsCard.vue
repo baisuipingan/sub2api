@@ -9,7 +9,7 @@
           {{ t('admin.settings.payment.billingCurrency.description') }}
         </p>
       </div>
-      <button type="button" class="btn btn-primary" :disabled="saving || loading" @click="save">
+      <button type="button" class="btn btn-primary" :disabled="disabled || saving || loading || !dirty" @click="save">
         {{ saving ? t('common.saving') : t('common.save') }}
       </button>
     </div>
@@ -27,20 +27,26 @@
             {{ t('admin.settings.payment.billingCurrency.enabledHint') }}
           </p>
         </div>
-        <Toggle v-model="form.enabled" />
+        <Toggle v-model="form.enabled" :disabled="disabled || saving" />
       </div>
 
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
           <label class="input-label">{{ t('admin.settings.payment.billingCurrency.engine') }}</label>
-          <Select v-model="form.engine" :options="engineOptions" :disabled="!form.enabled" />
+          <Select v-model="form.engine" :options="engineOptions" :disabled="disabled || saving || !form.enabled" />
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {{ t(`admin.settings.payment.billingCurrency.engineHints.${form.engine}`) }}
           </p>
         </div>
         <div>
-          <label class="input-label">{{ t('admin.settings.payment.billingCurrency.displayCurrency') }}</label>
-          <Select v-model="form.display_currency" :options="currencyOptions" />
+          <label for="billing-display-currency" class="input-label">{{ t('admin.settings.payment.billingCurrency.displayCurrency') }}</label>
+          <Select
+            id="billing-display-currency"
+            v-model="form.display_currency"
+            :options="currencyOptions"
+            :disabled="disabled || saving"
+            :aria-label="t('admin.settings.payment.billingCurrency.displayCurrency')"
+          />
         </div>
         <div>
           <label class="input-label">{{ t('admin.settings.payment.billingCurrency.usdToCny') }}</label>
@@ -50,6 +56,7 @@
             min="0.0001"
             step="0.0001"
             class="input"
+            :disabled="disabled || saving"
             @keydown.enter.prevent="save"
           />
         </div>
@@ -73,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
 import type { BillingCurrencyConfig, BillingDisplayCurrency, BillingEngine } from '@/api/admin/settings'
@@ -83,10 +90,13 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Select from '@/components/common/Select.vue'
 
+const props = defineProps<{ disabled?: boolean }>()
+
 const { t } = useI18n()
 const appStore = useAppStore()
 const loading = ref(true)
 const saving = ref(false)
+const savedConfig = ref<BillingCurrencyConfig | null>(null)
 const form = reactive<BillingCurrencyConfig>({
   enabled: false,
   engine: 'legacy',
@@ -96,6 +106,12 @@ const form = reactive<BillingCurrencyConfig>({
   recharge_rates: { USD: 1, CNY: 7.2 },
   version: 1,
 })
+const dirty = computed(() => savedConfig.value !== null && (
+  form.enabled !== savedConfig.value.enabled ||
+  form.engine !== savedConfig.value.engine ||
+  form.display_currency !== savedConfig.value.display_currency ||
+  form.usd_to_cny !== savedConfig.value.usd_to_cny
+))
 
 const engineOptions = [
   { value: 'legacy' as BillingEngine, label: t('admin.settings.payment.billingCurrency.engines.legacy') },
@@ -114,13 +130,12 @@ function applyConfig(config: BillingCurrencyConfig) {
   form.display_currency = config.display_currency
   form.usd_to_cny = config.usd_to_cny || 7.2
   form.recharge_rates = {
-    USD: config.recharge_rates?.USD || 1,
-    // 界面上只有一个汇率输入框，没有独立的"充值倍率"入口。
-    // 因此充值倍率必须跟随展示汇率，否则用户改了汇率后，
-    // 充值仍按数据库里的旧倍率收钱（曾导致 6.75 买 1 USD 实际按 7.2 收费）。
+    USD: 1,
     CNY: form.usd_to_cny,
+    ...config.recharge_rates,
   }
   form.version = config.version || 1
+  savedConfig.value = { ...form }
 }
 
 async function load() {
@@ -134,26 +149,38 @@ async function load() {
   }
 }
 
-async function save() {
+async function saveChanges(): Promise<boolean> {
+  if (saving.value) return false
+  const saved = savedConfig.value
+  if (!saved || !dirty.value) return true
   saving.value = true
   try {
+    const rechargeRates = { ...form.recharge_rates }
+    // The exchange-rate field also controls the CNY recharge rate when edited.
+    if (form.usd_to_cny !== saved.usd_to_cny) rechargeRates.CNY = Number(form.usd_to_cny)
     const updated = await adminAPI.settings.updateBillingCurrencyConfig({
       ...form,
-      recharge_rates: {
-        USD: 1,
-        // 与展示汇率保持一致（界面无独立倍率输入框）
-        CNY: Number(form.usd_to_cny || 1),
-      },
+      recharge_rates: rechargeRates,
     })
     applyConfig(updated)
-    await appStore.fetchPublicSettings(true)
-    appStore.showSuccess(t('common.saved'))
+    return true
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('common.error')))
+    return false
   } finally {
     saving.value = false
   }
 }
+
+async function save() {
+  if (props.disabled || !dirty.value || saving.value) return
+  if (await saveChanges()) {
+    await appStore.fetchPublicSettings(true)
+    appStore.showSuccess(t('common.saved'))
+  }
+}
+
+defineExpose({ saveChanges, saving })
 
 onMounted(load)
 </script>

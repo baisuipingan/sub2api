@@ -63,15 +63,10 @@
         <Input id="image-storage-public-url" v-model="form.public_base_url" :label="t('admin.backup.imageStorage.publicBaseUrl')" :placeholder="t('admin.backup.imageStorage.publicBaseUrlPlaceholder')" />
         <Input id="image-storage-presign-hours" :model-value="form.presign_expiry_hours" type="number" min="1" step="1" :label="t('admin.backup.imageStorage.presignExpiryHours')" @update:model-value="form.presign_expiry_hours = Number($event)" />
       </div>
-      <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
-        <Input id="office-storage-bucket" v-model="form.office_bucket" label="办公文件存储桶（可选）" placeholder="留空时沿用上方存储桶" aria-describedby="office-storage-hint" />
-        <p id="office-storage-hint" class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">复用上方连接地址和凭证，办公资料使用私有访问。建议使用独立桶，避免图片的短期生命周期规则删除办公文档；需允许本站读取文件的 CORS 配置。已有办公文件时不能直接更换存储位置，需先完成迁移或清理。</p>
-      </div>
       <div class="flex flex-wrap gap-2">
         <button type="button" data-testid="image-storage-test" class="btn btn-secondary btn-sm" @click="testConnection">{{ testing ? t('common.loading') : t('admin.backup.s3.testConnection') }}</button>
         <button type="button" data-testid="image-storage-save" class="btn btn-primary btn-sm" @click="saveConfig">{{ saving ? t('common.loading') : t('common.save') }}</button>
       </div>
-      <p class="text-xs text-gray-500 dark:text-dark-400">连接测试会检查共用存储；配置办公文件桶时，也会检查该桶的读写和删除权限。</p>
     </fieldset>
     <TotpStepUpDialog :controller="stepUp" />
   </section>
@@ -107,6 +102,9 @@ let disposed = false
 
 function errorMessage(error: unknown) {
   if (isStepUpBlocked(error)) return t(stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? 'stepUp.adminApiKeyForbidden' : 'stepUp.notEnabled')
+  if ((error as { reason?: string })?.reason === 'OFFICE_STORAGE_PROBE_FAILED') {
+    return t('admin.workbenchSettings.officeStorage.probeFailed')
+  }
   return (error as { message?: string })?.message || t('errors.networkError')
 }
 

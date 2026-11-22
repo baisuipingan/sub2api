@@ -72,6 +72,8 @@ class ControlClient:
                             code, uncertain = "OPERATION_UNKNOWN", True
                         elif safe_code in {"LEASE_LOST", "MODEL_ROUTE_CHANGED", "RUN_LIMIT_EXCEEDED", "OFFICE_CAPACITY", "OFFICE_DISABLED"}:
                             code = safe_code
+                        elif safe_code == "WORKBENCH_SEARCH_UNAVAILABLE":
+                            raise RuntimeFailure(safe_code, "联网搜索暂不可用，请检查工作台搜索供应商", uncertain=uncertain)
                     except (ValueError, AttributeError):
                         pass
                     raise RuntimeFailure(code, "任务调用未完成，请查看任务记录；不会自动重复请求", uncertain=uncertain)
@@ -142,6 +144,8 @@ class ControlClient:
                         # It does not imply whether the ordinary ledger charged.
                         raise RuntimeFailure("MODEL_UPSTREAM_FAILED",
                                              f"模型上游返回 HTTP {response.status_code}，本轮已确认失败；不会自动重试")
+                    if response.status_code == 413:
+                        raise RuntimeFailure("MODEL_INPUT_TOO_LARGE", "本次模型请求超过网关允许的大小，尚未发送给模型")
                     if code == "BILLING_PENDING":
                         raise RuntimeFailure(code, "上一轮模型已完成，计费记录仍在入账；本步骤尚未调用，任务已暂停", uncertain=True)
                     uncertain = code in {"NEEDS_CONFIRMATION", "OPERATION_UNKNOWN", "OPERATION_DISPATCHED"} or (response.status_code >= 500 and code != "OFFICE_CAPACITY")

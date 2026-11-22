@@ -98,10 +98,11 @@ type OfficeArtifactPublish struct {
 }
 
 type OfficeResourceAccess struct {
-	URL         string    `json:"url"`
-	PreviewURL  string    `json:"preview_url,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	PreviewKind string    `json:"preview_kind"`
+	URL                   string    `json:"url"`
+	PreviewURL            string    `json:"preview_url,omitempty"`
+	ExpiresAt             time.Time `json:"expires_at"`
+	PreviewKind           string    `json:"preview_kind"`
+	CanRenderPrintPreview bool      `json:"can_render_print_preview,omitempty"`
 }
 
 type OfficeResourceCleanup struct {
@@ -121,6 +122,7 @@ type OfficeResourcesRepository interface {
 	ResolveVersions(context.Context, int64, []string) ([]OfficeResourceVersion, error)
 	ReserveVersion(context.Context, OfficeResource, *OfficeRunLease) (*OfficeResource, error)
 	FinishVersion(context.Context, int64, string, *OfficeRunLease) (*OfficeResource, error)
+	StorePrintPreview(context.Context, int64, string, string, int64, string, *OfficeDispatch, func() error) error
 	DeleteResource(context.Context, int64, string) error
 	PinRunInputs(context.Context, OfficeRun) error
 	LatestSnapshot(context.Context, OfficeRunLease, int64) (*OfficeSnapshot, error)

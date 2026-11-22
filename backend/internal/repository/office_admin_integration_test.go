@@ -8,35 +8,100 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOfficeAdminOverviewCountsRunsAndQueueWithJoinedUserStatus(t *testing.T) {
+func TestRetireLegacyWorkbenchRunKeepsHistoryAndAllowsNewBrowserTurn(t *testing.T) {
+	ctx := context.Background()
+	repo, legacy := officeTestAdmission(t)
+	legacy.Mode = "chat"
+	_, _, err := repo.AdmitRun(ctx, legacy)
+	require.NoError(t, err)
+
+	browser := legacy
+	browser.RunID, browser.IdempotencyKey, browser.BrowserDriven = uuid.NewString(), uuid.NewString(), true
+	_, _, err = repo.AdmitRun(ctx, browser)
+	require.ErrorIs(t, err, service.ErrOfficeActiveRun)
+
+	migration, err := migrations.FS.ReadFile("dsapi_013_retire_legacy_workbench_runs.sql")
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, string(migration))
+	require.NoError(t, err)
+	historical, err := repo.GetRun(ctx, legacy.UserID, legacy.RunID)
+	require.NoError(t, err)
+	require.Equal(t, service.OfficeRunCancelled, historical.Status)
+	messages, err := repo.ListMessages(ctx, legacy.UserID, legacy.ConversationID, 0, 20)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.JSONEq(t, string(legacy.UserContent), string(messages[0].Content))
+	_, created, err := repo.AdmitRun(ctx, browser)
+	require.NoError(t, err)
+	require.True(t, created)
+}
+
+func TestOfficeAdminOverviewCountsBrowserRunsAndSettledModelCalls(t *testing.T) {
 	ctx := context.Background()
 	base, input := officeTestAdmission(t)
 	input.Mode = "chat"
+	_, browser := officeTestAdmission(t)
+	browser.Mode = "chat"
+	browser.BrowserDriven = true
 	admin, ok := base.(service.OfficeAdminRepository)
 	require.True(t, ok)
 	before, err := admin.AdminOverview(ctx, 7)
 	require.NoError(t, err)
 	_, _, err = base.AdmitRun(ctx, input)
 	require.NoError(t, err)
-	queued, err := admin.AdminOverview(ctx, 7)
+	_, _, err = base.AdmitRun(ctx, browser)
 	require.NoError(t, err)
-	require.Equal(t, before.TotalRuns+1, queued.TotalRuns)
-	require.Equal(t, before.ChatRuns+1, queued.ChatRuns)
-	require.Equal(t, before.Queued+1, queued.Queued)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_runs SET status='running' WHERE id IN ($1, $2)`, input.RunID, browser.RunID)
+	require.NoError(t, err)
+	running, err := admin.AdminOverview(ctx, 7)
+	require.NoError(t, err)
+	require.Equal(t, before.TotalRuns+1, running.TotalRuns)
+	require.Equal(t, before.Completed, running.Completed)
+	for execution, id := range map[string]string{"browser": browser.RunID, "historical": input.RunID} {
+		page, err := admin.AdminRuns(ctx, service.OfficeAdminFilter{Page: 1, PageSize: 20, Execution: execution, Status: "running"})
+		require.NoError(t, err)
+		require.NotEmpty(t, page.Items)
+		require.Equal(t, id, page.Items[0].ID)
+	}
 	_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_runs SET mode='office',status='completed',model_calls=2,tool_calls=1 WHERE id=$1`, input.RunID)
 	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_runs SET status='partially_completed',model_calls=4 WHERE id=$1`, browser.RunID)
+	require.NoError(t, err)
+	var accountID int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `INSERT INTO accounts(name,platform,type) VALUES('overview-test','openai','apikey') RETURNING id`).Scan(&accountID))
+	t.Cleanup(func() {
+		_, err := integrationDB.ExecContext(context.Background(), `DELETE FROM accounts WHERE id=$1`, accountID)
+		require.NoError(t, err)
+	})
+	insertOperation := func(run service.OfficeRunAdmission, result string, receipt bool, cost string) {
+		t.Helper()
+		request := uuid.NewString()
+		_, err := integrationDB.ExecContext(ctx, `INSERT INTO office_agent_operations(user_id,run_id,operation_id,kind,state,input_hash,input_json,request_id,result_json) VALUES($1,$2,$3,'model','completed',$4,'{}',$3,$5::jsonb)`, run.UserID, run.RunID, request, run.RequestHash, result)
+		require.NoError(t, err)
+		if receipt {
+			_, err = integrationDB.ExecContext(ctx, `INSERT INTO usage_logs(user_id,api_key_id,account_id,request_id,model,input_tokens,actual_cost) VALUES($1,$2,$3,$4,'public-model',10,$5::numeric)`, run.UserID, run.APIKeyID, accountID, "client:"+request, cost)
+			require.NoError(t, err)
+		}
+	}
+	insertOperation(input, `{"http_status":200}`, true, "0.25")
+	insertOperation(browser, `{"http_status":200}`, true, "0.0033")
+	insertOperation(browser, `{"http_status":200}`, true, "0")
+	insertOperation(browser, `{"http_status":502}`, true, "0")
+	insertOperation(browser, `{"http_status":200}`, false, "0")
 	completed, err := admin.AdminOverview(ctx, 7)
 	require.NoError(t, err)
-	require.Equal(t, before.OfficeRuns+1, completed.OfficeRuns)
-	require.Equal(t, before.Completed+1, completed.Completed)
+	require.Equal(t, before.Completed, completed.Completed)
+	require.Equal(t, before.PartiallyCompleted+1, completed.PartiallyCompleted)
 	require.Equal(t, before.ModelCalls+2, completed.ModelCalls)
-	require.Equal(t, before.ToolCalls+1, completed.ToolCalls)
-	require.Equal(t, before.Queued, completed.Queued)
-	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET deleted_at=NOW() WHERE id=$1`, input.UserID)
+	require.Equal(t, before.InputTokens+20, completed.InputTokens)
+	require.Equal(t, before.ModelChargeCredits+330_000, completed.ModelChargeCredits)
+	require.Equal(t, before.ChargeCredits+330_000, completed.ChargeCredits)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET deleted_at=NOW() WHERE id=$1`, browser.UserID)
 	require.NoError(t, err)
 	deleted, err := admin.AdminOverview(ctx, 7)
 	require.NoError(t, err)
@@ -121,4 +186,78 @@ func TestOfficeAdminPageAndUsageReadOriginalLedgerWithExactUserAndKey(t *testing
 	var usageCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM usage_logs WHERE account_id=$1`, account).Scan(&usageCount))
 	require.Equal(t, 3, usageCount, "admin reads do not write or reprice the original ledger")
+}
+
+func TestOfficeAdminRunMessagesPaginatesAndRespectsConversationDeletion(t *testing.T) {
+	ctx := context.Background()
+	base, input := officeTestAdmission(t)
+	admin := base.(service.OfficeAdminRepository)
+	chat := base.(service.OfficeChatRepository)
+	input.BrowserDriven = true
+	input.UserContent = json.RawMessage(`"旧版问题"`)
+	_, _, err := base.AdmitRun(ctx, input)
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `
+WITH extra_runs AS (
+	SELECT gen_random_uuid() AS id,n FROM generate_series(2,27) AS seq(n)
+), inserted AS (
+	INSERT INTO office_agent_runs (id,user_id,conversation_id,idempotency_key,request_hash,api_key_id,group_id,model,status,limits_json)
+	SELECT extra.id,r.user_id,r.conversation_id,extra.id::text,r.request_hash,r.api_key_id,r.group_id,r.model,'completed',r.limits_json
+	FROM office_agent_runs r CROSS JOIN extra_runs extra WHERE r.id=$1
+	RETURNING id,user_id,conversation_id
+)
+INSERT INTO office_agent_messages (id,user_id,conversation_id,run_id,sequence,role,content)
+SELECT gen_random_uuid(),r.user_id,r.conversation_id,r.id,2*extra.n-2+part.sequence_delta,part.role,to_jsonb(part.text)
+FROM inserted r JOIN extra_runs extra ON extra.id=r.id
+CROSS JOIN (VALUES (0,'user','后续问题'::text),(1,'assistant','后续回答'::text)) AS part(sequence_delta,role,text)`, input.RunID)
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_runs SET resume_value='"旧版补充回答"'::jsonb WHERE id=$1`, input.RunID)
+	require.NoError(t, err)
+
+	otherConversation := uuid.NewString()
+	_, err = base.CreateConversation(ctx, input.UserID, otherConversation, "另一场对话")
+	require.NoError(t, err)
+	other := input
+	other.ConversationID, other.RunID, other.IdempotencyKey = otherConversation, uuid.NewString(), uuid.NewString()
+	other.UserContent = json.RawMessage(`"同用户的另一场对话"`)
+	otherTurn, err := base.CancelRun(ctx, input.UserID, input.RunID)
+	require.NoError(t, err)
+	require.Equal(t, service.OfficeRunCancelled, otherTurn.Status)
+	_, _, err = base.AdmitRun(ctx, other)
+	require.NoError(t, err)
+
+	first, err := admin.AdminRunMessages(ctx, input.RunID, 0)
+	require.NoError(t, err)
+	require.Equal(t, "办公对话", first.ConversationTitle)
+	require.Len(t, first.Messages, 50)
+	require.EqualValues(t, 4, first.Messages[0].Sequence)
+	require.EqualValues(t, 53, first.Messages[49].Sequence)
+	require.True(t, first.HasMore)
+	require.EqualValues(t, 4, first.NextBefore)
+	require.NotNil(t, first.SelectedUserMessage)
+	require.Equal(t, input.RunID, first.SelectedUserMessage.RunID)
+	require.JSONEq(t, `"旧版问题"`, string(first.SelectedUserMessage.Content))
+	for _, message := range first.Messages {
+		require.Equal(t, input.ConversationID, message.ConversationID)
+	}
+
+	older, err := admin.AdminRunMessages(ctx, input.RunID, first.NextBefore)
+	require.NoError(t, err)
+	require.Len(t, older.Messages, 3)
+	require.EqualValues(t, 1, older.Messages[0].Sequence)
+	require.EqualValues(t, 3, older.Messages[2].Sequence)
+	require.False(t, older.HasMore)
+	require.Equal(t, "assistant", older.Messages[2].Role)
+	require.Len(t, older.Runs, 2)
+	for _, run := range older.Runs {
+		require.Empty(t, run.ResumeValue)
+	}
+
+	require.NoError(t, chat.DeleteConversation(ctx, input.UserID, input.ConversationID))
+	_, err = admin.AdminRunMessages(ctx, input.RunID, 0)
+	require.ErrorIs(t, err, service.ErrOfficeNotFound)
+	detail, err := admin.AdminRun(ctx, input.RunID)
+	require.NoError(t, err)
+	require.Equal(t, input.RunID, detail.Run.ID)
+	require.Empty(t, detail.Run.ResumeValue)
 }

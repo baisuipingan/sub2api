@@ -1,6 +1,15 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <div class="flex flex-wrap gap-2 border-b border-gray-200 dark:border-dark-700">
+        <button type="button" class="tab" :class="{ 'tab-active': activeTab === 'usage' }" :aria-pressed="activeTab === 'usage'" @click="switchToUsage">
+          {{ t('usage.tabs.usage') }}
+        </button>
+        <button v-if="errorViewEnabled" type="button" class="tab" :class="{ 'tab-active': activeTab === 'errors' }" :aria-pressed="activeTab === 'errors'" @click="switchToErrors">
+          {{ t('usage.tabs.errors') }}
+        </button>
+      </div>
+
       <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
       <div class="space-y-4">
@@ -153,15 +162,6 @@
         </div>
       </div>
 
-      <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
-        <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
-          {{ t('usage.tabs.usage') }}
-        </button>
-        <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
-          {{ t('usage.tabs.errors') }}
-        </button>
-      </div>
-
       <template v-if="activeTab === 'usage'">
         <UsageTable
           :data="usageLogs"
@@ -187,7 +187,7 @@
       </template>
 
       <UserErrorRequestsTable
-        v-else-if="errorViewEnabled"
+        v-else-if="activeTab === 'errors' && errorViewEnabled"
         :rows="errorRows"
         :total="errorTotal"
         :loading="errorLoading"
@@ -225,6 +225,7 @@ import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { formatReasoningEffort } from '@/utils/format'
 import { getBillingModeLabel, getDisplayBillingMode as resolveDisplayBillingMode } from '@/utils/billingMode'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
+import { usageModelLabel } from '@/utils/usageSearch'
 import type {
   ApiKey,
   EndpointStat,
@@ -419,7 +420,7 @@ const groupOptions = computed<SelectOption[]>(() => [
 ])
 const modelOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allModels') },
-  ...modelOptionValues.value.map((model) => ({ value: model, label: model })),
+  ...modelOptionValues.value.map((model) => ({ value: model, label: usageModelLabel(model, t) })),
 ])
 
 const normalizedFilters = computed<UsageQueryParams>(() => {
@@ -940,6 +941,10 @@ const onErrorPageSize = (pageSize: number) => {
 const switchToErrors = () => {
   activeTab.value = 'errors'
   if (errorRows.value.length === 0) void loadErrors()
+}
+
+function switchToUsage() {
+  activeTab.value = 'usage'
 }
 
 onMounted(() => {

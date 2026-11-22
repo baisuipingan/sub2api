@@ -27,12 +27,15 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { workbenchChatApi } from '@/api/workbenchChat'
 import { chatError } from '@/stores/workbenchChat'
-import type { ChatArtifact, ChatResource } from '@/types/workbenchChat'
-const props = withDefaults(defineProps<{ show: boolean; attachments: ChatResource[]; maxFiles?: number }>(), { maxFiles: 10 })
+import { acceptsChatAttachment, type ChatArtifact, type ChatResource } from '@/types/workbenchChat'
+const props = withDefaults(defineProps<{ show: boolean; attachments: ChatResource[]; maxFiles?: number; attachmentExtensions?: string[] }>(), { maxFiles: 10 })
 const emit = defineEmits<{ close: []; select: [files: ChatResource[]] }>()
 const files = ref<ChatArtifact[]>([]), query = ref(''), loading = ref(false), error = ref(''), cursor = ref<string | undefined>(), selected = ref(new Map<string, ChatResource>())
 const attachedIds = computed(() => new Set(props.attachments.map(file => file.version_id)))
-const visibleFiles = computed(() => files.value.filter(file => file.name.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())))
+const visibleFiles = computed(() => {
+  const keyword = query.value.trim().toLocaleLowerCase()
+  return files.value.filter(file => acceptsChatAttachment(file, props.attachmentExtensions) && file.name.toLocaleLowerCase().includes(keyword))
+})
 let epoch = 0
 function canSelect(file: ChatArtifact) { return !attachedIds.value.has(file.version_id) && (selected.value.has(file.version_id) || selected.value.size + attachedIds.value.size < props.maxFiles) }
 function toggle(file: ChatArtifact) { if (!canSelect(file)) return; const next = new Map(selected.value); if (next.has(file.version_id)) next.delete(file.version_id); else next.set(file.version_id, file); selected.value = next }

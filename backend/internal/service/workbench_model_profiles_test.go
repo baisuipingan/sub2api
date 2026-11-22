@@ -1,10 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestWorkbenchPublicModelAliasUsesOnlyExplicitOfficialProfile(t *testing.T) {
@@ -29,6 +37,121 @@ func TestWorkbenchPublicModelAliasUsesOnlyExplicitOfficialProfile(t *testing.T) 
 	}
 	require.Equal(t, "gpt-6.1-sol", workbenchModelProfile("gpt-6.1-sol", nil, profiles).ID)
 	require.Nil(t, workbenchModelProfile("gpt-6.1-sol-provider-suffix", nil, profiles), "public IDs use exact catalog declarations, never a prefix guess")
+}
+
+func TestWorkbenchDeepSeekV41FlashUsesOfficialFlashProfile(t *testing.T) {
+	profiles := desktopAgentBuiltinProfiles()
+	const publicID = "deepseek-v4.1-flash"
+	profile := workbenchModelProfile(publicID, nil, profiles)
+	require.NotNil(t, profile)
+	require.Equal(t, "deepseek-flash", profile.ID)
+	require.Equal(t, []string{"none", "low", "high", "max"}, profile.OfficialReasoningLevels)
+	require.True(t, *profile.Model.SupportsToolCall)
+	require.Nil(t, workbenchModelProfile(publicID+"-custom", nil, profiles))
+
+	// A saved administrator binding remains authoritative for a public alias.
+	bindings := map[string]DesktopAgentModelProfileBinding{publicID: {ProfileID: "deepseek-v4-pro"}}
+	require.Equal(t, "deepseek-v4-pro", workbenchModelProfile(publicID, bindings, profiles).ID)
+}
+
+func TestWorkbenchGeminiCatalogDefaultMatchesNativeRequest(t *testing.T) {
+	const carbon = "gemini-4-carbon"
+	const carbonAlias = "carbon-office"
+	const carbonTier = "gemini-4-carbon-low"
+	const responsesAlias = "carbon-responses"
+	svc, _ := officeBridgeFixture(http.NotFoundHandler())
+	svc.settings = NewSettingService(&workbenchSettingsStub{values: map[string]string{
+		"workbench_chat_enabled":      "true",
+		SettingKeyDesktopAgentConfig:  `{"enabled":true,"group_id":12}`,
+		"workbench_model_profiles_v1": `{"carbon-office":{"profile_id":"gemini-4-carbon"},"carbon-responses":{"profile_id":"gemini-4-carbon"}}`,
+	}}, nil)
+	svc.groups = NewGroupService(&workbenchGroupStub{group: &Group{
+		ID: 12, Status: StatusActive, Platform: PlatformComposite, SubscriptionType: SubscriptionTypeStandard,
+	}}, nil)
+	accounts := &desktopModelAccounts{accounts: []Account{
+		desktopModelAccount(PlatformGemini, map[string]any{carbon: carbon, carbonTier: carbonTier}),
+		desktopModelAccount(PlatformOpenAI, map[string]any{"openai-target": "openai-target"}),
+	}}
+	routes := compositeRouteRepoStub{routes: []CompositeModelRoute{
+		{ID: 1, GroupID: 12, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: carbonAlias, Endpoint: CompositeRouteEndpointGemini, TargetPlatform: PlatformGemini, UpstreamModel: carbon},
+		{ID: 2, GroupID: 12, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: responsesAlias, Endpoint: CompositeRouteEndpointResponses, TargetPlatform: PlatformOpenAI, UpstreamModel: "openai-target"},
+	}}
+	svc.catalog = NewWorkbenchChatModelCatalog(accounts, routes, nil)
+	items, err := svc.ChatModels(context.Background())
+	require.NoError(t, err)
+	models := make(map[string]WorkbenchChatModel, len(items))
+	for _, item := range items {
+		models[item.ID] = item
+	}
+	for _, id := range []string{carbon, carbonAlias} {
+		model := models[id]
+		require.Equal(t, workbenchProtocolGemini, model.Protocol)
+		require.Equal(t, []string{"low", "medium", "high"}, model.ReasoningEfforts)
+		require.Equal(t, "medium", model.DefaultReasoningEffort)
+		catalog, err := json.Marshal(model)
+		require.NoError(t, err)
+		require.Equal(t, "medium", gjson.GetBytes(catalog, "default_reasoning_effort").String())
+		request := workbenchNativeRequest{Protocol: model.Protocol, Model: model.ID, ProfileModel: model.profileModel,
+			History: []workbenchNativeMessage{{Role: "user", Text: "Hello"}}}
+		_, payload, err := buildWorkbenchNativeRequest(request)
+		require.NoError(t, err)
+		require.Equal(t, "MEDIUM", gjson.GetBytes(payload, "generationConfig.thinkingConfig.thinkingLevel").String())
+		request.ReasoningEffort = "high"
+		_, payload, err = buildWorkbenchNativeRequest(request)
+		require.NoError(t, err)
+		require.Equal(t, "HIGH", gjson.GetBytes(payload, "generationConfig.thinkingConfig.thinkingLevel").String())
+	}
+	require.Equal(t, workbenchProtocolGemini, models[carbonTier].Protocol)
+	require.Empty(t, models[carbonTier].ReasoningEfforts)
+	require.Equal(t, workbenchProtocolResponses, models[responsesAlias].Protocol)
+	require.NotEmpty(t, models[responsesAlias].ReasoningEfforts)
+	for _, id := range []string{carbonTier, responsesAlias} {
+		catalog, err := json.Marshal(models[id])
+		require.NoError(t, err)
+		require.False(t, gjson.GetBytes(catalog, "default_reasoning_effort").Exists())
+	}
+}
+
+func TestWorkbenchDeepSeekReasoningAndToolsReachRawGateway(t *testing.T) {
+	const model = "deepseek-v4.1-flash"
+	const searchTool = `[{"type":"function","function":{"name":"web_search","parameters":{"type":"object"}}}]`
+	const question = `{"role":"user","content":"请搜索资料"}`
+	const toolHistory = `,{"role":"assistant","content":"","reasoning_content":"需查证","tool_calls":[{"id":"search-1","type":"function","function":{"name":"web_search","arguments":"{}"}}]},{"role":"tool","tool_call_id":"search-1","content":"结果"}`
+	for _, effort := range []string{"none", "high"} {
+		t.Run(effort, func(t *testing.T) {
+			history := question
+			if effort == "high" {
+				history += toolHistory
+			}
+			body := []byte(`{"model":"` + model + `","reasoning_effort":"` + effort + `","messages":[` + history + `],"tools":` + searchTool + `,"max_tokens":1024}`)
+			run := OfficeRun{Model: model, Mode: "chat", SearchEnabled: true, Limits: OfficeRunLimits{MaxOutputTokens: 1024}}
+			if effort == "high" {
+				_, err := normalizeOfficeModelRequest(body, run)
+				require.ErrorIs(t, err, ErrOfficeInvalid, "old runs cannot pass back reasoning")
+			}
+			run.Parameters = json.RawMessage(`{"replay_tool_reasoning":true}`)
+			payload, err := normalizeOfficeModelRequest(body, run)
+			require.NoError(t, err)
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"id":"fixture","choices":[{"message":{"role":"assistant","content":"已找到资料"},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":6}}`)),
+			}}
+			svc := &OpenAIGatewayService{cfg: deepSeekChatFallbackTestConfig(), httpUpstream: upstream}
+			account := &Account{ID: 1, Platform: PlatformOpenCodeGo, Type: AccountTypeAPIKey, Concurrency: 1,
+				Credentials: map[string]any{"api_key": "fixture-key", "base_url": DefaultOpenCodeGoBaseURL}}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(payload))
+			_, err = svc.forwardAsRawChatCompletions(context.Background(), c, account, payload, "")
+			require.NoError(t, err)
+			require.Equal(t, model, gjson.GetBytes(upstream.lastBody, "model").String())
+			require.Equal(t, effort, gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
+			require.Equal(t, "web_search", gjson.GetBytes(upstream.lastBody, "tools.0.function.name").String())
+			if effort == "high" {
+				require.Equal(t, "需查证", gjson.GetBytes(upstream.lastBody, "messages.1.reasoning_content").String())
+			}
+		})
+	}
 }
 
 func TestWorkbenchModelBindingsPersistSeparatelyFromDesktopSettings(t *testing.T) {

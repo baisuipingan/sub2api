@@ -34,21 +34,24 @@ const officeLeaseDuration = 90 * time.Second
 
 // The service owns authenticated workbench runs, leases and the ordinary model
 // gateway bridge. A trusted worker receives a scoped capability, never the
-// user's existing Studio API key. Files use the separate resources service.
+// user's Agent API key. Files use the separate resources service.
 type OfficeAgentService struct {
-	cfg        config.OfficeAgentConfig
-	repo       OfficeAgentRepository
-	settings   *SettingService
-	groups     *GroupService
-	catalog    DesktopAgentModelCatalog
-	profiles   *DesktopAgentProfileCatalogService
-	resources  *OfficeResourcesService
-	pinInputs  func(context.Context, int64, string) error
-	mu         sync.RWMutex
-	router     http.Handler
-	modelSlots chan struct{}
-	resolve    func(context.Context, int64, string) (int64, int64, error)
-	authorize  func(context.Context, OfficeRun) (string, error)
+	cfg                   config.OfficeAgentConfig
+	repo                  OfficeAgentRepository
+	settings              *SettingService
+	billingCache          *BillingCacheService
+	groups                *GroupService
+	catalog               DesktopAgentModelCatalog
+	profiles              *DesktopAgentProfileCatalogService
+	resources             *OfficeResourcesService
+	pinInputs             func(context.Context, int64, string) error
+	mu                    sync.RWMutex
+	router                http.Handler
+	modelRequestBodyLimit int64
+	modelSlots            chan struct{}
+	officeNodeEncryptor   SecretEncryptor
+	resolve               func(context.Context, int64, string) (int64, int64, error)
+	authorize             func(context.Context, OfficeRun) (string, error)
 }
 
 func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, settings *SettingService,
@@ -60,21 +63,19 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 		options = cfg.OfficeAgent
 	}
 	s := &OfficeAgentService{repo: repo, settings: settings, groups: groups, catalog: catalog, cfg: options, modelSlots: make(chan struct{}, max(1, min(options.MaxConcurrentCalls, 4)))}
+	if cfg != nil {
+		s.modelRequestBodyLimit = cfg.Gateway.MaxBodySize
+		if globalLimit := cfg.Server.MaxRequestBodySize; globalLimit > 0 && (s.modelRequestBodyLimit <= 0 || globalLimit < s.modelRequestBodyLimit) {
+			s.modelRequestBodyLimit = globalLimit
+		}
+	}
 	currentGroup := func(ctx context.Context, model string) (*Group, error) {
 		if settings == nil || groups == nil || catalog == nil || keys == nil {
 			return nil, ErrOfficeDisabled
 		}
-		workbench, err := settings.GetWorkbenchConfig(ctx)
+		_, group, err := s.loadWorkbenchAgentGroup(ctx)
 		if err != nil {
 			return nil, err
-		}
-		// ImageStudioEnabled deliberately does not gate the new module.
-		if workbench.ImageStudioGroupID <= 0 {
-			return nil, ErrOfficeRouteChanged
-		}
-		group, err := groups.GetByID(ctx, workbench.ImageStudioGroupID)
-		if err != nil || group == nil || group.Status != StatusActive {
-			return nil, ErrOfficeRouteChanged
 		}
 		models, err := catalog.ModelsForGroup(ctx, group)
 		if err != nil {
@@ -90,38 +91,52 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 		if err != nil {
 			return 0, 0, err
 		}
-		key, err := keys.GetOrCreateImageStudioKey(ctx, userID, &group.ID)
+		key, _, err := keys.GetDesktopAgentCredential(ctx, userID, group.ID)
+		if errors.Is(err, ErrDesktopAgentPolicyChanged) {
+			return 0, 0, ErrOfficeRouteChanged
+		}
 		if err != nil {
 			return 0, 0, err
 		}
-		// Newly created keys are not hydrated with User. Re-read through the
-		// ordinary service, without constructing another system key identity.
 		key, err = keys.GetByID(ctx, key.ID)
 		if err != nil {
 			return 0, 0, err
 		}
-		if !officeKeyMatches(key, userID, group.ID) {
+		if !officeKeyMatches(key, userID, group) {
 			return 0, 0, ErrOfficeRouteChanged
 		}
 		return key.ID, group.ID, nil
 	}
 	s.authorize = func(ctx context.Context, run OfficeRun) (string, error) {
-		group, err := currentGroup(ctx, run.Model)
+		var group *Group
+		var err error
+		if run.BrowserDriven {
+			_, group, err = s.loadWorkbenchAgentGroup(ctx)
+		} else {
+			group, err = currentGroup(ctx, run.Model)
+		}
 		if err != nil || group.ID != run.GroupID {
 			return "", ErrOfficeRouteChanged
 		}
 		key, err := keys.GetByID(ctx, run.APIKeyID)
-		if err != nil || !officeKeyMatches(key, run.UserID, run.GroupID) {
+		if err != nil || !officeKeyMatches(key, run.UserID, group) {
 			return "", ErrOfficeRouteChanged
+		}
+		if group.IsExclusive || key.User.RestrictPublicGroups {
+			// The ID lookup does not hydrate the user's allowed group list.
+			user, err := keys.userRepo.GetByID(ctx, run.UserID)
+			if err != nil || user == nil || !user.IsActive() || !user.CanBindGroup(group.ID, group.IsExclusive) {
+				return "", ErrGroupNotAllowed
+			}
 		}
 		return key.Key, nil
 	}
 	return s
 }
 
-func officeKeyMatches(key *APIKey, userID, groupID int64) bool {
-	return key != nil && key.UserID == userID && key.KeyType == APIKeyTypeSystem && key.Name == ImageStudioKeyName &&
-		key.Key != "" && key.IsActive() && !key.IsExpired() && key.GroupID != nil && *key.GroupID == groupID &&
+func officeKeyMatches(key *APIKey, userID int64, group *Group) bool {
+	return key != nil && key.UserID == userID && key.KeyType == APIKeyTypeSystem && key.Purpose == APIKeyPurposeDesktopAgent &&
+		key.Key != "" && key.IsActive() && !key.IsExpired() && !key.IsQuotaExhausted() && key.GroupID != nil && *key.GroupID == group.ID &&
 		key.User != nil && key.User.IsActive()
 }
 
@@ -130,6 +145,9 @@ func (s *OfficeAgentService) BindGatewayRouter(router http.Handler) {
 	defer s.mu.Unlock()
 	s.router = router
 }
+
+// ModelRequestBodyLimit is the effective ingress limit of /v1/chat/completions.
+func (s *OfficeAgentService) ModelRequestBodyLimit() int64 { return s.modelRequestBodyLimit }
 
 func (s *OfficeAgentService) Enabled() bool {
 	if s == nil || !s.cfg.Enabled || s.cfg.Validate() != nil || s.repo == nil {
@@ -225,7 +243,7 @@ func officeDigest(data []byte) string {
 }
 
 func (s *OfficeAgentService) BootstrapAuthorized(token string) bool {
-	return s.Enabled() && len(token) == len(s.cfg.WorkerToken) &&
+	return s.Enabled() && s.cfg.WorkerToken != "" && len(token) == len(s.cfg.WorkerToken) &&
 		subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.WorkerToken)) == 1
 }
 
@@ -290,7 +308,7 @@ func (s *OfficeAgentService) authenticateLeaseIdentity(ctx context.Context, runI
 	return s.authenticateLeaseIdentityGrace(ctx, runID, epoch, token, 0)
 }
 func (s *OfficeAgentService) authenticateLeaseIdentityGrace(ctx context.Context, runID, epoch, token string, grace time.Duration) (*OfficeRunLease, error) {
-	if !s.Enabled() || len(token) > 2048 || uuid.Validate(runID) != nil {
+	if !s.Enabled() || s.cfg.WorkerToken == "" || len(token) > 2048 || uuid.Validate(runID) != nil {
 		return nil, ErrOfficeUnauthorized
 	}
 	parts := strings.Split(token, ".")
@@ -304,7 +322,7 @@ func (s *OfficeAgentService) authenticateLeaseIdentityGrace(ctx context.Context,
 		return nil, ErrOfficeUnauthorized
 	}
 	run, err := s.repo.GetRun(ctx, credential.UserID, runID)
-	if err != nil {
+	if err != nil || run.BrowserDriven {
 		return nil, ErrOfficeLeaseLost
 	}
 	lease := OfficeRunLease{Run: *run, Owner: credential.Owner, Token: credential.Token, Epoch: credential.Epoch}
@@ -318,29 +336,30 @@ type OfficeWorkerMessage struct {
 }
 
 type OfficeWorkerManifest struct {
-	SupportsVision    bool                    `json:"supports_vision"`
-	ContextWindow     int                     `json:"context_window"`
-	ContextSummary    *OfficeContextSummary   `json:"context_summary,omitempty"`
-	CurrentQuestionID string                  `json:"current_question_id"`
-	OutputParent      json.RawMessage         `json:"output_parent,omitempty"`
-	Mode              string                  `json:"mode"`
-	SearchEnabled     bool                    `json:"search_enabled"`
-	Parameters        json.RawMessage         `json:"parameters"`
-	Resume            bool                    `json:"resume"`
-	ResumeValue       json.RawMessage         `json:"resume_value,omitempty"`
-	CheckpointVersion int64                   `json:"checkpoint_version"`
-	RunID             string                  `json:"run_id"`
-	ConversationID    string                  `json:"conversation_id"`
-	ThreadID          string                  `json:"thread_id"`
-	LeaseEpoch        int64                   `json:"lease_epoch"`
-	LeaseToken        string                  `json:"lease_token"`
-	LeaseUntil        time.Time               `json:"lease_until"`
-	Model             string                  `json:"model"`
-	BridgePath        string                  `json:"bridge_path"`
-	Limits            OfficeRunLimits         `json:"limits"`
-	Messages          []OfficeWorkerMessage   `json:"messages"`
-	DurableResume     bool                    `json:"durable_resume"`
-	InputResources    []OfficeResourceVersion `json:"input_resources"`
+	SupportsVision      bool                    `json:"supports_vision"`
+	ReplayToolReasoning bool                    `json:"replay_tool_reasoning,omitempty"`
+	ContextWindow       int                     `json:"context_window"`
+	ContextSummary      *OfficeContextSummary   `json:"context_summary,omitempty"`
+	CurrentQuestionID   string                  `json:"current_question_id"`
+	OutputParent        json.RawMessage         `json:"output_parent,omitempty"`
+	Mode                string                  `json:"mode"`
+	SearchEnabled       bool                    `json:"search_enabled"`
+	Parameters          json.RawMessage         `json:"parameters"`
+	Resume              bool                    `json:"resume"`
+	ResumeValue         json.RawMessage         `json:"resume_value,omitempty"`
+	CheckpointVersion   int64                   `json:"checkpoint_version"`
+	RunID               string                  `json:"run_id"`
+	ConversationID      string                  `json:"conversation_id"`
+	ThreadID            string                  `json:"thread_id"`
+	LeaseEpoch          int64                   `json:"lease_epoch"`
+	LeaseToken          string                  `json:"lease_token"`
+	LeaseUntil          time.Time               `json:"lease_until"`
+	Model               string                  `json:"model"`
+	BridgePath          string                  `json:"bridge_path"`
+	Limits              OfficeRunLimits         `json:"limits"`
+	Messages            []OfficeWorkerMessage   `json:"messages"`
+	DurableResume       bool                    `json:"durable_resume"`
+	InputResources      []OfficeResourceVersion `json:"input_resources"`
 }
 
 func (s *OfficeAgentService) Claim(ctx context.Context, owner string) (*OfficeWorkerManifest, error) {
@@ -405,6 +424,7 @@ func (s *OfficeAgentService) ClaimPreset(ctx context.Context, owner, preset stri
 	if json.Unmarshal(lease.Run.Parameters, &params) == nil {
 		manifest.OutputParent = params["output_parent"]
 		_ = json.Unmarshal(params["supports_vision"], &manifest.SupportsVision)
+		_ = json.Unmarshal(params["replay_tool_reasoning"], &manifest.ReplayToolReasoning)
 		_ = json.Unmarshal(params["context_window"], &manifest.ContextWindow)
 		modelParams := map[string]json.RawMessage{}
 		if len(params["reasoning_effort"]) > 0 {

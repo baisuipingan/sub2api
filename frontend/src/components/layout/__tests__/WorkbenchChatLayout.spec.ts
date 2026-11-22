@@ -8,7 +8,7 @@ import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
 import { withWorkspaceMeta } from '@/router/workspace'
 
 const { app, auth, chat, tickets, flags } = vi.hoisted(() => ({
-  app: { sidebarCollapsed: false, backendModeEnabled: false, siteName: 'MiloRouter', siteLogo: '', publicSettingsLoaded: true, docUrl: '', contactInfo: '', cachedPublicSettings: { custom_menu_items: [] }, toggleSidebar: vi.fn() },
+  app: { sidebarCollapsed: false, backendModeEnabled: false, siteName: 'MiloRouter', siteLogo: '', publicSettingsLoaded: true, docUrl: '', contactInfo: '', cachedPublicSettings: { custom_menu_items: [], image_studio_enabled: true }, toggleSidebar: vi.fn() },
   auth: { isAdmin: false, isSimpleMode: false, user: { id: 7, role: 'user', email: 'user@example.com', balance: 25 } },
   chat: { status: { files_enabled: true }, newConversation: vi.fn() },
   tickets: { userUnreadCount: 2, startPolling: vi.fn(), stopPolling: vi.fn() },
@@ -59,6 +59,7 @@ describe('personal chat shell', () => {
     appState.sidebarCollapsed = false
     appState.backendModeEnabled = false
     appState.docUrl = ''
+    appState.cachedPublicSettings.image_studio_enabled = true
     authState.isAdmin = false
     authState.isSimpleMode = false
     chatState.status.files_enabled = true
@@ -81,6 +82,8 @@ describe('personal chat shell', () => {
     expect(wrapper.find('a[href="/workbench/image"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/workbench/files"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/admin/workbench"]').exists()).toBe(false)
+    expect(wrapper.get('footer .chat-balance dt').text()).toBe('common.availableBalance')
+    expect(wrapper.get('footer .chat-balance dd').text()).toBe('25')
     expect(wrapper.find('.glass').exists()).toBe(false)
     expect(tickets.startPolling).toHaveBeenCalledWith(false)
   })
@@ -96,15 +99,19 @@ describe('personal chat shell', () => {
   it('keeps file feature visibility and desktop collapse separate from mobile history', async () => {
     const { wrapper } = await setup()
     chatState.status.files_enabled = false
+    appState.cachedPublicSettings.image_studio_enabled = false
     await flushPromises()
     expect(wrapper.find('a[href="/workbench/files"]').exists()).toBe(false)
+    expect(wrapper.find('a[href="/workbench/image"]').exists()).toBe(false)
     await wrapper.get('button[aria-label="收起侧栏"]').trigger('click')
     expect(wrapper.classes()).toContain('chat-sidebar-collapsed')
     expect(wrapper.find('[data-testid="conversation-list"]').exists()).toBe(false)
+    expect(wrapper.find('.chat-balance').exists()).toBe(false)
     viewportListener?.({ matches: false } as MediaQueryListEvent)
     await flushPromises()
     expect(wrapper.classes()).not.toContain('chat-sidebar-collapsed')
     expect(wrapper.findAll('[data-testid="conversation-list"]')).toHaveLength(1)
+    expect(wrapper.get('footer .chat-balance dd').text()).toBe('25')
   })
 
   it('resets the current conversation before navigating to a new one', async () => {

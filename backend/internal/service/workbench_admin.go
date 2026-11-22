@@ -133,28 +133,12 @@ type WorkbenchConfig struct {
 	ChatEnabled          bool                                       `json:"chat_enabled"`
 	OfficeEnabled        bool                                       `json:"office_enabled"`
 	SearchEnabled        bool                                       `json:"search_enabled"`
+	SearchProviderStatus WorkbenchSearchProviderStatus              `json:"search_provider_status,omitempty"`
 	FilesEnabled         bool                                       `json:"files_enabled"`
 	ImageStudioEnabled   bool                                       `json:"image_studio_enabled"`
 	ImageStudioGroupID   int64                                      `json:"image_studio_group_id"`
-	ChatConcurrentRuns   int                                        `json:"chat_concurrent_runs"`
-	OfficeConcurrentRuns int                                        `json:"office_concurrent_runs"`
-	MaxModelCalls        int                                        `json:"max_model_calls"`
-	MaxToolCalls         int                                        `json:"max_tool_calls"`
-	MaxOutputTokens      int                                        `json:"max_output_tokens"`
-	MaxRunSeconds        int                                        `json:"max_run_seconds"`
-	MaxRunCredits        int64                                      `json:"max_run_credits"`
+	AgentGroupID         int64                                      `json:"agent_group_id"`
 	ModelProfiles        map[string]DesktopAgentModelProfileBinding `json:"model_profiles"`
-	DeploymentLimits     WorkbenchTaskDeploymentLimits              `json:"deployment_limits"`
-}
-
-// Task budgets are separate from a model's unmodified official capability.
-type WorkbenchTaskDeploymentLimits struct {
-	ChatConcurrentRuns   int `json:"chat_concurrent_runs"`
-	OfficeConcurrentRuns int `json:"office_concurrent_runs"`
-	MaxModelCalls        int `json:"max_model_calls"`
-	MaxToolCalls         int `json:"max_tool_calls"`
-	MaxOutputTokens      int `json:"max_output_tokens"`
-	MaxRunSeconds        int `json:"max_run_seconds"`
 }
 
 type WorkbenchAdminRepository interface {
@@ -228,14 +212,15 @@ func (s *WorkbenchAdminService) ListTasks(ctx context.Context, filter WorkbenchT
 }
 
 func (s *WorkbenchAdminService) GetConfig(ctx context.Context) (*WorkbenchConfig, error) {
-	return s.settings.GetWorkbenchConfig(ctx)
+	cfg, err := s.settings.GetWorkbenchConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.SearchProviderStatus = s.settings.workbenchSearchProviderStatus(ctx)
+	return cfg, nil
 }
 
 func (s *WorkbenchAdminService) UpdateConfig(ctx context.Context, cfg WorkbenchConfig) (*WorkbenchConfig, error) {
-	cfg = s.settings.workbenchTaskDefaults(cfg)
-	if !validWorkbenchTaskBudgets(cfg) {
-		return nil, ErrWorkbenchInvalid
-	}
 	profiles := desktopAgentBuiltinProfiles()
 	if s.profiles != nil {
 		profiles = s.profiles.Snapshot()
@@ -243,17 +228,32 @@ func (s *WorkbenchAdminService) UpdateConfig(ctx context.Context, cfg WorkbenchC
 	if !validWorkbenchModelProfiles(cfg.ModelProfiles, profiles) {
 		return nil, ErrWorkbenchInvalid
 	}
-	if cfg.ImageStudioGroupID < 0 || (cfg.ImageStudioEnabled || cfg.ChatEnabled) && cfg.ImageStudioGroupID == 0 || cfg.OfficeEnabled && (!cfg.ChatEnabled || !cfg.FilesEnabled) || cfg.SearchEnabled && !cfg.ChatEnabled {
+	if cfg.ImageStudioGroupID < 0 || cfg.ImageStudioEnabled && cfg.ImageStudioGroupID == 0 || cfg.OfficeEnabled && (!cfg.ChatEnabled || !cfg.FilesEnabled) || cfg.SearchEnabled && !cfg.ChatEnabled {
 		return nil, ErrWorkbenchInvalid
 	}
-	if (cfg.ImageStudioEnabled || cfg.ChatEnabled) && cfg.ImageStudioGroupID > 0 {
+	if cfg.ImageStudioEnabled {
 		group, err := s.groups.GetByID(ctx, cfg.ImageStudioGroupID)
-		if err != nil || group == nil || group.Status != StatusActive || cfg.ImageStudioEnabled && !GroupAllowsImageGeneration(group) {
+		if err != nil || group == nil || group.Status != StatusActive || !GroupAllowsImageGeneration(group) {
+			return nil, ErrWorkbenchInvalid
+		}
+	}
+	current, err := s.settings.GetWorkbenchConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg.AgentGroupID = current.AgentGroupID
+	if cfg.ChatEnabled {
+		if cfg.AgentGroupID <= 0 {
+			return nil, ErrWorkbenchInvalid
+		}
+		group, err := s.groups.GetByID(ctx, cfg.AgentGroupID)
+		if err != nil || !managedAgentGroupEligible(group, cfg.AgentGroupID) {
 			return nil, ErrWorkbenchInvalid
 		}
 	}
 	if err := s.settings.UpdateWorkbenchConfig(ctx, cfg); err != nil {
 		return nil, err
 	}
+	cfg.SearchProviderStatus = s.settings.workbenchSearchProviderStatus(ctx)
 	return &cfg, nil
 }

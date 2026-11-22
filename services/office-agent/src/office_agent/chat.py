@@ -27,8 +27,8 @@ class ChatRuntime:
     async def execute(self, progress=None):
         manifest = self.control.manifest
         if manifest.resume or manifest.input_resources:
-            return RunResult(status="failed", error_code="TASK_MODE_REQUIRED", error_message="处理文件或恢复办公任务请使用任务模式")
-        messages = [SystemMessage(content="你是本站的对话助手。直接回答，不为普通问题额外规划。只有开启联网并实际取得资料才能声称联网；引用真实来源。需要生成文件时说明应开启任务模式，不编造文件或下载链接。")]
+            return RunResult(status="failed", error_code="TASK_MODE_REQUIRED", error_message="处理文件或恢复办公任务请使用办公模式")
+        messages = [SystemMessage(content="你是本站的对话助手。直接回答，不为普通问题额外规划。只有开启联网并实际取得资料才能声称联网；引用真实来源。需要生成或修改文件时，请提示用户开启「办公模式」。不编造文件或下载链接。")]
         model = BridgeChatModel(self.control)
         runnable = model.bind_tools(SEARCH_TOOLS) if manifest.search_enabled else model
         calls = 0

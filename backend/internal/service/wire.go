@@ -834,9 +834,10 @@ func ProvideOpsIngressRejectAggregator(opsRepo OpsRepository, opsService *OpsSer
 }
 
 // ProvideSettingService wires SettingService with group reader and proxy repo.
-func ProvideSettingService(scopedKeys ScopedAdminKeyRepository, settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
+func ProvideSettingService(scopedKeys ScopedAdminKeyRepository, settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config, encryptor SecretEncryptor) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
 	svc.scopedAdminKeyRepo = scopedKeys
+	svc.workbenchSearchEncryptor = encryptor
 	_ = svc.GetBillingCurrencyConfig(context.Background())
 	svc.StartBillingCurrencyRefresh(context.Background())
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)

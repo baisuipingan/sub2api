@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 // This parser exposes only assistant text, never hidden reasoning or raw tool
 // arguments. Writes are synchronous and bounded, providing backpressure.
 type officeLiveStream struct {
+	native    *workbenchNativeStream
 	ctx       context.Context
 	service   *OfficeAgentService
 	lease     OfficeRunLease
@@ -23,6 +25,14 @@ type officeLiveStream struct {
 }
 
 func (s *officeLiveStream) write(data []byte) error {
+	if s.native != nil {
+		delta, err := s.native.Write(data)
+		var upstream *workbenchNativeUpstreamError
+		if err != nil && !errors.As(err, &upstream) {
+			return err
+		}
+		return s.writeNativeDelta(delta)
+	}
 	s.pending += string(data)
 	if len(s.pending) > 256<<10 {
 		return ErrOfficeBudgetExceeded

@@ -25,7 +25,7 @@ var officeToken = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 var officeHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 const officeRunColumns = `id::text,user_id,conversation_id::text,api_key_id,group_id,model,status,
- limits_json,input_resources,model_calls,tool_calls,error_code,error_message,created_at,updated_at,started_at,finished_at,mode,search_enabled,parameters,context_boundary,COALESCE(regeneration_of::text,''),selected,COALESCE(resume_value,'null'::jsonb),COALESCE(input_request_id,''),paused_seconds`
+ limits_json,input_resources,model_calls,tool_calls,error_code,error_message,created_at,updated_at,started_at,finished_at,mode,search_enabled,parameters,context_boundary,COALESCE(regeneration_of::text,''),selected,COALESCE(resume_value,'null'::jsonb),COALESCE(input_request_id,''),paused_seconds,browser_driven`
 
 type officeScanner interface{ Scan(...any) error }
 
@@ -33,7 +33,7 @@ func scanOfficeRun(row officeScanner, extra ...any) (*service.OfficeRun, error) 
 	r := &service.OfficeRun{}
 	var limits, resources []byte
 	targets := []any{&r.ID, &r.UserID, &r.ConversationID, &r.APIKeyID, &r.GroupID, &r.Model, &r.Status,
-		&limits, &resources, &r.ModelCalls, &r.ToolCalls, &r.ErrorCode, &r.ErrorMessage, &r.CreatedAt, &r.UpdatedAt, &r.StartedAt, &r.FinishedAt, &r.Mode, &r.SearchEnabled, &r.Parameters, &r.ContextBoundary, &r.RegenerationOf, &r.Selected, &r.ResumeValue, &r.InputRequestID, &r.PausedSeconds}
+		&limits, &resources, &r.ModelCalls, &r.ToolCalls, &r.ErrorCode, &r.ErrorMessage, &r.CreatedAt, &r.UpdatedAt, &r.StartedAt, &r.FinishedAt, &r.Mode, &r.SearchEnabled, &r.Parameters, &r.ContextBoundary, &r.RegenerationOf, &r.Selected, &r.ResumeValue, &r.InputRequestID, &r.PausedSeconds, &r.BrowserDriven}
 	if err := row.Scan(append(targets, extra...)...); err != nil {
 		return nil, officeDBError(err)
 	}
@@ -211,7 +211,7 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 	if maxActive <= 0 {
 		maxActive = 1
 	}
-	if active >= maxActive {
+	if !in.BrowserDriven && active >= maxActive {
 		return nil, false, service.ErrOfficeActiveRun
 	}
 	var found int
@@ -236,7 +236,7 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 		in.InputResources = []service.OfficeResourceVersion{}
 	}
 	refs, _ := json.Marshal(in.InputResources)
-	_, err = tx.ExecContext(ctx, `INSERT INTO office_agent_runs(id,user_id,conversation_id,idempotency_key,request_hash,api_key_id,group_id,model,limits_json,input_resources,mode,search_enabled,parameters,context_boundary,regeneration_of) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULLIF($15,'')::uuid)`, in.RunID, in.UserID, in.ConversationID, in.IdempotencyKey, in.RequestHash, in.APIKeyID, in.GroupID, in.Model, limits, refs, in.Mode, in.SearchEnabled, []byte(in.Parameters), in.ContextBoundary, in.RegenerationOf)
+	_, err = tx.ExecContext(ctx, `INSERT INTO office_agent_runs(id,user_id,conversation_id,idempotency_key,request_hash,api_key_id,group_id,model,limits_json,input_resources,mode,search_enabled,parameters,context_boundary,regeneration_of,browser_driven) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULLIF($15,'')::uuid,$16)`, in.RunID, in.UserID, in.ConversationID, in.IdempotencyKey, in.RequestHash, in.APIKeyID, in.GroupID, in.Model, limits, refs, in.Mode, in.SearchEnabled, []byte(in.Parameters), in.ContextBoundary, in.RegenerationOf, in.BrowserDriven)
 	if err != nil {
 		return nil, false, officeDBError(err)
 	}
@@ -244,8 +244,10 @@ func (r *officeAgentRepository) AdmitRun(ctx context.Context, in service.OfficeR
 	if err != nil {
 		return nil, false, officeDBError(err)
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO office_agent_run_outbox(run_id) VALUES($1)`, in.RunID); err != nil {
-		return nil, false, err
+	if !in.BrowserDriven {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO office_agent_run_outbox(run_id) VALUES($1)`, in.RunID); err != nil {
+			return nil, false, err
+		}
 	}
 	if _, err = appendOfficeEvent(ctx, tx, in.UserID, in.RunID, "system:queued", "run.queued", json.RawMessage(`{}`)); err != nil {
 		return nil, false, err
@@ -306,7 +308,7 @@ func (r *officeAgentRepository) ClaimPreset(ctx context.Context, owner, preset s
 	}
 	defer func() { _ = tx.Rollback() }()
 	var id string
-	err = tx.QueryRowContext(ctx, `SELECT id::text FROM office_agent_runs WHERE mode=$1 AND (status='queued' OR (status IN ('running','recovering') AND lease_until<clock_timestamp())) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, preset).Scan(&id)
+	err = tx.QueryRowContext(ctx, `SELECT id::text FROM office_agent_runs WHERE mode=$1 AND NOT browser_driven AND (status='queued' OR (status IN ('running','recovering') AND lease_until<clock_timestamp())) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`, preset).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -380,7 +382,7 @@ func checkOfficeLease(ctx context.Context, tx *sql.Tx, lease service.OfficeRunLe
 	// transaction start time and can incorrectly admit an expired lease after a
 	// request has waited for another transaction's lock.
 	var live bool
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(lease_until>clock_timestamp() AND started_at + (($2+paused_seconds) * INTERVAL '1 second') > clock_timestamp(),false) FROM office_agent_runs WHERE id=$1`, run.ID, run.Limits.MaxRunSeconds).Scan(&live); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(lease_until>clock_timestamp() AND (browser_driven OR started_at + (($2+paused_seconds) * INTERVAL '1 second') > clock_timestamp()),false) FROM office_agent_runs WHERE id=$1`, run.ID, run.Limits.MaxRunSeconds).Scan(&live); err != nil {
 		return nil, err
 	}
 	if !live {
@@ -528,6 +530,13 @@ func (r *officeAgentRepository) FinishRun(ctx context.Context, lease service.Off
 	if status == service.OfficeRunCompleted || status == service.OfficeRunPartiallyCompleted {
 		if run.RegenerationOf != "" {
 			if _, err = tx.ExecContext(ctx, `UPDATE office_agent_runs SET selected=(id=$4) WHERE user_id=$1 AND conversation_id=$2 AND (id=$3 OR regeneration_of=$3)`, run.UserID, run.ConversationID, run.RegenerationOf, run.ID); err != nil {
+				return nil, err
+			}
+			if err = invalidateWorkbenchReplayAfter(ctx, tx, run.UserID, run.ConversationID, run.RegenerationOf); err != nil {
+				return nil, err
+			}
+		} else if run.BrowserDriven && status == service.OfficeRunCompleted {
+			if err = publishWorkbenchReplayCheckpoint(ctx, tx, *run); err != nil {
 				return nil, err
 			}
 		}

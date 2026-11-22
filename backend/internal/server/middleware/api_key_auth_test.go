@@ -397,6 +397,31 @@ func TestAPIKeyAuthSetsGroupContext(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestAPIKeyAuthRejectsWorkbenchGroupMismatchBeforeForwarding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	group := &service.Group{ID: 8, Platform: service.PlatformComposite, Status: service.StatusActive, Hydrated: true}
+	user := &service.User{ID: 7, Status: service.StatusActive}
+	repo := &stubApiKeyRepo{getByKey: func(context.Context, string) (*service.APIKey, error) {
+		return &service.APIKey{ID: 1, UserID: user.ID, Status: service.StatusActive, User: user, GroupID: &group.ID, Group: group}, nil
+	}}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	keys := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+	router := newAuthTestRouter(keys, nil, cfg)
+	for _, gid := range []int64{group.ID, 9} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", "managed-test-key")
+		req = req.WithContext(context.WithValue(req.Context(), ctxkey.WorkbenchGroupID, gid))
+		router.ServeHTTP(w, req)
+		if gid != group.ID {
+			require.Equal(t, http.StatusConflict, w.Code)
+			require.Contains(t, w.Body.String(), "MODEL_ROUTE_CHANGED")
+		} else {
+			require.Equal(t, http.StatusOK, w.Code)
+		}
+	}
+}
+
 func TestAPIKeyAuthRejectsExclusiveGroupWhenUserNoLongerAllowed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

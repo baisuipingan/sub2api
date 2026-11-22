@@ -20,6 +20,7 @@ var officeFileMIMEs = map[string]string{
 	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	".pdf":  "application/pdf", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
 	".txt": "text/plain", ".md": "text/markdown", ".csv": "text/csv", ".json": "application/json",
+	".py": "text/x-python", ".drawio": "application/vnd.jgraph.mxfile", ".zip": "application/zip",
 }
 
 func officeSafeName(name string) bool {
@@ -108,11 +109,29 @@ func validateOfficeFile(name string, data []byte) (string, string, error) {
 				return "", "", ErrOfficeResourceType
 			}
 		}
-	case ".txt", ".md", ".csv", ".json":
+	case ".zip":
+		book, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil || len(book.File) == 0 || len(book.File) > OfficeWorkspaceMaxFiles {
+			return "", "", ErrOfficeResourceType
+		}
+		var expanded uint64
+		seen := make(map[string]bool, len(book.File))
+		for _, entry := range book.File {
+			name := strings.TrimSuffix(entry.Name, "/")
+			if name == "" || name == ".." || name == "." || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "../") ||
+				strings.ContainsAny(name, "\\:") || strings.IndexFunc(name, unicode.IsControl) >= 0 ||
+				path.Clean(name) != name || seen[name] || entry.Flags&1 != 0 ||
+				entry.Mode()&(os.ModeSymlink|os.ModeDevice|os.ModeNamedPipe|os.ModeSocket) != 0 || entry.UncompressedSize64 > (128<<20)-expanded {
+				return "", "", ErrOfficeResourceType
+			}
+			seen[name] = true
+			expanded += entry.UncompressedSize64
+		}
+	case ".txt", ".md", ".csv", ".json", ".py", ".drawio":
 		if !utf8.Valid(data) || bytes.ContainsRune(data, 0) {
 			return "", "", ErrOfficeResourceType
 		}
-		if ext == ".json" && !json.Valid(data) {
+		if ext == ".json" && !json.Valid(data) || ext == ".drawio" && !validWorkbenchDrawio(data) {
 			return "", "", ErrOfficeResourceType
 		}
 		kind = "text"

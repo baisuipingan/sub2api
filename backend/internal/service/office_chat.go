@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -14,22 +14,31 @@ import (
 )
 
 type WorkbenchChatStatus struct {
-	Enabled        bool  `json:"enabled"`
-	OfficeEnabled  bool  `json:"office_enabled"`
-	SearchEnabled  bool  `json:"search_enabled"`
-	FilesEnabled   bool  `json:"files_enabled"`
-	UploadsEnabled bool  `json:"uploads_enabled"`
-	MaxFileBytes   int64 `json:"max_file_bytes"`
-	MaxFiles       int   `json:"max_files"`
+	OfficeFileExtensions  []string `json:"office_file_extensions,omitempty"`
+	BrowserDriven         bool     `json:"browser_driven"`
+	Enabled               bool     `json:"enabled"`
+	OfficeEnabled         bool     `json:"office_enabled"`
+	SearchAllowed         bool     `json:"search_allowed"`
+	SearchEnabled         bool     `json:"search_enabled"`
+	SearchPricePer1000USD float64  `json:"search_price_per_1000_usd,omitempty"`
+	FilesEnabled          bool     `json:"files_enabled"`
+	UploadsEnabled        bool     `json:"uploads_enabled"`
+	MaxFileBytes          int64    `json:"max_file_bytes"`
+	MaxFiles              int      `json:"max_files"`
 }
 type WorkbenchChatModel struct {
-	ID               string   `json:"id"`
-	DisplayName      string   `json:"display_name"`
-	SupportsTools    bool     `json:"supports_tools"`
-	SupportsVision   bool     `json:"supports_vision"`
-	ReasoningEfforts []string `json:"reasoning_efforts"`
-	ContextWindow    *int     `json:"context_window,omitempty"`
-	MaxOutputTokens  *int     `json:"max_output_tokens,omitempty"`
+	Protocol               workbenchProtocol `json:"protocol,omitempty"`
+	ID                     string            `json:"id"`
+	DisplayName            string            `json:"display_name"`
+	SupportsTools          bool              `json:"supports_tools"`
+	SupportsVision         bool              `json:"supports_vision"`
+	ReasoningEfforts       []string          `json:"reasoning_efforts"`
+	DefaultReasoningEffort string            `json:"default_reasoning_effort,omitempty"`
+	ContextWindow          *int              `json:"context_window,omitempty"`
+	MaxOutputTokens        *int              `json:"max_output_tokens,omitempty"`
+	profileModel           string
+	replayToolReasoning    bool
+	nativeResponses        bool
 }
 
 func (s *OfficeAgentService) BindWorkbenchProfiles(profiles *DesktopAgentProfileCatalogService) {
@@ -47,9 +56,26 @@ func (s *OfficeAgentService) ChatStatus(ctx context.Context) (WorkbenchChatStatu
 	if e != nil {
 		return result, e
 	}
-	result.Enabled = s.Enabled() && cfg.ChatEnabled
+	result.Enabled = s.Enabled() && cfg.ChatEnabled && cfg.AgentGroupID > 0
+	result.BrowserDriven = result.Enabled
 	result.OfficeEnabled = result.Enabled && cfg.OfficeEnabled
-	result.SearchEnabled = result.Enabled && cfg.SearchEnabled && s.settings.IsWebSearchEmulationEnabled(ctx) && getWebSearchManager().HasAvailableProvider()
+	if result.OfficeEnabled {
+		result.OfficeFileExtensions = []string{".docx", ".md", ".txt", ".csv", ".json", ".py", ".drawio"}
+		if s.remoteOfficeConfigured(ctx) {
+			result.OfficeFileExtensions = append(result.OfficeFileExtensions, ".xlsx", ".pptx", ".zip")
+		}
+	}
+	result.SearchAllowed = result.Enabled && cfg.SearchEnabled
+	if result.SearchAllowed {
+		search, err := s.settings.loadWorkbenchSearchConfig(ctx)
+		if err == nil {
+			_, err = s.settings.workbenchSearchAPIKey(search)
+			if err == nil {
+				result.SearchEnabled = true
+				result.SearchPricePer1000USD = search.pricePer1000USD
+			}
+		}
+	}
 	result.FilesEnabled = cfg.FilesEnabled
 	result.UploadsEnabled = cfg.FilesEnabled
 	return result, nil
@@ -62,15 +88,21 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) ([]WorkbenchChatMod
 	if !status.Enabled {
 		return nil, ErrOfficeDisabled
 	}
-	cfg, e := s.settings.GetWorkbenchConfig(ctx)
+	cfg, g, e := s.loadWorkbenchAgentGroup(ctx)
 	if e != nil {
 		return nil, e
 	}
-	g, e := s.groups.GetByID(ctx, cfg.ImageStudioGroupID)
-	if e != nil {
-		return nil, e
+	var ids []string
+	routes := map[string]workbenchModelRoute{}
+	if catalog, ok := s.catalog.(*workbenchChatModelCatalog); ok {
+		routes, e = catalog.modelRoutes(ctx, g)
+		for id := range routes {
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+	} else {
+		ids, e = s.catalog.ModelsForGroup(ctx, g)
 	}
-	ids, e := s.catalog.ModelsForGroup(ctx, g)
 	if e != nil {
 		return nil, e
 	}
@@ -85,18 +117,42 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) ([]WorkbenchChatMod
 		if imageStudioImageModel(id) {
 			continue
 		}
-		m := WorkbenchChatModel{ID: id, DisplayName: id, ReasoningEfforts: []string{}}
+		route := routes[id]
+		m := WorkbenchChatModel{ID: id, Protocol: route.protocol, DisplayName: id, ReasoningEfforts: []string{}, nativeResponses: route.nativeResponses}
 		if p := workbenchModelProfile(id, cfg.ModelProfiles, profiles); p != nil {
 			m.DisplayName = p.DisplayName
+			m.profileModel = p.ID
 			m.ContextWindow = p.OfficialContextWindow
 			m.MaxOutputTokens = p.OfficialMaxOutputTokens
 			m.ReasoningEfforts = slices.Clone(p.OfficialReasoningLevels)
+			if m.Protocol == workbenchProtocolGemini {
+				effort := workbenchGeminiDefaultReasoningEffort(m.profileModel)
+				if effort != "" && slices.Contains(m.ReasoningEfforts, effort) {
+					m.DefaultReasoningEffort = effort
+				}
+			}
 			m.SupportsTools = p.Model.SupportsToolCall != nil && *p.Model.SupportsToolCall
 			m.SupportsVision = p.Model.Input != nil && p.Model.Input.Image != nil && *p.Model.Input.Image
+			m.replayToolReasoning = p.Source == "official_deepseek"
 		}
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+func (s *OfficeAgentService) loadWorkbenchAgentGroup(ctx context.Context) (*WorkbenchConfig, *Group, error) {
+	cfg, err := s.settings.GetWorkbenchConfig(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.AgentGroupID <= 0 {
+		return nil, nil, ErrOfficeRouteChanged
+	}
+	group, err := s.groups.GetByID(ctx, cfg.AgentGroupID)
+	if err != nil || !managedAgentGroupEligible(group, cfg.AgentGroupID) {
+		return nil, nil, ErrOfficeRouteChanged
+	}
+	return cfg, group, nil
 }
 
 type WorkbenchChatSubmit struct {
@@ -106,6 +162,7 @@ type WorkbenchChatSubmit struct {
 	Content                 string   `json:"content"`
 	TaskMode                bool     `json:"task_mode"`
 	WebSearch               bool     `json:"web_search"`
+	SearchPricePer1000USD   float64  `json:"search_price_per_1000_usd,omitempty"`
 	ReasoningEffort         string   `json:"reasoning_effort,omitempty"`
 	ResourceVersionIDs      []string `json:"resource_version_ids,omitempty"`
 	RegenerateRunID         string   `json:"regenerate_run_id,omitempty"`
@@ -116,13 +173,19 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	if e != nil {
 		return nil, e
 	}
-	if !status.Enabled || in.TaskMode && !status.OfficeEnabled || in.WebSearch && !status.SearchEnabled {
+	if !status.Enabled {
 		return nil, ErrOfficeDisabled
+	}
+	if in.WebSearch && !status.SearchEnabled {
+		return nil, ErrOfficeSearchUnavailable
+	}
+	if in.WebSearch && in.SearchPricePer1000USD != status.SearchPricePer1000USD {
+		return nil, ErrWorkbenchSearchPriceChanged
 	}
 	if user <= 0 || uuid.Validate(conversation) != nil || uuid.Validate(in.RunID) != nil || !officeModelID(in.Model) || strings.TrimSpace(in.Content) == "" || len(in.Content) > 32<<10 || !utf8.ValidString(in.Content) || len(in.ResourceVersionIDs) > 8 {
 		return nil, ErrOfficeInvalid
 	}
-	if len(in.ResourceVersionIDs) > 0 && (!status.FilesEnabled || !in.TaskMode) {
+	if len(in.ResourceVersionIDs) > 0 && !status.FilesEnabled {
 		return nil, ErrOfficeDisabled
 	}
 	if _, e = s.repo.GetConversation(ctx, user, conversation); e != nil {
@@ -142,8 +205,8 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	if model == nil {
 		return nil, ErrOfficeRouteChanged
 	}
-	if (in.TaskMode || in.WebSearch) && !model.SupportsTools {
-		return nil, ErrOfficeInvalid
+	if in.WebSearch && !model.SupportsTools {
+		return nil, ErrOfficeSearchModelUnsupported
 	}
 	if in.ReasoningEffort != "" && !slices.Contains(model.ReasoningEfforts, in.ReasoningEffort) {
 		return nil, ErrOfficeInvalid
@@ -181,20 +244,25 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 			in.ResourceVersionIDs = append(in.ResourceVersionIDs, ref.VersionID)
 		}
 	}
-	budgets, e := s.settings.GetWorkbenchConfig(ctx)
-	if e != nil {
-		return nil, e
+	limits := s.workbenchTurnLimits(model.MaxOutputTokens)
+	if model.Protocol == "" {
+		model.Protocol = workbenchProtocolChatCompletions
 	}
-	mode := "chat"
-	calls, tools, active := min(5, budgets.MaxModelCalls), 0, budgets.ChatConcurrentRuns
-	if in.WebSearch {
-		calls, tools = min(10, budgets.MaxModelCalls), min(8, budgets.MaxToolCalls)
+	parameters := map[string]any{
+		"supports_vision": model.SupportsVision, "protocol": model.Protocol, "profile_model": model.profileModel,
+		"office_tools":        status.OfficeEnabled && status.FilesEnabled && model.SupportsTools,
+		"remote_office_tools": s.remoteOfficeConfigured(ctx),
+		"history_version":     workbenchReplayHistoryVersion,
 	}
-	if in.TaskMode {
-		mode = "office"
-		calls, tools, active = budgets.MaxModelCalls, budgets.MaxToolCalls, budgets.OfficeConcurrentRuns
+	if model.replayToolReasoning {
+		parameters["replay_tool_reasoning"] = true
 	}
-	parameters := map[string]any{"supports_vision": model.SupportsVision}
+	if model.nativeResponses {
+		parameters["native_responses"] = true
+	}
+	if in.WebSearch && in.SearchPricePer1000USD > 0 {
+		parameters["search_price_per_1000_usd"] = in.SearchPricePer1000USD
+	}
 	if in.ReasoningEffort != "" {
 		parameters["reasoning_effort"] = in.ReasoningEffort
 	}
@@ -202,14 +270,14 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		parameters["context_window"] = *model.ContextWindow
 	}
 	if in.TargetResourceVersionID != "" {
-		if !in.TaskMode || s.resources == nil {
+		if !status.OfficeEnabled || !status.FilesEnabled || !model.SupportsTools || s.resources == nil {
 			return nil, ErrOfficeInvalid
 		}
 		parent, e := s.resources.repo.GetResourceVersion(ctx, user, in.TargetResourceVersionID, true)
 		if e != nil {
 			return nil, e
 		}
-		if !slices.Contains([]string{".docx", ".xlsx", ".pptx"}, strings.ToLower(path.Ext(parent.Name))) {
+		if !workbenchOfficeExtension(parent.Name, s.remoteOfficeConfigured(ctx)) {
 			return nil, ErrOfficeInvalid
 		}
 		parameters["output_parent"] = map[string]string{"resource_id": parent.ID, "version_id": parent.VersionID, "path": "output/" + parent.Name}
@@ -235,16 +303,33 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 		if e != nil {
 			return nil, e
 		}
-		artifacts = append(artifacts, map[string]string{"resource_id": ref.ResourceID, "version_id": ref.VersionID, "id": ref.ResourceID, "name": resource.Name, "mime": resource.MIME})
+		switch {
+		case model.SupportsVision && strings.HasPrefix(resource.MIME, "image/"):
+		case status.OfficeEnabled && model.SupportsTools && workbenchOfficeExtension(resource.Name, s.remoteOfficeConfigured(ctx)):
+		default:
+			return nil, ErrOfficeResourceType
+		}
+		attachment := map[string]string{"resource_id": ref.ResourceID, "version_id": ref.VersionID, "id": ref.ResourceID, "name": resource.Name, "mime": resource.MIME}
+		if strings.HasPrefix(resource.MIME, "image/") && strings.HasPrefix(resource.PreviewMIME, "image/") && resource.PreviewKey != "" && resource.PreviewSHA256 != "" {
+			attachment["model_image_preview_sha256"] = resource.PreviewSHA256
+		}
+		artifacts = append(artifacts, attachment)
 	}
 	content, _ := json.Marshal(map[string]any{"text": in.Content, "artifacts": artifacts})
-	maxOutput := budgets.MaxOutputTokens
-	if model.MaxOutputTokens != nil {
-		maxOutput = min(maxOutput, *model.MaxOutputTokens)
-	}
-	run, _, e := s.repo.AdmitRun(ctx, OfficeRunAdmission{UserID: user, ConversationID: conversation, RunID: in.RunID, IdempotencyKey: in.RunID, RequestHash: officeDigest(encoded), APIKeyID: key, GroupID: group, Model: in.Model, UserContent: content, InputResources: refs, Mode: mode, SearchEnabled: in.WebSearch, Parameters: params, ContextBoundary: boundary, RegenerationOf: in.RegenerateRunID, MaxActiveRuns: active, Limits: OfficeRunLimits{MaxModelCalls: calls, MaxToolCalls: tools, MaxOutputTokens: maxOutput, MaxRunSeconds: budgets.MaxRunSeconds, MaxChargeCredits: budgets.MaxRunCredits}})
+	run, _, e := s.repo.AdmitRun(ctx, OfficeRunAdmission{BrowserDriven: true, UserID: user, ConversationID: conversation, RunID: in.RunID, IdempotencyKey: in.RunID, RequestHash: officeDigest(encoded), APIKeyID: key, GroupID: group, Model: in.Model, UserContent: content, InputResources: refs, Mode: "chat", SearchEnabled: in.WebSearch, Parameters: params, ContextBoundary: boundary, RegenerationOf: in.RegenerateRunID, Limits: limits})
 	return run, e
 }
+
+// The gateway owns user RPM, concurrency and billing for each model call.
+func (s *OfficeAgentService) workbenchTurnLimits(modelMaxOutput *int) OfficeRunLimits {
+	limits := OfficeRunLimits{MaxModelCalls: s.cfg.MaxModelCalls, MaxToolCalls: s.cfg.MaxToolCalls,
+		MaxOutputTokens: s.cfg.MaxOutputTokens, MaxRunSeconds: s.cfg.MaxRunSeconds}
+	if modelMaxOutput != nil && *modelMaxOutput > 0 {
+		limits.MaxOutputTokens = min(limits.MaxOutputTokens, *modelMaxOutput)
+	}
+	return limits
+}
+
 func (s *OfficeAgentService) ChatRepository() (OfficeChatRepository, error) {
 	r, ok := s.repo.(OfficeChatRepository)
 	if !ok {
@@ -289,7 +374,15 @@ func (s *OfficeAgentService) PublicRun(ctx context.Context, user int64, id strin
 	return s.repo.GetRun(ctx, user, id)
 }
 func (s *OfficeAgentService) PublicCancel(ctx context.Context, user int64, id string) (*OfficeRun, error) {
-	return s.repo.CancelRun(ctx, user, id)
+	run, err := s.repo.CancelRun(ctx, user, id)
+	if err == nil {
+		go func() {
+			call, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			s.cancelRemoteOfficeTools(call, run)
+		}()
+	}
+	return run, err
 }
 func (s *OfficeAgentService) PublicEvents(ctx context.Context, user int64, id string, after int64) ([]OfficeRunEvent, error) {
 	return s.repo.ListEvents(ctx, user, id, after, 100)
@@ -354,10 +447,19 @@ func (s *OfficeAgentService) StructuredProgress(ctx context.Context, lease Offic
 	return s.repo.AppendEvent(ctx, lease, id, kind, encoded)
 }
 
-func ProvideOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, settings *SettingService, groups *GroupService, keys *APIKeyService, accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService, profiles *DesktopAgentProfileCatalogService, resources *OfficeResourcesService) *OfficeAgentService {
+func ProvideOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, settings *SettingService, groups *GroupService, keys *APIKeyService, accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService, profiles *DesktopAgentProfileCatalogService, resources *OfficeResourcesService, billingCache *BillingCacheService, encryptor SecretEncryptor, timingWheel *TimingWheelService) *OfficeAgentService {
 	s := NewOfficeAgentService(repo, cfg, settings, groups, keys, accounts, routes, channels)
 	s.BindWorkbenchProfiles(profiles)
 	s.resources = resources
+	s.billingCache = billingCache
+	s.officeNodeEncryptor = encryptor
+	if timingWheel != nil {
+		timingWheel.ScheduleRecurring("workbench-search-reservations", time.Minute, s.sweepSearchReservations)
+		timingWheel.ScheduleRecurring("workbench-payload-retention", time.Minute, s.sweepWorkbenchPayloads)
+		timingWheel.ScheduleRecurring("workbench-office-node-health", 20*time.Second, s.probeOfficeNodes)
+		timingWheel.ScheduleRecurring("workbench-office-delivery", 5*time.Second, s.sweepOfficeDeliveries)
+		timingWheel.ScheduleRecurring("workbench-office-dispatch-cleanup", time.Hour, s.cleanOfficeDispatches)
+	}
 	if resources != nil {
 		s.BindResourcePin(func(ctx context.Context, user int64, id string) error {
 			run, e := repo.GetRun(ctx, user, id)

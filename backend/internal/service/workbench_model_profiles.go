@@ -20,11 +20,16 @@ func workbenchModelProfile(id string, bindings map[string]DesktopAgentModelProfi
 		}
 		return profile
 	}
-	if explicit {
-		for i := range profiles {
-			if profiles[i].ID == binding.ProfileID {
-				return &profiles[i]
-			}
+	profileID := binding.ProfileID
+	if !explicit && id == "deepseek-v4.1-flash" {
+		// OpenCode advertises this exact public ID for DeepSeek V4.1 Flash.
+		// https://opencode.ai/docs/console/go/#endpoints
+		// DeepSeek's official API identifies the same model as deepseek-flash.
+		profileID = "deepseek-flash"
+	}
+	for i := range profiles {
+		if profiles[i].ID == profileID {
+			return &profiles[i]
 		}
 	}
 	return nil

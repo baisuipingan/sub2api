@@ -70,6 +70,7 @@ class RunManifest(BaseModel):
     mode: Literal["chat", "office"] = "office"
     search_enabled: bool = False
     supports_vision: bool = False
+    replay_tool_reasoning: bool = False
     resume: bool = False
     resume_value: dict | None = None
     checkpoint_version: int = Field(default=0, ge=0)

@@ -48,6 +48,33 @@ func TestOfficeSearchInboxSourcesSurviveFinishAndHistoryReload(t *testing.T) {
 			svc := service.NewOfficeAgentService(base, nil, nil, nil, nil, nil, nil, nil)
 			_, err = svc.Finish(ctx, *lease, service.OfficeRunCompleted, "已按真实资料回答", "", "")
 			require.NoError(t, err)
+			// Emulate an operation written before durable tool summaries existed.
+			_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_operations SET tool_projection=NULL WHERE run_id=$1 AND operation_id='network-source'`, input.RunID)
+			require.NoError(t, err)
+			tx, err := integrationDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback() })
+			require.NoError(t, compactWorkbenchOperations(ctx, tx, input.UserID, input.RunID, false))
+			require.NoError(t, tx.Commit())
+			operations, err = repo.ListOperations(ctx, input.UserID, input.RunID)
+			require.NoError(t, err)
+			require.Len(t, operations, 1)
+			require.JSONEq(t, `{"tool":"web_search"}`, string(operations[0].Input))
+			require.Equal(t, `null`, string(operations[0].Result.Output))
+			if searchFailed {
+				require.Nil(t, operations[0].ToolProjection)
+			} else {
+				require.NotNil(t, operations[0].ToolProjection)
+				require.Len(t, operations[0].ToolProjection.Citations, 1)
+				require.Equal(t, "https://source.example/report", operations[0].ToolProjection.Citations[0].URL)
+				require.Empty(t, operations[0].ToolProjection.Citations[0].Excerpt)
+			}
+			for _, admin := range []bool{false, true} {
+				detail, err := svc.WorkbenchToolDetail(ctx, input.UserID, input.RunID, "network-source", admin)
+				require.NoError(t, err)
+				require.Equal(t, "source evidence", detail.Query)
+				require.Equal(t, map[bool]string{false: "completed", true: "failed"}[searchFailed], detail.State)
+			}
 			messages, _, _, _, err := repo.MessagePage(ctx, input.UserID, input.ConversationID, 0)
 			require.NoError(t, err)
 			var saved json.RawMessage

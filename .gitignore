@@ -120,6 +120,10 @@ backend/.installed
 tests
 !deploy/tests/
 !deploy/tests/**
+!services/workbench-office-tools/tests/
+!services/workbench-office-tools/tests/test_worker.py
+services/workbench-office-tools/**/__pycache__/
+deploy/workbench-office-test/**/__pycache__/
 CLAUDE.md
 .claude
 scripts/*
@@ -142,6 +146,7 @@ docs/*
 !docs/WORKBENCH_OFFICE_AGENT_DESIGN.md
 !docs/WORKBENCH_OFFICE_AGENT_IMPLEMENTATION.md
 !docs/WORKBENCH_OFFICE_AGENT_PLAN.md
+!docs/WORKBENCH_BROWSER_AGENT.md
 !docs/agent-resource-safety.md
 !docs/moego-json-batching.md
 !docs/admin-api-keys.md

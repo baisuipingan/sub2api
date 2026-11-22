@@ -254,7 +254,7 @@
           </span>
           <span
             class="mt-1 block text-sm font-medium tabular-nums text-gray-800 dark:text-dark-100"
-          >≈ {{ estimate.creditsPerImage.toFixed(4) }}</span>
+          >≈ {{ formatUSD(estimate.costUSDPerImage, 4) }}</span>
         </div>
         <div class="min-w-0 border-l border-primary-100 pl-3 dark:border-primary-400/15">
           <span class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-dark-400">
@@ -283,6 +283,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watchPostEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import StudioIcon from './StudioIcon.vue'
 import StudioDragUploadOverlay from './StudioDragUploadOverlay.vue'
 import StudioInputParamsPanel from './StudioInputParamsPanel.vue'
@@ -320,6 +321,7 @@ import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 const { t } = useI18n()
+const { formatUSD } = useBillingCurrency()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const editorRef = ref<HTMLDivElement | null>(null)

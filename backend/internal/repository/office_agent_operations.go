@@ -3,22 +3,25 @@ package repository
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/google/uuid"
 )
 
 const officeOperationColumns = `operation_id,run_id::text,kind,state,input_hash,input_json,request_id,result_json,
- COALESCE(dispatch_epoch,0),COALESCE(dispatch_token::text,''),created_at,dispatched_at,completed_at`
+ COALESCE(dispatch_epoch,0),COALESCE(dispatch_token::text,''),created_at,dispatched_at,completed_at,COALESCE(result_hash,''),tool_projection`
 
 func scanOfficeOperation(row officeScanner) (*service.OfficeOperation, error) {
 	o := &service.OfficeOperation{}
-	var result []byte
-	if err := row.Scan(&o.ID, &o.RunID, &o.Kind, &o.State, &o.InputHash, &o.Input, &o.RequestID, &result, &o.DispatchEpoch, &o.DispatchToken, &o.CreatedAt, &o.DispatchedAt, &o.CompletedAt); err != nil {
+	var result, projection []byte
+	if err := row.Scan(&o.ID, &o.RunID, &o.Kind, &o.State, &o.InputHash, &o.Input, &o.RequestID, &result, &o.DispatchEpoch, &o.DispatchToken, &o.CreatedAt, &o.DispatchedAt, &o.CompletedAt, &o.ResultHash, &projection); err != nil {
 		return nil, officeDBError(err)
 	}
 	if len(result) > 0 {
@@ -26,25 +29,41 @@ func scanOfficeOperation(row officeScanner) (*service.OfficeOperation, error) {
 			return nil, err
 		}
 	}
+	if len(projection) > 0 {
+		if err := json.Unmarshal(projection, &o.ToolProjection); err != nil {
+			return nil, err
+		}
+	}
 	return o, nil
 }
 
-func officeJSONEqual(a, b []byte) bool {
-	normalize := func(data []byte) []byte {
-		var v any
-		d := json.NewDecoder(bytes.NewReader(data))
-		d.UseNumber()
-		if d.Decode(&v) != nil {
-			return nil
-		}
-		result, _ := json.Marshal(v)
-		return result
+func canonicalOfficeJSON(data []byte) []byte {
+	var v any
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.UseNumber()
+	if d.Decode(&v) != nil {
+		return nil
 	}
-	return bytes.Equal(normalize(a), normalize(b))
+	result, _ := json.Marshal(v)
+	return result
+}
+
+func officeJSONEqual(a, b []byte) bool {
+	return bytes.Equal(canonicalOfficeJSON(a), canonicalOfficeJSON(b))
+}
+
+func officeOperationResultHash(result []byte) string {
+	return fmt.Sprintf("%x", sha256.Sum256(canonicalOfficeJSON(result)))
+}
+
+func compactOfficeOperationResult(result service.OfficeOperationResult) ([]byte, error) {
+	result.Output, result.ErrorMessage = json.RawMessage("null"), ""
+	return json.Marshal(result)
 }
 
 func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease service.OfficeRunLease, in service.OfficeOperationPrepare) (*service.OfficeOperation, bool, error) {
-	if !officeToken.MatchString(in.ID) || !officeHash.MatchString(in.InputHash) || !officeToken.MatchString(in.RequestID) || len(in.RequestID) > 64 || !officeJSON(in.Input, service.OfficeMaxCompactionInputBytes) || (in.Kind != service.OfficeOperationModel && in.Kind != service.OfficeOperationTool) {
+	digestOnly := in.Kind == service.OfficeOperationModel && in.Input == nil
+	if !officeToken.MatchString(in.ID) || !officeHash.MatchString(in.InputHash) || !officeToken.MatchString(in.RequestID) || len(in.RequestID) > 64 || (!digestOnly && !officeJSON(in.Input, service.OfficeMaxStoredOperationInputBytes)) || (in.Kind != service.OfficeOperationModel && in.Kind != service.OfficeOperationTool) {
 		return nil, false, service.ErrOfficeInvalid
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -58,7 +77,7 @@ func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease serv
 	}
 	existing, err := scanOfficeOperation(tx.QueryRowContext(ctx, `SELECT `+officeOperationColumns+` FROM office_agent_operations WHERE run_id=$1 AND operation_id=$2`, run.ID, in.ID))
 	if err == nil {
-		if existing.Kind != in.Kind || existing.InputHash != in.InputHash || existing.RequestID != in.RequestID || !officeJSONEqual(existing.Input, in.Input) {
+		if existing.Kind != in.Kind || existing.InputHash != in.InputHash || existing.RequestID != in.RequestID || (!digestOnly && !officeJSONEqual(existing.Input, in.Input)) {
 			return nil, false, service.ErrOfficeConflict
 		}
 		return existing, false, tx.Commit()
@@ -73,19 +92,19 @@ func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease serv
 			return nil, false, service.ErrOfficeBudgetExceeded
 		}
 		if run.Limits.MaxChargeCredits > 0 {
-			// Read the original settled ledger under the run admission lock. No
-			// estimate or second charge counter is introduced. A completed inbox
-			// was returned above, even if that paid call exhausted the cap.
+			// Legacy usage records carry the actual USD charge without an integer
+			// credit charge. Use the same fixed conversion for budget admission.
+			// Completed inbox results are returned before the budget check.
 			var spent int64
 			var pending, unsettled bool
 			err = tx.QueryRowContext(ctx, `SELECT
- COALESCE((SELECT SUM(u.charge_credits) FROM office_agent_operations op
+ COALESCE((SELECT SUM(COALESCE(NULLIF(u.charge_credits, 0), ROUND(u.actual_cost * $4::numeric))) FROM office_agent_operations op
  JOIN usage_logs u ON u.request_id='client:'||op.request_id AND u.user_id=op.user_id AND u.api_key_id=$3
  WHERE op.user_id=$1 AND op.run_id=$2 AND op.kind='model'),0),
  EXISTS(SELECT 1 FROM office_agent_operations WHERE user_id=$1 AND run_id=$2 AND kind='model' AND state IN ('prepared','dispatched','unknown')),
  EXISTS(SELECT 1 FROM office_agent_operations op WHERE op.user_id=$1 AND op.run_id=$2 AND op.kind='model' AND op.state='completed'
  AND (op.result_json->>'http_status')::integer BETWEEN 200 AND 399
- AND NOT EXISTS(SELECT 1 FROM usage_logs u WHERE u.user_id=op.user_id AND u.api_key_id=$3 AND u.request_id='client:'||op.request_id))`, run.UserID, run.ID, run.APIKeyID).Scan(&spent, &pending, &unsettled)
+ AND NOT EXISTS(SELECT 1 FROM usage_logs u WHERE u.user_id=op.user_id AND u.api_key_id=$3 AND u.request_id='client:'||op.request_id))`, run.UserID, run.ID, run.APIKeyID, service.CreditsPerUSD).Scan(&spent, &pending, &unsettled)
 			if err != nil {
 				return nil, false, err
 			}
@@ -111,6 +130,9 @@ func (r *officeAgentRepository) PrepareOperation(ctx context.Context, lease serv
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	if digestOnly {
+		in.Input = json.RawMessage(`{}`)
 	}
 	op, err := scanOfficeOperation(tx.QueryRowContext(ctx, `INSERT INTO office_agent_operations(user_id,run_id,operation_id,kind,input_hash,input_json,request_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING `+officeOperationColumns, run.UserID, run.ID, in.ID, in.Kind, in.InputHash, []byte(in.Input), in.RequestID))
 	if err != nil {
@@ -142,11 +164,15 @@ func (r *officeAgentRepository) DispatchOperation(ctx context.Context, lease ser
 		}
 		return nil, service.ErrOfficeOperationDispatched
 	}
-	op, err = scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='dispatched',dispatch_epoch=$3,dispatch_token=$4,dispatched_at=NOW() WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns, run.ID, id, lease.Epoch, lease.Token))
+	op, err = dispatchOfficeOperation(ctx, tx, run.ID, id, lease)
 	if err != nil {
 		return nil, err
 	}
 	return op, tx.Commit()
+}
+
+func dispatchOfficeOperation(ctx context.Context, tx *sql.Tx, runID, operationID string, lease service.OfficeRunLease) (*service.OfficeOperation, error) {
+	return scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='dispatched',dispatch_epoch=$3,dispatch_token=$4,dispatched_at=NOW() WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns, runID, operationID, lease.Epoch, lease.Token))
 }
 
 func (r *officeAgentRepository) GetOperation(ctx context.Context, userID int64, runID, id string) (*service.OfficeOperation, error) {
@@ -157,6 +183,10 @@ func (r *officeAgentRepository) GetOperation(ctx context.Context, userID int64, 
 }
 
 func (r *officeAgentRepository) RecordOperationResult(ctx context.Context, lease service.OfficeRunLease, id string, result service.OfficeOperationResult) (*service.OfficeOperation, error) {
+	return r.recordOfficeOperationResult(ctx, lease, id, result, nil)
+}
+
+func (r *officeAgentRepository) recordOfficeOperationResult(ctx context.Context, lease service.OfficeRunLease, id string, result service.OfficeOperationResult, searchBillable *bool) (*service.OfficeOperation, error) {
 	if !officeUUID(lease.Run.ID) || !officeUUID(lease.Token) || lease.Epoch <= 0 || !officeToken.MatchString(id) || len(result.ErrorCode) > 64 || len(result.ErrorMessage) > 4096 || !officeJSON(result.Output, service.OfficeMaxOperationResultBytes) {
 		return nil, service.ErrOfficeInvalid
 	}
@@ -169,11 +199,18 @@ func (r *officeAgentRepository) RecordOperationResult(ctx context.Context, lease
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if searchBillable != nil {
+		if err := lockWorkbenchSearchWallet(ctx, tx, lease.Run.UserID); err != nil {
+			return nil, err
+		}
+	}
 	// This lock serializes all run/operation state transitions in one order.
 	// It intentionally does not require a live lease: an original dispatcher
 	// may deposit the paid response after cancellation or recovery fencing.
-	var userID int64
-	if err = tx.QueryRowContext(ctx, `SELECT user_id FROM office_agent_runs WHERE id=$1 AND user_id=$2 FOR UPDATE`, lease.Run.ID, lease.Run.UserID).Scan(&userID); err != nil {
+	var publishEvent, compacted bool
+	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(browser_driven AND status='running'
+		AND lease_token=$3 AND lease_epoch=$4 AND lease_until>clock_timestamp(),false), payloads_compacted_at IS NOT NULL
+		FROM office_agent_runs WHERE id=$1 AND user_id=$2 FOR UPDATE`, lease.Run.ID, lease.Run.UserID, lease.Token, lease.Epoch).Scan(&publishEvent, &compacted); err != nil {
 		return nil, officeDBError(err)
 	}
 	op, err := scanOfficeOperation(tx.QueryRowContext(ctx, `SELECT `+officeOperationColumns+` FROM office_agent_operations WHERE run_id=$1 AND operation_id=$2 FOR UPDATE`, lease.Run.ID, id))
@@ -181,11 +218,22 @@ func (r *officeAgentRepository) RecordOperationResult(ctx context.Context, lease
 		return nil, err
 	}
 	if op.DispatchEpoch != lease.Epoch || op.DispatchToken != lease.Token {
-		return nil, service.ErrOfficeLeaseLost
+		var input struct {
+			Remote bool `json:"remote"`
+		}
+		if !publishEvent || op.Kind != service.OfficeOperationTool || op.DispatchEpoch >= lease.Epoch ||
+			json.Unmarshal(op.Input, &input) != nil || !input.Remote {
+			return nil, service.ErrOfficeLeaseLost
+		}
 	}
+	resultHash := officeOperationResultHash(encoded)
 	if op.State == service.OfficeOperationCompleted {
-		previous, _ := json.Marshal(op.Result)
-		if !officeJSONEqual(previous, encoded) {
+		previousHash := op.ResultHash
+		if previousHash == "" {
+			previous, _ := json.Marshal(op.Result)
+			previousHash = officeOperationResultHash(previous)
+		}
+		if previousHash != resultHash {
 			return nil, service.ErrOfficeConflict
 		}
 		return op, tx.Commit()
@@ -193,9 +241,47 @@ func (r *officeAgentRepository) RecordOperationResult(ctx context.Context, lease
 	if op.State != service.OfficeOperationDispatched && op.State != service.OfficeOperationUnknown {
 		return nil, service.ErrOfficeConflict
 	}
-	op, err = scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='completed',result_json=$3,completed_at=NOW() WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns, lease.Run.ID, id, encoded))
+	if searchBillable != nil {
+		if err := settleWorkbenchSearch(ctx, tx, lease.Run.UserID, op, result, *searchBillable); err != nil {
+			return nil, err
+		}
+	}
+	previousProjection := op.ToolProjection
+	op.State, op.Result, op.ToolProjection = service.OfficeOperationCompleted, &result, nil
+	now := time.Now().UTC()
+	op.CompletedAt = &now
+	if op.Kind == service.OfficeOperationTool {
+		op.ToolProjection = service.BuildWorkbenchToolProjection(*op)
+		service.PreserveWorkbenchToolProjectionInputs(op.ToolProjection, previousProjection)
+	}
+	projection, err := marshalWorkbenchToolProjection(*op)
 	if err != nil {
 		return nil, err
+	}
+	if compacted {
+		encoded, err = compactOfficeOperationResult(result)
+		if err != nil {
+			return nil, err
+		}
+	}
+	op, err = scanOfficeOperation(tx.QueryRowContext(ctx, `UPDATE office_agent_operations SET state='completed',result_json=$3,
+		result_hash=$4,tool_projection=$5,completed_at=$6 WHERE run_id=$1 AND operation_id=$2 RETURNING `+officeOperationColumns,
+		lease.Run.ID, id, encoded, resultHash, projection, now))
+	if err != nil {
+		return nil, err
+	}
+	if publishEvent && op.Kind == service.OfficeOperationTool {
+		summary := service.WorkbenchToolOperationSummary(lease.Run, *op)
+		payload, err := json.Marshal(map[string]string{
+			"operation_id": op.ID, "tool_name": summary.Name, "title": summary.Title, "status": summary.State,
+		})
+		if err != nil {
+			return nil, err
+		}
+		eventID := "system:tool-result:" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(op.ID)).String()
+		if _, err := appendOfficeEvent(ctx, tx, lease.Run.UserID, lease.Run.ID, eventID, "tool.completed", payload); err != nil && !errors.Is(err, service.ErrOfficeBudgetExceeded) {
+			return nil, err
+		}
 	}
 	return op, tx.Commit()
 }

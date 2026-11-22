@@ -1,15 +1,16 @@
 import { createPinia, defineStore, setActivePinia } from 'pinia'
 import { ref } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-const api = vi.hoisted(() => ({ status: vi.fn(), models: vi.fn(), conversations: vi.fn(), history: vi.fn(), createConversation: vi.fn(), submit: vi.fn(), run: vi.fn(), cancel: vi.fn(), renameConversation: vi.fn(), deleteConversation: vi.fn(), selectAnswer: vi.fn() }))
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+const api = vi.hoisted(() => ({ status: vi.fn(), models: vi.fn(), conversations: vi.fn(), history: vi.fn(), createConversation: vi.fn(), submit: vi.fn(), run: vi.fn(), advance: vi.fn(), cancel: vi.fn(), renameConversation: vi.fn(), deleteConversation: vi.fn(), selectAnswer: vi.fn() }))
 const readEvents = vi.hoisted(() => vi.fn(async (_id: string, _after: number, _signal: AbortSignal, _accept: (event: unknown) => void) => {}))
 vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: api, readChatEvents: readEvents }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: defineStore('test-workbench-auth', () => ({ user: ref<{ id: number } | null>({ id: 1 }) })) }))
 import { useAuthStore } from '@/stores/auth'
-import { useWorkbenchChatStore } from '@/stores/workbenchChat'
+import { chatError, useWorkbenchChatStore } from '@/stores/workbenchChat'
 const message = (id: string, sequence: number) => ({ id, sequence, conversation_id: 'conversation', run_id: 'run', role: 'user', content: id, created_at: '' })
 describe('workbench account isolation and durable submissions', () => {
-  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+  beforeEach(() => { setActivePinia(createPinia()); vi.resetAllMocks(); readEvents.mockResolvedValue(undefined) })
+  afterEach(() => { useWorkbenchChatStore().pause(); vi.useRealTimers() })
   it('does not restore private history when an older request finishes after logout', async () => {
     let resolve!: (value: unknown) => void
     api.history.mockImplementationOnce(() => new Promise(r => { resolve = r }))
@@ -55,6 +56,21 @@ describe('workbench account isolation and durable submissions', () => {
     expect(api.models).not.toHaveBeenCalled()
     expect(api.conversations).not.toHaveBeenCalled()
     expect(store.models).toEqual([])
+  })
+  it('reads current provider readiness when the user returns to chat', async () => {
+    api.status.mockResolvedValueOnce({ enabled: true, search_allowed: true, search_enabled: false })
+    api.status.mockResolvedValueOnce({ enabled: true, search_allowed: true, search_enabled: true })
+    api.models.mockResolvedValueOnce({ models: [{ id: 'gpt', supports_tools: true }] })
+    api.conversations.mockResolvedValueOnce({ items: [] })
+    const store = useWorkbenchChatStore()
+    await store.initialize()
+    expect(store.status?.search_enabled).toBe(false)
+    await store.initialize()
+    expect(store.status?.search_enabled).toBe(true)
+    expect(api.models).toHaveBeenCalledTimes(1)
+  })
+  it('shows the structured workbench error returned after a provider becomes unavailable', () => {
+    expect(chatError({ status: 409, message: 'Request failed with status code 409', error: { code: 'WORKBENCH_SEARCH_UNAVAILABLE', message: '联网搜索暂不可用' } })).toBe('联网搜索暂不可用')
   })
   it('loads earlier messages only when requested and merges in sequence order', async () => {
     api.history.mockResolvedValueOnce({ messages: [message('new', 50)], runs: [], has_more: true, next_before: 50 })
@@ -124,5 +140,58 @@ describe('workbench account isolation and durable submissions', () => {
     })
     await store.loadRunEvents('run')
     expect(store.history.runs[0]).toMatchObject({ status: 'completed', artifacts: [artifact] })
+  })
+  it('retrying an uncertain browser-driven step uses the same run and follows persisted state', async () => {
+    vi.useFakeTimers()
+    const queued = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'queued', browser_driven: true, created_at: '', updated_at: '' }
+    const completed = { ...queued, status: 'completed' }
+    api.history.mockResolvedValue({ messages: [], runs: [queued] })
+    api.run.mockResolvedValue(queued)
+    api.advance.mockRejectedValueOnce({ status: 0, message: '连接中断' })
+      .mockRejectedValueOnce({ status: 409 })
+      .mockImplementationOnce(() => {
+        api.history.mockResolvedValue({ messages: [message('answer', 2)], runs: [completed] })
+        return completed
+      })
+    const store = useWorkbenchChatStore()
+    await store.selectConversation('conversation')
+    expect(api.advance).toHaveBeenCalledTimes(1)
+    expect(store.connectionError).toBe('连接中断')
+    await vi.advanceTimersByTimeAsync(800)
+    expect(api.advance).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(api.advance.mock.calls.map(([id]) => id)).toEqual(['run', 'run', 'run'])
+    expect(api.submit).not.toHaveBeenCalled()
+    expect(store.activeRun).toBeUndefined()
+    expect(store.history.messages.map(item => item.id)).toEqual(['answer'])
+    expect(store.connectionError).toBe('')
+  })
+  it('only advances while the conversation is open and resumes from its persisted run on reopening', async () => {
+    const run = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    let finishFirst!: (value: unknown) => void
+    api.advance.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve }))
+    api.advance.mockResolvedValueOnce({ ...run, status: 'waiting_user' })
+    api.history.mockResolvedValue({ messages: [], runs: [run] })
+    api.run.mockResolvedValue(run)
+    const store = useWorkbenchChatStore()
+    await store.selectConversation('conversation')
+    const firstSignal = api.advance.mock.calls[0]![1] as AbortSignal
+    store.pause()
+    expect(firstSignal.aborted).toBe(true)
+    finishFirst(run)
+    await Promise.resolve()
+    expect(api.advance).toHaveBeenCalledTimes(1)
+    await store.selectConversation('conversation', true)
+    expect(api.advance).toHaveBeenCalledTimes(2)
+    expect(store.activeRun?.status).toBe('waiting_user')
+  })
+  it('keeps legacy runs on their event stream without invoking browser execution', async () => {
+    const run = { id: 'legacy', conversation_id: 'conversation', model: 'gpt', status: 'running', created_at: '', updated_at: '' }
+    api.history.mockResolvedValue({ messages: [], runs: [run] })
+    api.run.mockResolvedValue(run)
+    const store = useWorkbenchChatStore()
+    await store.selectConversation('conversation')
+    expect(readEvents).toHaveBeenCalledWith('legacy', 0, expect.any(AbortSignal), expect.any(Function))
+    expect(api.advance).not.toHaveBeenCalled()
   })
 })

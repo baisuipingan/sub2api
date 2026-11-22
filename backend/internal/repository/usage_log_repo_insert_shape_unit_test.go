@@ -178,10 +178,13 @@ func TestUsageLogInsertAndRead_PreserveCreditsAlongsideCacheWriteTTL(t *testing.
 	for i := range insertColumns {
 		insertColumns[i] = strings.TrimSpace(insertColumns[i])
 	}
-	require.Equal(t, strings.Split(usageLogSelectColumns, ", ")[1:], insertColumns,
+	readColumns := strings.Split(usageLogSelectColumns, ", ")
+	require.Equal(t, "search_provider", readColumns[len(readColumns)-1])
+	require.Equal(t, readColumns[1:len(readColumns)-1], insertColumns,
 		"read and write column order must preserve both the credit snapshot and TTL buckets")
-	rows := sqlmock.NewRows(strings.Split(usageLogSelectColumns, ", "))
+	rows := sqlmock.NewRows(readColumns)
 	row := append(anySliceToDriverValues([]any{int64(42)}), args...)
+	row = append(row, nil) // search_provider is written only by the search settlement projection.
 	mock.ExpectQuery("SELECT").WithArgs(int64(42)).WillReturnRows(rows.AddRow(row...))
 	stored, err := repo.GetByID(context.Background(), 42)
 	require.NoError(t, err)

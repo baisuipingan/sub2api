@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,6 +30,13 @@ type workbenchSettingsStub struct {
 	values   map[string]string
 	written  map[string]string
 	writeErr error
+}
+
+func (r *workbenchSettingsStub) GetValue(_ context.Context, key string) (string, error) {
+	if value, ok := r.values[key]; ok {
+		return value, nil
+	}
+	return "", ErrSettingNotFound
 }
 
 func (r *workbenchSettingsStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
@@ -100,7 +106,15 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 	svc := NewWorkbenchAdminService(nil, settings, groups)
 	_, err := svc.UpdateConfig(context.Background(), WorkbenchConfig{ImageStudioEnabled: true, ImageStudioGroupID: 12})
 	require.NoError(t, err)
-	require.Len(t, repo.written, 14)
+	require.Equal(t, map[string]string{
+		SettingKeyImageStudioEnabled:  "true",
+		SettingKeyImageStudioGroupID:  "12",
+		"workbench_chat_enabled":      "false",
+		"workbench_office_enabled":    "false",
+		"workbench_search_enabled":    "false",
+		"workbench_files_enabled":     "false",
+		"workbench_model_profiles_v1": "{}",
+	}, repo.written)
 	require.Equal(t, "keep", repo.values["site_name"])
 	require.Equal(t, 1, invalidated)
 	loaded, err := svc.GetConfig(context.Background())
@@ -122,53 +136,40 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 	require.Equal(t, 2, invalidated)
 }
 
-func TestOfficeBudgetSettingsDefaultsBoundsAndDeploymentClamp(t *testing.T) {
+func TestWorkbenchConfigLeavesLegacyBudgetStorageIntact(t *testing.T) {
 	ctx := context.Background()
+	legacy := map[string]string{"workbench_chat_concurrent_runs": "5", "workbench_office_concurrent_runs": "2",
+		"workbench_max_model_calls": "10", "workbench_max_tool_calls": "20", "workbench_max_output_tokens": "12288",
+		"workbench_max_run_seconds": "750", "workbench_max_run_credits": "1234567"}
 	repo := &workbenchSettingsStub{values: map[string]string{}}
-	deployment := &config.Config{OfficeAgent: config.OfficeAgentConfig{MaxModelCalls: 12, MaxToolCalls: 24, MaxOutputTokens: 16384, MaxRunSeconds: 900}}
-	settings := NewSettingService(repo, deployment)
-	defaults, err := settings.GetWorkbenchConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 3, defaults.ChatConcurrentRuns)
-	require.Equal(t, 1, defaults.OfficeConcurrentRuns)
-	require.Equal(t, 12, defaults.MaxModelCalls)
-	require.Equal(t, 24, defaults.MaxToolCalls)
-	require.Equal(t, 16384, defaults.MaxOutputTokens)
-	require.Equal(t, 900, defaults.MaxRunSeconds)
-	require.Zero(t, defaults.MaxRunCredits)
-	require.Equal(t, 8, defaults.DeploymentLimits.ChatConcurrentRuns)
-	require.Equal(t, 2, defaults.DeploymentLimits.OfficeConcurrentRuns)
-	for _, mutate := range []func(*WorkbenchConfig){
-		func(c *WorkbenchConfig) { c.ChatConcurrentRuns = 9 },
-		func(c *WorkbenchConfig) { c.OfficeConcurrentRuns = 3 },
-		func(c *WorkbenchConfig) { c.MaxModelCalls = 13 },
-		func(c *WorkbenchConfig) { c.MaxToolCalls = 25 },
-		func(c *WorkbenchConfig) { c.MaxOutputTokens = 16385 },
-		func(c *WorkbenchConfig) { c.MaxOutputTokens = 127 },
-		func(c *WorkbenchConfig) { c.MaxRunSeconds = 901 },
-		func(c *WorkbenchConfig) { c.MaxRunSeconds = 29 },
-		func(c *WorkbenchConfig) { c.MaxRunCredits = -1 },
-		func(c *WorkbenchConfig) { c.MaxRunCredits = 9_007_199_254_740_992 },
-	} {
-		bad := *defaults
-		mutate(&bad)
-		require.ErrorIs(t, settings.UpdateWorkbenchConfig(ctx, bad), ErrWorkbenchInvalid)
-		require.Nil(t, repo.written)
+	for key, value := range legacy {
+		repo.values[key] = value
 	}
-	custom := *defaults
-	custom.MaxModelCalls, custom.MaxToolCalls, custom.MaxOutputTokens, custom.MaxRunSeconds = 10, 20, 12288, 750
-	custom.ChatConcurrentRuns, custom.OfficeConcurrentRuns, custom.MaxRunCredits = 5, 2, 1234567
-	require.NoError(t, settings.UpdateWorkbenchConfig(ctx, custom))
+	settings := NewSettingService(repo, nil)
+	require.NoError(t, settings.UpdateWorkbenchConfig(ctx, WorkbenchConfig{ChatEnabled: true}))
 	loaded, err := settings.GetWorkbenchConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, custom, *loaded)
-	deployment.OfficeAgent = config.OfficeAgentConfig{MaxModelCalls: 6, MaxToolCalls: 12, MaxOutputTokens: 8192, MaxRunSeconds: 600}
-	loaded, err = settings.GetWorkbenchConfig(ctx)
+	require.True(t, loaded.ChatEnabled)
+	for key, value := range legacy {
+		require.NotContains(t, repo.written, key)
+		require.Equal(t, value, repo.values[key])
+	}
+}
+
+func TestWorkbenchChatUsesPublishedAgentGroupWithoutImageGroup(t *testing.T) {
+	ctx := context.Background()
+	const agentConfig = `{"enabled":true,"group_id":12}`
+	repo := &workbenchSettingsStub{values: map[string]string{SettingKeyDesktopAgentConfig: agentConfig}}
+	groups := &workbenchGroupStub{group: &Group{ID: 12, Status: StatusActive, Platform: PlatformComposite, SubscriptionType: SubscriptionTypeStandard}}
+	svc := NewWorkbenchAdminService(nil, NewSettingService(repo, nil), groups)
+	cfg, err := svc.UpdateConfig(ctx, WorkbenchConfig{ChatEnabled: true, AgentGroupID: 99})
 	require.NoError(t, err)
-	require.Equal(t, 6, loaded.MaxModelCalls)
-	require.Equal(t, 12, loaded.MaxToolCalls)
-	require.Equal(t, 8192, loaded.MaxOutputTokens)
-	require.Equal(t, 600, loaded.MaxRunSeconds)
-	require.EqualValues(t, 1234567, loaded.MaxRunCredits)
-	require.Equal(t, "10", repo.values["workbench_max_model_calls"], "lower deployment caps do not overwrite stored preferences or historical run snapshots")
+	require.EqualValues(t, 12, cfg.AgentGroupID)
+	require.Zero(t, cfg.ImageStudioGroupID)
+	require.Equal(t, agentConfig, repo.values[SettingKeyDesktopAgentConfig])
+	require.NotContains(t, repo.written, SettingKeyDesktopAgentConfig)
+
+	repo.values[SettingKeyDesktopAgentConfig] = `{"enabled":false,"group_id":12}`
+	_, err = svc.UpdateConfig(ctx, WorkbenchConfig{ChatEnabled: true, AgentGroupID: 12})
+	require.ErrorIs(t, err, ErrWorkbenchInvalid)
 }

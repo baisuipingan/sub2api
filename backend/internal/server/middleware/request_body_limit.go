@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"net/http"
 
+	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +15,11 @@ func RequestBodyLimit(maxBytes int64, budgets ...*pkghttputil.BodyMemoryBudget) 
 			defer release()
 			c.Request = c.Request.WithContext(ctx)
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		// An internal request with a complete body already in memory can keep
+		// that buffer after applying the same size check as a streamed request.
+		if preread, ok := c.Request.Body.(*pkghttputil.PrereadBody); !ok || int64(len(preread.Bytes())) > maxBytes {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		}
 		c.Next()
 	}
 }

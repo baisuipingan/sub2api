@@ -49,6 +49,55 @@ func officeResourceQuota(ctx context.Context, tx *sql.Tx, userID int64, bytes in
 	return nil
 }
 
+func (r *officeResourcesRepository) StorePrintPreview(ctx context.Context, userID int64, versionID, key string, bytes int64, hash string, assignment *service.OfficeDispatch, upload func() error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err = galleryLockUser(ctx, tx, userID); err != nil {
+		return err
+	}
+	if err = galleryRequireActiveUser(ctx, tx, userID); err != nil {
+		return err
+	}
+	var existing string
+	err = tx.QueryRowContext(ctx, `SELECT v.preview_key FROM office_resource_versions v JOIN office_resources r ON r.id=v.resource_id
+		WHERE v.user_id=$1 AND v.id=$2 AND v.state='ready' AND r.deleted_at IS NULL FOR UPDATE OF v`, userID, versionID).Scan(&existing)
+	if err != nil {
+		return officeDBError(err)
+	}
+	if existing == key {
+		return tx.Commit()
+	}
+	if existing != "" {
+		return service.ErrOfficeConflict
+	}
+	if assignment != nil {
+		var active bool
+		err = tx.QueryRowContext(ctx, `SELECT state='active' AND attempt=$4 FROM workbench_office_dispatch
+WHERE job_key=$1 AND user_id=$2 AND version_id=$3 FOR UPDATE`, assignment.Key, userID, versionID, assignment.Attempt).Scan(&active)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && !active {
+			return service.ErrOfficeConflict
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if err = officeResourceQuota(ctx, tx, userID, bytes, 0); err != nil {
+		return err
+	}
+	if err = upload(); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE office_resource_versions SET preview_key=$1,preview_kind='pdf',
+		preview_mime='application/pdf',preview_bytes=$2,preview_sha256=$3,updated_at=NOW() WHERE user_id=$4 AND id=$5`, key, bytes, hash, userID, versionID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // SyncGallery shares the gallery's user lock with deletion and cleanup. Pins
 // become visible atomically with adoption; no image object or bytes are copied.
 func (r *officeResourcesRepository) SyncGallery(ctx context.Context, userID int64) error {

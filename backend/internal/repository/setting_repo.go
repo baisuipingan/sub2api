@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -202,24 +204,79 @@ func lockDesktopAgentProfileCatalog(ctx context.Context, tx *ent.Tx) (*ent.Setti
 	}
 	return tx.Setting.Query().Where(setting.KeyEQ(service.SettingKeyDesktopAgentProfileCatalog)).ForUpdate().Only(ctx)
 }
-func (r *settingRepository) SaveDesktopAgentConfigWithCatalog(ctx context.Context, expectedCatalog, value string) (bool, error) {
+func (r *settingRepository) SaveDesktopAgentConfig(ctx context.Context, value string, expectedCatalog *string) (bool, []string, error) {
+	var policy struct {
+		Enabled bool  `json:"enabled"`
+		GroupID int64 `json:"group_id"`
+	}
+	if json.Unmarshal([]byte(value), &policy) != nil || policy.Enabled && policy.GroupID <= 0 {
+		return false, nil, service.ErrDesktopAgentInvalid
+	}
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	row, err := lockDesktopAgentProfileCatalog(ctx, tx)
-	if err != nil {
-		return false, err
-	}
-	if row.Value != expectedCatalog {
-		return false, nil
+	if expectedCatalog != nil {
+		row, err := lockDesktopAgentProfileCatalog(ctx, tx)
+		if err != nil {
+			return false, nil, err
+		}
+		if row.Value != *expectedCatalog {
+			return false, nil, nil
+		}
 	}
 	if err = tx.Setting.Create().SetKey(service.SettingKeyDesktopAgentConfig).SetValue(value).SetUpdatedAt(time.Now()).OnConflictColumns(setting.FieldKey).UpdateNewValues().Exec(ctx); err != nil {
-		return false, err
+		return false, nil, err
+	}
+	var cacheKeys []string
+	if policy.GroupID > 0 {
+		cacheKeys, err = rebindDesktopAgentKeys(ctx, tx, policy.GroupID)
+		if err != nil {
+			return false, nil, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
-		return false, err
+		return false, nil, err
 	}
-	return true, nil
+	return true, cacheKeys, nil
+}
+
+func rebindDesktopAgentKeys(ctx context.Context, tx *ent.Tx, groupID int64) ([]string, error) {
+	// Key issuance also locks config before group and key. Binding follows the
+	// saved policy; gateway authentication decides whether each key can call.
+	var targetID int64
+	err := scanSingleRow(ctx, tx, `SELECT id FROM groups
+		WHERE id=$1 AND deleted_at IS NULL AND status='active'
+		AND subscription_type='standard' AND platform IN ('openai','composite') FOR SHARE`, []any{groupID}, &targetID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrDesktopAgentInvalid
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The existing api_keys trigger enqueues invalidation on group_id changes.
+	// Return hashes for immediate eviction after commit as well.
+	rows, err := tx.QueryContext(ctx, `WITH moved_keys AS (
+		SELECT id FROM api_keys
+		WHERE purpose='desktop_agent' AND key_type='system' AND deleted_at IS NULL
+			AND group_id IS DISTINCT FROM $1
+		ORDER BY id FOR UPDATE
+	)
+	UPDATE api_keys k SET group_id=$1,updated_at=NOW()
+	FROM moved_keys WHERE moved_keys.id=k.id
+	RETURNING encode(sha256(convert_to(k.key,'UTF8')),'hex')`, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var cacheKeys []string
+	for rows.Next() {
+		var cacheKey string
+		if err := rows.Scan(&cacheKey); err != nil {
+			return nil, err
+		}
+		cacheKeys = append(cacheKeys, cacheKey)
+	}
+	return cacheKeys, rows.Err()
 }

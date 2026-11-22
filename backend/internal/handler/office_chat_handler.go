@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,47 @@ func (h *OfficeAgentHandler) ChatModels(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"models": models})
+}
+func (h *OfficeAgentHandler) ChatSearchUsage(c *gin.Context) {
+	user, ok := officeUser(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	start, end, ok := workbenchSearchUsageDates(c)
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListSearchCharges(c.Request.Context(), user, page, pageSize, start, end)
+	if officeHandlerError(c, err) {
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+func workbenchSearchUsageDates(c *gin.Context) (start, end time.Time, ok bool) {
+	const dateFormat = "2006-01-02"
+	var err error
+	if raw := c.Query("start_date"); raw != "" {
+		start, err = timezone.ParseInUserLocation(dateFormat, raw, c.Query("timezone"))
+		if err != nil {
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			return start, end, false
+		}
+	}
+	if raw := c.Query("end_date"); raw != "" {
+		end, err = timezone.ParseInUserLocation(dateFormat, raw, c.Query("timezone"))
+		if err != nil {
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			return start, end, false
+		}
+		end = end.AddDate(0, 0, 1)
+	}
+	if !start.IsZero() && !end.IsZero() && !start.Before(end) {
+		response.BadRequest(c, "Invalid date range")
+		return start, end, false
+	}
+	return start, end, true
 }
 func (h *OfficeAgentHandler) Conversations(c *gin.Context) {
 	u, ok := officeUser(c)
@@ -139,6 +181,18 @@ func (h *OfficeAgentHandler) SubmitChat(c *gin.Context) {
 	}
 	response.Accepted(c, run)
 }
+func (h *OfficeAgentHandler) ChatAdvance(c *gin.Context) {
+	u, ok := officeUser(c)
+	if !ok {
+		return
+	}
+	run, err := h.service.AdvanceWorkbench(c.Request.Context(), u, c.Param("id"))
+	if officeHandlerError(c, err) {
+		return
+	}
+	response.Success(c, run)
+}
+
 func (h *OfficeAgentHandler) ChatRun(c *gin.Context) {
 	u, ok := officeUser(c)
 	if !ok {
@@ -176,6 +230,31 @@ func (h *OfficeAgentHandler) ChatOperations(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"items": items})
 }
+
+func (h *OfficeAgentHandler) ChatToolSummaries(c *gin.Context) {
+	user, ok := officeUser(c)
+	if !ok {
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	items, err := h.service.WorkbenchToolSummaries(c.Request.Context(), user, c.Param("id"))
+	if !officeHandlerError(c, err) {
+		response.Success(c, gin.H{"items": items})
+	}
+}
+
+func (h *OfficeAgentHandler) ChatToolDetail(c *gin.Context) {
+	user, ok := officeUser(c)
+	if !ok {
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	item, err := h.service.WorkbenchToolDetail(c.Request.Context(), user, c.Param("id"), c.Param("operation"), false)
+	if !officeHandlerError(c, err) {
+		response.Success(c, item)
+	}
+}
+
 func (h *OfficeAgentHandler) Input(c *gin.Context) {
 	u, ok := officeUser(c)
 	if !ok {

@@ -178,6 +178,7 @@ export default {
     workbenchOverview: 'Overview',
     workbenchGallery: 'Cloud Gallery',
     workbenchTasks: 'Generation Tasks',
+    workbenchOfficeNodes: 'Compute Nodes',
     workbenchSettings: 'Workbench Settings',
     switchAreaLabel: 'Switch console and workbench',
     switchArea: 'Switch workspace: currently {area}',

@@ -8,8 +8,8 @@
       "local_path": "skills/bisheng-docx/SKILL.md",
       "sha256": "456643ebd065f6688d535c692f8f35838dcfc73463dfd9c6f5863aa157fb5fac",
       "modified": true,
-      "local_sha256": "b5b406d81735b5d961005bc5fe63803fb0933fd4a4de864e3e6622841d5e77ab",
-      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; DOCX uses the available isolated Python tool for all export routes; namespace previews by full output filename to prevent cross-format collisions"
+      "local_sha256": "42a1f61b7ae77f36a7e0fe3120622f88590b3aa8d9abec61d82149ddfdaffe8c",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; DOCX uses the available isolated Python tool for all export routes; namespace previews by full output filename to prevent cross-format collisions; use the current Office mode label"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-docx/references/design-zh.md",
@@ -60,8 +60,8 @@
       "local_path": "skills/bisheng-pptx/SKILL.md",
       "sha256": "1162e66d4720e43cdbcd429ee50911df53a4d82893b3cc614802fbfdbea9a247",
       "modified": true,
-      "local_sha256": "3b066f31fbd5071d3bc92b452195348a5cb6c5b7b1d4ffbfe8c28e8ee5b854b4",
-      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions"
+      "local_sha256": "039f8c526b7773b1470173aeb78c458291253c00d6c1342c9427ecb3f7814471",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions; use the current Office mode label"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-pptx/references/design-zh.md",
@@ -210,8 +210,8 @@
       "local_path": "skills/bisheng-xlsx/SKILL.md",
       "sha256": "e239333e6b16530cd2935261346e2842221ba9bb39b8f5779bdd035262cf8bde",
       "modified": true,
-      "local_sha256": "3b8772c00ebad94b9f159c095e228e4730f9427067fbcf5654a84ffc0236ef65",
-      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions"
+      "local_sha256": "8dcae89fdeca8a399c5356c7b213b465e4919a70bc4f6a511bd7b493ede3c576",
+      "modification": "MiloRouter 2026-11-19: adapt fixed isolated office environment, durable resource snapshots, real verified previews and bounded tools; retained upstream license; keep YAML frontmatter first for actual framework discovery; namespace previews by full output filename to prevent cross-format collisions; use the current Office mode label"
     },
     {
       "upstream_path": "src/backend/bisheng/linsight/builtin_skills/bisheng-xlsx/references/design-zh.md",

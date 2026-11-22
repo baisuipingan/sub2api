@@ -39,22 +39,22 @@ describe('workspace and final delivery', () => {
     const citation: ChatCitation = { id: 'source', title: '官方资料', url: 'https://example.org/reference' }
     const Markdown = defineComponent({ props: ['content', 'files', 'citations'], emits: ['reference'], template: '<button @click="$emit(\'reference\', citations[0])">资料</button>' })
     const wrapper = mount(ResultSection, { props: { text: '结论', files, citations: [citation] }, global: { stubs: { ChatMarkdown: Markdown } } })
-    expect(wrapper.find('.bs-chat-result-files').exists()).toBe(false)
-    await wrapper.get('button[aria-label="下载文件"]').trigger('click')
+    expect(wrapper.findAll('.bs-chat-deliverable')).toHaveLength(1)
+    await wrapper.get('button[aria-label="下载report.docx"]').trigger('click')
     expect(wrapper.emitted('download')?.[0]).toEqual([files[0]])
     await wrapper.getComponent(Markdown).trigger('click')
     expect(wrapper.getComponent(Markdown).props('citations')).toEqual([citation])
     expect(wrapper.emitted('reference')?.[0]).toEqual([citation])
   })
 
-  it('shows the primary name, total count and individually downloadable complete manifest', async () => {
+  it('gives each deliverable its own preview and download controls', async () => {
     const files = [file('report'), file('slides', { name: 'slides.pptx' }), file('sheet', { name: 'sheet.xlsx' })]
     const wrapper = mount(ResultSection, { props: { text: '', files } })
-    expect(wrapper.get('.bs-chat-report-ready').text()).toContain('report.docx')
-    expect(wrapper.get('.bs-chat-report-ready').text()).toContain('等 3 个文件')
-    const rows = wrapper.findAll('.bs-chat-file-row')
+    const rows = wrapper.findAll('.bs-chat-deliverable')
     expect(rows).toHaveLength(3)
-    await rows[2]!.get('.bs-chat-text-button').trigger('click')
+    await rows[1]!.get('.bso-file-open').trigger('click')
+    expect(wrapper.emitted('preview')?.[0]).toEqual([files[1]])
+    await rows[2]!.get('.bs-chat-icon').trigger('click')
     expect(wrapper.emitted('download')?.[0]).toEqual([files[2]])
   })
 })

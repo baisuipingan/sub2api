@@ -111,13 +111,11 @@ describe('shared ImageStorageSettings', () => {
     expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ secret_access_key: '' }))
   })
 
-  it('keeps an independent optional office bucket in both save and connection tests', async () => {
+  it('carries the legacy office bucket through image settings saves', async () => {
+    getConfig.mockResolvedValue({ config: { ...baseConfig, office_bucket: 'private-office' }, secret_configured: true })
     const wrapper = mountSettings()
     await flushPromises()
-    await wrapper.get('#office-storage-bucket').setValue('private-office')
-    await wrapper.get('[data-testid="image-storage-test"]').trigger('click')
-    await flushPromises()
-    expect(testConnection).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'private-images', office_bucket: 'private-office' }))
+    expect(wrapper.find('#office-storage-bucket').exists()).toBe(false)
     await wrapper.get('[data-testid="image-storage-save"]').trigger('click')
     await flushPromises()
     expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'private-images', office_bucket: 'private-office' }))

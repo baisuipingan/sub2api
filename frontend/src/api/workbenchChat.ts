@@ -1,6 +1,6 @@
 import { apiClient, buildApiUrl } from './client'
 import { refreshAuthTokens } from './tokenRefresh'
-import type { ChatStatus, ChatModels, ChatConversation, ChatConversationPage, ChatHistory, ChatRun, ChatSubmit, ChatEvent, ChatResource, ChatResourceAccess, ChatClarificationAnswer, ChatArtifact } from '@/types/workbenchChat'
+import type { ChatStatus, ChatModels, ChatConversation, ChatConversationPage, ChatHistory, ChatRun, ChatSubmit, ChatEvent, ChatResource, ChatResourceAccess, ChatClarificationAnswer, ChatArtifact, ChatToolDetail, ChatToolSummary, ChatPrintPreview } from '@/types/workbenchChat'
 const base = '/workbench/chat'
 const segment = (id: string) => encodeURIComponent(id)
 export const workbenchChatApi = {
@@ -13,6 +13,11 @@ export const workbenchChatApi = {
   async history(id: string, before_seq?: number) { return (await apiClient.get<ChatHistory>(`${base}/conversations/${segment(id)}/messages`, { params: { before_seq } })).data },
   async submit(id: string, body: ChatSubmit) { return (await apiClient.post<ChatRun>(`${base}/conversations/${segment(id)}/runs`, body)).data },
   async run(id: string) { return (await apiClient.get<ChatRun>(`${base}/runs/${segment(id)}`)).data },
+  async tools(id: string, signal: AbortSignal) { return (await apiClient.get<{ items: ChatToolSummary[] }>(`${base}/runs/${segment(id)}/tools`, { signal })).data.items },
+  async toolDetail(id: string, operation: string, signal: AbortSignal) { return (await apiClient.get<ChatToolDetail>(`${base}/runs/${segment(id)}/tools/${segment(operation)}`, { signal })).data },
+  async advance(id: string, signal: AbortSignal) {
+    return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/advance`, undefined, { signal, timeout: 0 })).data
+  },
   async selectAnswer(id: string) { return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/select`)).data },
   async cancel(id: string) { return (await apiClient.delete<ChatRun>(`${base}/runs/${segment(id)}`)).data },
   async clarify(id: string, request_id: string, answers: ChatClarificationAnswer[]) { return (await apiClient.post<ChatRun>(`${base}/runs/${segment(id)}/input`, { request_id, answers })).data },
@@ -20,6 +25,9 @@ export const workbenchChatApi = {
   async resources(cursor?: string) { return (await apiClient.get<{ items: ChatArtifact[]; next_cursor?: string }>(`${base}/resources`, { params: { cursor, limit: 40 } })).data },
   async deleteResource(id: string) { await apiClient.delete(`${base}/resources/${segment(id)}`) },
   async access(versionId: string) { return (await apiClient.get<ChatResourceAccess>(`${base}/resources/${segment(versionId)}/access`)).data },
+  async printPreview(versionId: string, signal: AbortSignal, retry = false) {
+    return (await apiClient.post<ChatPrintPreview>(`${base}/resources/${segment(versionId)}/print-preview`, undefined, { signal, params: retry ? { retry: 1 } : undefined })).data
+  },
 }
 
 /** Incremental SSE framing: handles CRLF, UTF-8 chunk boundaries (at the caller), comments and multiline data. */
@@ -52,7 +60,7 @@ export async function readChatEvents(runId: string, after: number, signal: Abort
   if (!response.ok) {
     let detail = ''
     try { const body = await response.json(); detail = body.message || body.error?.message || '' } catch { /* nginx text/HTML is not user-visible */ }
-    throw new Error(detail || `任务连接失败（${response.status}）`)
+    throw Object.assign(new Error(detail || `任务连接失败（${response.status}）`), { status: response.status })
   }
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('任务事件接口未返回流式响应')
   const reader = response.body.getReader()

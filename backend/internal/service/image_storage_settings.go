@@ -260,7 +260,6 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 	hasAssets := false
 	hasStudioJobs := false
 	hasTicketAttachments := false
-	hasOfficeFiles := false
 	if s.galleryRepo != nil {
 		var err error
 		hasAssets, err = s.galleryRepo.HasAssets(ctx)
@@ -282,14 +281,7 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 			return nil, err
 		}
 	}
-	if s.officeStorageUsage != nil {
-		var err error
-		hasOfficeFiles, err = s.officeStorageUsage(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs || hasTicketAttachments || s.activeTicketStorage > 0 || hasOfficeFiles || s.activeOfficeStorage > 0 {
+	if s.activeAsyncTasks > 0 || hasAssets || hasStudioJobs || hasTicketAttachments || s.activeTicketStorage > 0 {
 		previous, err := s.effectiveConfig(ctx)
 		if err != nil {
 			return nil, err
@@ -320,22 +312,6 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 				return nil, ErrGalleryStorageTargetInUse
 			}
 		}
-		if hasOfficeFiles || s.activeOfficeStorage > 0 {
-			if in.PublicBaseURL != "" {
-				return nil, ErrOfficeStorageUnavailable
-			}
-			previousOffice, err := s.officeStorageConfigLocked(ctx)
-			if err != nil {
-				return nil, err
-			}
-			nextOffice := *next
-			if in.OfficeBucket != "" {
-				nextOffice.Bucket = in.OfficeBucket
-			}
-			if !sameGalleryStorageTarget(previousOffice, &nextOffice) {
-				return nil, ErrOfficeStorageUnavailable
-			}
-		}
 	}
 
 	if in.ReuseBackupS3 {
@@ -364,14 +340,8 @@ func (s *ImageStorageSettingService) Update(ctx context.Context, in ImageStorage
 			return nil, ErrTicketStorageUnavailable
 		}
 	}
-	if hasOfficeFiles || s.activeOfficeStorage > 0 {
-		cfg, err := s.toImageStorageConfig(ctx, &in)
-		if cfg != nil && in.OfficeBucket != "" {
-			cfg.Bucket = in.OfficeBucket
-		}
-		if err != nil || !cfg.IsConfigured() {
-			return nil, ErrOfficeStorageUnavailable
-		}
+	if err := s.checkOfficeImageChange(ctx, &in); err != nil {
+		return nil, err
 	}
 
 	data, err := json.Marshal(in)
@@ -601,31 +571,21 @@ func (s *ImageStorageSettingService) PrivateOfficeStorageConfig(ctx context.Cont
 	return s.officeStorageConfigLocked(ctx)
 }
 func (s *ImageStorageSettingService) officeStorageConfigLocked(ctx context.Context) (*config.ImageStorageConfig, error) {
-	settings, err := s.load(ctx)
+	office, err := s.loadOfficeSettings(ctx)
 	if err != nil {
 		return nil, ErrOfficeStorageUnavailable
 	}
-	if settings == nil {
-		fallback := s.fallback
-		if !fallback.IsConfigured() || fallback.PublicBaseURL != "" {
-			return nil, ErrOfficeStorageUnavailable
-		}
-		fallback.Enabled = true
-		fallback.Prefix = "workspace/v1/"
-		return &fallback, nil
+	if office != nil && office.Source != officeStorageImages {
+		return s.resolveOfficeStorage(ctx, *office, nil, nil)
 	}
-	cfg, err := s.toImageStorageConfig(ctx, settings)
-	if cfg != nil && settings.OfficeBucket != "" {
-		cfg.Bucket = settings.OfficeBucket
-	}
-	if err != nil || cfg == nil || !cfg.IsConfigured() || cfg.PublicBaseURL != "" {
+	images, err := s.load(ctx)
+	if err != nil {
 		return nil, ErrOfficeStorageUnavailable
 	}
-	copy := *cfg
-	copy.Enabled = true
-	copy.Prefix = "workspace/v1/"
-	copy.PublicBaseURL = ""
-	return &copy, nil
+	if office == nil {
+		return s.resolveLegacyOfficeStorage(ctx, images, nil)
+	}
+	return s.resolveOfficeStorage(ctx, *office, images, nil)
 }
 func (s *ImageStorageSettingService) AcquireOfficeStorage(ctx context.Context) (*config.ImageStorageConfig, func(), error) {
 	if s == nil {
@@ -665,6 +625,10 @@ func (s *ImageStorageSettingService) AcquireOfficeStorage(ctx context.Context) (
 }
 
 func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, in *ImageStorageSettings) (*config.ImageStorageConfig, error) {
+	return s.toImageStorageConfigWithBackup(ctx, in, nil)
+}
+
+func (s *ImageStorageSettingService) toImageStorageConfigWithBackup(ctx context.Context, in *ImageStorageSettings, backupCfg *BackupS3Config) (*config.ImageStorageConfig, error) {
 	cfg := &config.ImageStorageConfig{
 		Enabled:         in.Enabled,
 		Bucket:          in.Bucket,
@@ -680,9 +644,12 @@ func (s *ImageStorageSettingService) toImageStorageConfig(ctx context.Context, i
 	}
 
 	if in.ReuseBackupS3 {
-		backupCfg, err := s.backupCredentials(ctx)
-		if err != nil {
-			return nil, err
+		if backupCfg == nil {
+			var err error
+			backupCfg, err = s.backupCredentials(ctx)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if backupCfg == nil {
 			return nil, errors.New("image storage is set to reuse the backup S3 configuration, but no backup S3 configuration exists")

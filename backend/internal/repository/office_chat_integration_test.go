@@ -214,11 +214,43 @@ func TestOfficeChatRegenerationUsesOriginalQuestionAndOnlySelectedCandidate(t *t
 	require.NoError(t, err)
 	contextRows, err = repo.ContextMessages(ctx, *fourthRun)
 	require.NoError(t, err)
-	require.Equal(t, []string{"first question", "first answer", "original second question", "candidate A", "new third question"}, officeContextTexts(t, contextRows))
+	require.Equal(t, []string{"first question", "first answer", "original second question", "candidate A", "third question", "new third question"}, officeContextTexts(t, contextRows))
 	root, original, err := repo.RegenerationSource(ctx, first.UserID, first.ConversationID, regenerated.RunID)
 	require.NoError(t, err)
 	require.Equal(t, second.RunID, root.ID)
 	require.JSONEq(t, string(question.Content), string(original.Content))
+}
+
+func TestOfficeChatFollowUpRetainsInterruptedQuestions(t *testing.T) {
+	ctx := context.Background()
+	base, first := officeTestAdmission(t)
+	repo := officeChatRepo(t, base)
+	first.Mode, first.UserContent = "office", json.RawMessage(`{"text":"Prepare a weather report in Word"}`)
+	_, _, err := base.AdmitRun(ctx, first)
+	require.NoError(t, err)
+	lease := officeClaimPreset(t, repo, "office", first.RunID)
+	_, err = base.AppendEvent(ctx, *lease, "partial-reply", "assistant.delta", json.RawMessage(`{"text":"Draft created"}`))
+	require.NoError(t, err)
+	_, err = base.CancelRun(ctx, first.UserID, first.RunID)
+	require.NoError(t, err)
+
+	failed := officeNextAdmission(first, "Add tomorrow's forecast")
+	_, _, err = base.AdmitRun(ctx, failed)
+	require.NoError(t, err)
+	lease = officeClaimPreset(t, repo, "office", failed.RunID)
+	_, err = base.FinishRun(ctx, *lease, service.OfficeRunFailed, json.RawMessage(`{"text":"Unconfirmed interim answer"}`), "TEST_FAILED", "fixture failure")
+	require.NoError(t, err)
+
+	current := officeNextAdmission(first, "Continue")
+	_, _, err = base.AdmitRun(ctx, current)
+	require.NoError(t, err)
+	lease = officeClaimPreset(t, repo, "office", current.RunID)
+	rows, err := repo.ContextMessages(ctx, lease.Run)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Prepare a weather report in Word", "Add tomorrow's forecast", "Continue"}, officeContextTexts(t, rows))
+	for _, row := range rows {
+		require.Equal(t, "user", row.Role)
+	}
 }
 
 func TestOfficeChatSummaryCASAndRegenerationInvalidatesBoundary(t *testing.T) {

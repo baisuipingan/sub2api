@@ -13,15 +13,19 @@
 .bs-native-composer .elevated .bs-composer-editor { min-height:52px; }
 .bs-composer-editor[data-empty=true]::before { content:attr(data-placeholder); position:absolute; inset:0; padding:inherit; color:var(--bc-muted); pointer-events:none; }
 .bs-composer-editor[aria-disabled=true] { cursor:not-allowed; opacity:.6; }
-.bs-composer-inline-reference { display:inline-flex; align-items:baseline; gap:3px; max-width:min(240px,100%); margin-inline-end:4px; padding-inline:4px; vertical-align:baseline; border-radius:4px; color:var(--bc-blue); font:inherit; cursor:text; user-select:none; }
-.bs-composer-inline-reference>svg { flex:none; align-self:center; }
-.bs-composer-reference-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .bs-native-composer .bs-chat-composer-toolbar { display:flex; align-items:center; justify-content:space-between; width:100%; min-width:0; min-height:42px; height:auto; flex-wrap:wrap; gap:12px; padding:2px 8px 6px; container-type:inline-size; }
-.bs-native-composer .bs-chat-composer-leading { display:flex; min-width:0; flex:1 1 auto; align-items:center; gap:12px; overflow:visible; }
+.bs-native-composer .bs-chat-composer-leading { display:flex; min-width:0; flex:1 1 auto; flex-wrap:wrap; align-items:center; gap:6px; overflow:visible; }
 .bs-native-composer .bs-chat-composer-trailing { display:flex; flex:0 0 auto; align-items:center; gap:12px; margin-left:auto; max-width:100%; }
 .bs-native-composer .bs-composer-add { display:grid; flex:none; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:999px; color:var(--bc-ink); background:var(--bc-fill-2); cursor:pointer; }
 .bs-native-composer .bs-composer-add>svg { width:14px; height:14px; }
 .bs-native-composer .bs-composer-add:disabled { cursor:default; opacity:.5; }
+.bs-composer-tool-tag { display:inline-flex; flex:none; min-height:28px; align-items:center; gap:5px; padding:2px 9px; border:1px solid var(--bc-border); border-radius:999px; background:transparent; color:var(--bc-ink); font-family:inherit; font-size:12px; line-height:18px; white-space:nowrap; cursor:pointer; }
+.bs-composer-tool-tag.is-active { border-color:transparent; background:color-mix(in srgb,var(--bc-blue) 11%,var(--bc-composer)); color:var(--bc-blue); }
+.bs-composer-tool-tag:disabled,.bs-composer-tool-tag[aria-disabled=true] { color:var(--bc-muted); background:var(--bc-fill-2); cursor:default; }
+.bs-composer-tool-tag>svg { flex:none; width:14px; height:14px; }
+.bs-composer-tool-tag>.bs-composer-tool-remove { width:12px; height:12px; margin-inline-start:1px; }
+.bs-composer-tool-reason { margin:6px 8px 0; color:var(--bc-muted); font-size:12px; line-height:18px; }
+.bs-composer-search-price { color:var(--bc-muted); font-size:12px; line-height:18px; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .bs-native-composer .bs-chat-submit { display:inline-flex; flex:none; align-items:center; justify-content:center; width:34px; height:34px; padding:5px; border:0; border-radius:50%; transform:translateY(-2px); color:#fff; background:var(--bc-blue); cursor:pointer; transition:background-color .15s ease-out,transform .15s ease-out; }
 .bs-native-composer .bs-chat-submit:disabled { color:var(--bc-muted); background:var(--bc-fill-2); opacity:1; cursor:not-allowed; }
 .bs-native-composer .bs-chat-submit:active:enabled { transform:translateY(-2px) scale(.96); }
@@ -56,9 +60,6 @@
 .bs-composer-command-row>svg { flex:none; width:14px; height:14px; }
 .bs-composer-command-name { flex:0 0 auto; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:400; line-height:20px; }
 .bs-composer-command-description { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--bc-muted); font-size:12px; font-weight:400; line-height:20px; }
-.bs-composer-command-row>.bs-composer-command-end { margin-left:auto; }
-.bs-composer-command-submenu { display:flex; flex-direction:column; min-height:0; padding:4px 8px; }
-.bs-composer-command-empty { margin:0; padding:12px; color:var(--bc-muted); font-size:13px; }
 .bs-composer-file-picker { margin:0; background:transparent; }
 .bs-composer-file-picker .input { font-size:14px; }
 .bs-composer-file-columns { display:flex; justify-content:space-between; margin-top:20px; padding:0 8px 10px; border-bottom:1px solid var(--bc-border); color:var(--bc-muted); font-size:12px; }
@@ -71,7 +72,7 @@
 .bs-composer-picker-status { display:flex; align-items:center; justify-content:center; gap:8px; padding:48px 16px; color:var(--bc-muted); font-size:13px; }
 .bs-composer-picker-more { width:100%; min-height:36px; margin-top:8px; border:0; border-radius:8px; background:var(--bc-fill); color:var(--bc-blue); font-size:13px; }
 .bs-composer-picker-footer { display:flex; width:100%; align-items:center; gap:8px; }.bs-composer-picker-footer>span { flex:1; color:#81858c; font-size:13px; }
-@media (hover:hover) and (pointer:fine) { .bs-composer-inline-reference:hover { background:color-mix(in srgb,var(--bc-blue) 7%,transparent); }.bs-native-composer .bs-composer-add:hover,.bs-native-composer .select-trigger:hover { background:var(--bc-fill-2); }.bs-native-composer .bs-chat-submit:hover:enabled { background:#7aaaff; }.bs-composer-menu .bs-composer-command-row:hover:enabled,.bs-composer-menu .bs-composer-command-row:focus-visible { background:var(--bc-fill-2); } }
+@media (hover:hover) and (pointer:fine) { .bs-composer-tool-tag:hover:enabled:not([aria-disabled=true]) { background:var(--bc-fill-2); }.bs-composer-tool-tag.is-active:hover:enabled { background:color-mix(in srgb,var(--bc-blue) 17%,var(--bc-composer)); }.bs-native-composer .bs-composer-add:hover,.bs-native-composer .select-trigger:hover { background:var(--bc-fill-2); }.bs-native-composer .bs-chat-submit:hover:enabled { background:#7aaaff; }.bs-composer-menu .bs-composer-command-row:hover:enabled,.bs-composer-menu .bs-composer-command-row:focus-visible { background:var(--bc-fill-2); } }
 @container (width <= 560px) { .bs-native-composer .bs-chat-composer-trailing { gap:8px; } }
 @media (max-width:767px) { .bs-native-composer .bs-composer-editor { font-size:16px; }.bs-native-composer .bs-chat-composer-toolbar,.bs-native-composer .bs-chat-composer-leading { gap:8px; }.bs-native-composer .bs-chat-model-select { max-width:160px; }.bs-native-composer .bs-chat-effort-select { width:76px; } }
 @media (max-width:420px) { .bs-native-composer .bs-chat-model-select { max-width:140px; min-width:70px; }.bs-native-composer .bs-chat-composer-trailing { gap:4px; }.bs-composer-command-description { font-size:11px; } }

@@ -145,7 +145,7 @@ func (r *apiKeyRepository) EnsureDesktopAgentKey(ctx context.Context, candidate 
 			return nil, false, service.ErrAPIKeyExists
 		}
 		changed = true
-	} else if key.IsActive() && !key.IsExpired() && !key.IsQuotaExhausted() && (key.GroupID == nil || *key.GroupID != cfg.GroupID) {
+	} else if key.GroupID == nil || *key.GroupID != cfg.GroupID {
 		res, err := tx.ExecContext(ctx, `UPDATE api_keys SET group_id=$1,updated_at=NOW() WHERE id=$2 AND purpose='desktop_agent' AND key_type='system' AND deleted_at IS NULL`, cfg.GroupID, key.ID)
 		if err != nil {
 			return nil, false, err

@@ -97,6 +97,13 @@ type workbenchConfigSettings struct {
 	values map[string]string
 }
 
+func (r *workbenchConfigSettings) GetValue(_ context.Context, key string) (string, error) {
+	if value, ok := r.values[key]; ok {
+		return value, nil
+	}
+	return "", service.ErrSettingNotFound
+}
+
 func (r *workbenchConfigSettings) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
 	values := map[string]string{}
 	for _, key := range keys {
@@ -111,7 +118,7 @@ func (r *workbenchConfigSettings) SetMultiple(_ context.Context, values map[stri
 	return nil
 }
 
-func TestWorkbenchConfigBudgetAndAliasSettingsPreserveLegacyImagePayload(t *testing.T) {
+func TestWorkbenchConfigAcceptsOldBudgetPayloadWithoutPersistingIt(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &workbenchConfigSettings{values: map[string]string{}}
 	h := NewWorkbenchHandler(service.NewWorkbenchAdminService(nil, service.NewSettingService(repo, nil), nil))
@@ -125,16 +132,15 @@ func TestWorkbenchConfigBudgetAndAliasSettingsPreserveLegacyImagePayload(t *test
 	}
 	first := send(`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":3,"max_run_credits":700,"model_profiles":{"office-alias":{"profile_id":"gpt-6.1-sol","override":false}}}`)
 	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
-	require.Contains(t, first.Body.String(), `"deployment_limits"`)
+	require.NotContains(t, first.Body.String(), `"deployment_limits"`)
+	require.NotContains(t, repo.values, "workbench_max_model_calls")
+	require.NotContains(t, repo.values, "workbench_max_run_credits")
 	legacy := send(`{"image_studio_enabled":false,"image_studio_group_id":0}`)
 	require.Equal(t, http.StatusOK, legacy.Code, legacy.Body.String())
-	require.Contains(t, legacy.Body.String(), `"max_model_calls":3`)
-	require.Contains(t, legacy.Body.String(), `"max_run_credits":700`)
+	require.NotContains(t, legacy.Body.String(), `"max_model_calls"`)
+	require.NotContains(t, legacy.Body.String(), `"max_run_credits"`)
 	require.Contains(t, legacy.Body.String(), `"office-alias"`)
 	for _, body := range []string{
-		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":0}`,
-		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_model_calls":9999}`,
-		`{"image_studio_enabled":false,"image_studio_group_id":0,"max_run_credits":-1}`,
 		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"office-alias":{"profile_id":"gpt-6.1-sol","override":true}}}`,
 		`{"image_studio_enabled":false,"image_studio_group_id":0,"model_profiles":{"gpt-6.1-sol":{"profile_id":"gpt-6-luna","override":false}}}`,
 	} {

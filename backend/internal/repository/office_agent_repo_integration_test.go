@@ -215,6 +215,35 @@ func TestOfficeAgentOperationInboxPreventsRedispatchAndChargesOncePerIdentity(t 
 	require.ErrorIs(t, repo.CheckLease(ctx, *lease), service.ErrOfficeLeaseLost)
 }
 
+func TestOfficeAgentModelDigestOnlyInboxReplaysLegacyRows(t *testing.T) {
+	ctx := context.Background()
+	repo, _, lease := officeAdmitAndClaim(t)
+	legacy := officePrepared(t, repo, *lease, "model:legacy")
+	legacyReplay, created, err := repo.PrepareOperation(ctx, *lease, service.OfficeOperationPrepare{
+		ID: legacy.ID, Kind: legacy.Kind, InputHash: legacy.InputHash, RequestID: legacy.RequestID,
+	})
+	require.NoError(t, err)
+	require.False(t, created)
+	require.Equal(t, legacy.Input, legacyReplay.Input)
+
+	large := service.OfficeOperationPrepare{
+		ID: "model:large", Kind: service.OfficeOperationModel, InputHash: strings.Repeat("d", 64), RequestID: uuid.NewString(),
+	}
+	prepared, created, err := repo.PrepareOperation(ctx, *lease, large)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.JSONEq(t, "{}", string(prepared.Input))
+	_, created, err = repo.PrepareOperation(ctx, *lease, large)
+	require.NoError(t, err)
+	require.False(t, created)
+	large.InputHash = strings.Repeat("e", 64)
+	_, _, err = repo.PrepareOperation(ctx, *lease, large)
+	require.ErrorIs(t, err, service.ErrOfficeConflict)
+	large.Kind = service.OfficeOperationTool
+	_, _, err = repo.PrepareOperation(ctx, *lease, large)
+	require.ErrorIs(t, err, service.ErrOfficeInvalid)
+}
+
 func TestOfficeAgentPreparedBudgetIsAtomic(t *testing.T) {
 	ctx := context.Background()
 	repo, in := officeTestAdmission(t)

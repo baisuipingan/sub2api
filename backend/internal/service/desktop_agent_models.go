@@ -41,6 +41,11 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 // Responses-only projection. Keep the existing desktop catalog unchanged.
 type workbenchChatModelCatalog struct{ base *desktopAgentModelCatalog }
 
+type workbenchModelRoute struct {
+	protocol        workbenchProtocol
+	nativeResponses bool
+}
+
 func NewWorkbenchChatModelCatalog(accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService) DesktopAgentModelCatalog {
 	base := &desktopAgentModelCatalog{accounts: accounts, routes: routes}
 	if channels != nil {
@@ -50,10 +55,63 @@ func NewWorkbenchChatModelCatalog(accounts AccountRepository, routes CompositeMo
 }
 
 func (s *workbenchChatModelCatalog) ModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
-	return s.base.modelsForEndpoint(ctx, group, CompositeRouteEndpointChatCompletions)
+	routes, err := s.modelRoutes(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(routes))
+	for id := range routes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func (s *workbenchChatModelCatalog) modelRoutes(ctx context.Context, group *Group) (map[string]workbenchModelRoute, error) {
+	out := make(map[string]workbenchModelRoute)
+	preference := []workbenchModelRoute{
+		{protocol: workbenchProtocolResponses},
+		{protocol: workbenchProtocolChatCompletions},
+		{protocol: workbenchProtocolResponses, nativeResponses: true},
+		{protocol: workbenchProtocolAnthropic},
+		{protocol: workbenchProtocolGemini},
+	}
+	for _, route := range preference {
+		ids, err := s.base.workbenchEndpointModels(ctx, group, workbenchProtocolEndpoint(route.protocol), route.nativeResponses)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			out[id] = route
+		}
+	}
+	return out, nil
+}
+
+func workbenchProtocolEndpoint(protocol workbenchProtocol) string {
+	switch protocol {
+	case workbenchProtocolChatCompletions:
+		return CompositeRouteEndpointChatCompletions
+	case workbenchProtocolResponses:
+		return CompositeRouteEndpointResponses
+	case workbenchProtocolAnthropic:
+		return CompositeRouteEndpointMessages
+	case workbenchProtocolGemini:
+		return CompositeRouteEndpointGemini
+	default:
+		return ""
+	}
 }
 
 func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group *Group, endpoint string) ([]string, error) {
+	return s.configuredEndpointModels(ctx, group, endpoint, false, false)
+}
+
+func (s *desktopAgentModelCatalog) workbenchEndpointModels(ctx context.Context, group *Group, endpoint string, requireNativeResponses bool) ([]string, error) {
+	return s.configuredEndpointModels(ctx, group, endpoint, true, requireNativeResponses)
+}
+
+func (s *desktopAgentModelCatalog) configuredEndpointModels(ctx context.Context, group *Group, endpoint string, workbench, requireNativeResponses bool) ([]string, error) {
 	if s == nil || s.accounts == nil || group == nil || group.ID <= 0 {
 		return nil, errors.New("desktop model catalog unavailable")
 	}
@@ -63,6 +121,23 @@ func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group 
 	}
 	if group.Platform == PlatformComposite {
 		platforms = domain.ConcretePlatformIDs()
+	} else if endpoint == CompositeRouteEndpointGemini {
+		if group.Platform != PlatformGemini {
+			return nil, nil
+		}
+		platforms = []string{PlatformGemini}
+	} else if workbench {
+		switch endpoint {
+		case CompositeRouteEndpointResponses:
+			if group.Platform != PlatformOpenAI {
+				return nil, nil
+			}
+		case CompositeRouteEndpointMessages:
+			if group.Platform != PlatformAnthropic {
+				return nil, nil
+			}
+			platforms = []string{PlatformAnthropic}
+		}
 	}
 	// 配置目录不能随限流、过载等临时健康状态变动，也不能查询失败后补全平台默认列表。
 	accounts, err := s.accounts.ListModelAvailabilityCandidates(ctx, &group.ID, platforms, false)
@@ -160,6 +235,11 @@ func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group 
 			platform, target = decision.TargetPlatform, decision.UpstreamModel
 			requestCtx = WithCompositeRouteDecision(ctx, decision)
 		}
+		if workbench && (endpoint == CompositeRouteEndpointGemini && (platform != PlatformGemini || !IsSafeGeminiModelPathSegment(model)) ||
+			endpoint == CompositeRouteEndpointMessages && (platform != PlatformAnthropic || group.ClaudeCodeOnly) ||
+			endpoint == CompositeRouteEndpointResponses && platform != PlatformOpenAI) {
+			continue
+		}
 		if isCodexDedicatedMediaModel(target) {
 			continue
 		}
@@ -191,6 +271,12 @@ func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group 
 		useMixed := platform == PlatformAnthropic || platform == PlatformGemini
 		for i := range accounts {
 			account := &accounts[i]
+			if workbench && endpoint == CompositeRouteEndpointMessages && !supportsWorkbenchAnthropicMessages(account) {
+				continue
+			}
+			if requireNativeResponses && endpoint == CompositeRouteEndpointResponses && !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityResponses) {
+				continue
+			}
 			if !modelSupport.isAccountAllowedForPlatform(account, platform, useMixed) ||
 				(group.RequirePrivacySet && !account.IsPrivacySet()) ||
 				!modelSupport.isModelSupportedByAccountWithContext(requestCtx, account, target) {

@@ -16,7 +16,7 @@ export function workspaceKey(area: WorkspaceArea, context: WorkspaceContext) { r
 
 export function workspaceDefault(area: WorkspaceArea, context: WorkspaceContext, isAdmin: boolean): string {
   if (context === 'admin' && isAdmin) return area === 'workbench' ? '/admin/workbench' : '/admin/dashboard'
-  return area === 'workbench' ? '/workbench/image' : isAdmin ? '/keys' : '/dashboard'
+  return area === 'workbench' ? '/workbench' : isAdmin ? '/keys' : '/dashboard'
 }
 
 /** Route state is authoritative; persisted memory stores only return destinations. */

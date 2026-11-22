@@ -36,7 +36,8 @@ func (UsageLog) Fields() []ent.Field {
 		// 关联字段
 		field.Int64("user_id"),
 		field.Int64("api_key_id"),
-		field.Int64("account_id"),
+		field.Int64("account_id").Optional(),
+		field.String("search_provider").MaxLen(32).Optional().Nillable(),
 		field.String("request_id").
 			MaxLen(64).
 			NotEmpty(),
@@ -226,7 +227,6 @@ func (UsageLog) Edges() []ent.Edge {
 		edge.From("account", Account.Type).
 			Ref("usage_logs").
 			Field("account_id").
-			Required().
 			Unique(),
 		edge.From("group", Group.Type).
 			Ref("usage_logs").

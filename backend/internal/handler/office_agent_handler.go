@@ -224,16 +224,17 @@ func (h *OfficeAgentHandler) Suspend(c *gin.Context) {
 }
 
 func (h *OfficeAgentHandler) Model(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	lease := h.lease(c, false)
 	if lease == nil {
 		return
 	}
-	limit := service.OfficeMaxOperationInputBytes
-	if c.GetHeader("X-Office-Model-Purpose") == "context_compaction" {
-		limit = service.OfficeMaxCompactionInputBytes
+	body, err := readOfficeBody(c, h.service.ModelRequestBodyLimit())
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		err = service.ErrOfficeModelInputTooLarge
 	}
-	body, ok := officeRead(c, limit)
-	if !ok {
+	if officeHandlerError(c, err) {
 		return
 	}
 	reply, err := h.service.InvokeModelPurpose(c.Request.Context(), *lease, c.GetHeader("X-Office-Operation-ID"), body, c.GetHeader("X-Office-Model-Purpose"))
@@ -360,39 +361,42 @@ func (h *OfficeAgentHandler) lease(c *gin.Context, resultOnly bool) *service.Off
 	return lease
 }
 
-func officeRead(c *gin.Context, limit int) ([]byte, bool) {
+func readOfficeBody(c *gin.Context, limit int64) ([]byte, error) {
 	if encoding := c.GetHeader("Content-Encoding"); encoding != "" && encoding != "identity" {
-		officeHandlerError(c, service.ErrOfficeInvalid)
-		return nil, false
+		return nil, service.ErrOfficeInvalid
 	}
 	request := c.Request
-	request.Body = http.MaxBytesReader(c.Writer, request.Body, int64(limit))
-	if request.ContentLength > int64(limit) {
-		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": gin.H{"code": "INPUT_TOO_LARGE", "message": "request exceeds pilot input limit", "retryable": false}})
-		return nil, false
+	if limit > 0 {
+		if request.ContentLength > limit {
+			return nil, &http.MaxBytesError{Limit: limit}
+		}
+		request.Body = http.MaxBytesReader(c.Writer, request.Body, limit)
 	}
 	body, err := pkghttp.ReadRequestBodyWithPrealloc(request)
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": gin.H{"code": "INPUT_TOO_LARGE", "message": "request exceeds pilot input limit", "retryable": false}})
-		} else if errors.Is(err, pkghttp.ErrRequestBodyMemoryBudget) {
-			officeHandlerError(c, service.ErrOfficeCapacity)
-		} else {
-			officeHandlerError(c, service.ErrOfficeInvalid)
+			return nil, tooLarge
 		}
-		return nil, false
+		if errors.Is(err, pkghttp.ErrRequestBodyMemoryBudget) {
+			return nil, service.ErrOfficeCapacity
+		}
+		return nil, service.ErrOfficeInvalid
 	}
 	if pkghttp.ReserveRequestBodyMemory(request.Context(), int64(len(body))*2) != nil {
-		officeHandlerError(c, service.ErrOfficeCapacity)
-		return nil, false
+		return nil, service.ErrOfficeCapacity
 	}
-	return body, true
+	return body, nil
 }
 
 func officeDecode(c *gin.Context, value any, limit int) bool {
-	body, ok := officeRead(c, limit)
-	if !ok {
+	body, err := readOfficeBody(c, int64(limit))
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": gin.H{"code": "INPUT_TOO_LARGE", "message": "request exceeds pilot input limit", "retryable": false}})
+		return false
+	}
+	if officeHandlerError(c, err) {
 		return false
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
@@ -412,8 +416,17 @@ func officeHandlerError(c *gin.Context, err error) bool {
 	switch {
 	case errors.Is(err, service.ErrOfficeDisabled):
 		status, code, message = http.StatusNotFound, "OFFICE_DISABLED", "办公试验入口尚未启用"
+	case errors.Is(err, service.ErrOfficeSearchUnavailable):
+		status, code, message = http.StatusConflict, "WORKBENCH_SEARCH_UNAVAILABLE", "联网搜索暂不可用，请检查工作台的搜索开关和供应商配置"
+	case errors.Is(err, service.ErrWorkbenchSearchPriceChanged):
+		status, code, message = http.StatusConflict, "WORKBENCH_SEARCH_PRICE_CHANGED", "联网搜索价格已更新，请刷新工作台查看新价格后再发送"
+	case errors.Is(err, service.ErrOfficeSearchModelUnsupported):
+		status, code, message = http.StatusBadRequest, "WORKBENCH_SEARCH_MODEL_UNSUPPORTED", "当前模型未确认支持工具调用，请选择可使用联网搜索的模型"
 	case errors.Is(err, service.ErrOfficeUnauthorized):
 		status, code, message = http.StatusUnauthorized, "OFFICE_UNAUTHORIZED", "执行凭证无效或已过期"
+	case errors.Is(err, service.ErrOfficeStepBusy):
+		status, code, message, retryable = http.StatusConflict, "WORKBENCH_STEP_BUSY", "这一步仍在执行", true
+		c.Header("Retry-After", "1")
 	case errors.Is(err, service.ErrOfficeLeaseLost):
 		status, code, message = http.StatusConflict, "LEASE_LOST", "任务已取消、租约失效或已被其他执行器接管"
 	case errors.Is(err, service.ErrOfficeNotFound):
@@ -422,12 +435,18 @@ func officeHandlerError(c *gin.Context, err error) bool {
 		status, code, message = http.StatusConflict, "NEEDS_CONFIRMATION", "这一步可能已经调用上游，但结果尚未确认；已停止自动重试，避免重复计费"
 	case errors.Is(err, service.ErrOfficeRouteChanged):
 		status, code, message = http.StatusConflict, "MODEL_ROUTE_CHANGED", "工作台模型、密钥或分组配置已变化，未发起新的模型调用"
+	case errors.Is(err, service.ErrGroupNotAllowed), errors.Is(err, service.ErrInsufficientPerms):
+		status, code, message = http.StatusForbidden, "WORKBENCH_AGENT_GROUP_FORBIDDEN", "当前账号无权使用工作台的 Agent 分组"
+	case errors.Is(err, service.ErrOfficeModelInputTooLarge):
+		status, code, message = http.StatusRequestEntityTooLarge, "MODEL_INPUT_TOO_LARGE", "模型请求超过网关允许的请求体大小，尚未发起这一步模型调用"
 	case errors.Is(err, service.ErrOfficeBudgetExceeded):
 		status, code, message = http.StatusUnprocessableEntity, "RUN_LIMIT_EXCEEDED", "本次任务已达到模型、工具或输入输出预算限制"
 	case errors.Is(err, service.ErrOfficeSettlementPending):
 		status, code, message = http.StatusConflict, "BILLING_PENDING", "上一轮模型已完成，计费记录仍在入账；本步骤尚未调用，任务已暂停"
 	case errors.Is(err, service.ErrOfficeActiveRun), errors.Is(err, service.ErrOfficeConflict):
 		status, code, message = http.StatusConflict, "OFFICE_CONFLICT", "已有活动任务，或同一请求编号对应的内容不同"
+	case errors.Is(err, service.ErrOfficeResourceType):
+		status, code, message = http.StatusBadRequest, "UNSUPPORTED_ATTACHMENT", "当前模型或工作台配置不支持这种附件"
 	case errors.Is(err, service.ErrOfficeInvalid):
 		status, code, message = http.StatusBadRequest, "OFFICE_INVALID", "办公试验请求参数不符合接口约定"
 	case errors.Is(err, service.ErrOfficeCapacity):

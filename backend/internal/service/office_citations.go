@@ -65,7 +65,16 @@ func officeCitations(operations []OfficeOperation) []OfficeCitation {
 		if len(citations) >= maximum {
 			break
 		}
-		if op.Kind != OfficeOperationTool || op.State != OfficeOperationCompleted || op.Result == nil || op.Result.ErrorCode != "" || (op.Result.HTTPStatus != 0 && (op.Result.HTTPStatus < 200 || op.Result.HTTPStatus >= 300)) {
+		if op.Kind != OfficeOperationTool || op.State != OfficeOperationCompleted {
+			continue
+		}
+		if (op.Result == nil || len(op.Result.Output) == 0 || string(op.Result.Output) == "null") && op.ToolProjection != nil {
+			for _, citation := range op.ToolProjection.Citations {
+				add(citation.URL, citation.Title, "")
+			}
+			continue
+		}
+		if op.Result == nil || op.Result.ErrorCode != "" || (op.Result.HTTPStatus != 0 && (op.Result.HTTPStatus < 200 || op.Result.HTTPStatus >= 300)) {
 			continue
 		}
 		var input struct {

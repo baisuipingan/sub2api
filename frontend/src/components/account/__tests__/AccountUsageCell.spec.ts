@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AccountUsageCell from '../AccountUsageCell.vue'
 import type { Account, AccountUsageInfo } from '@/types'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 const { getUsage } = vi.hoisted(() => ({
   getUsage: vi.fn()
@@ -1244,6 +1245,16 @@ describe('AccountUsageCell', () => {
 		const badges = wrapper.findAll('span[title]')
 		expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
 		expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
+
+    try {
+      setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY', billing_usd_to_cny: 7.2 })
+      await flushPromises()
+      expect(wrapper.text()).toMatch(/A [¥￥]88\.88/)
+      expect(wrapper.text()).toMatch(/U [¥￥]48\.88/)
+    } finally {
+      setCurrentBillingCurrencySettings(null)
+      wrapper.unmount()
+    }
   })
 
   it('Grok OAuth compact UI drops local chips and header quota bars', async () => {

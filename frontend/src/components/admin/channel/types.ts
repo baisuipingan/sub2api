@@ -174,6 +174,14 @@ export function formatTimezoneOffset(timezone: string, at = new Date()): string 
 // 价格转换：后端存 per-token，前端显示 per-MTok ($/1M tokens)
 const MTOK = 1_000_000
 
+export function flatPriceUnitKey(mode: BillingMode): string {
+  switch (mode) {
+    case 'image': return 'admin.channels.form.priceUnitImage'
+    case 'video': return 'admin.channels.form.priceUnitSecond'
+    default: return 'admin.channels.form.priceUnitRequest'
+  }
+}
+
 export function toNullableNumber(val: number | string | null | undefined): number | null {
   if (val === null || val === undefined || val === '') return null
   const num = Number(val)

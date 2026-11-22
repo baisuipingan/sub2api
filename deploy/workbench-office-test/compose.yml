@@ -69,7 +69,7 @@ services:
     depends_on: [minio]
     networks: [control, egress]
   app:
-    profiles: [app, workers]
+    profiles: [app]
     image: ${APP_IMAGE:-milo-workbench-test:latest}
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -100,7 +100,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?test-only secret required}
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?test-only secret required}
       OFFICE_AGENT_ENABLED: "true"
-      OFFICE_AGENT_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN:?test-only worker secret required}
+      OFFICE_AGENT_TOOLS_URL: ${OFFICE_TOOLS_URL:-http://office-tools:8094}
+      OFFICE_AGENT_TOOLS_TOKEN: ${OFFICE_TOOLS_TOKEN:?test-only tools secret required}
+      OFFICE_AGENT_TOOLS_LEGACY_PUT: "true"
       OFFICE_AGENT_MAX_CONCURRENT_CALLS: "2"
       OFFICE_AGENT_MAX_MODEL_CALLS: "${OFFICE_MAX_MODEL_CALLS:-16}"
       OFFICE_AGENT_MAX_TOOL_CALLS: "${OFFICE_MAX_TOOL_CALLS:-24}"
@@ -120,6 +122,7 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
+      office-tools: {condition: service_healthy}
     networks: [control, egress]
     healthcheck:
       test: [CMD, wget, -q, -T, "3", -O, /dev/null, http://127.0.0.1:8080/health]
@@ -127,91 +130,36 @@ services:
       timeout: 4s
       retries: 10
       start_period: 90s
-  chat-worker:
-    profiles: [workers]
-    image: ${WORKER_IMAGE:-milo-office-worker-test:latest}
+  office-tools:
+    profiles: [app, tools]
+    image: ${OFFICE_TOOLS_IMAGE:-milo-office-tools-test:latest}
     restart: unless-stopped
     init: true
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    mem_limit: 640m
+    cpus: 1.0
     pids_limit: 64
-    mem_limit: 384m
-    cpus: 1.0
     environment:
-      OFFICE_CONTROL_ORIGIN: http://app:8080
-      OFFICE_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN}
-      OFFICE_WORKER_PRESET: chat
-      OFFICE_WORKER_ID: office-test-chat
-      LANGSMITH_TRACING: "false"
-      LANGCHAIN_TRACING_V2: "false"
-    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
-    networks: [control]
-    depends_on: {app: {condition: service_healthy}}
-    stop_grace_period: 30s
-  office-worker:
-    profiles: [workers]
-    image: ${WORKER_IMAGE:-milo-office-worker-test:latest}
-    restart: unless-stopped
-    init: true
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 64
-    mem_limit: 512m
-    cpus: 1.0
-    environment:
-      OFFICE_CONTROL_ORIGIN: http://app:8080
-      OFFICE_WORKER_TOKEN: ${OFFICE_WORKER_TOKEN}
-      OFFICE_WORKER_PRESET: office
-      OFFICE_WORKER_ID: office-test-office
-      OFFICE_EXECUTOR_PILOT_ENABLED: "true"
-      OFFICE_EXECUTOR_ORIGIN: http://executor:8093
-      OFFICE_EXECUTOR_TOKEN: ${OFFICE_EXECUTOR_TOKEN:?test-only executor secret required}
-      LANGSMITH_TRACING: "false"
-      LANGCHAIN_TRACING_V2: "false"
-    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
-    networks: [control]
-    depends_on:
-      app: {condition: service_healthy}
-      executor: {condition: service_healthy}
-    stop_grace_period: 45s
-  executor:
-    profiles: [executor, workers]
-    image: ${SUPERVISOR_IMAGE:-milo-office-supervisor-test:latest}
-    restart: unless-stopped
-    init: true
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    mem_limit: 768m
-    cpus: 1.0
-    pids_limit: 128
-    environment:
-      OFFICE_EXECUTOR_IMAGE: ${TASK_IMAGE:-sha256:0000000000000000000000000000000000000000000000000000000000000000}
-      OFFICE_EXECUTOR_STATE_DIR: /opt/milo-workbench-test/executor-state
-      OFFICE_EXECUTOR_CONCURRENCY: "1"
-      OFFICE_EXECUTOR_HOST: 0.0.0.0
-      OFFICE_EXECUTOR_PORT: "8093"
-      OFFICE_EXECUTOR_TOKEN_FILE: /run/secrets/executor_token
-    volumes:
-      - /opt/milo-workbench-test/executor-state:/opt/milo-workbench-test/executor-state
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ../secrets/executor-token:/run/secrets/executor_token:ro
-    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
-    networks: [control]
+      OFFICE_TOOLS_TOKEN: ${OFFICE_TOOLS_TOKEN:?test-only tools secret required}
+      OFFICE_TOOLS_STORAGE_ORIGINS: https://llm.editor.vip,http://minio:9000
+      OFFICE_TOOLS_CONCURRENCY: "1"
+      OFFICE_TOOLS_RECALC_ENABLED: "true"
+    volumes: [office-tools:/var/lib/office-tools]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=32m"]
+    networks: [control, egress]
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/healthz', timeout=2).read()"]
-      interval: 15s
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8094/health', timeout=2).read()"]
+      interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 15s
-    stop_grace_period: 45s
 
 volumes:
   postgres: {}
   minio: {}
   app: {}
+  office-tools: {}
   go-mod: {external: true, name: milo-workbench-gomod}
   go-build: {external: true, name: milo-workbench-gobuild}
 networks:

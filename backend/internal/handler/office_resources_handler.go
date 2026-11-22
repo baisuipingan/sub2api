@@ -38,6 +38,8 @@ func officeResourceHTTPError(c *gin.Context, err error) bool {
 	}
 	status, code, message := 0, "", ""
 	switch {
+	case errors.Is(err, service.ErrOfficePrintPreview):
+		status, code, message = http.StatusUnprocessableEntity, "PRINT_PREVIEW_FAILED", "这份文档暂时无法生成打印版式，可以继续使用快速预览或下载原件"
 	case errors.Is(err, service.ErrOfficeResourceType):
 		status, code, message = http.StatusBadRequest, "FILE_TYPE_INVALID", "文件格式或内容不符合要求；支持 PDF、DOCX、XLSX、PPTX、PNG、JPEG、WebP 和 UTF-8 文本，不支持宏、加密文档或可执行文件"
 	case errors.Is(err, service.ErrOfficeResourceTooLarge):
@@ -136,6 +138,17 @@ func (h *OfficeResourcesHandler) Upload(c *gin.Context) {
 	}
 	response.Success(c, v)
 }
+func (h *OfficeResourcesHandler) PrintPreview(c *gin.Context) {
+	user, ok := h.user(c)
+	if !ok {
+		return
+	}
+	v, err := h.agent.PreparePrintPreview(c.Request.Context(), user, c.Param("version_id"), c.Query("retry") == "1")
+	if officeResourceHTTPError(c, err) {
+		return
+	}
+	response.Success(c, v)
+}
 func (h *OfficeResourcesHandler) Access(c *gin.Context) {
 	user, ok := h.user(c)
 	if !ok {
@@ -145,6 +158,7 @@ func (h *OfficeResourcesHandler) Access(c *gin.Context) {
 	if officeResourceHTTPError(c, err) {
 		return
 	}
+	v.CanRenderPrintPreview = v.CanRenderPrintPreview && h.agent.HasPrintPreview(c.Request.Context())
 	response.Success(c, v)
 }
 func (h *OfficeResourcesHandler) Delete(c *gin.Context) {

@@ -6,6 +6,8 @@ import enCommon from "@/i18n/locales/en/common";
 import enSettings from "@/i18n/locales/en/admin/settings";
 import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
+import BillingCurrencySettingsCard from "@/components/admin/settings/BillingCurrencySettingsCard.vue";
+import { setCurrentBillingCurrencySettings } from "@/utils/billingCurrency";
 import SettingsView from "../SettingsView.vue";
 
 const { settingsRoute, replaceSettingsRoute } = vi.hoisted(() => ({
@@ -31,6 +33,8 @@ beforeEach(() => {
 const {
   getSettings,
   updateSettings,
+  getBillingCurrencyConfig,
+  updateBillingCurrencyConfig,
   getWebSearchEmulationConfig,
   updateWebSearchEmulationConfig,
   getAdminApiKey,
@@ -59,6 +63,8 @@ const {
 } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
+  getBillingCurrencyConfig: vi.fn(),
+  updateBillingCurrencyConfig: vi.fn(),
   getWebSearchEmulationConfig: vi.fn(),
   updateWebSearchEmulationConfig: vi.fn(),
   getAdminApiKey: vi.fn(),
@@ -106,6 +112,8 @@ vi.mock("@/api", () => ({
     settings: {
       getSettings,
       updateSettings,
+      getBillingCurrencyConfig,
+      updateBillingCurrencyConfig,
       getWebSearchEmulationConfig,
       updateWebSearchEmulationConfig,
       getAdminApiKey,
@@ -693,6 +701,8 @@ describe("admin SettingsView payment visible method controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
     updateSettings.mockReset();
+    getBillingCurrencyConfig.mockReset();
+    updateBillingCurrencyConfig.mockReset();
     getWebSearchEmulationConfig.mockReset();
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
@@ -723,6 +733,15 @@ describe("admin SettingsView payment visible method controls", () => {
       ...baseSettingsResponse,
       ...payload,
     }));
+    getBillingCurrencyConfig.mockResolvedValue({
+      enabled: true,
+      engine: "credits",
+      credits_per_usd: 100_000_000,
+      display_currency: "CNY",
+      usd_to_cny: 7.2,
+      recharge_rates: { USD: 1.1, CNY: 6.8 },
+      version: 2,
+    });
     getWebSearchEmulationConfig.mockResolvedValue({
       enabled: false,
       providers: [],
@@ -1263,11 +1282,88 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateBillingCurrencyConfig).not.toHaveBeenCalled();
     const payload = updateSettings.mock.calls[0]?.[0];
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+  });
+
+  it("persists display currency through the bottom save and reloads the saved currency", async () => {
+    setCurrentBillingCurrencySettings({ billing_display_currency: "CNY", billing_usd_to_cny: 7.2 });
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, balance_low_notify_threshold: 5 });
+    updateBillingCurrencyConfig.mockImplementation(async (payload) => {
+      const updated = { ...payload, version: payload.version + 1 };
+      getBillingCurrencyConfig.mockResolvedValue(updated);
+      return updated;
+    });
+    fetchPublicSettings.mockImplementation(async () => {
+      const saved = await getBillingCurrencyConfig();
+      setCurrentBillingCurrencySettings({
+        billing_display_currency: saved.display_currency,
+        billing_usd_to_cny: saved.usd_to_cny,
+      });
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    await wrapper.get("#billing-display-currency").setValue("USD");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(updateBillingCurrencyConfig).toHaveBeenCalledTimes(1);
+    expect(updateBillingCurrencyConfig).toHaveBeenCalledWith(expect.objectContaining({
+      display_currency: "USD",
+      engine: "credits",
+      usd_to_cny: 7.2,
+      recharge_rates: { USD: 1.1, CNY: 6.8 },
+      version: 2,
+    }));
+    expect(showSuccess).toHaveBeenCalledTimes(1);
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({ balance_low_notify_threshold: 5 }));
+    expect(updateBillingCurrencyConfig).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+
+    const reloaded = mountView();
+    await flushPromises();
+    await openPaymentTab(reloaded);
+    expect((reloaded.get("#billing-display-currency").element as HTMLSelectElement).value).toBe("USD");
+    const card = reloaded.getComponent(BillingCurrencySettingsCard);
+    await card.get('input[type="number"]').setValue("7.1");
+    await card.get("button.btn-primary").trigger("click");
+    await flushPromises();
+    expect(updateBillingCurrencyConfig).toHaveBeenLastCalledWith(expect.objectContaining({
+      display_currency: "USD",
+      usd_to_cny: 7.1,
+      recharge_rates: { USD: 1.1, CNY: 7.1 },
+      version: 3,
+    }));
+    reloaded.unmount();
+    setCurrentBillingCurrencySettings();
+  });
+
+  it("keeps the edited currency and skips the bottom success toast when its save fails", async () => {
+    updateBillingCurrencyConfig.mockRejectedValue(new Error("save failed"));
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    const card = wrapper.getComponent(BillingCurrencySettingsCard);
+    await card.get("#billing-display-currency").setValue("USD");
+    showError.mockClear();
+
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(updateBillingCurrencyConfig).toHaveBeenCalledTimes(1);
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith("error");
+    expect((card.get("#billing-display-currency").element as HTMLSelectElement).value).toBe("USD");
+    expect(card.get("button.btn-primary").attributes("disabled")).toBeUndefined();
+    wrapper.unmount();
   });
 
   it("submits the admin recharge affiliate rebate setting", async () => {

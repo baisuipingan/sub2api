@@ -127,7 +127,8 @@ type UsageLog struct {
 	// BillingTier 计费层级标签（per_request/image 模式）
 	BillingTier *string
 	// BillingMode 计费模式：token/image
-	BillingMode *string
+	BillingMode    *string
+	SearchProvider *string
 	// ServiceTier records the billable request tier, e.g. OpenAI "priority" / "flex"
 	// or Anthropic "fast".
 	ServiceTier *string

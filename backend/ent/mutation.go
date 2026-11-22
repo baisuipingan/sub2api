@@ -47449,6 +47449,7 @@ type UsageLogMutation struct {
 	op                           Op
 	typ                          string
 	id                           *int64
+	search_provider              *string
 	request_id                   *string
 	model                        *string
 	requested_model              *string
@@ -47742,9 +47743,71 @@ func (m *UsageLogMutation) OldAccountID(ctx context.Context) (v int64, err error
 	return oldValue.AccountID, nil
 }
 
+// ClearAccountID clears the value of the "account_id" field.
+func (m *UsageLogMutation) ClearAccountID() {
+	m.account = nil
+	m.clearedFields[usagelog.FieldAccountID] = struct{}{}
+}
+
+// AccountIDCleared returns if the "account_id" field was cleared in this mutation.
+func (m *UsageLogMutation) AccountIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldAccountID]
+	return ok
+}
+
 // ResetAccountID resets all changes to the "account_id" field.
 func (m *UsageLogMutation) ResetAccountID() {
 	m.account = nil
+	delete(m.clearedFields, usagelog.FieldAccountID)
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (m *UsageLogMutation) SetSearchProvider(s string) {
+	m.search_provider = &s
+}
+
+// SearchProvider returns the value of the "search_provider" field in the mutation.
+func (m *UsageLogMutation) SearchProvider() (r string, exists bool) {
+	v := m.search_provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSearchProvider returns the old "search_provider" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldSearchProvider(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSearchProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSearchProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSearchProvider: %w", err)
+	}
+	return oldValue.SearchProvider, nil
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (m *UsageLogMutation) ClearSearchProvider() {
+	m.search_provider = nil
+	m.clearedFields[usagelog.FieldSearchProvider] = struct{}{}
+}
+
+// SearchProviderCleared returns if the "search_provider" field was cleared in this mutation.
+func (m *UsageLogMutation) SearchProviderCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldSearchProvider]
+	return ok
+}
+
+// ResetSearchProvider resets all changes to the "search_provider" field.
+func (m *UsageLogMutation) ResetSearchProvider() {
+	m.search_provider = nil
+	delete(m.clearedFields, usagelog.FieldSearchProvider)
 }
 
 // SetRequestID sets the "request_id" field.
@@ -50476,7 +50539,7 @@ func (m *UsageLogMutation) ClearAccount() {
 
 // AccountCleared reports if the "account" edge to the Account entity was cleared.
 func (m *UsageLogMutation) AccountCleared() bool {
-	return m.clearedaccount
+	return m.AccountIDCleared() || m.clearedaccount
 }
 
 // AccountIDs returns the "account" edge IDs in the mutation.
@@ -50583,7 +50646,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 54)
+	fields := make([]string, 0, 55)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -50592,6 +50655,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.account != nil {
 		fields = append(fields, usagelog.FieldAccountID)
+	}
+	if m.search_provider != nil {
+		fields = append(fields, usagelog.FieldSearchProvider)
 	}
 	if m.request_id != nil {
 		fields = append(fields, usagelog.FieldRequestID)
@@ -50760,6 +50826,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.APIKeyID()
 	case usagelog.FieldAccountID:
 		return m.AccountID()
+	case usagelog.FieldSearchProvider:
+		return m.SearchProvider()
 	case usagelog.FieldRequestID:
 		return m.RequestID()
 	case usagelog.FieldModel:
@@ -50877,6 +50945,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldAPIKeyID(ctx)
 	case usagelog.FieldAccountID:
 		return m.OldAccountID(ctx)
+	case usagelog.FieldSearchProvider:
+		return m.OldSearchProvider(ctx)
 	case usagelog.FieldRequestID:
 		return m.OldRequestID(ctx)
 	case usagelog.FieldModel:
@@ -51008,6 +51078,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAccountID(v)
+		return nil
+	case usagelog.FieldSearchProvider:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSearchProvider(v)
 		return nil
 	case usagelog.FieldRequestID:
 		v, ok := value.(string)
@@ -51723,6 +51800,12 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *UsageLogMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(usagelog.FieldAccountID) {
+		fields = append(fields, usagelog.FieldAccountID)
+	}
+	if m.FieldCleared(usagelog.FieldSearchProvider) {
+		fields = append(fields, usagelog.FieldSearchProvider)
+	}
 	if m.FieldCleared(usagelog.FieldRequestedModel) {
 		fields = append(fields, usagelog.FieldRequestedModel)
 	}
@@ -51803,6 +51886,12 @@ func (m *UsageLogMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *UsageLogMutation) ClearField(name string) error {
 	switch name {
+	case usagelog.FieldAccountID:
+		m.ClearAccountID()
+		return nil
+	case usagelog.FieldSearchProvider:
+		m.ClearSearchProvider()
+		return nil
 	case usagelog.FieldRequestedModel:
 		m.ClearRequestedModel()
 		return nil
@@ -51885,6 +51974,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldAccountID:
 		m.ResetAccountID()
+		return nil
+	case usagelog.FieldSearchProvider:
+		m.ResetSearchProvider()
 		return nil
 	case usagelog.FieldRequestID:
 		m.ResetRequestID()

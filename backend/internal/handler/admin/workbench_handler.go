@@ -130,20 +130,21 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 	var body struct {
-		Enabled              *bool                                               `json:"image_studio_enabled"`
-		Chat                 *bool                                               `json:"chat_enabled"`
-		Office               *bool                                               `json:"office_enabled"`
-		Search               *bool                                               `json:"search_enabled"`
-		Files                *bool                                               `json:"files_enabled"`
-		GroupID              *int64                                              `json:"image_studio_group_id"`
-		ChatConcurrentRuns   *int                                                `json:"chat_concurrent_runs"`
-		OfficeConcurrentRuns *int                                                `json:"office_concurrent_runs"`
-		MaxModelCalls        *int                                                `json:"max_model_calls"`
-		MaxToolCalls         *int                                                `json:"max_tool_calls"`
-		MaxOutputTokens      *int                                                `json:"max_output_tokens"`
-		MaxRunSeconds        *int                                                `json:"max_run_seconds"`
-		MaxRunCredits        *int64                                              `json:"max_run_credits"`
-		ModelProfiles        *map[string]service.DesktopAgentModelProfileBinding `json:"model_profiles"`
+		Enabled       *bool                                               `json:"image_studio_enabled"`
+		Chat          *bool                                               `json:"chat_enabled"`
+		Office        *bool                                               `json:"office_enabled"`
+		Search        *bool                                               `json:"search_enabled"`
+		Files         *bool                                               `json:"files_enabled"`
+		GroupID       *int64                                              `json:"image_studio_group_id"`
+		ModelProfiles *map[string]service.DesktopAgentModelProfileBinding `json:"model_profiles"`
+		// Recognize old browser payloads while task limits move to deployment policy.
+		ChatConcurrentRuns   *int   `json:"chat_concurrent_runs"`
+		OfficeConcurrentRuns *int   `json:"office_concurrent_runs"`
+		MaxModelCalls        *int   `json:"max_model_calls"`
+		MaxToolCalls         *int   `json:"max_tool_calls"`
+		MaxOutputTokens      *int   `json:"max_output_tokens"`
+		MaxRunSeconds        *int   `json:"max_run_seconds"`
+		MaxRunCredits        *int64 `json:"max_run_credits"`
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -173,22 +174,6 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	}
 	if body.Files != nil {
 		cfg.FilesEnabled = *body.Files
-	}
-	for _, field := range []struct{ input, target *int }{
-		{body.ChatConcurrentRuns, &cfg.ChatConcurrentRuns}, {body.OfficeConcurrentRuns, &cfg.OfficeConcurrentRuns},
-		{body.MaxModelCalls, &cfg.MaxModelCalls}, {body.MaxToolCalls, &cfg.MaxToolCalls},
-		{body.MaxOutputTokens, &cfg.MaxOutputTokens}, {body.MaxRunSeconds, &cfg.MaxRunSeconds},
-	} {
-		if field.input != nil {
-			if *field.input <= 0 {
-				workbenchAdminError(c, service.ErrWorkbenchInvalid)
-				return
-			}
-			*field.target = *field.input
-		}
-	}
-	if body.MaxRunCredits != nil {
-		cfg.MaxRunCredits = *body.MaxRunCredits
 	}
 	if body.ModelProfiles != nil {
 		cfg.ModelProfiles = *body.ModelProfiles

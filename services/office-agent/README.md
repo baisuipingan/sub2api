@@ -97,9 +97,9 @@ it asks for fewer selected turns or a larger-context model before spending calls
 Compaction uses server-provided official `context_window`, configured output and
 transport bounds. UTF-8 bytes are a conservative token upper bound, not a claim
 of exact model tokenization. Compaction requests have purpose header
-`X-Office-Model-Purpose: context_compaction` and a 1 MiB request limit; normal model
-requests retain the 256 KiB limit. Go suppresses public answer deltas for this
-purpose while keeping the original usage/billing path. A saved summary has a
+`X-Office-Model-Purpose: context_compaction`. The model bridge uses the existing
+gateway request-body limit for ordinary and compaction calls. Go suppresses
+public answer deltas for compaction while keeping the original billing path. A saved summary has a
 stable assistant-message boundary and SHA256 of its ordered source message IDs.
 
 When Go declares `supports_vision=true`, office mode exposes

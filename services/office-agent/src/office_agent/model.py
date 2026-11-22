@@ -69,8 +69,13 @@ class BridgeChatModel(BaseChatModel):
         formatted = []
         latest_image = next((index for index in range(len(messages) - 1, -1, -1)
                              if isinstance(messages[index], ToolMessage) and "office_image_ref" in messages[index].additional_kwargs), None)
-        for index, message in enumerate(messages):
-            formatted.extend(convert_to_openai_messages([message]))
+        for message in messages:
+            converted = convert_to_openai_messages([message])
+            if manifest.replay_tool_reasoning and kwargs.get("tools") and isinstance(message, AIMessage) and message.tool_calls:
+                reasoning = message.additional_kwargs.get("reasoning_content")
+                if reasoning:
+                    converted[0]["reasoning_content"] = reasoning
+            formatted.extend(converted)
         if latest_image is not None:
             if not manifest.supports_vision or self._workspace is None:
                 raise RuntimeFailure("VISION_NOT_AVAILABLE", "当前任务模型未开放图片检查")
@@ -86,8 +91,6 @@ class BridgeChatModel(BaseChatModel):
             payload.update(tools=kwargs["tools"], parallel_tool_calls=False)
         if kwargs.get("tool_choice") is not None:
             payload["tool_choice"] = kwargs["tool_choice"]
-        if len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()) > (1024 * 1024 if self._purpose else 256 * 1024):
-            raise RuntimeFailure("MODEL_INPUT_TOO_LARGE", "任务上下文或渲染图超过模型桥输入上限，请减少资料或缩小预览")
         try:
             config = get_config()
         except RuntimeError:
@@ -103,7 +106,7 @@ class BridgeChatModel(BaseChatModel):
         return payload, operation_id(str(manifest.run_id), "model", step, None)
 
     @staticmethod
-    def _chunk(result, op):
+    def _chunk(result, op, *, capture_reasoning=False):
         if "_complete_response" in result:
             result = result["_complete_response"]
             complete = True
@@ -122,6 +125,11 @@ class BridgeChatModel(BaseChatModel):
         content = item.get("content") or ""
         if not isinstance(content, str):
             raise ValueError("model content must be text")
+        additional_kwargs = {}
+        if capture_reasoning and (reasoning := item.get("reasoning_content")):
+            if not isinstance(reasoning, str):
+                raise ValueError("model reasoning must be text")
+            additional_kwargs["reasoning_content"] = reasoning
         # String metadata is concatenated by LangChain's chunk merger. Include
         # the operation identity only on the single finish chunk.
         metadata = {}
@@ -134,7 +142,7 @@ class BridgeChatModel(BaseChatModel):
             usage_metadata = {"input_tokens": usage.get("prompt_tokens", 0),
                               "output_tokens": usage.get("completion_tokens", 0),
                               "total_tokens": usage.get("total_tokens", 0)}
-        return ChatGenerationChunk(message=AIMessageChunk(content=content, tool_call_chunks=chunks,
+        return ChatGenerationChunk(message=AIMessageChunk(content=content, tool_call_chunks=chunks, additional_kwargs=additional_kwargs,
                                                           response_metadata=metadata, usage_metadata=usage_metadata))
 
     @staticmethod
@@ -164,15 +172,25 @@ class BridgeChatModel(BaseChatModel):
     async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
         payload, op = self._request(messages, stop, kwargs)
         accumulated = None
+        capture_reasoning = self._control.manifest.replay_tool_reasoning and bool(payload.get("tools"))
+        reasoning_parts: list[str] = []
         try:
             async for result in self._control.model_stream(payload, op, purpose=self._purpose):
-                chunk = self._chunk(result, op)
+                chunk = self._chunk(result, op, capture_reasoning=capture_reasoning)
+                reasoning = chunk.message.additional_kwargs.pop("reasoning_content", "")
+                if reasoning:
+                    reasoning_parts.append(reasoning)
                 accumulated = chunk if accumulated is None else accumulated + chunk
                 yield chunk
             # This lives inside _astream so both ainvoke and SDK streaming
             # consumers validate before they can dispatch any assembled tool.
             if accumulated is not None:
                 self._validate_complete(accumulated.message)
+                if accumulated.message.tool_calls and reasoning_parts:
+                    # Keep continuation state only on a validated tool-call turn.
+                    # Public assistant events are separately projected by Go.
+                    yield ChatGenerationChunk(message=AIMessageChunk(
+                        content="", additional_kwargs={"reasoning_content": "".join(reasoning_parts)}))
         except (KeyError, IndexError, TypeError, ValueError):
             raise RuntimeFailure("INVALID_MODEL_RESPONSE", "模型或工具响应无法识别；不会自动重试", uncertain=True) from None
 

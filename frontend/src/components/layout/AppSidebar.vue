@@ -114,7 +114,7 @@
         </div>
 
         <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
+        <div v-if="!authStore.isSimpleMode && personalNavItems.length" class="sidebar-section">
           <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
             <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
               {{ t(workspace.area === 'workbench' ? 'nav.myCreations' : 'nav.myAccount') }}
@@ -855,7 +855,7 @@ function resolveBadge(item: NavItem): number {
 function buildSelfNavItems(withDashboard: boolean, area: WorkspaceArea = workspace.value.area): NavItem[] {
   if (area === 'workbench') return [
  ...(chatFlags.value?.enabled ? [{ path: '/workbench/chat', label: '对话助手', icon: TicketSupportIcon }] : []),
- { path: '/workbench/image', label: t('nav.imageStudio'), icon: ImageStudioIcon },
+ { path: '/workbench/image', label: t('nav.imageStudio'), icon: ImageStudioIcon, featureFlag: makeSidebarFlag(FeatureFlags.imageStudio) },
  ...(chatFlags.value?.files_enabled ? [{ path: '/workbench/files', label: '我的文件', icon: FolderIcon }] : []),
  ]
   const items: NavItem[] = []
@@ -924,6 +924,7 @@ function buildAdminNavItems(area: WorkspaceArea): NavItem[] {
     { path: '/admin/workbench/tasks', label: t('nav.workbenchTasks'), icon: OrderListIcon },
     { path: '/admin/workbench/gallery', label: t('nav.workbenchGallery'), icon: BatchImageIcon },
     { path: '/admin/workbench/files', label: '用户文件', icon: FolderIcon },
+    { path: '/admin/workbench/office-nodes', label: t('nav.workbenchOfficeNodes'), icon: ServerIcon },
     { path: '/admin/workbench/settings', label: t('nav.workbenchSettings'), icon: CogIcon },
   ]
   const baseItems: NavItem[] = [

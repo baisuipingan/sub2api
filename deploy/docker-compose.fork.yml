@@ -1,3 +1,5 @@
 services:
   sub2api:
     image: ${SUB2API_IMAGE:?SUB2API_IMAGE is required}
+    environment:
+      OFFICE_AGENT_ENABLED: ${OFFICE_AGENT_ENABLED:-false}

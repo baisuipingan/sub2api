@@ -147,7 +147,12 @@ func (s *OfficeResourcesService) Access(ctx context.Context, userID int64, id st
 		return nil, err
 	}
 	result := &OfficeResourceAccess{URL: u, ExpiresAt: time.Now().Add(10 * time.Minute), PreviewKind: v.PreviewKind}
-	if v.PreviewKey != "" {
+	if v.PreviewKey == workbenchPrintKey(v.ObjectKey) {
+		result.PreviewKind = "unsupported"
+	}
+	result.CanRenderPrintPreview = strings.EqualFold(path.Ext(v.Name), ".docx") &&
+		(v.PreviewKey == "" || v.PreviewKey == workbenchPrintKey(v.ObjectKey))
+	if v.PreviewKey != "" && v.PreviewKey != workbenchPrintKey(v.ObjectKey) {
 		result.PreviewURL, err = store.PresignGet(ctx, v.PreviewKey, 10*time.Minute)
 		if err != nil {
 			return nil, err
@@ -197,7 +202,7 @@ func (s *OfficeResourcesService) Upload(ctx context.Context, userID int64, name 
 	return s.persistVersion(ctx, resource, nil, data, preview)
 }
 
-func (s *OfficeResourcesService) persistVersion(ctx context.Context, in OfficeResource, lease *OfficeRunLease, data, preview []byte) (*OfficeResource, error) {
+func (s *OfficeResourcesService) reserveVersion(ctx context.Context, in OfficeResource, lease *OfficeRunLease, preview bool) (*OfficeResource, error) {
 	if s.settings == nil {
 		return nil, ErrOfficeStorageUnavailable
 	}
@@ -205,13 +210,17 @@ func (s *OfficeResourcesService) persistVersion(ctx context.Context, in OfficeRe
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	in.Endpoint, in.Region, in.Bucket = cfg.Endpoint, cfg.Region, cfg.Bucket
 	in.ObjectKey = "workspace/v1/resources/" + in.VersionID + "/original"
-	if len(preview) > 0 {
+	if preview {
 		in.PreviewKey = "workspace/v1/resources/" + in.VersionID + "/preview"
 	}
-	reserved, err := s.repo.ReserveVersion(ctx, in, lease)
-	release()
+	return s.repo.ReserveVersion(ctx, in, lease)
+}
+
+func (s *OfficeResourcesService) persistVersion(ctx context.Context, in OfficeResource, lease *OfficeRunLease, data, preview []byte) (*OfficeResource, error) {
+	reserved, err := s.reserveVersion(ctx, in, lease, len(preview) > 0)
 	if err != nil {
 		return nil, err
 	}

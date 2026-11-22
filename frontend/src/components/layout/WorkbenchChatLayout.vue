@@ -36,7 +36,7 @@
         <button type="button" class="chat-nav-link chat-new-conversation" :title="collapsed ? '新建对话' : undefined" @click="newConversation">
           <Icon name="edit" size="sm" /><span v-if="!collapsed">新建对话</span><span v-else class="sr-only">新建对话</span>
         </button>
-        <RouterLink to="/workbench/image" class="chat-nav-link" :title="collapsed ? t('nav.imageStudio') : undefined" @click="closeMobile(false)">
+        <RouterLink v-if="imageStudioEnabled" to="/workbench/image" class="chat-nav-link" :title="collapsed ? t('nav.imageStudio') : undefined" @click="closeMobile(false)">
           <Icon name="sparkles" size="sm" /><span v-if="!collapsed">{{ t('nav.imageStudio') }}</span><span v-else class="sr-only">{{ t('nav.imageStudio') }}</span>
         </RouterLink>
         <RouterLink v-if="chatStore.status?.files_enabled" to="/workbench/files" class="chat-nav-link" :title="collapsed ? '我的文件' : undefined" @click="closeMobile(false)">
@@ -51,10 +51,13 @@
         <RouterLink v-if="authStore.isAdmin" to="/admin/workbench" class="chat-nav-link chat-admin-entry" :title="collapsed ? t('nav.workbenchManagement') : undefined" @click="closeMobile(false)">
           <Icon name="cog" size="sm" /><span v-if="!collapsed">{{ t('nav.workbenchManagement') }}</span><span v-else class="sr-only">{{ t('nav.workbenchManagement') }}</span>
         </RouterLink>
-        <div v-if="!collapsed" class="chat-billing-row">
-          <span :title="t('common.availableBalance')">{{ formatCurrentBillingAmount(Number(authStore.user?.balance || 0), 2) }}</span>
-          <SubscriptionProgressMini v-if="subscriptionEnabled" placement="top" />
-        </div>
+        <dl v-if="!collapsed && authStore.user" class="chat-balance rounded-xl bg-gray-50 text-center dark:bg-dark-800">
+          <dt class="text-xs font-medium text-gray-500 dark:text-dark-300">{{ t('common.availableBalance') }}</dt>
+          <dd class="chat-balance-amount mt-0.5 text-xl font-semibold leading-7 tabular-nums text-gray-900 dark:text-gray-100">
+            {{ formatCurrentBillingAmount(Number(authStore.user.balance || 0), 2) }}
+          </dd>
+        </dl>
+        <SubscriptionProgressMini v-if="!collapsed && subscriptionEnabled" class="flex justify-end" placement="top" />
         <div class="chat-global-actions">
           <AnnouncementBell v-if="authStore.user" />
           <LocaleSwitcher placement="top" :compact="collapsed" />
@@ -93,7 +96,7 @@ import { useWorkbenchChatStore } from '@/stores/workbenchChat'
 import { useTicketStore } from '@/stores/tickets'
 import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
-import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { FeatureFlags, isFeatureFlagEnabled, resolveFeatureFlag } from '@/utils/featureFlags'
 import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
 import { sanitizeUrl } from '@/utils/url'
 import { desktopDownloadPath } from '@/router/desktopDownloadRoutes'
@@ -121,6 +124,7 @@ const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRela
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const subscriptionEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.subscription))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
+const imageStudioEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.imageStudio))
 let previousOverflow: string | null = null
 
 const consoleDestination = computed(() => {
@@ -188,9 +192,36 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.workbench-chat-layout { --workbench-chat-header-height:0px; --chat-nav-width:240px; display:flex; width:100%; height:100dvh; min-height:0; overflow:hidden; color:#1e1e2e; background:#fff; }
+.workbench-chat-layout {
+  --workbench-chat-header-height:0px;
+  --chat-nav-width:240px;
+  --chat-layout-background:#fff;
+  --chat-nav-background:#fff;
+  --chat-nav-border:#e8e9eb;
+  --chat-nav-new-background:#f5f5f5;
+  --chat-nav-text:#1e1e2e;
+  --bc-muted:#81858c;
+  display:flex;
+  width:100%;
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+  color:var(--chat-nav-text);
+  background:var(--chat-layout-background);
+}
+html.dark .workbench-chat-layout {
+  --chat-layout-background:#171719;
+  --chat-nav-background:#1e1e20;
+  --chat-nav-border:#333336;
+  --chat-nav-new-background:#2c2c2e;
+  --chat-nav-text:#e5e7eb;
+  --bc-muted:#a0a2aa;
+  --bc-fill-2:#2c2c2e;
+  --bc-warning:#fbbf24;
+  color-scheme:dark;
+}
 .chat-sidebar-collapsed { --chat-nav-width:58px; }
-.chat-navigation { position:relative; z-index:40; display:flex; flex:0 0 var(--chat-nav-width); width:var(--chat-nav-width); min-height:0; height:100dvh; flex-direction:column; gap:12px; border-right:.5px solid #e8e9eb; padding:20px 12px 12px; background:#fff; }
+.chat-navigation { position:relative; z-index:40; display:flex; flex:0 0 var(--chat-nav-width); width:var(--chat-nav-width); min-height:0; height:100dvh; flex-direction:column; gap:12px; border-right:.5px solid var(--chat-nav-border); padding:20px 12px 12px; background:var(--chat-nav-background); }
 .chat-brand-row { display:flex; height:32px; flex-shrink:0; align-items:center; justify-content:space-between; gap:8px; }
 .chat-brand { display:flex; min-width:0; align-items:center; gap:8px; font-size:16px; font-weight:600; color:inherit; text-decoration:none; }
 .chat-brand img { width:24px; height:24px; flex-shrink:0; object-fit:contain; }
@@ -201,12 +232,16 @@ onBeforeUnmount(() => {
 .chat-area-switcher { flex-shrink:0; padding:0; }
 .chat-module-nav { display:flex; flex-shrink:0; flex-direction:column; gap:4px; }
 .chat-nav-link { display:flex; min-width:0; min-height:32px; align-items:center; gap:8px; border:0; border-radius:8px; padding:4px 8px; color:inherit; font-size:14px; line-height:24px; text-align:left; text-decoration:none; background:transparent; cursor:pointer; }
-.chat-new-conversation { background:#f5f5f5; }
+.chat-new-conversation { background:var(--chat-nav-new-background); }
 .chat-navigation :deep(.bs-chat-history-heading) { min-height:28px; padding:0 8px; }
+.chat-navigation :deep(.bs-chat-history-heading),.chat-navigation :deep(.bs-chat-load-more) { color:var(--bc-muted); }
+html.dark .chat-navigation :deep(.bs-chat-history-menu .danger) { color:#fca5a5; }
+html.dark .chat-navigation :deep(.bs-chat-history-row.editing) { box-shadow:0 0 0 1px var(--chat-nav-border); }
 .chat-history-spacer { flex:1; min-height:0; }
-.chat-sidebar-footer { display:flex; flex-shrink:0; flex-direction:column; gap:8px; border-top:.5px solid #e8e9eb; padding-top:8px; }
+.chat-sidebar-footer { display:flex; flex-shrink:0; flex-direction:column; gap:8px; border-top:.5px solid var(--chat-nav-border); padding-top:8px; }
 .chat-global-actions { display:flex; align-items:center; justify-content:space-between; gap:2px; }
-.chat-billing-row { display:flex; min-height:28px; align-items:center; justify-content:space-between; gap:8px; padding:0 4px; color:#6b7280; font-size:12px; }
+.chat-balance { min-width:0; padding:8px 10px; }
+.chat-balance-amount { overflow-wrap:anywhere; }
 .chat-ticket-unread { margin-left:auto; color:#ef4444; font-size:12px; }
 .chat-main-column { display:flex; flex:1; min-width:0; min-height:0; height:100dvh; flex-direction:column; }
 .chat-layout-main { flex:1; min-width:0; min-height:0; overflow:hidden; outline:none; }
@@ -216,15 +251,10 @@ onBeforeUnmount(() => {
 .chat-sidebar-collapsed .chat-module-nav .chat-nav-link,.chat-sidebar-collapsed .chat-admin-entry { justify-content:center; padding:4px; }
 .chat-sidebar-collapsed .chat-global-actions { flex-direction:column; gap:4px; }
 .chat-nav-backdrop { position:fixed; inset:0; z-index:39; border:0; background:rgb(0 0 0 / 35%); }
-:global(.dark) .workbench-chat-layout { color:#e5e7eb; background:#171719; }
-:global(.dark) .chat-navigation { background:#1e1e20; border-color:#333336; }
-:global(.dark) .chat-sidebar-footer { border-color:#333336; }
-:global(.dark) .chat-new-conversation { background:#2c2c2e; }
 @media (max-width:1023px) {
   .workbench-chat-layout { --workbench-chat-header-height:48px; }
-  .chat-navigation { position:fixed; inset:0 auto 0 0; width:240px; transform:translateX(-100%); visibility:hidden; }
+  .chat-navigation { position:fixed; inset:0 auto 0 0; width:min(var(--chat-nav-width),100vw); padding-bottom:max(12px,env(safe-area-inset-bottom)); transform:translateX(-100%); visibility:hidden; }
   .chat-mobile-open .chat-navigation { transform:translateX(0); visibility:visible; }
-  .chat-mobile-header { display:flex; flex:0 0 48px; align-items:center; justify-content:space-between; gap:8px; border-bottom:.5px solid #e8e9eb; padding:0 8px; font-size:14px; font-weight:500; }
-  :global(.dark) .chat-mobile-header { border-color:#333336; }
+  .chat-mobile-header { display:flex; flex:0 0 48px; align-items:center; justify-content:space-between; gap:8px; border-bottom:.5px solid var(--chat-nav-border); padding:0 8px; font-size:14px; font-weight:500; }
 }
 </style>

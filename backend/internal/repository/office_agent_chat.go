@@ -93,12 +93,28 @@ func (r *officeAgentRepository) DeleteConversation(ctx context.Context, user int
 	if e != nil {
 		return e
 	}
+	_, e = tx.ExecContext(ctx, `UPDATE office_agent_replay_checkpoints SET published=FALSE
+		WHERE user_id=$1 AND conversation_id=$2 AND published`, user, id)
+	if e != nil {
+		return e
+	}
 	return tx.Commit()
 }
 func (r *officeAgentRepository) ContextMessages(ctx context.Context, run service.OfficeRun) ([]service.OfficeMessage, error) {
-	// Selected successful runs plus the current user question; regeneration reads
-	// the original question boundary, never its previous candidate answers.
-	rows, e := r.db.QueryContext(ctx, `SELECT m.id::text,m.conversation_id::text,m.run_id::text,m.sequence,m.role,m.content,m.created_at FROM office_agent_messages m JOIN office_agent_runs r ON r.id=m.run_id WHERE m.user_id=$1 AND m.conversation_id=$2 AND ((m.sequence<=$3 AND r.selected AND r.status IN ('completed','partially_completed') AND ($4='' OR (r.id<>NULLIF($4,'')::uuid AND r.regeneration_of IS DISTINCT FROM NULLIF($4,'')::uuid))) OR (m.run_id=$5 AND m.role='user')) ORDER BY m.sequence DESC LIMIT 2001`, run.UserID, run.ConversationID, run.ContextBoundary, run.RegenerationOf, run.ID)
+	// An interrupted root turn still has a user question. Carry it forward
+	// without promoting an incomplete assistant result or a regeneration's
+	// duplicate question. Regeneration still uses the original turn boundary.
+	rows, e := r.db.QueryContext(ctx, `
+SELECT m.id::text,m.conversation_id::text,m.run_id::text,m.sequence,m.role,m.content,m.created_at
+FROM office_agent_messages m
+JOIN office_agent_runs r ON r.id=m.run_id
+WHERE m.user_id=$1 AND m.conversation_id=$2
+  AND ((m.sequence<=$3
+        AND ($4='' OR (r.id<>NULLIF($4,'')::uuid AND r.regeneration_of IS DISTINCT FROM NULLIF($4,'')::uuid))
+        AND ((r.selected AND r.status IN ('completed','partially_completed'))
+          OR (m.role='user' AND r.regeneration_of IS NULL AND r.status IN ('cancelled','failed'))))
+    OR (m.run_id=$5 AND m.role='user'))
+ORDER BY m.sequence DESC LIMIT 2001`, run.UserID, run.ConversationID, run.ContextBoundary, run.RegenerationOf, run.ID)
 	if e != nil {
 		return nil, e
 	}
@@ -127,7 +143,9 @@ func (r *officeAgentRepository) ListOperations(ctx context.Context, user int64, 
 	// prompts/responses and unrelated file tools remain absent from this listing.
 	rows, e := r.db.QueryContext(ctx, `SELECT operation_id,kind,state,request_id,created_at,dispatched_at,completed_at,
  CASE WHEN kind='tool' AND state='completed' AND input_json->>'tool' IN ('web_search','web_read') THEN input_json END,
- CASE WHEN kind='tool' AND state='completed' AND input_json->>'tool' IN ('web_search','web_read') THEN result_json END
+ CASE WHEN kind='tool' AND state='completed' AND input_json->>'tool' IN ('web_search','web_read') THEN result_json END,
+ CASE WHEN kind='tool' AND state='completed' AND tool_projection ? 'citations'
+      THEN jsonb_build_object('citations',tool_projection->'citations') END
  FROM office_agent_operations WHERE user_id=$1 AND run_id=$2 ORDER BY created_at,operation_id LIMIT 200`, user, run)
 	if e != nil {
 		return nil, e
@@ -136,14 +154,19 @@ func (r *officeAgentRepository) ListOperations(ctx context.Context, user int64, 
 	out := []service.OfficeOperation{}
 	for rows.Next() {
 		var o service.OfficeOperation
-		var input, result []byte
+		var input, result, projection []byte
 		o.RunID = run
-		if e = rows.Scan(&o.ID, &o.Kind, &o.State, &o.RequestID, &o.CreatedAt, &o.DispatchedAt, &o.CompletedAt, &input, &result); e != nil {
+		if e = rows.Scan(&o.ID, &o.Kind, &o.State, &o.RequestID, &o.CreatedAt, &o.DispatchedAt, &o.CompletedAt, &input, &result, &projection); e != nil {
 			return nil, e
 		}
 		o.Input = input
 		if len(result) > 0 {
 			if e = json.Unmarshal(result, &o.Result); e != nil {
+				return nil, e
+			}
+		}
+		if len(projection) > 0 {
+			if e = json.Unmarshal(projection, &o.ToolProjection); e != nil {
 				return nil, e
 			}
 		}
@@ -314,8 +337,19 @@ func (r *officeAgentRepository) SelectAnswer(ctx context.Context, user int64, id
 	if active {
 		return nil, service.ErrOfficeActiveRun
 	}
+	var selected bool
+	if e = tx.QueryRowContext(ctx, `SELECT selected FROM office_agent_runs WHERE id=$1 AND user_id=$2`, id, user).Scan(&selected); e != nil {
+		return nil, officeDBError(e)
+	}
+	if selected {
+		run.Selected = true
+		return run, tx.Commit()
+	}
 	_, e = tx.ExecContext(ctx, `UPDATE office_agent_runs SET selected=(id=$3) WHERE user_id=$1 AND conversation_id=$2 AND (id=$4 OR regeneration_of=$4)`, user, run.ConversationID, id, root)
 	if e != nil {
+		return nil, e
+	}
+	if e = invalidateWorkbenchReplayAfter(ctx, tx, user, run.ConversationID, root); e != nil {
 		return nil, e
 	}
 	run.Selected = true
@@ -326,10 +360,26 @@ func (r *officeAgentRepository) MessagePage(ctx context.Context, user int64, id 
 	if _, e := r.GetConversation(ctx, user, id); e != nil {
 		return nil, nil, false, 0, e
 	}
+	return officeMessagePage(ctx, r.db, user, id, before)
+}
+
+type officeMessageQuerier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+const officeMessageColumns = `id::text,conversation_id::text,run_id::text,sequence,role,content,created_at`
+
+func scanOfficeMessage(row officeScanner) (service.OfficeMessage, error) {
+	var message service.OfficeMessage
+	err := row.Scan(&message.ID, &message.ConversationID, &message.RunID, &message.Sequence, &message.Role, &message.Content, &message.CreatedAt)
+	return message, err
+}
+
+func officeMessagePage(ctx context.Context, db officeMessageQuerier, user int64, id string, before int64) ([]service.OfficeMessage, []service.OfficeRun, bool, int64, error) {
 	if before <= 0 {
 		before = 1 << 62
 	}
-	rows, e := r.db.QueryContext(ctx, `SELECT id::text,conversation_id::text,run_id::text,sequence,role,content,created_at FROM office_agent_messages WHERE user_id=$1 AND conversation_id=$2 AND sequence<$3 ORDER BY sequence DESC LIMIT 51`, user, id, before)
+	rows, e := db.QueryContext(ctx, `SELECT `+officeMessageColumns+` FROM office_agent_messages WHERE user_id=$1 AND conversation_id=$2 AND sequence<$3 ORDER BY sequence DESC LIMIT 51`, user, id, before)
 	if e != nil {
 		return nil, nil, false, 0, e
 	}
@@ -337,8 +387,8 @@ func (r *officeAgentRepository) MessagePage(ctx context.Context, user int64, id 
 	items := []service.OfficeMessage{}
 	ids := []string{}
 	for rows.Next() {
-		var m service.OfficeMessage
-		if e = rows.Scan(&m.ID, &m.ConversationID, &m.RunID, &m.Sequence, &m.Role, &m.Content, &m.CreatedAt); e != nil {
+		m, e := scanOfficeMessage(rows)
+		if e != nil {
 			return nil, nil, false, 0, e
 		}
 		items = append(items, m)
@@ -360,7 +410,7 @@ func (r *officeAgentRepository) MessagePage(ctx context.Context, user int64, id 
 	for _, m := range items {
 		ids = append(ids, m.RunID)
 	}
-	rr, e := r.db.QueryContext(ctx, `SELECT `+officeRunColumns+` FROM office_agent_runs WHERE user_id=$1 AND conversation_id=$2 AND (id=ANY($3::uuid[]) OR status IN ('queued','running','recovering','waiting_user','needs_confirmation')) ORDER BY created_at,id LIMIT 100`, user, id, pq.Array(ids))
+	rr, e := db.QueryContext(ctx, `SELECT `+officeRunColumns+` FROM office_agent_runs WHERE user_id=$1 AND conversation_id=$2 AND (id=ANY($3::uuid[]) OR status IN ('queued','running','recovering','waiting_user','needs_confirmation')) ORDER BY created_at,id LIMIT 100`, user, id, pq.Array(ids))
 	if e != nil {
 		return nil, nil, false, 0, e
 	}
@@ -377,7 +427,7 @@ func (r *officeAgentRepository) MessagePage(ctx context.Context, user int64, id 
 		return nil, nil, false, 0, e
 	}
 	_ = rr.Close()
-	if e = r.hydrateOfficeRunArtifacts(ctx, user, runs); e != nil {
+	if e = hydrateOfficeRunArtifacts(ctx, db, user, runs); e != nil {
 		return nil, nil, false, 0, e
 	}
 	return items, runs, more, next, nil
@@ -389,7 +439,7 @@ func (r *officeAgentRepository) MessagePage(ctx context.Context, user int64, id 
 // This deliberately reads neither private storage targets nor object bytes and
 // never signs URLs. Edited uploads also have a run_id, even though the resource
 // retains its original source="upload".
-func (r *officeAgentRepository) hydrateOfficeRunArtifacts(ctx context.Context, user int64, runs []service.OfficeRun) error {
+func hydrateOfficeRunArtifacts(ctx context.Context, db officeMessageQuerier, user int64, runs []service.OfficeRun) error {
 	if len(runs) == 0 {
 		return nil
 	}
@@ -401,7 +451,7 @@ func (r *officeAgentRepository) hydrateOfficeRunArtifacts(ctx context.Context, u
 		byID[runs[i].ID] = runs[i].Artifacts
 		ids = append(ids, runs[i].ID)
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT run_id::text,resource_id::text,id::text,COALESCE(parent_version_id::text,''),name,mime,byte_size,sha256,preview_kind,source,created_at FROM (
+	rows, err := db.QueryContext(ctx, `SELECT run_id::text,resource_id::text,id::text,COALESCE(parent_version_id::text,''),name,mime,byte_size,sha256,preview_kind,source,created_at FROM (
  SELECT v.run_id,v.resource_id,v.id,v.parent_version_id,v.name,v.mime,v.byte_size,v.sha256,v.preview_kind,r.source,v.created_at,
  ROW_NUMBER() OVER(PARTITION BY v.run_id ORDER BY v.created_at,v.id) AS artifact_position
  FROM office_resource_versions v JOIN office_resources r ON r.id=v.resource_id AND r.user_id=v.user_id

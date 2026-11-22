@@ -14,13 +14,15 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params?.id ? `${key}:${params.id}` : key }) }))
 vi.mock('@/composables/useStepUp', () => ({ useStepUp: () => ({ run: stepUpRun }), isStepUpCancelled: () => false, isStepUpBlocked: () => false, stepUpBlockReason: () => '' }))
 
-const base = { image_studio_enabled: true, image_studio_group_id: 7 }
+const base = { image_studio_enabled: true, image_studio_group_id: 7, agent_group_id: 8 }
 const wrappers: ReturnType<typeof mount>[] = []
 function mountSettings() {
   const wrapper = mount(WorkbenchSettingsView, { global: { stubs: {
     AppLayout: { template: '<div><slot /></div>' },
     TotpStepUpDialog: true,
     ImageStorageSettings: true,
+    OfficeStorageSettings: true,
+    WorkbenchSearchSettings: true,
     RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
     Select: {
       props: ['modelValue', 'options'], emits: ['update:modelValue'],
@@ -39,10 +41,10 @@ describe('WorkbenchSettingsView', () => {
       { id: 'deepseek-v4-pro', display_name: 'DeepSeek V4 Pro', aliases: ['deepseek-v4-pro'] },
       { id: 'gpt-5.6-luna', display_name: 'GPT 5.6 Luna', aliases: ['gpt-5.6-luna'] },
     ] })
-    updateConfig.mockImplementation(async payload => payload)
+    updateConfig.mockImplementation(async payload => ({ ...payload, agent_group_id: base.agent_group_id }))
     getGroups.mockResolvedValue([
       { id: 7, name: 'Image group', status: 'active', allow_image_generation: true },
-      { id: 8, name: 'Chat only', status: 'active', allow_image_generation: false },
+      { id: 8, name: 'Chat only', status: 'active', allow_image_generation: false, platform: 'composite', subscription_type: 'standard' },
       { id: 9, name: 'Inactive group', status: 'inactive', allow_image_generation: true },
     ])
     refreshPublicSettings.mockResolvedValue(null)
@@ -53,10 +55,13 @@ describe('WorkbenchSettingsView', () => {
     const wrapper = mountSettings()
     await flushPromises()
     expect(wrapper.findComponent({ name: 'ImageStorageSettings' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'OfficeStorageSettings' }).exists()).toBe(true)
     expect(wrapper.get('#workbench-group').text()).toContain('Image group')
     expect(wrapper.get('#workbench-group').text()).not.toContain('Chat only')
     expect(wrapper.get('#workbench-group').text()).not.toContain('Inactive group')
     expect(wrapper.get('#workbench-entry-enabled').attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('#workbench-agent-group').text()).toBe('Chat only')
+    expect(wrapper.get('a[href="/admin/settings#agent"]').text()).toBe('admin.workbenchSettings.manageAgentGroup')
   })
 
   it('saves only workbench access values through step-up and refreshes public settings', async () => {
@@ -94,14 +99,24 @@ describe('WorkbenchSettingsView', () => {
     expect(updateConfig).toHaveBeenCalledWith({ image_studio_enabled: false, image_studio_group_id: 0, chat_enabled: false, office_enabled: false, search_enabled: false, files_enabled: false, model_profiles: {} })
   })
 
-  it('requires a valid group for chat even when image generation is disabled', async () => {
+  it('requires the shared Agent group and allows chat without an image group', async () => {
     getConfig.mockResolvedValue({ image_studio_enabled: false, image_studio_group_id: 0, chat_enabled: true })
     const wrapper = mountSettings()
     await flushPromises()
     expect(wrapper.get('[data-testid="workbench-access-save"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('#workbench-group').text()).toContain('Chat only')
-    await wrapper.get('#workbench-group').setValue(8)
+    expect(wrapper.get('[role="note"]').text()).toBe('admin.workbenchSettings.agentGroupRequired')
+    expect(wrapper.get('#workbench-group').text()).not.toContain('Chat only')
+    await wrapper.get('#workbench-group').setValue(7)
+    expect(wrapper.get('[data-testid="workbench-access-save"]').attributes('disabled')).toBeDefined()
+    getConfig.mockResolvedValue({ image_studio_enabled: false, image_studio_group_id: 0, chat_enabled: true, agent_group_id: 8 })
+    await wrapper.get('button.btn-ghost').trigger('click')
+    await flushPromises()
     expect(wrapper.get('[data-testid="workbench-access-save"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('#workbench-agent-group').text()).toBe('Chat only')
+    await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
+    await flushPromises()
+    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ chat_enabled: true, image_studio_group_id: 0 }))
+    expect(updateConfig.mock.calls[0]![0]).not.toHaveProperty('agent_group_id')
   })
 
   it('enables the explicit office prerequisites together and closes office when files are disabled', async () => {
@@ -126,28 +141,33 @@ describe('WorkbenchSettingsView', () => {
     expect(wrapper.get('#files_enabled').attributes('aria-checked')).toBe('true')
   })
 
-  it('edits execution budgets using server limits and converts displayed currency to atomic credits', async () => {
-    const limits = { chat_concurrent_runs: 8, office_concurrent_runs: 2, max_model_calls: 8, max_tool_calls: 16, max_output_tokens: 8192, max_run_seconds: 600 }
-    getConfig.mockResolvedValue({ ...base, ...limits, chat_concurrent_runs: 3, office_concurrent_runs: 1, max_run_credits: 0, deployment_limits: limits })
+  it('shows workbench provider readiness separately from the saved workbench search switch', async () => {
+    getConfig.mockResolvedValue({ ...base, chat_enabled: true, search_enabled: true, search_provider_status: 'unconfigured' })
     const wrapper = mountSettings()
     await flushPromises()
-    await wrapper.get('#workbench-max-run-amount').setValue('1.25')
+    expect(wrapper.get('#search_enabled').attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('[role="status"]').text()).toBe('admin.workbenchSettings.searchProviders.unconfigured')
+    expect(wrapper.get('a[href="/admin/workbench/settings#workbench-search"]').text()).toBe('admin.workbenchSettings.searchProviders.configure')
     await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
     await flushPromises()
-    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ max_run_credits: 125000000, chat_concurrent_runs: 3, office_concurrent_runs: 1, max_model_calls: 8 }))
-    expect(updateConfig.mock.calls[0]![0]).not.toHaveProperty('deployment_limits')
+    expect(updateConfig.mock.calls[0]![0]).not.toHaveProperty('search_provider_status')
   })
 
-  it('rejects invalid execution budgets before saving', async () => {
-    const limits = { chat_concurrent_runs: 8, office_concurrent_runs: 2, max_model_calls: 8, max_tool_calls: 16, max_output_tokens: 8192, max_run_seconds: 600 }
-    getConfig.mockResolvedValue({ ...base, ...limits, max_run_credits: 0, deployment_limits: limits })
+  it('leaves execution budgets out of config updates from older server responses', async () => {
+    getConfig.mockResolvedValue({
+      ...base,
+      max_model_calls: 8,
+      max_run_credits: 100,
+      deployment_limits: { max_model_calls: 8 },
+    })
     const wrapper = mountSettings()
     await flushPromises()
-    await wrapper.get('#workbench-max_model_calls').setValue('9')
     await wrapper.get('[data-testid="workbench-access-save"]').trigger('click')
     await flushPromises()
-    expect(updateConfig).not.toHaveBeenCalled()
-    expect(showError).toHaveBeenCalledWith('每任务最多模型调用须为 1 到 8 的整数')
+    const payload = updateConfig.mock.calls[0]![0]
+    expect(payload).not.toHaveProperty('max_model_calls')
+    expect(payload).not.toHaveProperty('max_run_credits')
+    expect(payload).not.toHaveProperty('deployment_limits')
   })
 
   it('does not save defaults when the existing configuration cannot load', async () => {

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
@@ -464,7 +465,10 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	// 优先使用 Gemini CLI 的会话标识（privileged-user-id + tmp 目录哈希）
 	sessionHash := ""
 	if cachedContentBinding == nil {
-		sessionHash = extractGeminiCLISessionHash(c, body)
+		sessionHash = geminiWorkbenchSessionHash(c, apiKey.ID, urlModel)
+		if sessionHash == "" {
+			sessionHash = extractGeminiCLISessionHash(c, body)
+		}
 	}
 	if sessionHash == "" && cachedContentBinding == nil {
 		// 其他客户端：按 API Key + 模型 + tools + systemInstruction + 第一条 user contents 的 parts 生成内容哈希
@@ -1072,6 +1076,17 @@ func extractGeminiCLISessionHash(c *gin.Context, body []byte) string {
 
 	// 如果没有 privileged-user-id，直接使用 tmp 目录哈希
 	return tmpDirHash
+}
+
+func geminiWorkbenchSessionHash(c *gin.Context, apiKeyID int64, model string) string {
+	// Only the in-process workbench supplies this context value and header.
+	// Keep signed tool exchanges on their supplier when earlier history changes.
+	groupID, ok := c.Request.Context().Value(ctxkey.WorkbenchGroupID).(int64)
+	sessionID := c.GetHeader("session_id")
+	if !ok || groupID <= 0 || uuid.Validate(sessionID) != nil {
+		return ""
+	}
+	return service.DeriveSessionHashFromSeed("gemini-workbench:" + strconv.FormatInt(apiKeyID, 10) + ":" + model + ":" + sessionID)
 }
 
 // truncateDigestChain 截断摘要链用于日志显示

@@ -70,6 +70,11 @@ func AccountID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldAccountID, v))
 }
 
+// SearchProvider applies equality check predicate on the "search_provider" field. It's identical to SearchProviderEQ.
+func SearchProvider(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSearchProvider, v))
+}
+
 // RequestID applies equality check predicate on the "request_id" field. It's identical to RequestIDEQ.
 func RequestID(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldRequestID, v))
@@ -378,6 +383,91 @@ func AccountIDIn(vs ...int64) predicate.UsageLog {
 // AccountIDNotIn applies the NotIn predicate on the "account_id" field.
 func AccountIDNotIn(vs ...int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotIn(FieldAccountID, vs...))
+}
+
+// AccountIDIsNil applies the IsNil predicate on the "account_id" field.
+func AccountIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldAccountID))
+}
+
+// AccountIDNotNil applies the NotNil predicate on the "account_id" field.
+func AccountIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldAccountID))
+}
+
+// SearchProviderEQ applies the EQ predicate on the "search_provider" field.
+func SearchProviderEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSearchProvider, v))
+}
+
+// SearchProviderNEQ applies the NEQ predicate on the "search_provider" field.
+func SearchProviderNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSearchProvider, v))
+}
+
+// SearchProviderIn applies the In predicate on the "search_provider" field.
+func SearchProviderIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldSearchProvider, vs...))
+}
+
+// SearchProviderNotIn applies the NotIn predicate on the "search_provider" field.
+func SearchProviderNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldSearchProvider, vs...))
+}
+
+// SearchProviderGT applies the GT predicate on the "search_provider" field.
+func SearchProviderGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldSearchProvider, v))
+}
+
+// SearchProviderGTE applies the GTE predicate on the "search_provider" field.
+func SearchProviderGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldSearchProvider, v))
+}
+
+// SearchProviderLT applies the LT predicate on the "search_provider" field.
+func SearchProviderLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldSearchProvider, v))
+}
+
+// SearchProviderLTE applies the LTE predicate on the "search_provider" field.
+func SearchProviderLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldSearchProvider, v))
+}
+
+// SearchProviderContains applies the Contains predicate on the "search_provider" field.
+func SearchProviderContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldSearchProvider, v))
+}
+
+// SearchProviderHasPrefix applies the HasPrefix predicate on the "search_provider" field.
+func SearchProviderHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldSearchProvider, v))
+}
+
+// SearchProviderHasSuffix applies the HasSuffix predicate on the "search_provider" field.
+func SearchProviderHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldSearchProvider, v))
+}
+
+// SearchProviderIsNil applies the IsNil predicate on the "search_provider" field.
+func SearchProviderIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldSearchProvider))
+}
+
+// SearchProviderNotNil applies the NotNil predicate on the "search_provider" field.
+func SearchProviderNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldSearchProvider))
+}
+
+// SearchProviderEqualFold applies the EqualFold predicate on the "search_provider" field.
+func SearchProviderEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldSearchProvider, v))
+}
+
+// SearchProviderContainsFold applies the ContainsFold predicate on the "search_provider" field.
+func SearchProviderContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldSearchProvider, v))
 }
 
 // RequestIDEQ applies the EQ predicate on the "request_id" field.

@@ -8,34 +8,28 @@ import (
 type OfficeAdminFilter struct {
 	Page, PageSize, Days int
 	UserID               int64
+	Execution            string
 	Mode, Status, Model  string
 }
-type OfficeWorkerHealth struct {
-	ID            string    `json:"id"`
-	Preset        string    `json:"preset"`
-	LastSeenAt    time.Time `json:"last_seen_at"`
-	ExecutorReady *bool     `json:"executor_ready"`
-}
 type OfficeAdminOverview struct {
-	Since             time.Time            `json:"since"`
-	Until             time.Time            `json:"until"`
-	TotalRuns         int64                `json:"total_runs"`
-	ChatRuns          int64                `json:"chat_runs"`
-	OfficeRuns        int64                `json:"office_runs"`
-	Completed         int64                `json:"completed"`
-	Failed            int64                `json:"failed"`
-	Queued            int64                `json:"queued"`
-	Running           int64                `json:"running"`
-	WaitingUser       int64                `json:"waiting_user"`
-	NeedsConfirmation int64                `json:"needs_confirmation"`
-	ModelCalls        int64                `json:"model_calls"`
-	ToolCalls         int64                `json:"tool_calls"`
-	InputTokens       int64                `json:"input_tokens"`
-	OutputTokens      int64                `json:"output_tokens"`
-	ChargeCredits     int64                `json:"charge_credits"`
-	UsedBytes         int64                `json:"used_bytes"`
-	ResourceCount     int64                `json:"resource_count"`
-	Workers           []OfficeWorkerHealth `json:"workers"`
+	Since               time.Time           `json:"since"`
+	Until               time.Time           `json:"until"`
+	TotalRuns           int64               `json:"total_runs"`
+	Completed           int64               `json:"completed"`
+	PartiallyCompleted  int64               `json:"partially_completed"`
+	Failed              int64               `json:"failed"`
+	Cancelled           int64               `json:"cancelled"`
+	ModelCalls          int64               `json:"model_calls"`
+	ModelChargeCredits  int64               `json:"model_charge_credits"`
+	SearchCalls         int64               `json:"search_calls"`
+	SearchChargeCredits int64               `json:"search_charge_credits"`
+	InputTokens         int64               `json:"input_tokens"`
+	OutputTokens        int64               `json:"output_tokens"`
+	ChargeCredits       int64               `json:"charge_credits"`
+	UsedBytes           int64               `json:"used_bytes"`
+	ResourceCount       int64               `json:"resource_count"`
+	OfficeTools         string              `json:"office_tools"`
+	OfficeNodes         *OfficeNodeOverview `json:"office_nodes,omitempty"`
 }
 type OfficeAdminRun struct {
 	OfficeRun
@@ -64,13 +58,22 @@ type OfficeCallUsage struct {
 }
 type OfficeCallDetail struct {
 	OfficeOperation
-	Usage OfficeCallUsage `json:"usage"`
+	Usage OfficeCallUsage       `json:"usage"`
+	Tool  *WorkbenchToolSummary `json:"tool,omitempty"`
 }
 type OfficeAdminRunDetail struct {
 	Run        OfficeRun          `json:"run"`
 	UserEmail  string             `json:"user_email"`
 	UserName   string             `json:"user_name"`
 	Operations []OfficeCallDetail `json:"operations"`
+}
+type OfficeAdminRunMessages struct {
+	ConversationTitle   string          `json:"conversation_title"`
+	Messages            []OfficeMessage `json:"messages"`
+	Runs                []OfficeRun     `json:"runs"`
+	HasMore             bool            `json:"has_more"`
+	NextBefore          int64           `json:"next_before"`
+	SelectedUserMessage *OfficeMessage  `json:"selected_user_message,omitempty"`
 }
 type OfficeAdminResource struct {
 	OfficeResource
@@ -89,6 +92,7 @@ type OfficeAdminRepository interface {
 	AdminOverview(context.Context, int) (*OfficeAdminOverview, error)
 	AdminRuns(context.Context, OfficeAdminFilter) (*OfficeAdminRunPage, error)
 	AdminRun(context.Context, string) (*OfficeAdminRunDetail, error)
+	AdminRunMessages(context.Context, string, int64) (*OfficeAdminRunMessages, error)
 	RunUsage(context.Context, int64, string, bool) ([]OfficeCallDetail, error)
 	AdminResources(context.Context, OfficeAdminFilter) (*OfficeAdminResourcePage, error)
 	AdminResourceOwner(context.Context, string) (int64, error)
@@ -102,6 +106,26 @@ func (s *OfficeAgentService) AdminRepository() (OfficeAdminRepository, error) {
 	}
 	return r, nil
 }
+
+func (s *OfficeAgentService) AdminOverview(ctx context.Context, days int) (*OfficeAdminOverview, error) {
+	repo, err := s.AdminRepository()
+	if err != nil {
+		return nil, err
+	}
+	result, err := repo.AdminOverview(ctx, days)
+	if err != nil {
+		return nil, err
+	}
+	result.OfficeTools = s.officeToolsReadiness(ctx)
+	if nodes, err := s.AdminOfficeNodes(ctx); err == nil && len(nodes) > 0 {
+		result.OfficeNodes = summarizeOfficeNodes(nodes)
+		if nodeRepo, err := s.officeNodeRepository(); err == nil {
+			result.OfficeNodes.Waiting, _ = nodeRepo.CountWaitingOfficeNodes(ctx)
+		}
+	}
+	return result, nil
+}
+
 func (s *OfficeAgentService) WorkerSeen(ctx context.Context, id, preset string, ready *bool) error {
 	if !officeIdentifier(id, 80) || (preset != "chat" && preset != "office") {
 		return ErrOfficeInvalid

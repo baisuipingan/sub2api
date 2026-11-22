@@ -76,6 +76,8 @@ const messages: Record<string, string> = {
   'usage.nativeCompactionV2': 'Compaction',
   'admin.usage.billingModeToken': 'Token',
   'admin.usage.billingModePerRequest': 'Per request',
+  'usage.webSearch': 'Web search',
+  'usage.oneWebSearch': '1 search',
   'admin.usage.billingModeImage': 'Image',
 	'admin.usage.requestIdCopied': 'Request ID copied',
 	'admin.usage.upstreamRequestIdCopied': 'Upstream ID copied',
@@ -423,6 +425,26 @@ describe('admin UsageTable tooltip', () => {
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
     expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    wrapper.unmount()
+  })
+
+  it('renders a workbench search as ordinary per-request usage with its provider and one call', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, model: 'workbench-web-search', search_provider: 'deepseek',
+          billing_mode: 'per_request', image_count: 0, total_cost: 0.005, actual_cost: 0.005 }],
+        loading: false,
+        columns: [],
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.text()).toContain('Web search')
+    expect(wrapper.text()).toContain('DeepSeek')
+    expect(wrapper.text()).toContain('1 search')
+    expect(wrapper.text()).toContain('Per request')
+    expect(wrapper.text()).not.toContain('workbench-web-search')
+    expect(wrapper.text()).not.toContain('A $')
+    expect(wrapper.find('[data-testid="output-tps"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

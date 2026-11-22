@@ -728,7 +728,7 @@
           >
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.dailyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="createForm.daily_limit_usd"
@@ -741,7 +741,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.weeklyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="createForm.weekly_limit_usd"
@@ -754,7 +754,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.monthlyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="createForm.monthly_limit_usd"
@@ -1505,7 +1505,7 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in createForm.model_pricing" :key="index" :entry="entry" :platform="createForm.platform" hide-token-intervals @update="createForm.model_pricing[index] = $event" @remove="createForm.model_pricing.splice(index, 1)" />
+            <PricingEntryCard v-for="(entry, index) in createForm.model_pricing" :key="index" :entry="entry" :platform="createForm.platform" use-site-currency hide-token-intervals @update="createForm.model_pricing[index] = $event" @remove="createForm.model_pricing.splice(index, 1)" />
           </div>
         </div>
 
@@ -2395,7 +2395,7 @@
           >
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.dailyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="editForm.daily_limit_usd"
@@ -2408,7 +2408,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.weeklyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="editForm.weekly_limit_usd"
@@ -2421,7 +2421,7 @@
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit", { currency: billingSymbol })
+                t("admin.groups.subscription.monthlyLimit", { currency: billingView.displayCurrency })
               }}</label>
               <input
                 v-model.number="editForm.monthly_limit_usd"
@@ -3182,7 +3182,7 @@
             <span><span class="block text-sm text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.longContext") }}</span><span class="block text-xs text-gray-500">{{ t("admin.groups.modelPricing.longContextHint") }}</span></span>
           </label>
           <div class="mt-3 space-y-2">
-            <PricingEntryCard v-for="(entry, index) in editForm.model_pricing" :key="index" :entry="entry" :platform="editForm.platform" hide-token-intervals @update="editForm.model_pricing[index] = $event" @remove="editForm.model_pricing.splice(index, 1)" />
+            <PricingEntryCard v-for="(entry, index) in editForm.model_pricing" :key="index" :entry="entry" :platform="editForm.platform" use-site-currency hide-token-intervals @update="editForm.model_pricing[index] = $event" @remove="editForm.model_pricing.splice(index, 1)" />
           </div>
         </div>
 
@@ -4512,7 +4512,7 @@ const groupPricingToAPI = (
 
 const { t } = useI18n();
 const appStore = useAppStore();
-const { formatCompact, usdToDisplay, displayToUSD, symbol: billingSymbol } = useBillingCurrency();
+const { formatCompact, usdToDisplay, displayToUSD, view: billingView } = useBillingCurrency();
 const authStore = useAuthStore();
 const onboardingStore = useOnboardingStore();
 

@@ -54,6 +54,23 @@ func TestOfficeResourcesRejectDisguisedOfficeAndArchiveEscapes(t *testing.T) {
 	require.ErrorIs(t, err, ErrOfficeResourceType)
 }
 
+func TestOfficeResourcesAcceptNestedBatchZip(t *testing.T) {
+	zipData := officeTestZip(t, map[string]string{
+		"deliveries/2026/report.docx": "document content validated by the batch tool",
+		"deliveries/2026/notes.txt":   "keep this file in the delivered ZIP",
+	}, "")
+	mime, _, err := validateOfficeFile("reports.zip", zipData)
+	require.NoError(t, err)
+	require.Equal(t, "application/zip", mime)
+
+	for _, name := range []string{"../report.docx", "reports\\report.docx", "C:report.docx", "report\x00.docx"} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := validateOfficeFile("reports.zip", officeTestZip(t, map[string]string{name: "unsafe name"}, ""))
+			require.ErrorIs(t, err, ErrOfficeResourceType)
+		})
+	}
+}
+
 func TestOfficeResourcesActualTypeAndWorkspaceBoundaries(t *testing.T) {
 	for _, name := range []string{"shell.exe", "page.html", "script.svg", "../escape.txt", "a\\b.txt", "line\n.txt"} {
 		_, _, err := validateOfficeFile(name, []byte("hello"))

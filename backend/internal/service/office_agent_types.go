@@ -10,29 +10,30 @@ import (
 // Office control-plane records never contain a user JWT, API key, object-store
 // credential, or file bytes. Resource IDs must be authorized by the service.
 const (
-	OfficeRunQueued               = "queued"
-	OfficeRunRunning              = "running"
-	OfficeRunWaitingUser          = "waiting_user"
-	OfficeRunRecovering           = "recovering"
-	OfficeRunNeedsConfirmation    = "needs_confirmation"
-	OfficeRunCompleted            = "completed"
-	OfficeRunPartiallyCompleted   = "partially_completed"
-	OfficeRunFailed               = "failed"
-	OfficeRunCancelled            = "cancelled"
-	OfficeOperationPrepared       = "prepared"
-	OfficeOperationDispatched     = "dispatched"
-	OfficeOperationCompleted      = "completed"
-	OfficeOperationUnknown        = "unknown"
-	OfficeOperationModel          = "model"
-	OfficeOperationTool           = "tool"
-	OfficeMaxOperationInputBytes  = 256 << 10
-	OfficeMaxCompactionInputBytes = 1 << 20
-	OfficeMaxOperationResultBytes = 2 << 20
-	OfficeMaxEventBytes           = 64 << 10
+	OfficeRunQueued                    = "queued"
+	OfficeRunRunning                   = "running"
+	OfficeRunWaitingUser               = "waiting_user"
+	OfficeRunRecovering                = "recovering"
+	OfficeRunNeedsConfirmation         = "needs_confirmation"
+	OfficeRunCompleted                 = "completed"
+	OfficeRunPartiallyCompleted        = "partially_completed"
+	OfficeRunFailed                    = "failed"
+	OfficeRunCancelled                 = "cancelled"
+	OfficeOperationPrepared            = "prepared"
+	OfficeOperationDispatched          = "dispatched"
+	OfficeOperationCompleted           = "completed"
+	OfficeOperationUnknown             = "unknown"
+	OfficeOperationModel               = "model"
+	OfficeOperationTool                = "tool"
+	OfficeMaxOperationInputBytes       = 256 << 10
+	OfficeMaxStoredOperationInputBytes = 1 << 20
+	OfficeMaxOperationResultBytes      = 2 << 20
+	OfficeMaxEventBytes                = 64 << 10
 )
 
 var (
 	ErrOfficeInvalid             = errors.New("invalid office agent record")
+	ErrOfficeModelInputTooLarge  = errors.New("model request body exceeds gateway limit")
 	ErrOfficeNotFound            = errors.New("office agent record not found")
 	ErrOfficeConflict            = errors.New("office agent request conflicts with an existing record")
 	ErrOfficeActiveRun           = errors.New("an office agent run is already active")
@@ -75,6 +76,7 @@ type OfficeMessage struct {
 }
 
 type OfficeRunAdmission struct {
+	BrowserDriven   bool
 	Mode            string
 	SearchEnabled   bool
 	Parameters      json.RawMessage
@@ -95,6 +97,7 @@ type OfficeRunAdmission struct {
 }
 
 type OfficeRun struct {
+	BrowserDriven   bool                    `json:"browser_driven,omitempty"`
 	PausedSeconds   int64                   `json:"-"`
 	Mode            string                  `json:"mode"`
 	SearchEnabled   bool                    `json:"search_enabled"`
@@ -148,22 +151,25 @@ type OfficeOperationResult struct {
 	HTTPStatus   int             `json:"http_status,omitempty"`
 	ErrorCode    string          `json:"error_code,omitempty"`
 	ErrorMessage string          `json:"error_message,omitempty"`
+	ToolStatus   string          `json:"tool_status,omitempty"`
 }
 
 type OfficeOperation struct {
-	ID            string                 `json:"id"`
-	RunID         string                 `json:"run_id"`
-	Kind          string                 `json:"kind"`
-	State         string                 `json:"state"`
-	InputHash     string                 `json:"input_hash"`
-	Input         json.RawMessage        `json:"input"`
-	RequestID     string                 `json:"request_id"`
-	Result        *OfficeOperationResult `json:"result,omitempty"`
-	DispatchEpoch int64                  `json:"-"`
-	DispatchToken string                 `json:"-"`
-	CreatedAt     time.Time              `json:"created_at"`
-	DispatchedAt  *time.Time             `json:"dispatched_at,omitempty"`
-	CompletedAt   *time.Time             `json:"completed_at,omitempty"`
+	ID             string                   `json:"id"`
+	RunID          string                   `json:"run_id"`
+	Kind           string                   `json:"kind"`
+	State          string                   `json:"state"`
+	InputHash      string                   `json:"input_hash"`
+	Input          json.RawMessage          `json:"input"`
+	RequestID      string                   `json:"request_id"`
+	Result         *OfficeOperationResult   `json:"result,omitempty"`
+	ResultHash     string                   `json:"-"`
+	ToolProjection *WorkbenchToolProjection `json:"-"`
+	DispatchEpoch  int64                    `json:"-"`
+	DispatchToken  string                   `json:"-"`
+	CreatedAt      time.Time                `json:"created_at"`
+	DispatchedAt   *time.Time               `json:"dispatched_at,omitempty"`
+	CompletedAt    *time.Time               `json:"completed_at,omitempty"`
 }
 
 type OfficeRunEvent struct {

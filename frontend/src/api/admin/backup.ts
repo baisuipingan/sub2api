@@ -144,6 +144,39 @@ export async function testImageStorageConnection(
   return data
 }
 
+export interface OfficeStorageConfig {
+  source: 'backup' | 'images' | 'custom'
+  bucket: string
+  endpoint: string
+  region: string
+  access_key_id: string
+  secret_access_key?: string
+  force_path_style: boolean
+}
+
+export interface OfficeStorageConfigResponse {
+  config: OfficeStorageConfig
+  secret_configured: boolean
+  configured: boolean
+  target_in_use: boolean
+  effective_bucket?: string
+}
+
+export async function getOfficeStorageConfig(): Promise<OfficeStorageConfigResponse> {
+  const { data } = await apiClient.get<OfficeStorageConfigResponse>('/admin/backups/office-storage')
+  return data
+}
+
+export async function updateOfficeStorageConfig(config: OfficeStorageConfig): Promise<OfficeStorageConfigResponse> {
+  const { data } = await apiClient.put<OfficeStorageConfigResponse>('/admin/backups/office-storage', config)
+  return data
+}
+
+export async function testOfficeStorageConnection(config: OfficeStorageConfig): Promise<TestS3Response> {
+  const { data } = await apiClient.post<TestS3Response>('/admin/backups/office-storage/test', config)
+  return data
+}
+
 // Schedule
 export async function getSchedule(): Promise<BackupScheduleConfig> {
   const { data } = await apiClient.get<BackupScheduleConfig>('/admin/backups/schedule')
@@ -193,6 +226,9 @@ export const backupAPI = {
   getImageStorageConfig,
   updateImageStorageConfig,
   testImageStorageConnection,
+  getOfficeStorageConfig,
+  updateOfficeStorageConfig,
+  testOfficeStorageConnection,
   getSchedule,
   updateSchedule,
   createBackup,

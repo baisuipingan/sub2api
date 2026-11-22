@@ -1,10 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -128,6 +132,7 @@ func TestOfficeBridgeUsesExistingRouterAndReplaysInboxWithoutSecondCall(t *testi
 		require.Equal(t, "/v1/chat/completions", r.URL.Path)
 		require.Equal(t, "Bearer private-key", r.Header.Get("Authorization"))
 		require.Equal(t, "127.0.0.1:0", r.RemoteAddr)
+		require.Equal(t, int64(31), r.Context().Value(ctxkey.WorkbenchGroupID))
 		requestID, ok := r.Context().Value(ctxkey.ClientRequestID).(string)
 		require.True(t, ok)
 		require.True(t, strings.HasPrefix(requestID, "office-"))
@@ -135,6 +140,7 @@ func TestOfficeBridgeUsesExistingRouterAndReplaysInboxWithoutSecondCall(t *testi
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"ok"}}],"usage":{"total_tokens":9}}`)
 	}))
+	repo.lease.Run.GroupID = 31
 	ctx := context.Background()
 	first, err := svc.InvokeModel(ctx, repo.lease, "model-1", officeBridgeBody("hello"))
 	require.NoError(t, err)
@@ -146,6 +152,67 @@ func TestOfficeBridgeUsesExistingRouterAndReplaysInboxWithoutSecondCall(t *testi
 	_, err = svc.InvokeModel(ctx, repo.lease, "model-1", officeBridgeBody("changed"))
 	require.ErrorIs(t, err, ErrOfficeConflict)
 	require.Equal(t, int32(1), calls.Load())
+}
+
+func TestOfficeBridgeForwardsLargeHistoryAndPreviewAndReplaysByDigest(t *testing.T) {
+	var preview bytes.Buffer
+	require.NoError(t, png.Encode(&preview, image.NewRGBA(image.Rect(0, 0, 2, 2))))
+	imageURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(preview.Bytes())
+	history := strings.Repeat("文档样式验证记录\n", 48_000)
+	body, err := json.Marshal(map[string]any{
+		"model": "public-model",
+		"messages": []any{
+			map[string]string{"role": "tool", "tool_call_id": "preview", "content": history},
+			map[string]any{"role": "user", "content": []any{
+				map[string]string{"type": "text", "text": "核验文档预览"},
+				map[string]any{"type": "image_url", "image_url": map[string]string{"url": imageURL}},
+			}},
+		},
+		"max_tokens": 1024,
+	})
+	require.NoError(t, err)
+	require.Greater(t, len(body), OfficeMaxStoredOperationInputBytes)
+	var calls atomic.Int32
+	svc, repo := officeBridgeFixture(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		forwarded, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Equal(t, body, forwarded)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"文档版式检查通过"}}]}`)
+	}))
+	svc.modelRequestBodyLimit = 2 << 20
+	repo.lease.Run.Mode = "office"
+	repo.lease.Run.Parameters = json.RawMessage(`{"supports_vision":true}`)
+	ctx := context.Background()
+	first, err := svc.InvokeModel(ctx, repo.lease, "check-preview", body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, first.Status)
+	require.Nil(t, repo.ops["check-preview"].Input)
+	require.Equal(t, officeDigest(append([]byte(":"), body...)), repo.ops["check-preview"].InputHash)
+	second, err := svc.InvokeModel(ctx, repo.lease, "check-preview", body)
+	require.NoError(t, err)
+	require.Equal(t, first, second)
+	changed := bytes.Replace(body, []byte("核验文档预览"), []byte("重新核验文档预览"), 1)
+	_, err = svc.InvokeModel(ctx, repo.lease, "check-preview", changed)
+	require.ErrorIs(t, err, ErrOfficeConflict)
+	require.Equal(t, int32(1), calls.Load())
+}
+
+func TestOfficeBridgeRejectsOnlyAtGatewayBodyLimitBeforeDispatch(t *testing.T) {
+	svc, repo := officeBridgeFixture(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("oversize body was dispatched")
+	}))
+	svc.modelRequestBodyLimit = 512 << 10
+	rawOversize := officeBridgeBody(strings.Repeat("x", 512<<10))
+	_, err := svc.InvokeModel(context.Background(), repo.lease, "raw-oversize", rawOversize)
+	require.ErrorIs(t, err, ErrOfficeModelInputTooLarge)
+	// The canonical JSON escapes HTML characters before gateway forwarding.
+	normalizedOversize := officeBridgeBody(strings.Repeat("<", 100<<10))
+	require.Less(t, int64(len(normalizedOversize)), svc.modelRequestBodyLimit)
+	_, err = svc.InvokeModelPurpose(context.Background(), repo.lease, "normalized-oversize", normalizedOversize, "context_compaction")
+	require.ErrorIs(t, err, ErrOfficeModelInputTooLarge)
+	require.Empty(t, repo.ops)
 }
 
 func TestOfficeBridgeInFlightDuplicateCannotReachSupplier(t *testing.T) {
@@ -254,17 +321,18 @@ func TestOfficeToolCanonicalizationPreservesLargeIntegersAndRechecksPolicy(t *te
 	require.ErrorIs(t, err, ErrOfficeRouteChanged)
 }
 
-func TestOfficeChatModelCatalogUsesChatEndpointWithoutChangingDesktop(t *testing.T) {
+func TestWorkbenchModelCatalogUsesProtocolSpecificRoutes(t *testing.T) {
 	accounts := &desktopModelAccounts{accounts: []Account{desktopModelAccount(PlatformOpenAI, map[string]any{"target": "target"})}}
 	routes := compositeRouteRepoStub{routes: []CompositeModelRoute{
 		{ID: 1, GroupID: 12, Enabled: true, PublicModel: "chat-only", MatchType: CompositeRouteMatchExact, Endpoint: CompositeRouteEndpointChatCompletions, TargetPlatform: PlatformOpenAI, UpstreamModel: "target"},
 		{ID: 2, GroupID: 12, Enabled: true, PublicModel: "responses-only", MatchType: CompositeRouteMatchExact, Endpoint: CompositeRouteEndpointResponses, TargetPlatform: PlatformOpenAI, UpstreamModel: "target"},
 	}}
 	group := &Group{ID: 12, Platform: PlatformComposite}
-	chat, err := NewWorkbenchChatModelCatalog(accounts, routes, nil).ModelsForGroup(context.Background(), group)
+	workbench := NewWorkbenchChatModelCatalog(accounts, routes, nil).(*workbenchChatModelCatalog)
+	protocols, err := workbench.modelRoutes(context.Background(), group)
 	require.NoError(t, err)
-	require.Contains(t, chat, "chat-only")
-	require.NotContains(t, chat, "responses-only")
+	require.Equal(t, workbenchModelRoute{protocol: workbenchProtocolChatCompletions}, protocols["chat-only"])
+	require.Equal(t, workbenchModelRoute{protocol: workbenchProtocolResponses, nativeResponses: true}, protocols["responses-only"])
 	desktop, err := NewDesktopAgentModelCatalog(accounts, routes).ModelsForGroup(context.Background(), group)
 	require.NoError(t, err)
 	require.Contains(t, desktop, "responses-only")

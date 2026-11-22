@@ -6,8 +6,8 @@ import { createI18n } from 'vue-i18n'
 import zh from '@/i18n/locales/zh'
 import WorkbenchChatRunsView from '../WorkbenchChatRunsView.vue'
 import WorkbenchResourcesView from '../WorkbenchResourcesView.vue'
-const mocks = vi.hoisted(() => ({ runs: vi.fn(), detail: vi.fn(), resources: vi.fn(), access: vi.fn() }))
-vi.mock('@/api/admin/workbench', async original => ({ ...await original<typeof import('@/api/admin/workbench')>(), listWorkbenchChatRuns: mocks.runs, getWorkbenchChatRun: mocks.detail, listWorkbenchChatResources: mocks.resources, getWorkbenchChatResourceAccess: mocks.access }))
+const mocks = vi.hoisted(() => ({ runs: vi.fn(), detail: vi.fn(), messages: vi.fn(), resources: vi.fn(), access: vi.fn() }))
+vi.mock('@/api/admin/workbench', async original => ({ ...await original<typeof import('@/api/admin/workbench')>(), listWorkbenchChatRuns: mocks.runs, getWorkbenchChatRun: mocks.detail, getWorkbenchConversationPage: mocks.messages, listWorkbenchChatResources: mocks.resources, getWorkbenchChatResourceAccess: mocks.access }))
 const Table = defineComponent({ props: ['data', 'columns'], setup(props, { slots }) { return () => h('div', props.data.map((row: unknown) => h('div', props.columns.map((col: { key: string }) => slots[`cell-${col.key}`]?.({ row }))))) } })
 const Select = defineComponent({ props: ['modelValue', 'options'], emits: ['update:modelValue'], setup(props, { attrs, emit }) { return () => h('select', { ...attrs, value: props.modelValue, onChange: (event: Event) => emit('update:modelValue', (event.target as HTMLSelectElement).value) }, props.options.map((option: { value: string; label: string }) => h('option', { value: option.value }, option.label))) } })
 const User = defineComponent({ props: ['modelValue'], emits: ['update:modelValue', 'change'], setup(_, { emit, expose }) { expose({ hasUnselectedQuery: () => false, clear: () => {} }); return () => h('button', { type: 'button', 'data-user': '', onClick: () => { emit('update:modelValue', 9); emit('change', { id: 9 }) } }, '选择用户') } })
@@ -19,6 +19,47 @@ describe('workbench conversation administrator views', () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.runs.mockResolvedValue({ items: [run], total: 1, page: 1, pages: 1 }); mocks.resources.mockResolvedValue({ items: [file], total: 1, page: 1, pages: 1 }); mocks.detail.mockResolvedValue({ run, user_email: run.user_email, user_name: run.user_name, operations: [{ id: 'op', kind: 'model', state: 'completed', created_at: run.created_at, usage: { settled: true, input_tokens: 12, output_tokens: 20, cache_read_tokens: 4, charge_credits: 0, upstreams: [{ account_id: 42, account_name: '真实上游', upstream_model: 'upstream-model', outcome: 'usage' }] } }] }) })
   afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()))
   it('uses a selected user and does not send empty filter fields', async () => { const wrapper = render(WorkbenchChatRunsView); await flushPromises(); await wrapper.get('[data-user]').trigger('click'); await flushPromises(); expect(mocks.runs).toHaveBeenLastCalledWith({ page: 1, page_size: 20, days: 7, user_id: 9 }, expect.any(AbortSignal)) })
-  it('loads actual operations on demand and shows the routed upstream', async () => { const wrapper = render(WorkbenchChatRunsView); await flushPromises(); expect(mocks.detail).not.toHaveBeenCalled(); await wrapper.findAll('button').find(button => button.text() === '调用详情')!.trigger('click'); await flushPromises(); expect(mocks.detail).toHaveBeenCalledWith('run', expect.any(AbortSignal)); expect(wrapper.text()).toContain('真实上游'); expect(wrapper.text()).toContain('upstream-model'); expect(wrapper.text()).toContain('缓存命中 4') })
+  it('loads the conversation and compact trace, and prepends an earlier page', async () => {
+    const prompt = { id: 'question', run_id: 'run', role: 'user', sequence: 3, content: { text: '现在的问题' }, created_at: run.created_at }
+    const reply = { id: 'reply', run_id: 'run', role: 'assistant', sequence: 4, content: { text: '助手的回复' }, created_at: run.created_at }
+    const earlier = { ...prompt, id: 'older', run_id: 'old-run', sequence: 1, content: { text: '之前的问题' } }
+    mocks.messages.mockResolvedValueOnce({ conversation_title: '项目会话', messages: [prompt, reply], runs: [run], has_more: true, next_before: 3, selected_user_message: prompt })
+    mocks.messages.mockResolvedValueOnce({ conversation_title: '项目会话', messages: [earlier], runs: [], has_more: false })
+
+    const wrapper = render(WorkbenchChatRunsView)
+    await flushPromises()
+    expect(mocks.detail).not.toHaveBeenCalled()
+    await wrapper.findAll('button').find(button => button.text() === '查看会话')!.trigger('click')
+    await flushPromises()
+    expect(mocks.detail).toHaveBeenCalledWith('run', expect.any(AbortSignal))
+    expect(mocks.messages).toHaveBeenCalledWith('run', undefined, expect.any(AbortSignal))
+    expect(wrapper.text()).toContain('现在的问题')
+    expect(wrapper.text()).toContain('助手的回复')
+    const modelStep = wrapper.get('aside details')
+    expect(modelStep.attributes('open')).toBeUndefined()
+    expect(modelStep.text()).toContain('真实上游')
+    expect(modelStep.text()).toContain('缓存命中 4')
+
+    await wrapper.findAll('button').find(button => button.text() === '加载更早的消息')!.trigger('click')
+    await flushPromises()
+    expect(mocks.messages).toHaveBeenLastCalledWith('run', 3, expect.any(AbortSignal))
+    expect(wrapper.findAll('[data-message-id]').map(item => item.attributes('data-message-id'))).toEqual(['older', 'question', 'reply'])
+    await wrapper.get('[data-message-id="older"] button').trigger('click')
+    expect(mocks.detail).toHaveBeenLastCalledWith('old-run', expect.any(AbortSignal))
+  })
   it('lists resource metadata without issuing object access or offering write actions', async () => { const wrapper = render(WorkbenchResourcesView); await flushPromises(); expect(wrapper.text()).toContain('测试.docx'); expect(mocks.access).not.toHaveBeenCalled(); expect(wrapper.text()).not.toContain('删除文件'); await wrapper.findAll('button').find(button => button.text() === '查看文件')!.trigger('click'); await flushPromises(); expect(wrapper.findComponent({ name: 'ResourcePreview' }).exists()).toBe(true); expect(mocks.access).not.toHaveBeenCalled() })
+  it('contains long metadata within the file cells and displays a short format', async () => {
+    const name = `${'很长的测试文件名'.repeat(30)}.docx`
+    const email = `${'long'.repeat(36)}@example.test`
+    mocks.resources.mockResolvedValue({ items: [{ ...file, name, user_email: email }], total: 1, page: 1, pages: 1 })
+    const wrapper = render(WorkbenchResourcesView)
+    await flushPromises()
+    const filename = wrapper.get(`button[title="${name}"]`)
+    expect(filename.get('span').classes()).toContain('truncate')
+    expect(wrapper.get(`[title="${email}"]`).classes()).toContain('truncate')
+    expect(wrapper.get(`[title="${file.mime}"]`).text()).toBe('DOCX')
+    expect(wrapper.text()).not.toContain(file.mime)
+    await filename.trigger('click')
+    expect(wrapper.findComponent({ name: 'ResourcePreview' }).exists()).toBe(true)
+  })
 })

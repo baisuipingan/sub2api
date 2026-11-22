@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"path"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
@@ -102,7 +103,7 @@ func (r *officeResourcesRepository) ListCleanup(ctx context.Context, limit int) 
 			_ = tx.Rollback()
 			return nil, e
 		}
-		vs, e := tx.QueryContext(ctx, `SELECT id::text,storage_endpoint,storage_region,storage_bucket,object_key,preview_key FROM office_resource_versions WHERE resource_id=$1 ORDER BY created_at DESC`, c.id)
+		vs, e := tx.QueryContext(ctx, `SELECT id::text,storage_endpoint,storage_region,storage_bucket,object_key,preview_key,mime FROM office_resource_versions WHERE resource_id=$1 ORDER BY created_at DESC`, c.id)
 		if e != nil {
 			_ = tx.Rollback()
 			return nil, e
@@ -110,8 +111,8 @@ func (r *officeResourcesRepository) ListCleanup(ctx context.Context, limit int) 
 		var pending []service.OfficeResourceCleanup
 		for vs.Next() {
 			v := service.OfficeResourceCleanup{Kind: "version", UserID: c.user}
-			var key, preview string
-			if e = vs.Scan(&v.ID, &v.Endpoint, &v.Region, &v.Bucket, &key, &preview); e != nil {
+			var key, preview, mime string
+			if e = vs.Scan(&v.ID, &v.Endpoint, &v.Region, &v.Bucket, &key, &preview, &mime); e != nil {
 				_ = vs.Close()
 				_ = tx.Rollback()
 				return nil, e
@@ -119,6 +120,9 @@ func (r *officeResourcesRepository) ListCleanup(ctx context.Context, limit int) 
 			v.Keys = []string{key}
 			if preview != "" {
 				v.Keys = append(v.Keys, preview)
+			} else if mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
+				// A cancelled request can leave an upload before the preview transaction commits.
+				v.Keys = append(v.Keys, path.Join(path.Dir(key), "print.pdf"))
 			}
 			pending = append(pending, v)
 		}

@@ -7,7 +7,28 @@ import type { ChatArtifact, ChatConversation, ChatEvent, ChatHistory, ChatModels
 
 const RUN_STATUSES = new Set<ChatRunStatus>(['queued', 'running', 'waiting_user', 'recovering', 'completed', 'partially_completed', 'failed', 'cancelled', 'needs_confirmation'])
 
+function waitForRetry(ms: number, signal: AbortSignal) {
+  return new Promise<void>(resolve => {
+    if (signal.aborted) { resolve(); return }
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+    function done() {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+  })
+}
+function canRetryChatRequest(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status
+  return !status || status >= 500 || status === 408 || status === 409 || status === 429
+}
+
 export function chatError(error: unknown): string {
+  if (error && typeof error === 'object' && 'error' in error) {
+    const detail = error.error
+    if (detail && typeof detail === 'object' && 'message' in detail && typeof detail.message === 'string' && detail.message) return detail.message
+  }
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message
   return '请求失败，请稍后重试'
 }
@@ -25,7 +46,9 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
   const loadingConversations = ref(false)
   const submitting = ref(false)
   const error = ref('')
-  const connectionError = ref('')
+  const streamError = ref('')
+  const advanceError = ref('')
+  const connectionError = computed(() => advanceError.value || streamError.value)
   const nextCursor = ref<string | undefined>()
   const initialized = ref(false)
   let selectionEpoch = 0
@@ -33,7 +56,6 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
   const auth = useAuthStore()
   let controller: AbortController | undefined
   const historyControllers = new Set<AbortController>()
-  let retryTimer: ReturnType<typeof setTimeout> | undefined
   let pending: { conversationId: string; body: ChatSubmit } | undefined
   const activeRun = computed(() => [...history.value.runs].reverse().find(r => CHAT_ACTIVE_STATUSES.has(r.status)))
   const currentConversation = computed(() => conversations.value.find(c => c.id === activeConversationId.value))
@@ -43,9 +65,15 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     controller?.abort(); controller = undefined
     for (const own of historyControllers) own.abort()
     historyControllers.clear()
-    if (retryTimer) clearTimeout(retryTimer)
-    retryTimer = undefined
-    connectionError.value = ''
+    streamError.value = ''
+    advanceError.value = ''
+  }
+  function pause() {
+    stopWatching()
+    ++selectionEpoch
+    loading.value = false
+    loadingEarlier.value = false
+    submitting.value = false
   }
   function updateRun(run: ChatRun) {
     const i = history.value.runs.findIndex(r => r.id === run.id)
@@ -53,6 +81,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       // Single-run responses omit resource projections; a history response can
       // explicitly clear removed files with artifacts: [].
       const previous = history.value.runs[i]!
+      if (!CHAT_ACTIVE_STATUSES.has(previous.status) && CHAT_ACTIVE_STATUSES.has(run.status)) return
       history.value.runs.splice(i, 1, run.artifacts === undefined && previous.artifacts !== undefined ? { ...run, artifacts: previous.artifacts } : run)
     }
     else history.value.runs.push(run)
@@ -61,11 +90,11 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     const list = events.value[event.run_id] ||= []
     if (event.sequence <= (list.at(-1)?.sequence || 0)) return
     const last = list.at(-1)
-    if (event.type === 'assistant.delta' && last?.type === event.type && last.payload.operation_id === event.payload.operation_id && typeof event.payload.text === 'string' && typeof last.payload.text === 'string' && event.sequence > last.sequence) {
+    if ((event.type === 'assistant.delta' || event.type === 'reasoning.delta') && last?.type === event.type && last.payload.operation_id === event.payload.operation_id && typeof event.payload.text === 'string' && typeof last.payload.text === 'string') {
       last.payload.text += event.payload.text; last.sequence = event.sequence; last.id = event.id
     } else { list.push(event); list.sort((a, b) => a.sequence - b.sequence) }
     if (list.length > 2000) {
-      const disposable = list.findIndex(e => e.type !== 'assistant.delta' && e.type !== 'clarification.requested' && e.type !== 'artifact.published' && e.type !== 'task.updated')
+      const disposable = list.findIndex(e => !['assistant.delta', 'assistant.partial', 'reasoning.delta', 'clarification.requested', 'artifact.published', 'task.updated'].includes(e.type))
       if (disposable >= 0) list.splice(disposable, 1)
       else list.splice(0, 1)
     }
@@ -80,6 +109,8 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
         files.set(artifact.version_id, artifact); run.artifacts = [...files.values()]
       }
     }
+    // A delayed live event can arrive after a terminal snapshot from advance().
+    if (!CHAT_ACTIVE_STATUSES.has(run.status)) return
     if (event.type === 'clarification.requested') {
       run.status = 'waiting_user'
     } else if (event.type.startsWith('run.')) {
@@ -98,10 +129,10 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
   }
   function mergeHistory(value: ChatHistory) {
     const messages = new Map(history.value.messages.map(m => [m.id, m]))
-    const runs = new Map(history.value.runs.map(r => [r.id, r]))
     for (const message of value.messages || []) messages.set(message.id, message)
-    for (const run of value.runs || []) runs.set(run.id, run)
-    history.value = { messages: [...messages.values()].sort((a,b) => a.sequence-b.sequence), runs: [...runs.values()].sort((a,b) => a.created_at.localeCompare(b.created_at)) }
+    for (const run of value.runs || []) updateRun(run)
+    history.value.messages = [...messages.values()].sort((a,b) => a.sequence-b.sequence)
+    history.value.runs.sort((a,b) => a.created_at.localeCompare(b.created_at))
   }
   async function refreshHistory(id: string, epoch: number) {
     const value = await workbenchChatApi.history(id)
@@ -122,28 +153,77 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     } catch (e) { if (epoch === selectionEpoch) error.value = chatError(e) }
     finally { if (epoch === selectionEpoch) loadingEarlier.value = false }
   }
-  async function watchRun(runId: string, id: string, epoch: number) {
+  function watchRun(run: ChatRun, id: string, epoch: number) {
     if (epoch !== selectionEpoch || id !== activeConversationId.value) return
     controller?.abort()
-    const own = new AbortController(); controller = own
-    const last = events.value[runId]?.at(-1)?.sequence || 0
-    try {
-      await readChatEvents(runId, last, own.signal, event => {
-        if (epoch === selectionEpoch && event.run_id === runId) { connectionError.value = ''; acceptEvent(event) }
-      })
-    } catch (e) {
-      if (own.signal.aborted || epoch !== selectionEpoch) return
-      connectionError.value = chatError(e)
+    const own = new AbortController()
+    controller = own
+    void streamRun(run.id, id, epoch, own.signal)
+    if (run.browser_driven) void driveRun(run.id, id, epoch, own.signal)
+  }
+  async function streamRun(runId: string, id: string, epoch: number, signal: AbortSignal) {
+    const watching = () => !signal.aborted && epoch === selectionEpoch
+    while (watching()) {
+      try {
+        const last = events.value[runId]?.at(-1)?.sequence || 0
+        await readChatEvents(runId, last, signal, event => {
+          if (watching() && event.run_id === runId) { streamError.value = ''; acceptEvent(event) }
+        })
+      } catch (e) {
+        if (!watching()) return
+        streamError.value = chatError(e)
+        if (!canRetryChatRequest(e)) return
+      }
+      if (!watching()) return
+      try {
+        // Reconcile durable messages if the stream closed before a terminal event arrived.
+        const before = history.value.runs.find(item => item.id === runId)
+        const beforeStatus = before?.status
+        const received = await workbenchChatApi.run(runId)
+        if (!watching()) return
+        const current = history.value.runs.find(item => item.id === runId)
+        const changed = current && (current !== before || current.status !== beforeStatus)
+        const run = changed && !(Date.parse(received.updated_at) > Date.parse(current.updated_at)) ? current : received
+        if (run !== current) updateRun(run)
+        if (!CHAT_ACTIVE_STATUSES.has(run.status) || run.status === 'needs_confirmation') {
+          await refreshHistory(id, epoch)
+          if (watching()) streamError.value = ''
+          return
+        }
+      } catch (e) {
+        if (!watching()) return
+        streamError.value = chatError(e)
+        if (!canRetryChatRequest(e)) return
+      }
+      await waitForRetry(activeRun.value?.status === 'waiting_user' ? 8000 : 1800, signal)
     }
-    if (own.signal.aborted || epoch !== selectionEpoch) return
-    // Always reconcile persistent messages after a stream closes. Never replay a model submission.
-    try {
-      const run = await workbenchChatApi.run(runId)
-      if (epoch !== selectionEpoch) return
-      updateRun(run)
-      if (!CHAT_ACTIVE_STATUSES.has(run.status) || run.status === 'needs_confirmation') { await refreshHistory(id, epoch); connectionError.value = ''; return }
-    } catch (e) { if (epoch === selectionEpoch) connectionError.value = chatError(e) }
-    if (epoch === selectionEpoch) retryTimer = setTimeout(() => { void watchRun(runId, id, epoch) }, activeRun.value?.status === 'waiting_user' ? 8000 : 1800)
+  }
+  async function driveRun(runId: string, id: string, epoch: number, signal: AbortSignal) {
+    const watching = () => !signal.aborted && epoch === selectionEpoch
+    let delay = 800
+    while (watching()) {
+      const run = activeRun.value
+      if (run?.id !== runId || run.status === 'needs_confirmation' || run.status === 'waiting_user') return
+      try {
+        const updated = await workbenchChatApi.advance(runId, signal)
+        if (!watching()) return
+        updateRun(updated)
+        advanceError.value = ''
+        delay = 800
+        if (!CHAT_ACTIVE_STATUSES.has(updated.status) || updated.status === 'needs_confirmation') {
+          try { await refreshHistory(id, epoch) } catch { /* The event stream also reconciles terminal messages. */ }
+          return
+        }
+      } catch (e) {
+        if (!watching()) return
+        const http = e as { status?: number; retry_after_seconds?: number } | null
+        const busy = http?.status === 409 || http?.status === 429
+        if (!busy) advanceError.value = chatError(e)
+        if (!canRetryChatRequest(e)) return
+        await waitForRetry(http?.retry_after_seconds ? http.retry_after_seconds * 1000 : delay, signal)
+        delay = Math.min(delay * 2, 12000)
+      }
+    }
   }
   async function loadConversations(append = false) {
     if (loadingConversations.value || (append && !nextCursor.value)) return
@@ -158,11 +238,12 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     } finally { if (owner === authEpoch) loadingConversations.value = false }
   }
   async function initialize() {
-    if (initialized.value) return
     const owner = authEpoch
+    const wasEnabled = status.value?.enabled
     const flags = await workbenchChatApi.status()
     if (owner !== authEpoch) return
     status.value = flags
+    if (initialized.value && wasEnabled === flags.enabled) return
     if (flags.enabled) {
       const catalog = await workbenchChatApi.models()
       if (owner !== authEpoch) return
@@ -171,18 +252,27 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     }
     if (owner === authEpoch) initialized.value = true
   }
-  async function selectConversation(id: string) {
-    if (activeConversationId.value === id && !error.value) return
+  async function selectConversation(id: string, refresh = false) {
+    if (activeConversationId.value === id && !refresh && !error.value) return
+    const changed = activeConversationId.value !== id
     stopWatching(); const epoch = ++selectionEpoch
-    nextBefore.value = undefined; hasMoreHistory.value = false; loadingEarlier.value = false
-    activeConversationId.value = id; history.value = { messages: [], runs: [] }; error.value = ''; pending = undefined
-    if (!id) return
+    loadingEarlier.value = false
+    error.value = ''
+    if (changed) {
+      nextBefore.value = undefined
+      hasMoreHistory.value = false
+      activeConversationId.value = id
+      history.value = { messages: [], runs: [] }
+      pending = undefined
+      submitting.value = false
+    }
+    if (!id) { loading.value = false; return }
     loading.value = true
     try {
       await refreshHistory(id, epoch)
       if (epoch !== selectionEpoch) return
       const run = activeRun.value
-      if (run) void watchRun(run.id, id, epoch)
+      if (run) watchRun(run, id, epoch)
       // Load the newest task's process; older turns can be expanded on demand.
       const terminal = [...history.value.runs].reverse().find(r => !CHAT_ACTIVE_STATUSES.has(r.status))
       if (terminal) void loadRunEvents(terminal.id).catch(() => {})
@@ -225,12 +315,14 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       pending = undefined
       updateRun(run)
       const epoch = selectionEpoch
-      await refreshHistory(id, epoch)
-      void watchRun(run.id, id, epoch)
+      try { await refreshHistory(id, epoch) }
+      catch (e) { if (epoch === selectionEpoch) error.value = chatError(e) }
+      if (epoch !== selectionEpoch) return
+      watchRun(run, id, epoch)
       void loadConversations().catch(() => {})
       return id
     } catch (e) { if (owner === authEpoch && selected === selectionEpoch) error.value = chatError(e); throw e }
-    finally { if (owner === authEpoch) submitting.value = false }
+    finally { if (owner === authEpoch && selected === selectionEpoch) submitting.value = false }
   }
   async function selectAnswer(runId: string) {
     const epoch = selectionEpoch
@@ -244,8 +336,17 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
     const run = activeRun.value
     if (!run) return
     const epoch = selectionEpoch, id = activeConversationId.value
-    try { const result = await workbenchChatApi.cancel(run.id); if (epoch !== selectionEpoch) return; updateRun(result); await refreshHistory(id, epoch) }
-    catch (e) { if (epoch === selectionEpoch) error.value = chatError(e) }
+    stopWatching()
+    try {
+      const result = await workbenchChatApi.cancel(run.id)
+      if (epoch !== selectionEpoch) return
+      updateRun(result)
+      await refreshHistory(id, epoch)
+      void loadRunEvents(run.id).catch(() => {})
+    } catch (e) {
+      if (epoch !== selectionEpoch) return
+      error.value = chatError(e)
+    }
   }
   async function renameConversation(id: string, title: string) {
     const name = title.trim()
@@ -267,5 +368,5 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
   function newConversation() { return selectConversation('') }
   function reset() { stopWatching(); ++selectionEpoch; ++authEpoch; loading.value = false; submitting.value = false; loadingConversations.value = false; loadingEarlier.value = false; nextBefore.value = undefined; hasMoreHistory.value = false; error.value = ''; nextCursor.value = undefined; initialized.value = false; conversations.value = []; history.value = { messages: [], runs: [] }; events.value = {}; activeConversationId.value = ''; status.value = null; modelCatalog.value = { models: [] }; pending = undefined }
   watch(() => auth.user?.id, () => reset(), { flush: 'sync' })
-  return { status, modelCatalog, models, conversations, activeConversationId, currentConversation, history, events, activeRun, loading, loadingEarlier, hasMoreHistory, loadEarlier, loadRunEvents, loadingConversations, submitting, error, connectionError, nextCursor, initialized, initialize, loadConversations, loadMore: () => loadConversations(true), selectConversation, createConversation, renameConversation, deleteConversation, newConversation, send, selectAnswer, cancelRun, stopWatching, reset }
+  return { status, modelCatalog, models, conversations, activeConversationId, currentConversation, history, events, activeRun, loading, loadingEarlier, hasMoreHistory, loadEarlier, loadRunEvents, loadingConversations, submitting, error, connectionError, nextCursor, initialized, initialize, loadConversations, loadMore: () => loadConversations(true), selectConversation, createConversation, renameConversation, deleteConversation, newConversation, send, selectAnswer, cancelRun, pause, reset }
 })

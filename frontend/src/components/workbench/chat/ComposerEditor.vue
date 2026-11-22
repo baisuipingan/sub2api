@@ -17,7 +17,6 @@
     @keyup="saveSelection"
     @mouseup="saveSelection"
     @blur="saveSelection"
-    @click="selectReference"
     @compositionstart="composing = true"
     @compositionend="compositionEnd"
     @paste="paste"
@@ -26,19 +25,16 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue'
-import { composerReferenceSelector, createComposerReference, readComposerDocument } from './composerDocument'
-import type { ComposerReference } from './composerDocument'
+import { readComposerDocument } from './composerDocument'
 
 const props = withDefaults(defineProps<{
   modelValue: string
-  references: ComposerReference[]
   placeholder: string
   disabled?: boolean
   maxlength?: number
 }>(), { maxlength: 32768 })
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  referencesChange: [keys: string[]]
   submit: []
   pasteFiles: [event: ClipboardEvent]
 }>()
@@ -48,85 +44,45 @@ let bookmark: Range | null = null
 function saveSelection() {
   const selection = window.getSelection(), element = root.value
   if (!element || !selection?.rangeCount || !element.contains(selection.anchorNode)) return
-  const range = selection.getRangeAt(0).cloneRange()
-  const container = range.startContainer
-  const token = (container instanceof HTMLElement ? container : container.parentElement)?.closest(composerReferenceSelector)
-  if (range.collapsed && token) {
-    range.setStartAfter(token)
-    range.collapse(true)
-    selection.removeAllRanges()
-    selection.addRange(range)
-  }
-  bookmark = range
+  bookmark = selection.getRangeAt(0).cloneRange()
 }
 
 function restoreSelection() {
   const element = root.value
-  if (!element) return
+  if (!element || props.disabled || composing.value) return
+  const selection = window.getSelection()
+  const current = selection?.rangeCount ? selection.getRangeAt(0) : null
+  if (document.activeElement === element && current && element.contains(current.startContainer) && element.contains(current.endContainer)) return
   const saved = bookmark
   const range = saved && element.contains(saved.startContainer) && element.contains(saved.endContainer) ? saved : document.createRange()
   if (range !== saved) { range.selectNodeContents(element); range.collapse(false) }
   element.focus({ preventScroll: true })
-  const selection = window.getSelection()
   selection?.removeAllRanges()
   selection?.addRange(range)
 }
 
 function publish() {
   if (!root.value) return
-  const document = readComposerDocument(root.value)
-  empty.value = !document.text && !document.keys.length
-  emit('update:modelValue', document.text)
-  emit('referencesChange', [...new Set(document.keys)])
+  const text = readComposerDocument(root.value)
+  empty.value = !text
+  emit('update:modelValue', text)
   saveSelection()
-  // Busy/attachment rules may keep a reference selected after native deletion.
-  void nextTick(reconcile)
 }
 
 function reconcile() {
   const element = root.value
   if (!element || composing.value) return
-  const current = readComposerDocument(element)
-  if (current.text !== props.modelValue) {
-    const retained = Array.from(element.querySelectorAll<HTMLElement>(composerReferenceSelector))
-    element.replaceChildren(...retained, document.createTextNode(props.modelValue))
+  if (readComposerDocument(element) !== props.modelValue) {
+    element.textContent = props.modelValue
     bookmark = null
   }
-  const wanted = new Set(props.references.map(reference => reference.key))
-  for (const token of element.querySelectorAll<HTMLElement>(composerReferenceSelector)) {
-    if (!wanted.has(token.dataset.composerReference!)) token.remove()
-  }
-  const present = new Set(readComposerDocument(element).keys)
-  const added = props.references.filter(reference => !present.has(reference.key))
-  if (added.length) {
-    if (bookmark && !props.disabled) {
-      restoreSelection()
-      const tokens = added.map(createComposerReference)
-      const inserted = typeof document.execCommand === 'function' && document.execCommand('insertHTML', false, tokens.map(token => token.outerHTML).join(''))
-      if (!inserted) {
-        const selection = window.getSelection(), fragment = document.createDocumentFragment()
-        tokens.forEach(token => fragment.append(token))
-        if (selection?.rangeCount) { const range = selection.getRangeAt(0); range.deleteContents(); range.insertNode(fragment); range.setStartAfter(tokens.at(-1)!); range.collapse(true); selection.removeAllRanges(); selection.addRange(range) }
-      }
-      saveSelection()
-    } else {
-      const fragment = document.createDocumentFragment()
-      added.forEach(reference => fragment.append(createComposerReference(reference)))
-      const last = fragment.lastChild!
-      element.prepend(fragment)
-      const range = document.createRange()
-      range.setStartAfter(last)
-      range.collapse(true)
-      bookmark = range
-    }
-  }
-  empty.value = !readComposerDocument(element).text && !props.references.length
+  empty.value = !props.modelValue
 }
 
 function onInput() {
   if (props.disabled) return
   if (composing.value) {
-    if (root.value) { const current = readComposerDocument(root.value); empty.value = !current.text && !current.keys.length }
+    if (root.value) empty.value = !readComposerDocument(root.value)
   } else publish()
 }
 function compositionEnd() { composing.value = false; if (!props.disabled) publish(); void nextTick(reconcile) }
@@ -144,18 +100,6 @@ function onKeyDown(event: KeyboardEvent) {
     event.preventDefault()
     if (!props.disabled) emit('submit')
   }
-}
-
-function selectReference(event: MouseEvent) {
-  if (props.disabled || !(event.target instanceof HTMLElement)) return
-  const token = event.target.closest(composerReferenceSelector)
-  if (!token || !root.value?.contains(token)) return
-  const range = document.createRange()
-  range.selectNode(token)
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  saveSelection()
 }
 
 function paste(event: ClipboardEvent) {
@@ -184,8 +128,7 @@ function paste(event: ClipboardEvent) {
   publish()
 }
 
-watch(() => [props.modelValue, props.references, props.disabled], reconcile, { deep: true, flush: 'post', immediate: true })
-watch(root, reconcile, { flush: 'post' })
+watch(() => props.modelValue, reconcile, { flush: 'post' })
 onMounted(reconcile)
 defineExpose({ focus: restoreSelection })
 </script>

@@ -85,6 +85,11 @@ jobs:
         run: |
           uv run --project services/office-agent --frozen pytest -q services/office-agent/tests
           PYTHONPATH=services/office-executor PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s services/office-executor/tests -v
+      - name: Workbench office node tests
+        working-directory: services/workbench-office-tools
+        run: |
+          python -m pip install --only-binary=:all: -r requirements.txt
+          python -m unittest discover -s tests -v
       - name: Go pilot concurrency and existing desktop regression
         working-directory: backend
         run: go test -race ./internal/config ./internal/service ./internal/handler ./internal/server/routes -run 'TestOffice|TestDesktopAgent' -count=1 -p=1

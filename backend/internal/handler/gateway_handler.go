@@ -31,6 +31,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -172,6 +173,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	body = parsedReq.Body.Bytes()
 	reqModel := parsedReq.Model
 	reqStream := parsedReq.Stream
+	workbenchMessages, _ := c.Request.Context().Value(ctxkey.WorkbenchAnthropicMessages).(bool)
 	bindRequestedReasoningEffort(c, body, reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if policyBody, changed, err := applyAnthropicReasoningEffortPolicyForRequest(c, apiKey, body); err != nil {
@@ -295,7 +297,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		UserAgent: c.GetHeader("User-Agent"),
 		APIKeyID:  apiKey.ID,
 	}
-	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
+	sessionHash := workbenchAnthropicSessionHash(c, apiKey.ID, reqModel)
+	if sessionHash == "" {
+		sessionHash = h.gatewayService.GenerateSessionHash(parsedReq)
+	}
 
 	// [DEBUG-STICKY] 打印会话 hash 生成结果
 	reqLog.Info("sticky.session_hash_generated",
@@ -912,7 +917,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}
-			if fs.ForceCacheBilling {
+			if fs.ForceCacheBilling && !workbenchMessages {
 				requestCtx = service.WithForceCacheBilling(requestCtx)
 			}
 			if channelMapping.Mapped {
@@ -964,7 +969,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 				// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 				// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
-				forceCacheBilling := fs.ForceCacheBilling
+				forceCacheBilling := fs.ForceCacheBilling && !workbenchMessages
 				quotaPlatform := service.QuotaPlatform(c.Request.Context(), currentAPIKey)
 				sessionID := service.ExtractClientSessionID(c)
 				channelUsageFields := clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel)
@@ -1149,6 +1154,17 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func workbenchAnthropicSessionHash(c *gin.Context, apiKeyID int64, model string) string {
+	ctx := c.Request.Context()
+	native, _ := ctx.Value(ctxkey.WorkbenchAnthropicMessages).(bool)
+	groupID, _ := ctx.Value(ctxkey.WorkbenchGroupID).(int64)
+	conversation := c.GetHeader("session_id")
+	if !native || groupID <= 0 || apiKeyID <= 0 || uuid.Validate(conversation) != nil {
+		return ""
+	}
+	return service.DeriveSessionHashFromSeed("anthropic-workbench:" + strconv.FormatInt(apiKeyID, 10) + ":" + model + ":" + conversation)
 }
 
 // Models lists visible models, or retrieves the exact list entry for a model path parameter.

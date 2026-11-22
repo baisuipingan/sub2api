@@ -256,3 +256,39 @@ func (h *BackupHandler) TestImageStorageConnection(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"ok": true, "message": "connection successful"})
 }
+
+func (h *BackupHandler) GetOfficeStorageConfig(c *gin.Context) {
+	cfg, err := h.imageStorage.GetOfficeStorageSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *BackupHandler) UpdateOfficeStorageConfig(c *gin.Context) {
+	var req service.OfficeStorageSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid office storage configuration")
+		return
+	}
+	cfg, err := h.imageStorage.UpdateOfficeStorageSettings(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *BackupHandler) TestOfficeStorageConnection(c *gin.Context) {
+	var req service.OfficeStorageSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid office storage configuration")
+		return
+	}
+	if err := h.imageStorage.TestOfficeStorageConnection(c.Request.Context(), req); err != nil {
+		response.Success(c, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+	response.Success(c, gin.H{"ok": true})
+}

@@ -646,20 +646,31 @@ func (s *DesktopAgentService) UpdateConfig(ctx context.Context, cfg DesktopAgent
 	if err != nil {
 		return nil, err
 	}
-	if s.profileCatalog != nil {
-		if repo, ok := s.settings.settingRepo.(interface {
-			SaveDesktopAgentConfigWithCatalog(context.Context, string, string) (bool, error)
-		}); ok {
-			changed, saveErr := repo.SaveDesktopAgentConfigWithCatalog(ctx, s.profileRecordRaw, string(data))
-			if saveErr != nil {
-				return nil, saveErr
-			}
-			if !changed {
-				_ = s.profileCatalog.Initialize(ctx)
-				return nil, ErrDesktopAgentPolicyChanged
-			}
-			return &cfg, nil
+	if repo, ok := s.settings.settingRepo.(interface {
+		SaveDesktopAgentConfig(context.Context, string, *string) (bool, []string, error)
+	}); ok {
+		var expectedCatalog *string
+		if s.profileCatalog != nil {
+			expectedCatalog = &s.profileRecordRaw
 		}
+		changed, cacheKeys, saveErr := repo.SaveDesktopAgentConfig(ctx, string(data), expectedCatalog)
+		if saveErr != nil {
+			return nil, saveErr
+		}
+		if !changed {
+			if s.profileCatalog != nil {
+				_ = s.profileCatalog.Initialize(ctx)
+			}
+			return nil, ErrDesktopAgentPolicyChanged
+		}
+		if keys, ok := s.credentials.(*APIKeyService); ok && len(cacheKeys) > 0 {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			for _, cacheKey := range cacheKeys {
+				keys.deleteAuthCache(cleanup, cacheKey)
+			}
+		}
+		return &cfg, nil
 	}
 	if err = s.settings.settingRepo.SetMultiple(ctx, map[string]string{SettingKeyDesktopAgentConfig: string(data)}); err != nil {
 		return nil, err

@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 import type { User } from '@/types'
 
 vi.mock('vue-router', () => ({
@@ -71,6 +73,20 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 describe('ProfileInfoCard', () => {
+  it('updates the same wallet balance when the site display currency switches', async () => {
+    const wrapper = mount(ProfileInfoCard, { props: { user: createUser() }, global: { stubs: { Icon: true } } })
+    const balance = wrapper.get('[data-testid="profile-overview-metric-balance"]')
+    try {
+      expect(balance.text()).toContain('$10.00')
+      setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY', billing_usd_to_cny: 7.2 })
+      await nextTick()
+      expect(balance.text().replaceAll('￥', '¥')).toContain('¥72.00')
+    } finally {
+      wrapper.unmount()
+      setCurrentBillingCurrencySettings(null)
+    }
+  })
+
   it.each([
     { avatar_source: 'dingtalk', username_source: 'dingtalk' },
     { profile_sources: { avatar: { provider: 'dingtalk' }, username: { provider: 'dingtalk' } } },

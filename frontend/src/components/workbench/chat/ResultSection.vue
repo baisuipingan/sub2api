@@ -1,14 +1,27 @@
 <template>
-  <div class="bs-chat-result bso-result" data-component="ResultSection">
-    <div v-if="files.length" class="bs-chat-report-ready"><span>{{ files.length > 1 ? '已生成' : '文件已准备好：' }}</span><button type="button" class="bs-chat-file-link" @click="emit('preview', files[0])"><Icon name="document" size="sm" /><span>{{ files[0].name }}</span></button><span v-if="files.length > 1">等 {{ files.length }} 个文件</span><button v-else type="button" class="bs-chat-icon" aria-label="下载文件" @click="emit('download', files[0])"><Icon name="download" size="sm" /></button></div>
+  <div class="bs-chat-result" data-component="ResultSection">
     <ChatMarkdown v-if="text" :content="text" :files="files" :citations="citations" @preview="emit('preview', $event)" @reference="emit('reference', $event)" />
-    <div v-if="files.length > 1" class="bs-chat-result-files"><div class="bs-chat-result-files-title"><Icon name="document" size="sm" />输出文件 <span>{{ files.length }}</span></div><div v-for="file in files" :key="file.version_id" class="bs-chat-file-row"><button type="button" @click="emit('preview', file)"><WorkspaceFileIcon :file="file" /><span :title="file.name">{{ file.name }}</span></button><button type="button" class="bs-chat-text-button" :aria-label="`下载${file.name}`" @click="emit('download', file)"><Icon name="download" size="sm" />下载</button></div></div>
+    <ul v-if="files.length" class="bs-chat-deliverables" aria-label="生成文件">
+      <li v-for="file in files" :key="file.version_id" class="bs-chat-deliverable">
+        <button type="button" class="bso-file-open" @click="emit('preview', file)">
+          <WorkspaceFileIcon :file="file" />
+          <span class="bso-file-info">
+            <strong :title="file.name">{{ file.name }}</strong>
+            <small v-if="file.bytes">{{ formatBytes(file.bytes, 1) }}</small>
+          </span>
+        </button>
+        <button type="button" class="bs-chat-icon" :aria-label="`下载${file.name}`" title="下载文件" @click="emit('download', file)">
+          <Icon name="download" size="sm" />
+        </button>
+      </li>
+    </ul>
   </div>
 </template>
 <script setup lang="ts">
 import Icon from '@/components/icons/Icon.vue'
 import ChatMarkdown from './ChatMarkdown.vue'
 import WorkspaceFileIcon from './WorkspaceFileIcon.vue'
+import { formatBytes } from '@/utils/format'
 import type { ChatArtifact, ChatCitation } from '@/types/workbenchChat'
 import './workbenchArtifacts.css'
 defineProps<{ text: string; files: ChatArtifact[]; citations?: ChatCitation[] }>()

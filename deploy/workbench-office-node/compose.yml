@@ -1,0 +1,30 @@
+services:
+  office-tools:
+    image: ${OFFICE_TOOLS_IMAGE:-sub2api-office-tools:local}
+    build:
+      context: ../../services/workbench-office-tools
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: ${OFFICE_TOOLS_CPUS:-1}
+    mem_limit: ${OFFICE_TOOLS_MEMORY:-640m}
+    pids_limit: 64
+    ports:
+      - "${OFFICE_TOOLS_BIND_ADDRESS:-127.0.0.1}:${OFFICE_TOOLS_BIND_PORT:-8094}:8094"
+    environment:
+      OFFICE_TOOLS_TOKEN: ${OFFICE_TOOLS_TOKEN:?set a unique node token}
+      OFFICE_TOOLS_STORAGE_ORIGINS: ${OFFICE_TOOLS_STORAGE_ORIGINS:?set the exact signed S3 origins}
+      OFFICE_TOOLS_RECALC_ENABLED: ${OFFICE_TOOLS_RECALC_ENABLED:-true}
+    volumes:
+      - state:/var/lib/office-tools
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8094/health', timeout=2).close()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+volumes:
+  state:

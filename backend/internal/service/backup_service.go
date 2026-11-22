@@ -426,7 +426,6 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 	activeAsync := s.asyncImageSettings != nil && s.asyncImageSettings.activeAsyncTasks > 0
 	activeStudio := false
 	activeTickets := false
-	activeOffice := false
 	if s.asyncImageSettings != nil && s.asyncImageSettings.studioJobs != nil {
 		var err error
 		activeStudio, err = s.asyncImageSettings.studioJobs.HasActive(ctx)
@@ -435,14 +434,6 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 		}
 	}
 	if s.asyncImageSettings != nil {
-		activeOffice = s.asyncImageSettings.activeOfficeStorage > 0
-		if s.asyncImageSettings.officeStorageUsage != nil {
-			hasOffice, err := s.asyncImageSettings.officeStorageUsage(ctx)
-			if err != nil {
-				return nil, err
-			}
-			activeOffice = activeOffice || hasOffice
-		}
 		activeTickets = s.asyncImageSettings.activeTicketStorage > 0
 		if s.asyncImageSettings.ticketStorageUsage != nil {
 			hasTickets, err := s.asyncImageSettings.ticketStorageUsage(ctx)
@@ -452,16 +443,13 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			activeTickets = activeTickets || hasTickets
 		}
 	}
-	if hasAssets || activeAsync || activeStudio || activeTickets || activeOffice {
+	if hasAssets || activeAsync || activeStudio || activeTickets {
 		raw, err := s.settingRepo.GetValue(ctx, settingKeyImageStorageConfig)
 		if err != nil && !errors.Is(err, ErrSettingNotFound) {
 			return nil, err
 		}
 		var imageSettings ImageStorageSettings
 		if raw != "" && json.Unmarshal([]byte(raw), &imageSettings) != nil {
-			if activeOffice {
-				return nil, ErrOfficeStorageUnavailable
-			}
 			if hasAssets {
 				return nil, ErrGalleryStorageTargetInUse
 			}
@@ -474,17 +462,11 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			return nil, ErrAsyncImageStorageTargetInUse
 		}
 		if imageSettings.ReuseBackupS3 {
-			if activeOffice && strings.TrimSpace(cfg.AccessKeyID) == "" {
-				return nil, ErrOfficeStorageUnavailable
-			}
 			if activeTickets && strings.TrimSpace(cfg.AccessKeyID) == "" {
 				return nil, ErrTicketStorageUnavailable
 			}
 			old, err := s.loadS3Config(ctx)
 			if err != nil || old == nil {
-				if activeOffice {
-					return nil, ErrOfficeStorageUnavailable
-				}
 				if hasAssets {
 					return nil, ErrGalleryStorageTargetInUse
 				}
@@ -500,14 +482,7 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			if imageSettings.Bucket != "" {
 				oldBucket, newBucket = imageSettings.Bucket, imageSettings.Bucket
 			}
-			officeOldBucket, officeNewBucket := oldBucket, newBucket
-			if imageSettings.OfficeBucket != "" {
-				officeOldBucket, officeNewBucket = imageSettings.OfficeBucket, imageSettings.OfficeBucket
-			}
-			if activeOffice && (old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || officeOldBucket != officeNewBucket || old.ForcePathStyle != cfg.ForcePathStyle) {
-				return nil, ErrOfficeStorageUnavailable
-			}
-			if (hasAssets || activeStudio || activeTickets || activeAsync) && (old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || oldBucket != newBucket || old.ForcePathStyle != cfg.ForcePathStyle) {
+			if old.Endpoint != cfg.Endpoint || old.Region != cfg.Region || oldBucket != newBucket || old.ForcePathStyle != cfg.ForcePathStyle {
 				if hasAssets {
 					return nil, ErrGalleryStorageTargetInUse
 				}
@@ -527,6 +502,11 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 		old, _ := s.loadS3Config(ctx)
 		if old != nil {
 			cfg.SecretAccessKey = old.SecretAccessKey
+		}
+	}
+	if s.asyncImageSettings != nil {
+		if err := s.asyncImageSettings.checkOfficeBackupChange(ctx, &cfg); err != nil {
+			return nil, err
 		}
 	}
 

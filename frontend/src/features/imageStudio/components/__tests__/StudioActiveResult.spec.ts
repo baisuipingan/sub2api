@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 
 /**
  * 结果面板是用户判断「这次出了什么问题」的唯一入口。
@@ -97,6 +98,21 @@ describe('StudioActiveResult', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
+  })
+
+  it('displays the estimated USD cost in the site display currency', async () => {
+    state.imagePricing = { 'gpt-image-2': { '2K': 0.05 } }
+    const wrapper = mountPanel(makeTask({ outputImages: ['img1'] }))
+    try {
+      expect(wrapper.text()).toContain('$0.0500')
+      setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY', billing_usd_to_cny: 7.2 })
+      await nextTick()
+      expect(wrapper.text().replaceAll('￥', '¥')).toContain('¥0.3600')
+    } finally {
+      wrapper.unmount()
+      setCurrentBillingCurrencySettings(null)
+      state.imagePricing = {}
+    }
   })
 
   it('失败任务在主面板显示失败原因', async () => {

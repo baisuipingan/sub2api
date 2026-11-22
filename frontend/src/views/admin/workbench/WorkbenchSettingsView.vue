@@ -20,25 +20,32 @@
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
  <div v-for="feature in features" :key="feature.key" class="flex items-start justify-between gap-3 rounded-xl border border-gray-200 p-4 dark:border-dark-700">
- <div><label :for="feature.key" class="text-sm font-medium">{{ feature.label }}</label><p class="mt-1 text-xs leading-5 text-gray-500">{{ feature.hint }}</p></div>
+ <div>
+   <label :for="feature.key" class="text-sm font-medium">{{ feature.label }}</label>
+   <p class="mt-1 text-xs leading-5 text-gray-500">{{ feature.hint }}</p>
+   <div v-if="feature.key === 'search_enabled'" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+     <span v-if="searchProviderStatus" :class="searchProviderStatus === 'configured' ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-300'" role="status">{{ t(`admin.workbenchSettings.searchProviders.${searchProviderStatus}`) }}</span>
+     <router-link to="/admin/workbench/settings#workbench-search" class="font-medium text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.workbenchSettings.searchProviders.configure') }}</router-link>
+   </div>
+ </div>
  <Toggle :id="feature.key" :model-value="form[feature.key]" :aria-label="feature.label" @update:model-value="setFeature(feature.key, $event)" />
  </div></div>
- <div class="max-w-xl">
-            <label for="workbench-group" class="mb-2 block text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('admin.workbenchSettings.group') }}</label>
-            <Select id="workbench-group" :model-value="form.image_studio_group_id" :options="groupOptions" :searchable="groupOptions.length > 6" :aria-label="t('admin.workbenchSettings.group')" :placeholder="t('admin.workbenchSettings.groupPlaceholder')" @update:model-value="form.image_studio_group_id = Number($event) || 0" />
-            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.groupHint') }}</p>
-            <p v-if="loaded && !selectedGroupAvailable" class="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300" role="note">{{ t('admin.workbenchSettings.groupRequired') }}</p>
-          </div>
-          <details v-if="budgetForm" class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
-            <summary class="cursor-pointer text-sm font-medium">执行限额</summary>
-            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">按用户限制同时运行的任务，并限制每个任务的调用次数和时长。修改后仅影响新任务；模型官方上下文与输出能力不受这些设置改写。</p>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Input v-for="field in budgetFields" :id="`workbench-${field.key}`" :key="field.key" :model-value="budgetForm[field.key]" type="number" :min="1" :max="deploymentLimits?.[field.key]" step="1" :label="field.label" :hint="deploymentLimits ? `部署上限 ${deploymentLimits[field.key].toLocaleString()}` : undefined" @update:model-value="budgetForm[field.key] = Number($event)" />
-              <Input id="workbench-max-run-amount" :model-value="budgetAmount" type="number" min="0" step="0.01" :label="`单任务费用预算（${billingSymbol}）`" hint="0 表示不额外限制；每次模型调用仍检查用户可用额度。" @update:model-value="budgetAmount = $event" />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="min-w-0">
+              <label for="workbench-group" class="mb-2 block text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('admin.workbenchSettings.group') }}</label>
+              <Select id="workbench-group" :model-value="form.image_studio_group_id" :options="groupOptions" :searchable="groupOptions.length > 6" :aria-label="t('admin.workbenchSettings.group')" :placeholder="t('admin.workbenchSettings.groupPlaceholder')" @update:model-value="form.image_studio_group_id = Number($event) || 0" />
+              <p v-if="loaded && form.image_studio_enabled && !selectedGroupAvailable" class="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300" role="note">{{ t('admin.workbenchSettings.groupRequired') }}</p>
             </div>
-            <p class="mt-3 text-xs leading-5 text-amber-700 dark:text-amber-300">费用预算用于停止后续调用，正在执行的一次调用仍可能使任务费用超过预算。达到限制时保留已完成的结果和文件。</p>
-            <p v-if="budgetError" role="alert" class="mt-3 text-sm text-red-600">{{ budgetError }}</p>
-          </details>
+            <div class="min-w-0">
+              <h3 class="mb-2 text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('admin.workbenchSettings.agentGroup') }}</h3>
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                <span id="workbench-agent-group" class="min-w-0 break-words">{{ agentGroupLabel }}</span>
+                <router-link to="/admin/settings#agent" class="font-medium text-primary-600 hover:underline dark:text-primary-400">{{ t('admin.workbenchSettings.manageAgentGroup') }}</router-link>
+              </div>
+              <p v-if="loaded && form.chat_enabled && !agentGroupAvailable" class="mt-2 text-xs leading-5 text-amber-700 dark:text-amber-300" role="note">{{ t('admin.workbenchSettings.agentGroupRequired') }}</p>
+            </div>
+          </div>
+          <p class="text-xs leading-5 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.rateLimitHint') }}</p>
           <details class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
             <summary class="cursor-pointer text-sm font-medium">自定义模型能力</summary>
             <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">官方模型名会自动识别。仅在分组使用自定义公开别名时，将它关联到对应的官方能力档案；不会修改模型路由、价格或官方参数上限。</p>
@@ -55,13 +62,16 @@
             <p v-if="profileError" role="alert" class="mt-3 text-sm text-red-600">{{ profileError }}</p>
           </details>
           <div class="flex flex-wrap items-center gap-3">
-            <button type="button" data-testid="workbench-access-save" class="btn btn-primary btn-sm" :disabled="(form.image_studio_enabled || form.chat_enabled) && !selectedGroupAvailable" @click="saveConfig">{{ saving ? t('common.loading') : t('common.save') }}</button>
+            <button type="button" data-testid="workbench-access-save" class="btn btn-primary btn-sm" :disabled="!canSave" @click="saveConfig">{{ saving ? t('common.loading') : t('common.save') }}</button>
             <router-link to="/admin/groups" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">{{ t('admin.workbenchSettings.manageGroups') }}</router-link>
           </div>
         </fieldset>
       </section>
 
+      <WorkbenchSearchSettings @configured="searchProviderStatus = $event ? 'configured' : 'unconfigured'" />
+
       <ImageStorageSettings />
+      <OfficeStorageSettings />
 
       <section class="rounded-xl border border-gray-200 p-5 dark:border-dark-700">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.workbenchSettings.routingTitle') }}</h2>
@@ -80,27 +90,24 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
-import { getWorkbenchConfig, updateWorkbenchConfig, type WorkbenchConfig, type WorkbenchExecutionLimits } from '@/api/admin/workbench'
+import { getWorkbenchConfig, updateWorkbenchConfig, type WorkbenchConfig } from '@/api/admin/workbench'
 import { getDesktopAgentProfiles, type DesktopAgentProfile } from '@/api/admin/desktopAgent'
-import { resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
+import { isDesktopAgentGroupEligible, resolveDesktopAgentProfile } from '@/utils/desktopAgentConfig'
 import type { AdminGroup } from '@/types'
 import { useAppStore } from '@/stores'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Input from '@/components/common/Input.vue'
-import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import ImageStorageSettings from '@/components/admin/workbench/ImageStorageSettings.vue'
+import OfficeStorageSettings from '@/components/admin/workbench/OfficeStorageSettings.vue'
+import WorkbenchSearchSettings from '@/components/admin/workbench/WorkbenchSearchSettings.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const stepUp = useStepUp()
-const { symbol: billingSymbol, view: billingView, creditsToDisplay, displayToUSD } = useBillingCurrency()
-const deploymentLimits = ref<WorkbenchExecutionLimits | null>(null)
-const budgetForm = ref<WorkbenchExecutionLimits | null>(null)
-const budgetAmount = ref('0'), budgetError = ref('')
 const profiles = ref<DesktopAgentProfile[]>([])
 const profilesReady = ref(false), profilesLoading = ref(false)
 const profileLoadError = ref(''), profileError = ref('')
@@ -143,32 +150,14 @@ function profilePayload(): NonNullable<WorkbenchConfig['model_profiles']> {
   }
   return bindings
 }
-const budgetFields: { key: keyof WorkbenchExecutionLimits; label: string }[] = [
-  { key: 'chat_concurrent_runs', label: '每用户并行对话任务' }, { key: 'office_concurrent_runs', label: '每用户并行办公任务' },
-  { key: 'max_model_calls', label: '每任务最多模型调用' }, { key: 'max_tool_calls', label: '每任务最多工具调用' },
-  { key: 'max_output_tokens', label: '每次模型输出 Token 上限' }, { key: 'max_run_seconds', label: '任务最长时长（秒）' },
-]
-function loadBudgets(config: WorkbenchConfig) {
-  const limits = config.deployment_limits
-  if (!limits || !budgetFields.every(field => Number.isSafeInteger(config[field.key]) && Number.isSafeInteger(limits[field.key]))) { budgetForm.value = null; deploymentLimits.value = null; return }
-  deploymentLimits.value = limits
-  budgetForm.value = Object.fromEntries(budgetFields.map(field => [field.key, config[field.key]])) as unknown as WorkbenchExecutionLimits
-  budgetAmount.value = String(creditsToDisplay(config.max_run_credits || 0)); budgetError.value = ''
-}
-function budgetPayload() {
-  if (!budgetForm.value || !deploymentLimits.value) return {}
-  for (const field of budgetFields) { const value = budgetForm.value[field.key]; if (!Number.isSafeInteger(value) || value < 1 || value > deploymentLimits.value[field.key]) throw new Error(`${field.label}须为 1 到 ${deploymentLimits.value[field.key]} 的整数`) }
-  const amount = Number(budgetAmount.value)
-  const credits = Math.round(displayToUSD(amount) * billingView.value.creditsPerUSD)
-  if (!budgetAmount.value.trim() || !Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(credits) || credits < 0 || amount > 0 && credits === 0) throw new Error('请输入有效的单任务费用预算')
-  return { ...budgetForm.value, max_run_credits: credits }
-}
 const form = ref({ image_studio_enabled: true, image_studio_group_id: 0, chat_enabled:false,office_enabled:false,search_enabled:false,files_enabled:false })
+const agentGroupID = ref(0)
+const searchProviderStatus = ref<WorkbenchConfig['search_provider_status']>()
 const features = [
- {key:'chat_enabled' as const,label:'对话助手',hint:'开放云端对话；关闭时同时关闭搜索和办公，保留历史会话和文件。'},
- {key:'search_enabled' as const,label:'联网搜索',hint:'启用时同时开启对话助手；使用系统搜索供应商，计入任务工具次数。'},
- {key:'files_enabled' as const,label:'我的文件',hint:'私有资料、成果和版本，需配置对象存储；关闭时同时关闭办公任务。'},
- {key:'office_enabled' as const,label:'办公任务',hint:'启用时同时开启对话助手和我的文件；需已就绪的办公执行环境。'},
+ {key:'chat_enabled' as const,label:'对话助手',hint:'开放云端对话。关闭后停止搜索和文档工具，历史会话和文件仍可查看。'},
+ {key:'search_enabled' as const,label:t('admin.workbenchSettings.searchEnabled'),hint:t('admin.workbenchSettings.searchHint')},
+ {key:'files_enabled' as const,label:'我的文件',hint:'保存私有资料、成果和版本，需配置对象存储。关闭后停用文档工具。'},
+ {key:'office_enabled' as const,label:'文档工具',hint:'允许对话助手读取、生成和修改 DOCX 文档。启用时同时打开对话助手和我的文件。'},
 ]
 type FeatureKey = typeof features[number]['key']
 function setFeature(key: FeatureKey, value: boolean) {
@@ -185,8 +174,16 @@ const saving = ref(false)
 const loadError = ref('')
 let disposed = false
 
-const eligibleGroups = computed(() => groups.value.filter(group => group.status === 'active' && (!form.value.image_studio_enabled || group.allow_image_generation)))
+const eligibleGroups = computed(() => groups.value.filter(group => group.status === 'active' && group.allow_image_generation))
 const selectedGroupAvailable = computed(() => eligibleGroups.value.some(group => group.id === form.value.image_studio_group_id))
+const agentGroup = computed(() => groups.value.find(group => group.id === agentGroupID.value))
+const agentGroupAvailable = computed(() => !!agentGroup.value && isDesktopAgentGroupEligible(agentGroup.value))
+const agentGroupLabel = computed(() => agentGroup.value?.name ?? (
+  agentGroupID.value > 0 ? t('admin.workbenchSettings.agentGroupUnavailable', { id: agentGroupID.value }) : t('admin.workbenchSettings.agentGroupUnconfigured')
+))
+const canSave = computed(() => loaded.value && !loading.value && !saving.value
+  && (!form.value.image_studio_enabled || selectedGroupAvailable.value)
+  && (!form.value.chat_enabled || agentGroupAvailable.value))
 const groupOptions = computed(() => [
   { value: 0, label: t('admin.workbenchSettings.groupPlaceholder') },
   ...(form.value.image_studio_group_id > 0 && !selectedGroupAvailable.value
@@ -208,7 +205,8 @@ async function loadConfig() {
     const [config, availableGroups] = await Promise.all([getWorkbenchConfig(), adminAPI.groups.getAll()])
     if (disposed) return
     form.value = { image_studio_enabled: config.image_studio_enabled, image_studio_group_id: config.image_studio_group_id,chat_enabled:!!config.chat_enabled,office_enabled:!!config.office_enabled,search_enabled:!!config.search_enabled,files_enabled:!!config.files_enabled }
-    loadBudgets(config)
+    agentGroupID.value = config.agent_group_id ?? 0
+    searchProviderStatus.value = config.search_provider_status
     loadBindings(config)
     groups.value = availableGroups
     loaded.value = true
@@ -218,20 +216,18 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
-  if (!loaded.value || loading.value || saving.value || ((form.value.image_studio_enabled || form.value.chat_enabled) && !selectedGroupAvailable.value)) return
-  let budgets: Partial<WorkbenchConfig>
+  if (!canSave.value) return
   let modelProfiles: NonNullable<WorkbenchConfig['model_profiles']>
-  budgetError.value = ''
   profileError.value = ''
-  try { budgets = budgetPayload() } catch (error) { budgetError.value = errorMessage(error); appStore.showError(budgetError.value); return }
   try { modelProfiles = profilePayload() } catch (error) { profileError.value = errorMessage(error); appStore.showError(profileError.value); return }
   saving.value = true
-  const payload = { ...form.value, ...budgets, model_profiles: modelProfiles }
+  const payload = { ...form.value, model_profiles: modelProfiles }
   try {
     const saved = await stepUp.run(() => updateWorkbenchConfig(payload))
     if (disposed) return
     form.value = { image_studio_enabled: saved.image_studio_enabled, image_studio_group_id: saved.image_studio_group_id,chat_enabled:!!saved.chat_enabled,office_enabled:!!saved.office_enabled,search_enabled:!!saved.search_enabled,files_enabled:!!saved.files_enabled }
-    loadBudgets(saved)
+    agentGroupID.value = saved.agent_group_id ?? 0
+    searchProviderStatus.value = saved.search_provider_status
     loadBindings(saved)
     appStore.showSuccess(t('admin.workbenchSettings.saved'))
     await appStore.fetchPublicSettings(true)
