@@ -139,6 +139,7 @@ type WorkbenchConfig struct {
 	ImageStudioGroupID   int64                                      `json:"image_studio_group_id"`
 	AgentGroupID         int64                                      `json:"agent_group_id"`
 	ModelProfiles        map[string]DesktopAgentModelProfileBinding `json:"model_profiles"`
+	agentDefaultModelID  string
 }
 
 type WorkbenchAdminRepository interface {

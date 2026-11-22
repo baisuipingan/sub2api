@@ -12,15 +12,17 @@ func (s *SettingService) GetWorkbenchConfig(ctx context.Context) (*WorkbenchConf
 	if err != nil {
 		return nil, err
 	}
+	agentGroupID, agentDefaultModelID := workbenchAgentSelection(values[SettingKeyDesktopAgentConfig])
 	cfg := WorkbenchConfig{
-		ChatEnabled:        values["workbench_chat_enabled"] == "true",
-		OfficeEnabled:      values["workbench_office_enabled"] == "true",
-		SearchEnabled:      values["workbench_search_enabled"] == "true",
-		FilesEnabled:       values["workbench_files_enabled"] == "true",
-		ImageStudioEnabled: values[SettingKeyImageStudioEnabled] != "false",
-		ImageStudioGroupID: parseInt64Setting(values[SettingKeyImageStudioGroupID]),
-		AgentGroupID:       workbenchAgentGroupID(values[SettingKeyDesktopAgentConfig]),
-		ModelProfiles:      map[string]DesktopAgentModelProfileBinding{},
+		ChatEnabled:         values["workbench_chat_enabled"] == "true",
+		OfficeEnabled:       values["workbench_office_enabled"] == "true",
+		SearchEnabled:       values["workbench_search_enabled"] == "true",
+		FilesEnabled:        values["workbench_files_enabled"] == "true",
+		ImageStudioEnabled:  values[SettingKeyImageStudioEnabled] != "false",
+		ImageStudioGroupID:  parseInt64Setting(values[SettingKeyImageStudioGroupID]),
+		AgentGroupID:        agentGroupID,
+		ModelProfiles:       map[string]DesktopAgentModelProfileBinding{},
+		agentDefaultModelID: agentDefaultModelID,
 	}
 	if raw := values["workbench_model_profiles_v1"]; raw != "" {
 		if len(raw) > 32<<10 || json.Unmarshal([]byte(raw), &cfg.ModelProfiles) != nil || len(cfg.ModelProfiles) > 128 {
@@ -33,15 +35,28 @@ func (s *SettingService) GetWorkbenchConfig(ctx context.Context) (*WorkbenchConf
 	return &cfg, nil
 }
 
-func workbenchAgentGroupID(raw string) int64 {
+func workbenchAgentSelection(raw string) (int64, string) {
 	var cfg struct {
-		Enabled bool  `json:"enabled"`
-		GroupID int64 `json:"group_id"`
+		Enabled        bool            `json:"enabled"`
+		GroupID        int64           `json:"group_id"`
+		DefaultModelID json.RawMessage `json:"default_model_id"`
+		LegacyModel    json.RawMessage `json:"model"`
 	}
 	if json.Unmarshal([]byte(raw), &cfg) != nil || !cfg.Enabled || cfg.GroupID <= 0 {
-		return 0
+		return 0, ""
 	}
-	return cfg.GroupID
+	var modelID string
+	if len(cfg.DefaultModelID) != 0 {
+		_ = json.Unmarshal(cfg.DefaultModelID, &modelID)
+	} else if len(cfg.LegacyModel) != 0 {
+		var legacy struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(cfg.LegacyModel, &legacy) == nil {
+			modelID = legacy.ID
+		}
+	}
+	return cfg.GroupID, modelID
 }
 
 // UpdateWorkbenchConfig writes only the workbench keys. It must not load

@@ -31,11 +31,11 @@ func (h *OfficeAgentHandler) ChatStatus(c *gin.Context) {
 	response.Success(c, status)
 }
 func (h *OfficeAgentHandler) ChatModels(c *gin.Context) {
-	models, e := h.service.ChatModels(c.Request.Context())
+	catalog, e := h.service.ChatModels(c.Request.Context())
 	if officeHandlerError(c, e) {
 		return
 	}
-	response.Success(c, gin.H{"models": models})
+	response.Success(c, catalog)
 }
 func (h *OfficeAgentHandler) ChatSearchUsage(c *gin.Context) {
 	user, ok := officeUser(c)

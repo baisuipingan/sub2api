@@ -54,6 +54,43 @@ func TestWorkbenchDeepSeekV41FlashUsesOfficialFlashProfile(t *testing.T) {
 	require.Equal(t, "deepseek-v4-pro", workbenchModelProfile(publicID, bindings, profiles).ID)
 }
 
+func TestWorkbenchChatCatalogFiltersDedicatedServicesAndUsesAvailableDefault(t *testing.T) {
+	const preferred = "gpt-6.1-sol"
+	settings := &workbenchSettingsStub{values: map[string]string{"workbench_chat_enabled": "true"}}
+	svc, _ := officeBridgeFixture(http.NotFoundHandler())
+	svc.settings = NewSettingService(settings, nil)
+	svc.groups = NewGroupService(&workbenchGroupStub{group: &Group{
+		ID: 12, Status: StatusActive, Platform: PlatformComposite, SubscriptionType: SubscriptionTypeStandard,
+	}}, nil)
+	accounts := &desktopModelAccounts{accounts: []Account{
+		desktopModelAccount(PlatformOpenAI, map[string]any{
+			"deepseek-asr": "deepseek-asr", "deepseek-tts": "deepseek-tts", "deepseek-ocr": "deepseek-ocr",
+			"deepseek-fetch": "deepseek-fetch", "deepseek-search": "deepseek-search", "gpt-image-2": "gpt-image-2",
+			"deepseek-search-assistant": preferred, "deepseek-v4.1-flash": "deepseek-v4.1-flash", preferred: preferred,
+		}),
+	}}
+	svc.catalog = NewWorkbenchChatModelCatalog(accounts, compositeRouteRepoStub{}, nil)
+	for _, tc := range []struct{ name, config, expected string }{
+		{"shared default", `{"enabled":true,"group_id":12,"default_model_id":"gpt-6.1-sol"}`, preferred},
+		{"legacy default", `{"enabled":true,"group_id":12,"model":{"id":"gpt-6.1-sol"}}`, preferred},
+		{"excluded default", `{"enabled":true,"group_id":12,"default_model_id":"deepseek-asr"}`, ""},
+		{"unavailable default", `{"enabled":true,"group_id":12,"default_model_id":"not-routed"}`, ""},
+		{"malformed optional default", `{"enabled":true,"group_id":12,"default_model_id":7}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings.values[SettingKeyDesktopAgentConfig] = tc.config
+			catalog, err := svc.ChatModels(context.Background())
+			require.NoError(t, err)
+			ids := make([]string, 0, len(catalog.Models))
+			for _, model := range catalog.Models {
+				ids = append(ids, model.ID)
+			}
+			require.Equal(t, []string{"deepseek-search-assistant", "deepseek-v4.1-flash", preferred}, ids)
+			require.Equal(t, tc.expected, catalog.DefaultModel)
+		})
+	}
+}
+
 func TestWorkbenchGeminiCatalogDefaultMatchesNativeRequest(t *testing.T) {
 	const carbon = "gemini-4-carbon"
 	const carbonAlias = "carbon-office"
@@ -77,10 +114,10 @@ func TestWorkbenchGeminiCatalogDefaultMatchesNativeRequest(t *testing.T) {
 		{ID: 2, GroupID: 12, Enabled: true, MatchType: CompositeRouteMatchExact, PublicModel: responsesAlias, Endpoint: CompositeRouteEndpointResponses, TargetPlatform: PlatformOpenAI, UpstreamModel: "openai-target"},
 	}}
 	svc.catalog = NewWorkbenchChatModelCatalog(accounts, routes, nil)
-	items, err := svc.ChatModels(context.Background())
+	catalog, err := svc.ChatModels(context.Background())
 	require.NoError(t, err)
-	models := make(map[string]WorkbenchChatModel, len(items))
-	for _, item := range items {
+	models := make(map[string]WorkbenchChatModel, len(catalog.Models))
+	for _, item := range catalog.Models {
 		models[item.ID] = item
 	}
 	for _, id := range []string{carbon, carbonAlias} {

@@ -41,6 +41,11 @@ type WorkbenchChatModel struct {
 	nativeResponses        bool
 }
 
+type WorkbenchChatModelCatalog struct {
+	Models       []WorkbenchChatModel `json:"models"`
+	DefaultModel string               `json:"default_model,omitempty"`
+}
+
 func (s *OfficeAgentService) BindWorkbenchProfiles(profiles *DesktopAgentProfileCatalogService) {
 	s.profiles = profiles
 }
@@ -80,7 +85,7 @@ func (s *OfficeAgentService) ChatStatus(ctx context.Context) (WorkbenchChatStatu
 	result.UploadsEnabled = cfg.FilesEnabled
 	return result, nil
 }
-func (s *OfficeAgentService) ChatModels(ctx context.Context) ([]WorkbenchChatModel, error) {
+func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatModelCatalog, error) {
 	status, e := s.ChatStatus(ctx)
 	if e != nil {
 		return nil, e
@@ -110,11 +115,11 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) ([]WorkbenchChatMod
 	if s.profiles != nil {
 		profiles = s.profiles.Snapshot()
 	}
-	out := make([]WorkbenchChatModel, 0, len(ids))
+	result := &WorkbenchChatModelCatalog{Models: make([]WorkbenchChatModel, 0, len(ids))}
 	for _, id := range ids {
 		// Use the advertised ID's public contract. Private supplier mappings
-		// must not turn a text alias into an image option (or the reverse).
-		if imageStudioImageModel(id) {
+		// must not determine whether a text alias appears in the catalog.
+		if !workbenchChatModelID(id) {
 			continue
 		}
 		route := routes[id]
@@ -135,9 +140,21 @@ func (s *OfficeAgentService) ChatModels(ctx context.Context) ([]WorkbenchChatMod
 			m.SupportsVision = p.Model.Input != nil && p.Model.Input.Image != nil && *p.Model.Input.Image
 			m.replayToolReasoning = p.Source == "official_deepseek"
 		}
-		out = append(out, m)
+		result.Models = append(result.Models, m)
+		if id == cfg.agentDefaultModelID {
+			result.DefaultModel = id
+		}
 	}
-	return out, nil
+	return result, nil
+}
+
+func workbenchChatModelID(id string) bool {
+	switch id {
+	case "deepseek-asr", "deepseek-tts", "deepseek-ocr", "deepseek-fetch", "deepseek-search":
+		return false
+	default:
+		return !imageStudioImageModel(id)
+	}
 }
 
 func (s *OfficeAgentService) loadWorkbenchAgentGroup(ctx context.Context) (*WorkbenchConfig, *Group, error) {
@@ -191,14 +208,14 @@ func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, convers
 	if _, e = s.repo.GetConversation(ctx, user, conversation); e != nil {
 		return nil, e
 	}
-	models, e := s.ChatModels(ctx)
+	catalog, e := s.ChatModels(ctx)
 	if e != nil {
 		return nil, e
 	}
 	var model *WorkbenchChatModel
-	for i := range models {
-		if models[i].ID == in.Model {
-			model = &models[i]
+	for i := range catalog.Models {
+		if catalog.Models[i].ID == in.Model {
+			model = &catalog.Models[i]
 			break
 		}
 	}
