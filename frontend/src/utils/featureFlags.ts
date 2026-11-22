@@ -124,6 +124,11 @@ export const FeatureFlags = {
     mode: 'opt-out',
     label: 'Payment',
   }),
+  imageStudio: defineFlag({
+    key: 'image_studio_enabled',
+    mode: 'opt-out',
+    label: 'Image Generation',
+  }),
   riskControl: defineFlag({
     key: 'risk_control_enabled',
     mode: 'opt-in',

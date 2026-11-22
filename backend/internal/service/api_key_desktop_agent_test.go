@@ -151,6 +151,26 @@ func TestDesktopManagedPublicEditsAndDeletesCannotReviveOrRecreate(t *testing.T)
 	_, err := admin.AdminUpdateAPIKeyGroupID(context.Background(), 99, &gid)
 	require.ErrorIs(t, err, ErrSystemKeyProtected)
 }
+
+func TestImageStudioManagedKeyRejectsPublicEdits(t *testing.T) {
+	svc, repo, _, _, _ := desktopManagedFixture()
+	repo.key.Purpose = ""
+	repo.key.Name = ImageStudioKeyName
+	name := "renamed"
+	status := StatusDisabled
+	limit := float64(1)
+	reset := true
+	for _, req := range []UpdateAPIKeyRequest{
+		{Name: &name}, {Status: &status}, {Quota: &limit}, {ResetQuota: &reset},
+		{RateLimit5h: &limit}, {RateLimit1d: &limit}, {RateLimit7d: &limit},
+		{ResetRateLimitUsage: &reset}, {ClearExpiration: true},
+	} {
+		_, err := svc.Update(context.Background(), repo.key.ID, repo.key.UserID, req)
+		require.ErrorIs(t, err, ErrSystemKeyProtected)
+	}
+	require.Zero(t, repo.updates)
+}
+
 func TestDesktopManagedMetadataFailureBlocksGenericMutation(t *testing.T) {
 	svc, repo, _, _, _ := desktopManagedFixture()
 	repo.key.Purpose = ""
@@ -188,4 +208,39 @@ func TestDesktopManagedProviderClearsLocalPositiveAndNegativeAuthenticationCache
 			require.False(t, ok)
 		})
 	}
+}
+
+func TestWorkbenchResolvesExistingAgentKeyAndFencesOldRuns(t *testing.T) {
+	ctx := context.Background()
+	keys, keyRepo, users, groups, _ := desktopManagedFixture()
+	keyRepo.key.User = users.user
+	settingsRepo := &workbenchSettingsStub{values: map[string]string{
+		SettingKeyImageStudioGroupID: "8",
+		SettingKeyDesktopAgentConfig: `{"enabled":true,"group_id":12}`,
+	}}
+	accounts := &desktopModelAccounts{accounts: []Account{
+		desktopModelAccount(PlatformOpenAI, map[string]any{"office-public": "office-upstream"}),
+	}}
+	svc := NewOfficeAgentService(nil, nil, NewSettingService(settingsRepo, nil), NewGroupService(groups, nil), keys, accounts, compositeRouteRepoStub{}, nil)
+	id, group, err := svc.resolve(ctx, 7, "office-public")
+	require.NoError(t, err)
+	require.Equal(t, keyRepo.key.ID, id)
+	require.EqualValues(t, 12, group)
+	require.EqualValues(t, 12, accounts.queriedGroup)
+	run := OfficeRun{UserID: 7, APIKeyID: id, GroupID: group, Model: "office-public"}
+	secret, err := svc.authorize(ctx, run)
+	require.NoError(t, err)
+	require.Equal(t, keyRepo.key.Key, secret)
+	groups.group.IsExclusive = true
+	_, err = svc.authorize(ctx, run)
+	require.ErrorIs(t, err, ErrGroupNotAllowed)
+	users.user.AllowedGroups = []int64{group}
+	secret, err = svc.authorize(ctx, run)
+	require.NoError(t, err)
+	require.Equal(t, keyRepo.key.Key, secret)
+
+	settingsRepo.values[SettingKeyDesktopAgentConfig] = `{"enabled":true,"group_id":13}`
+	groups.group = &Group{ID: 13, Platform: PlatformComposite, SubscriptionType: SubscriptionTypeStandard, Status: StatusActive}
+	_, err = svc.authorize(ctx, run)
+	require.ErrorIs(t, err, ErrOfficeRouteChanged)
 }

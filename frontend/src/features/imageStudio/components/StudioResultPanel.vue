@@ -175,7 +175,10 @@
 
               <p class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400">
                 <span class="max-w-[14rem] truncate">{{ modelName }}</span>
-                <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: consumedQuota }) }}</span>
+                <span class="tabular-nums">{{ t('imageStudio.result.consumed', { value: estimatedCost }) }}</span>
+                <span v-if="activeTask.cloudStorageBytes != null" :title="t('imageStudio.gallery.taskStorageHint')" class="tabular-nums">
+                  {{ t('imageStudio.gallery.taskStorage', { size: formatBytes(activeTask.cloudStorageBytes, 1) }) }}
+                </span>
                 <span v-if="showGallerySyncStatus" :title="syncReason" :class="activeSyncStatus === 'error' ? 'text-red-500' : ''">
                   {{ t('imageStudio.gallery.' + gallerySyncLabelKey(activeSyncStatus)) }}
                 </span>
@@ -227,6 +230,8 @@
 /** One current-image ID drives the preview, batch strip and all image actions. */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+import { formatBytes } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Input from '@/components/common/Input.vue'
 import StudioIcon from './StudioIcon.vue'
@@ -245,7 +250,7 @@ import {
 } from '../stores/store'
 import { getImageModel, getModelResolution } from '../lib/modelRegistry'
 import { formatImageRatio, parseRatio } from '../lib/size'
-import { getEstimatedCredits } from '../lib/generationEstimate'
+import { getEstimatedCostUSD } from '../lib/generationEstimate'
 import { resolveUnitPrice } from '../lib/studioPricing'
 import { stripImageMentionMarkers } from '../lib/promptImageMentions'
 import { getImageErrorPresentation } from '../lib/apiErrors'
@@ -256,6 +261,7 @@ import { confirmTaskDeletion } from '../lib/taskDeletion'
 import { galleryTaskSyncStatus, gallerySyncLabelKey, gallerySyncReasonKey } from '../lib/gallerySyncDisplay'
 
 const { t } = useI18n()
+const { formatUSD } = useBillingCurrency()
 
 const RAIL_STORAGE_KEY = 'image_studio_history_rail_collapsed'
 
@@ -362,19 +368,15 @@ const elapsedLabel = computed(() => {
     : t('imageStudio.result.elapsedCalculating')
 })
 
-const consumedQuota = computed(() => {
+const estimatedCost = computed(() => {
   const task = activeTask.value
-  if (!task) return '0.0000'
+  if (!task) return formatUSD(0, 4)
   if (task.status === 'running') return t('imageStudio.result.calculating')
   const model = getImageModel(task.modelId ?? task.apiModel ?? '', state.modelCatalog)
   const resolution = getModelResolution(model ?? null, task.params.size, task.params.resolution)
   const count = task.status === 'done' ? task.outputImages.length : 0
   const price = resolveUnitPrice(state.imagePricing, model, task.params.size, task.params.resolution)
-  return getEstimatedCredits(
-    resolution,
-    count,
-    typeof price === 'number' && Number.isFinite(price) ? price : undefined,
-  ).toFixed(4)
+  return formatUSD(getEstimatedCostUSD(resolution, count, price), 4)
 })
 
 const hasRunningTask = computed(() => state.tasks.some((task) => task.status === 'running'))

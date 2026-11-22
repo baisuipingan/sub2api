@@ -641,6 +641,7 @@ func (s *APIKeyService) GetOrCreateImageStudioKey(ctx context.Context, userID in
 			if err := s.apiKeyRepo.UpdateSystemKeyGroup(ctx, existing.ID, groupID); err != nil {
 				return nil, fmt.Errorf("sync image studio key group: %w", err)
 			}
+			s.InvalidateAuthCacheByKey(ctx, existing.Key)
 			existing.GroupID = groupID
 		}
 		return existing, nil
@@ -895,9 +896,7 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		return nil, ErrInsufficientPerms
 	}
 
-	// 系统托管密钥只允许改「名称」这类无害字段，分组/状态由系统维护：
-	// 用户把分组改走后，工作台请求会打到错误的分组上。
-	// 用途身份禁止通用编辑，避免名称变更、配额重置或清过期绕过停用。
+	// 托管密钥由各自的系统流程维护。生图工作台还依赖固定名称查找密钥。
 	if apiKey.Purpose == APIKeyPurposeDesktopAgent {
 		return nil, ErrSystemKeyProtected
 	}
@@ -905,7 +904,7 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	if err != nil {
 		return nil, fmt.Errorf("load API key management type: %w", err)
 	}
-	if isSystem && req.GroupID != nil {
+	if isSystem {
 		return nil, ErrSystemKeyProtected
 	}
 

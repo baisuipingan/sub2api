@@ -104,48 +104,48 @@
           <!-- Default prices (fallback when no interval matches) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPrices') }}
-            <span class="ml-1 font-normal text-gray-400">$/MTok</span>
+            <span class="ml-1 font-normal text-gray-400">{{ priceSymbol }}/MTok</span>
           </label>
           <div class="pricing-default-grid mt-1 grid gap-2">
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.inputPrice') }}</label>
-              <input :value="entry.input_price" @input="emitField('input_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.input_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('input_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.outputPrice') }}</label>
-              <input :value="entry.output_price" @input="emitField('output_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.output_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('output_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t(props.platform === 'openai' ? 'admin.channels.form.cacheWrite30mPrice' : 'admin.channels.form.cacheWrite5mPrice') }}</label>
-              <input :value="entry.cache_write_price" @input="emitField('cache_write_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.cache_write_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('cache_write_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div v-if="props.platform !== 'openai'">
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheWrite1hPrice') }}</label>
-              <input :value="entry.cache_write_1h_price" @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.cache_write_1h_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('cache_write_1h_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div v-if="props.platform === 'openai'">
               <label class="text-xs text-gray-400" :title="t('admin.channels.form.cacheWrite12hHint')">{{ t('admin.channels.form.cacheWrite12hPrice') }}</label>
-              <input :value="entry.cache_write_12h_price" @input="emitField('cache_write_12h_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.cache_write_12h_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('cache_write_12h_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.cacheReadPrice') }}</label>
-              <input :value="entry.cache_read_price" @input="emitField('cache_read_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.cache_read_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('cache_read_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageInputPrice') }}</label>
-              <input :value="entry.image_input_price" @input="emitField('image_input_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.image_input_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('image_input_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
             <div>
               <label class="text-xs text-gray-400">{{ t('admin.channels.form.imageTokenPrice') }}</label>
-              <input :value="entry.image_output_price" @input="emitField('image_output_price', ($event.target as HTMLInputElement).value)"
-                type="number" step="any" min="0" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+              <PricingAmountInput :model-value="entry.image_output_price" :use-site-currency="useSiteCurrency"
+                @update:model-value="emitField('image_output_price', $event)" class="input mt-0.5 text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
             </div>
           </div>
 
@@ -185,6 +185,7 @@
                 :interval="iv"
                 :platform="props.platform"
                 :mode="entry.billing_mode"
+                :use-site-currency="useSiteCurrency"
                 :enable-multipliers="enableTierMultipliers"
                 @update="updateInterval(idx, $event)"
                 @remove="removeInterval(idx)"
@@ -204,11 +205,11 @@
           <!-- Default per-request price -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPerRequestPrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ priceSymbol }}/{{ t(priceUnitKey) }}</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
-              type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            <PricingAmountInput :model-value="entry.per_request_price" :use-site-currency="useSiteCurrency"
+              @update:model-value="emitField('per_request_price', $event)" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
 
           <!-- Tiers -->
@@ -226,6 +227,7 @@
               :key="idx"
               :interval="iv"
               :mode="entry.billing_mode"
+              :use-site-currency="useSiteCurrency"
               @update="updateInterval(idx, $event)"
               @remove="removeInterval(idx)"
             />
@@ -240,11 +242,11 @@
           <!-- Default image price (per-request, same as per_request mode) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ priceSymbol }}/{{ t(priceUnitKey) }}</span>
           </label>
           <div class="mt-1 w-48">
-            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
-              type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+            <PricingAmountInput :model-value="entry.per_request_price" :use-site-currency="useSiteCurrency"
+              @update:model-value="emitField('per_request_price', $event)" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
 
           <!-- Image tiers -->
@@ -262,6 +264,7 @@
               :key="idx"
               :interval="iv"
               :mode="entry.billing_mode"
+              :use-site-currency="useSiteCurrency"
               @update="updateInterval(idx, $event)"
               @remove="removeInterval(idx)"
             />
@@ -315,13 +318,15 @@ import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import IntervalRow from './IntervalRow.vue'
+import PricingAmountInput from './PricingAmountInput.vue'
 import ModelTagInput from './ModelTagInput.vue'
 import TimePricingSection from './TimePricingSection.vue'
 import type { PricingFormEntry, IntervalFormEntry } from './types'
-import { perTokenToMTok, getPlatformTagClass, isValidPositiveMultiplier, validateReasoningEffortMultipliers } from './types'
+import { flatPriceUnitKey, perTokenToMTok, getPlatformTagClass, isValidPositiveMultiplier, validateReasoningEffortMultipliers } from './types'
 import { REASONING_EFFORT_LEVELS, type ReasoningEffortLevel } from '@/constants/channel'
 import type { BillingMode } from '@/api/admin/channels'
 import channelsAPI from '@/api/admin/channels'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 
 const { t } = useI18n()
 
@@ -331,11 +336,16 @@ const props = withDefaults(defineProps<{
   hideTokenIntervals?: boolean
   enableTimePricing?: boolean
   enableTierMultipliers?: boolean
+  useSiteCurrency?: boolean
 }>(), {
   hideTokenIntervals: false,
   enableTimePricing: false,
   enableTierMultipliers: false,
 })
+
+const { symbol } = useBillingCurrency()
+const priceSymbol = computed(() => props.useSiteCurrency ? symbol.value : '$')
+const priceUnitKey = computed(() => flatPriceUnitKey(props.entry.billing_mode))
 
 const emit = defineEmits<{
   update: [entry: PricingFormEntry]
@@ -371,7 +381,7 @@ function updateReasoningEffortMultiplier(effort: ReasoningEffortLevel, value: st
   })
 }
 
-function emitField(field: keyof PricingFormEntry, value: string) {
+function emitField(field: keyof PricingFormEntry, value: number | string | null) {
   emit('update', { ...props.entry, [field]: value === '' ? null : value })
 }
 

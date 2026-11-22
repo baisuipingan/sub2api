@@ -65,6 +65,50 @@ jobs:
       - name: Frontend typecheck and critical vitest
         run: make test-frontend
 
+  office-agent-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install pinned Agent environment
+        run: |
+          python -m pip install uv==0.12.15
+          uv sync --project services/office-agent --frozen --python 3.12
+      - name: Agent and isolated-executor contract tests
+        run: |
+          uv run --project services/office-agent --frozen pytest -q services/office-agent/tests
+          PYTHONPATH=services/office-executor PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s services/office-executor/tests -v
+      - name: Workbench office node tests
+        working-directory: services/workbench-office-tools
+        run: |
+          python -m pip install --only-binary=:all: -r requirements.txt
+          python -m unittest discover -s tests -v
+      - name: Go pilot concurrency and existing desktop regression
+        working-directory: backend
+        run: go test -race ./internal/config ./internal/service ./internal/handler ./internal/server/routes -run 'TestOffice|TestDesktopAgent' -count=1 -p=1
+      - name: Real Python graph through Go model bridge
+        working-directory: backend
+        env:
+          OFFICE_AGENT_TEST_PYTHON: ${{ github.workspace }}/services/office-agent/.venv/bin/python
+        run: go test -tags integration ./internal/service ./internal/handler -run '^TestOfficePython' -count=1 -p=1 -v
+      - name: Embedded API routing regression
+        working-directory: backend
+        run: |
+          mkdir -p internal/web/dist/assets
+          printf '%s' '<!doctype html><html><head><title>Sub2API</title></head><body>CI embed fixture</body></html>' > internal/web/dist/index.html
+          printf '%s' '<svg xmlns="http://www.w3.org/2000/svg"></svg>' > internal/web/dist/logo.svg
+          printf '%s' 'export const embeddedFixture = true' > internal/web/dist/assets/index-AbCd1234.js
+          go test -tags embed ./internal/web -run 'TestFrontendServer_Middleware|TestServeEmbeddedFrontend' -count=1
+      # Real gVisor/Office rendering has a separate Linux acceptance probe. CI
+      # must not claim this by substituting runc or running generated code here.
+
   golangci-lint:
     runs-on: ubuntu-latest
     steps:

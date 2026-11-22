@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -283,6 +285,27 @@ func TestGatewayRoutesCompositeMessagesWithGrokModelUsesOpenAIGateway(t *testing
 	require.NotContains(t, w.Body.String(), "not supported")
 	require.NotContains(t, w.Body.String(), "OpenAI-compatible endpoint")
 	require.NotContains(t, w.Body.String(), "composite groups")
+}
+
+func TestGatewayRoutesRejectWorkbenchProtocolTranslation(t *testing.T) {
+	for _, tc := range []struct {
+		path, platform string
+		key            ctxkey.Key
+	}{
+		{path: "/v1/messages", platform: service.PlatformOpenAI, key: ctxkey.WorkbenchAnthropicMessages},
+		{path: "/v1/responses", platform: service.PlatformAnthropic, key: ctxkey.WorkbenchNativeResponses},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			router := newGatewayRoutesTestRouter(tc.platform)
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(`{"model":"Claude-or-GPT"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(context.WithValue(req.Context(), tc.key, true))
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			require.Equal(t, http.StatusServiceUnavailable, w.Code)
+			require.Contains(t, w.Body.String(), `"code":"MODEL_ROUTE_CHANGED"`)
+		})
+	}
 }
 
 func TestGatewayRoutesCompositeChatCompletionsWithGrokModelUsesOpenAIGateway(t *testing.T) {

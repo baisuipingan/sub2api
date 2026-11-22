@@ -32,6 +32,13 @@ type workbenchSettingsStub struct {
 	writeErr error
 }
 
+func (r *workbenchSettingsStub) GetValue(_ context.Context, key string) (string, error) {
+	if value, ok := r.values[key]; ok {
+		return value, nil
+	}
+	return "", ErrSettingNotFound
+}
+
 func (r *workbenchSettingsStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, key := range keys {
@@ -99,7 +106,14 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 	svc := NewWorkbenchAdminService(nil, settings, groups)
 	_, err := svc.UpdateConfig(context.Background(), WorkbenchConfig{ImageStudioEnabled: true, ImageStudioGroupID: 12})
 	require.NoError(t, err)
-	require.Len(t, repo.written, 2)
+	require.Equal(t, map[string]string{
+		SettingKeyImageStudioEnabled: "true",
+		SettingKeyImageStudioGroupID: "12",
+		"workbench_chat_enabled":     "false",
+		"workbench_office_enabled":   "false",
+		"workbench_search_enabled":   "false",
+		"workbench_files_enabled":    "false",
+	}, repo.written)
 	require.Equal(t, "keep", repo.values["site_name"])
 	require.Equal(t, 1, invalidated)
 	loaded, err := svc.GetConfig(context.Background())
@@ -119,4 +133,42 @@ func TestWorkbenchConfigOnlyWritesItsOwnKeysAndInvalidatesAfterSuccess(t *testin
 	_, err = svc.UpdateConfig(context.Background(), WorkbenchConfig{})
 	require.Error(t, err)
 	require.Equal(t, 2, invalidated)
+}
+
+func TestWorkbenchConfigLeavesLegacyBudgetStorageIntact(t *testing.T) {
+	ctx := context.Background()
+	legacy := map[string]string{"workbench_chat_concurrent_runs": "5", "workbench_office_concurrent_runs": "2",
+		"workbench_max_model_calls": "10", "workbench_max_tool_calls": "20", "workbench_max_output_tokens": "12288",
+		"workbench_max_run_seconds": "750", "workbench_max_run_credits": "1234567"}
+	repo := &workbenchSettingsStub{values: map[string]string{}}
+	for key, value := range legacy {
+		repo.values[key] = value
+	}
+	settings := NewSettingService(repo, nil)
+	require.NoError(t, settings.UpdateWorkbenchConfig(ctx, WorkbenchConfig{ChatEnabled: true}))
+	loaded, err := settings.GetWorkbenchConfig(ctx)
+	require.NoError(t, err)
+	require.True(t, loaded.ChatEnabled)
+	for key, value := range legacy {
+		require.NotContains(t, repo.written, key)
+		require.Equal(t, value, repo.values[key])
+	}
+}
+
+func TestWorkbenchChatUsesPublishedAgentGroupWithoutImageGroup(t *testing.T) {
+	ctx := context.Background()
+	const agentConfig = `{"enabled":true,"group_id":12}`
+	repo := &workbenchSettingsStub{values: map[string]string{SettingKeyDesktopAgentConfig: agentConfig}}
+	groups := &workbenchGroupStub{group: &Group{ID: 12, Status: StatusActive, Platform: PlatformComposite, SubscriptionType: SubscriptionTypeStandard}}
+	svc := NewWorkbenchAdminService(nil, NewSettingService(repo, nil), groups)
+	cfg, err := svc.UpdateConfig(ctx, WorkbenchConfig{ChatEnabled: true, AgentGroupID: 99})
+	require.NoError(t, err)
+	require.EqualValues(t, 12, cfg.AgentGroupID)
+	require.Zero(t, cfg.ImageStudioGroupID)
+	require.Equal(t, agentConfig, repo.values[SettingKeyDesktopAgentConfig])
+	require.NotContains(t, repo.written, SettingKeyDesktopAgentConfig)
+
+	repo.values[SettingKeyDesktopAgentConfig] = `{"enabled":false,"group_id":12}`
+	_, err = svc.UpdateConfig(ctx, WorkbenchConfig{ChatEnabled: true, AgentGroupID: 12})
+	require.ErrorIs(t, err, ErrWorkbenchInvalid)
 }

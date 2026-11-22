@@ -63,6 +63,31 @@ func TestRequestBodyMemoryRejectsOverloadAndReleasesAfterHandler(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, request("/v1/responses").Code)
 }
 
+func TestRequestBodyLimitKeepsOnlyWithinLimitPrereadBodies(t *testing.T) {
+	router := gin.New()
+	const maxBytes = 2048
+	router.POST("/test", RequestBodyLimit(maxBytes), func(c *gin.Context) {
+		if c.Request.ContentLength <= maxBytes {
+			require.IsType(t, &pkghttputil.PrereadBody{}, c.Request.Body)
+		}
+		_, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+		if err != nil {
+			require.ErrorAs(t, err, new(*http.MaxBytesError))
+			c.Status(http.StatusRequestEntityTooLarge)
+			return
+		}
+		c.Status(http.StatusNoContent)
+	})
+	for _, tc := range []struct{ size, status int }{{maxBytes, http.StatusNoContent}, {maxBytes + 1, http.StatusRequestEntityTooLarge}} {
+		body := pkghttputil.NewPrereadBody([]byte(strings.Repeat("x", tc.size)))
+		req := httptest.NewRequest(http.MethodPost, "/test", body)
+		req.ContentLength = int64(tc.size)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		require.Equal(t, tc.status, recorder.Code)
+	}
+}
+
 func TestRejectRequestBodyReadErrorCancellation(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

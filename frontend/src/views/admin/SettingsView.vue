@@ -7962,7 +7962,7 @@
         <!-- Tab: Email -->
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
-          <BillingCurrencySettingsCard />
+          <BillingCurrencySettingsCard ref="billingCurrencySettings" :disabled="saving" />
 
           <!-- Payment System Settings -->
           <div class="card">
@@ -8836,7 +8836,7 @@
                     >{{ billingSymbol }}</span
                   >
                   <input
-                    v-model.number="form.balance_low_notify_threshold"
+                    v-model.number="balanceLowNotifyDisplayThreshold"
                     type="number"
                     min="0"
                     step="0.01"
@@ -8957,7 +8957,7 @@
         <div v-show="activeTab !== 'backup' && activeTab !== 'agent'" class="settings-save-dock">
           <button
             type="submit"
-            :disabled="saving || loadFailed"
+            :disabled="saving || loadFailed || (activeTab === 'payment' && billingCurrencySettings?.saving)"
             class="btn btn-primary"
           >
             <svg
@@ -9247,6 +9247,7 @@ const { copyToClipboard } = useClipboard();
 const loading = ref(true);
 const loadFailed = ref(false);
 const saving = ref(false);
+const billingCurrencySettings = ref<InstanceType<typeof BillingCurrencySettingsCard> | null>(null);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
@@ -10150,6 +10151,13 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+});
+
+const balanceLowNotifyDisplayThreshold = computed({
+  get: () => Number(usdToDisplay(form.balance_low_notify_threshold).toPrecision(15)),
+  set: (amount: number) => {
+    form.balance_low_notify_threshold = Number(displayToUSD(Number(amount)).toPrecision(15));
+  },
 });
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
@@ -11136,9 +11144,6 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
-    form.balance_low_notify_threshold = usdToDisplay(
-      Number(form.balance_low_notify_threshold) || 0,
-    );
     // For this optional override, null explicitly selects per-account rates.
     if (settings.openai_oauth_scheduling_rate_multiplier === null) {
       form.openai_oauth_scheduling_rate_multiplier = null;
@@ -11402,7 +11407,9 @@ const siteBillingModeHint = computed(() =>
 
 async function saveSettings() {
   // 原因：独立Agent区域位于现有外层form中，Enter不能误提交其他系统设置。
-  if (activeTab.value === "agent") return;
+  if (activeTab.value === "agent" || saving.value) return;
+  const billingCard = activeTab.value === "payment" ? billingCurrencySettings.value : null;
+  if (billingCard?.saving) return;
   saving.value = true;
   try {
     const normalizedTableDefaultPageSize = Math.floor(
@@ -11860,8 +11867,7 @@ async function saveSettings() {
         form.openai_advanced_scheduler_weight_session_sticky.trim(),
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
-      balance_low_notify_threshold:
-        displayToUSD(Number(form.balance_low_notify_threshold) || 0),
+      balance_low_notify_threshold: form.balance_low_notify_threshold,
       balance_low_notify_recharge_url: (form.balance_low_notify_recharge_url =
         form.balance_low_notify_recharge_url || currentOrigin),
       subscription_expiry_notify_enabled:
@@ -12010,10 +12016,11 @@ async function saveSettings() {
     }
     // Save web search emulation config separately (errors handled internally)
     const wsOk = await saveWebSearchConfig();
+    const billingOk = billingCard ? await billingCard.saveChanges() : true;
     // Refresh cached settings so sidebar/header update immediately
     await appStore.fetchPublicSettings(true);
     await adminSettingsStore.fetch(true);
-    if (wsOk) {
+    if (wsOk && billingOk) {
       appStore.showSuccess(t("admin.settings.settingsSaved"));
     }
   } catch (error: unknown) {

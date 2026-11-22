@@ -167,7 +167,7 @@ func (h *ImageStudioGalleryHandler) SaveTask(c *gin.Context) {
 		galleryHTTPError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"task": task})
+	response.Success(c, task)
 }
 
 func (h *ImageStudioGalleryHandler) ListTasks(c *gin.Context) {
@@ -204,7 +204,7 @@ func (h *ImageStudioGalleryHandler) GetTask(c *gin.Context) {
 		return
 	}
 	c.Header("Cache-Control", "no-store")
-	response.Success(c, gin.H{"task": task})
+	response.Success(c, task)
 }
 
 func (h *ImageStudioGalleryHandler) AssetURL(c *gin.Context) {

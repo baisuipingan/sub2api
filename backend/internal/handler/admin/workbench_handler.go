@@ -128,10 +128,23 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 	if !allowWorkbenchAdmin(c) {
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 	var body struct {
 		Enabled *bool  `json:"image_studio_enabled"`
+		Chat    *bool  `json:"chat_enabled"`
+		Office  *bool  `json:"office_enabled"`
+		Search  *bool  `json:"search_enabled"`
+		Files   *bool  `json:"files_enabled"`
 		GroupID *int64 `json:"image_studio_group_id"`
+		// Older browsers still include settings now managed elsewhere.
+		ModelProfiles        json.RawMessage `json:"model_profiles"`
+		ChatConcurrentRuns   *int            `json:"chat_concurrent_runs"`
+		OfficeConcurrentRuns *int            `json:"office_concurrent_runs"`
+		MaxModelCalls        *int            `json:"max_model_calls"`
+		MaxToolCalls         *int            `json:"max_tool_calls"`
+		MaxOutputTokens      *int            `json:"max_output_tokens"`
+		MaxRunSeconds        *int            `json:"max_run_seconds"`
+		MaxRunCredits        *int64          `json:"max_run_credits"`
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -143,7 +156,26 @@ func (h *WorkbenchHandler) UpdateConfig(c *gin.Context) {
 		workbenchAdminError(c, service.ErrWorkbenchInvalid)
 		return
 	}
-	result, err := h.service.UpdateConfig(c.Request.Context(), service.WorkbenchConfig{ImageStudioEnabled: *body.Enabled, ImageStudioGroupID: *body.GroupID})
+	cfg, err := h.service.GetConfig(c.Request.Context())
+	if err != nil {
+		workbenchAdminError(c, err)
+		return
+	}
+	cfg.ImageStudioEnabled = *body.Enabled
+	cfg.ImageStudioGroupID = *body.GroupID
+	if body.Chat != nil {
+		cfg.ChatEnabled = *body.Chat
+	}
+	if body.Office != nil {
+		cfg.OfficeEnabled = *body.Office
+	}
+	if body.Search != nil {
+		cfg.SearchEnabled = *body.Search
+	}
+	if body.Files != nil {
+		cfg.FilesEnabled = *body.Files
+	}
+	result, err := h.service.UpdateConfig(c.Request.Context(), *cfg)
 	if err != nil {
 		workbenchAdminError(c, err)
 		return

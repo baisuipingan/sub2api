@@ -593,7 +593,10 @@ async function saveS3Config() {
       savingS3.value = false
       return
     }
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
+    const failure = error as { reason?: string; message?: string }
+    appStore.showError(failure?.reason === 'OFFICE_STORAGE_PROBE_FAILED'
+      ? t('admin.workbenchSettings.officeStorage.probeFailed')
+      : failure?.message || t('errors.networkError'))
   } finally {
     savingS3.value = false
   }

@@ -25,7 +25,12 @@
           <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
             <WorkbenchGalleryImage v-for="(id, index) in task.image_ids" :key="`${task.user_id}:${id}`" :task="task" :image-id="id" :number="index + 1" />
           </div>
-          <p class="mt-3 text-xs text-gray-500">{{ t('admin.workbench.galleryResultCount', { count: task.output_count }) }}</p>
+          <div class="mt-3 flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+            <span>{{ t('admin.workbench.galleryResultCount', { count: task.output_count }) }}</span>
+            <span v-if="task.storage_bytes != null" :title="t('imageStudio.gallery.taskStorageHint')" class="tabular-nums">
+              {{ t('imageStudio.gallery.taskStorage', { size: formatBytes(task.storage_bytes, 1) }) }}
+            </span>
+          </div>
         </article>
       </div>
       <EmptyState v-else :title="t('admin.workbench.galleryEmpty')" :description="t('admin.workbench.galleryEmptyHint')" />
@@ -46,6 +51,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { listWorkbenchGallery, type WorkbenchGalleryTask } from '@/api/admin/workbench'
+import { formatBytes } from '@/utils/format'
 import { workbenchUserIdFilter } from './workbenchDisplay'
 import WorkbenchGalleryImage from './WorkbenchGalleryImage.vue'
 

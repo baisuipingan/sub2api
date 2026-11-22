@@ -111,6 +111,16 @@ describe('shared ImageStorageSettings', () => {
     expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ secret_access_key: '' }))
   })
 
+  it('carries the legacy office bucket through image settings saves', async () => {
+    getConfig.mockResolvedValue({ config: { ...baseConfig, office_bucket: 'private-office' }, secret_configured: true })
+    const wrapper = mountSettings()
+    await flushPromises()
+    expect(wrapper.find('#office-storage-bucket').exists()).toBe(false)
+    await wrapper.get('[data-testid="image-storage-save"]').trigger('click')
+    await flushPromises()
+    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({ bucket: 'private-images', office_bucket: 'private-office' }))
+  })
+
   it('does not overwrite stored settings after a load error', async () => {
     getConfig.mockRejectedValue(new Error('storage settings unavailable'))
     const wrapper = mountSettings()

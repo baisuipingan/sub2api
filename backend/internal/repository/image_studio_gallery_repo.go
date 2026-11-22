@@ -308,15 +308,25 @@ func (r *imageStudioGalleryRepository) MarkAssetReady(ctx context.Context, userI
 	return nil
 }
 
-func (r *imageStudioGalleryRepository) SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+const galleryAssetStorageBytesSQL = `a.byte_size + a.preview_byte_size + a.thumbnail_byte_size`
+
+// A task can reference the same asset under several roles (e.g. input and mask
+// target). Sum each linked asset once, even when different assets have equal sizes.
+const galleryTaskStorageBytesSQL = `(SELECT COALESCE(SUM(` + galleryAssetStorageBytesSQL + `), 0)::bigint
+        FROM (SELECT DISTINCT l.image_id FROM image_studio_gallery_task_assets l
+              WHERE l.user_id=t.user_id AND l.task_id=t.task_id) links
+        JOIN image_studio_gallery_assets a ON a.user_id=t.user_id AND a.image_id=links.image_id
+        WHERE a.state='ready')`
+
+func (r *imageStudioGalleryRepository) SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (*service.GalleryTask, error) {
 	return r.saveTask(ctx, userID, taskID, digest, task, links, false)
 }
 
-func (r *imageStudioGalleryRepository) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (json.RawMessage, error) {
+func (r *imageStudioGalleryRepository) SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink) (*service.GalleryTask, error) {
 	return r.saveTask(ctx, userID, taskID, digest, task, links, true)
 }
 
-func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink, accepted bool) (json.RawMessage, error) {
+func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []service.GalleryTaskLink, accepted bool) (*service.GalleryTask, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -331,8 +341,10 @@ func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int6
 	var stored []byte
 	var previous string
 	var deletedAt sql.NullTime
-	err = tx.QueryRowContext(ctx, `SELECT task_json,sha256,deleted_at FROM image_studio_gallery_tasks
-        WHERE user_id=$1 AND task_id=$2 FOR UPDATE`, userID, taskID).Scan(&stored, &previous, &deletedAt)
+	var storageBytes int64
+	err = tx.QueryRowContext(ctx, `SELECT t.task_json,t.sha256,t.deleted_at,`+galleryTaskStorageBytesSQL+`
+        FROM image_studio_gallery_tasks t WHERE t.user_id=$1 AND t.task_id=$2 FOR UPDATE OF t`,
+		userID, taskID).Scan(&stored, &previous, &deletedAt, &storageBytes)
 	if err == nil {
 		if deletedAt.Valid {
 			return nil, service.ErrGalleryGone
@@ -340,7 +352,7 @@ func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int6
 		if previous != digest {
 			return nil, service.ErrGalleryConflict
 		}
-		return json.RawMessage(stored), tx.Commit()
+		return &service.GalleryTask{Task: json.RawMessage(stored), StorageBytes: storageBytes}, tx.Commit()
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -374,18 +386,22 @@ func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int6
 	if err != nil {
 		return nil, err
 	}
+	seen := make(map[string]bool, len(links))
 	for _, link := range links {
-		var state string
-		err = tx.QueryRowContext(ctx, `SELECT state FROM image_studio_gallery_assets
-            WHERE user_id=$1 AND image_id=$2 FOR SHARE`, userID, link.ImageID).Scan(&state)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, service.ErrGalleryNotFound
-		}
-		if err != nil {
-			return nil, err
-		}
-		if state != "ready" {
-			return nil, service.ErrGalleryNotFound
+		if !seen[link.ImageID] {
+			var assetBytes int64
+			err = tx.QueryRowContext(ctx, `SELECT `+galleryAssetStorageBytesSQL+`
+                FROM image_studio_gallery_assets a
+                WHERE a.user_id=$1 AND a.image_id=$2 AND a.state='ready' FOR SHARE`,
+				userID, link.ImageID).Scan(&assetBytes)
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, service.ErrGalleryNotFound
+			}
+			if err != nil {
+				return nil, err
+			}
+			storageBytes += assetBytes
+			seen[link.ImageID] = true
 		}
 		_, err = tx.ExecContext(ctx, `INSERT INTO image_studio_gallery_task_assets
             (user_id,task_id,image_id,role,ordinal) VALUES ($1,$2,$3,$4,$5)`,
@@ -394,17 +410,22 @@ func (r *imageStudioGalleryRepository) saveTask(ctx context.Context, userID int6
 			return nil, err
 		}
 	}
-	return task, tx.Commit()
+	return &service.GalleryTask{Task: task, StorageBytes: storageBytes}, tx.Commit()
 }
 
-func (r *imageStudioGalleryRepository) GetTask(ctx context.Context, userID int64, taskID string) (json.RawMessage, error) {
+func (r *imageStudioGalleryRepository) GetTask(ctx context.Context, userID int64, taskID string) (*service.GalleryTask, error) {
 	var raw []byte
-	err := r.db.QueryRowContext(ctx, `SELECT task_json FROM image_studio_gallery_tasks
-        WHERE user_id=$1 AND task_id=$2 AND deleted_at IS NULL`, userID, taskID).Scan(&raw)
+	var storageBytes int64
+	err := r.db.QueryRowContext(ctx, `SELECT t.task_json,`+galleryTaskStorageBytesSQL+`
+        FROM image_studio_gallery_tasks t WHERE t.user_id=$1 AND t.task_id=$2 AND t.deleted_at IS NULL`,
+		userID, taskID).Scan(&raw, &storageBytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrGalleryNotFound
 	}
-	return json.RawMessage(raw), err
+	if err != nil {
+		return nil, err
+	}
+	return &service.GalleryTask{Task: json.RawMessage(raw), StorageBytes: storageBytes}, nil
 }
 
 type galleryCursor struct {
@@ -432,21 +453,26 @@ func (r *imageStudioGalleryRepository) ListTasks(ctx context.Context, userID int
 		}
 		at, taskID = position.CreatedAt, position.TaskID
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT task_json,created_at,task_id FROM image_studio_gallery_tasks
-        WHERE user_id=$1 AND deleted_at IS NULL AND
-          ($2::timestamptz IS NULL OR (created_at,task_id) < ($2::timestamptz,$3))
-        ORDER BY created_at DESC,task_id DESC LIMIT $4`, userID, at, taskID, limit+1)
+	rows, err := r.db.QueryContext(ctx, `SELECT t.task_json,t.created_at,t.task_id,`+galleryTaskStorageBytesSQL+`
+        FROM image_studio_gallery_tasks t
+        WHERE t.user_id=$1 AND t.deleted_at IS NULL AND
+          ($2::timestamptz IS NULL OR (t.created_at,t.task_id) < ($2::timestamptz,$3))
+        ORDER BY t.created_at DESC,t.task_id DESC LIMIT $4`, userID, at, taskID, limit+1)
 	if err != nil {
 		return service.GalleryTaskPage{}, err
 	}
 	defer func() { _ = rows.Close() }()
-	page := service.GalleryTaskPage{Items: make([]json.RawMessage, 0, limit)}
+	page := service.GalleryTaskPage{
+		Items:              make([]json.RawMessage, 0, limit),
+		StorageBytesByTask: make(map[string]int64, limit),
+	}
 	var last galleryCursor
 	hasMore := false
 	for rows.Next() {
 		var raw []byte
 		var position galleryCursor
-		if err := rows.Scan(&raw, &position.CreatedAt, &position.TaskID); err != nil {
+		var storageBytes int64
+		if err := rows.Scan(&raw, &position.CreatedAt, &position.TaskID, &storageBytes); err != nil {
 			return service.GalleryTaskPage{}, err
 		}
 		if len(page.Items) == limit {
@@ -454,6 +480,7 @@ func (r *imageStudioGalleryRepository) ListTasks(ctx context.Context, userID int
 			break
 		}
 		page.Items = append(page.Items, json.RawMessage(raw))
+		page.StorageBytesByTask[position.TaskID] = storageBytes
 		last = position
 	}
 	if err := rows.Err(); err != nil {
@@ -525,6 +552,8 @@ func (r *imageStudioGalleryRepository) DeleteTask(ctx context.Context, userID in
                 WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
             AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
                 WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+                WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, userID, id))
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -547,6 +576,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
             WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
           AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
             WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+          AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+            WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
         ORDER BY a.created_at LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -586,6 +617,8 @@ func (r *imageStudioGalleryRepository) ListCleanupAssets(ctx context.Context, li
               WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
             AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
               WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+            AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+              WHERE p.user_id=a.user_id AND p.image_id=a.image_id)
             RETURNING `+galleryAssetUpdatedColumns, next.userID, next.imageID))
 		if errors.Is(err, sql.ErrNoRows) {
 			_ = tx.Rollback()
@@ -609,6 +642,8 @@ func (r *imageStudioGalleryRepository) FinalizeAssetDelete(ctx context.Context, 
         AND NOT EXISTS (SELECT 1 FROM image_studio_gallery_task_assets l
           WHERE l.user_id=a.user_id AND l.image_id=a.image_id)
         AND NOT EXISTS (SELECT 1 FROM image_studio_job_inputs j
-          WHERE j.user_id=a.user_id AND j.image_id=a.image_id)`, userID, imageID)
+          WHERE j.user_id=a.user_id AND j.image_id=a.image_id)
+        AND NOT EXISTS (SELECT 1 FROM office_gallery_pins p
+          WHERE p.user_id=a.user_id AND p.image_id=a.image_id)`, userID, imageID)
 	return err
 }

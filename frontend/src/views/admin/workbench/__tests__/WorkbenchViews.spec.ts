@@ -11,10 +11,11 @@ import { searchUsers } from '@/api/admin/usage'
 
 vi.mock('@/api/admin/usage', async importOriginal => ({ ...await importOriginal<typeof import('@/api/admin/usage')>(), searchUsers: vi.fn() }))
 
-const { getOverview, listTasks } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn() }))
+const { getOverview, listTasks, getChatOverview } = vi.hoisted(() => ({ getOverview: vi.fn(), listTasks: vi.fn(), getChatOverview: vi.fn() }))
 vi.mock('@/api/admin/workbench', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/admin/workbench')>(),
   getWorkbenchOverview: getOverview,
+  getWorkbenchChatOverview: getChatOverview,
   listWorkbenchTasks: listTasks,
 }))
 
@@ -71,20 +72,31 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 describe('workbench management pages', () => {
   beforeEach(() => {
     getOverview.mockReset().mockResolvedValue(overview())
+    getChatOverview.mockReset().mockResolvedValue({
+      total_runs: 8, completed: 5, partially_completed: 1, failed: 1, cancelled: 1,
+      model_calls: 20, model_charge_credits: 1000000, search_calls: 3, search_charge_credits: 1500000,
+      input_tokens: 120, output_tokens: 80, charge_credits: 2500000, used_bytes: 2048, resource_count: 2, office_tools: 'ready',
+    })
     vi.mocked(searchUsers).mockReset().mockResolvedValue([])
     listTasks.mockReset().mockResolvedValue({ items: [task], total: 1, page: 1, page_size: 20, pages: 1 })
   })
   afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
 
-  it('shows real aggregate values and keeps queue/gallery scope explicit', async () => {
+  it('shows current chat billing, office readiness and cloud image results without queue metrics', async () => {
     const wrapper = render(WorkbenchOverviewView)
     await flushPromises()
     expect(getOverview).toHaveBeenCalledWith(7, expect.any(AbortSignal))
     expect(wrapper.text()).toContain('66.7%')
-    expect(wrapper.text()).toContain('外部 API 调用不计入')
-    expect(wrapper.text()).toContain('不受上方统计时段限制')
-    expect(wrapper.text()).toContain('不是整个存储桶用量')
-    expect(wrapper.text()).toContain('结果待确认')
+    expect(wrapper.text()).toContain('已结算模型调用20')
+    expect(wrapper.text()).toContain('已结算联网搜索3')
+    expect(wrapper.text()).toContain('连接正常')
+    expect(wrapper.text()).toContain('可用文件2')
+    expect(wrapper.text()).toContain('图库数据为当前存量')
+    expect(wrapper.text()).not.toContain('执行队列')
+    expect(wrapper.text()).not.toContain('计划生成请求')
+    await wrapper.get('button').trigger('click')
+    expect(getOverview).toHaveBeenCalledTimes(2)
+    expect(getChatOverview).toHaveBeenCalledTimes(2)
   })
 
   it('ignores an older reporting-period response after a new request', async () => {
@@ -105,9 +117,9 @@ describe('workbench management pages', () => {
     getOverview.mockRejectedValueOnce(new Error('network failure'))
     const wrapper = render(WorkbenchOverviewView)
     await flushPromises()
-    expect(wrapper.find('[role="alert"]').text()).toContain('无法读取')
-    expect(wrapper.text()).not.toContain('0%')
-    expect(wrapper.findAll('.stat-card')).toHaveLength(0)
+    expect(wrapper.find('[role="alert"]').text()).toContain('无法读取图片生成数据')
+    expect(wrapper.find('#workbench-image-overview').exists()).toBe(false)
+    expect(wrapper.text()).toContain('已结算模型调用20')
   })
 
   it('selects searched users instead of treating typed text as an ID', async () => {

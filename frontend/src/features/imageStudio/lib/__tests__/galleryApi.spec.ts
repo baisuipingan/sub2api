@@ -13,8 +13,9 @@ vi.mock('../gallerySession', () => ({
 
 import i18n from '@/i18n'
 import zhStudio from '@/i18n/locales/zh/imageStudio'
+import { DEFAULT_PARAMS, type TaskRecord } from '../../types'
 
-import { fetchGalleryAssetBlob, GalleryApiError, getGalleryErrorMessage, getGalleryStatus, listGalleryTasks, putGalleryAsset } from '../galleryApi'
+import { fetchGalleryAssetBlob, GalleryApiError, getGalleryErrorMessage, getGalleryStatus, listGalleryTasks, putGalleryAsset, putGalleryTask } from '../galleryApi'
 
 function apiResponse(data: unknown, code = 0) {
   return new Response(JSON.stringify({ code, data }), {
@@ -87,6 +88,24 @@ describe('gallery API contract', () => {
     expect(await getGalleryStatus()).toEqual({ enabled: true, user_id: 1 })
     expect(await listGalleryTasks('previous', 12)).toEqual({ items: [], next_cursor: 'next' })
     expect(fetchMock.mock.calls[1][0]).toContain('/tasks?limit=12&cursor=previous')
+  })
+
+  it('keeps the archive payload identical after storage metadata is returned', async () => {
+    const task: TaskRecord = {
+      id: 'task-1', prompt: 'A landscape', params: DEFAULT_PARAMS, status: 'done',
+      inputImageIds: [], outputImages: ['output-1'], createdAt: 0, error: null, finishedAt: 1, elapsed: 1,
+    }
+    const archived = { task, storage_bytes: 2048 }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(apiResponse(archived))
+      .mockResolvedValueOnce(apiResponse(archived))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await putGalleryTask(task)).toEqual(archived)
+    await putGalleryTask({ ...task, cloudStorageBytes: archived.storage_bytes })
+
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ task }))
+    expect(fetchMock.mock.calls[1][1].body).toBe(fetchMock.mock.calls[0][1].body)
   })
 
   it('converts unsupported source formats to PNG before uploading', async () => {

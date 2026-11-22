@@ -54,7 +54,11 @@
 
         <template #cell-model="{ row }">
           <div class="space-y-0.5 text-xs">
-            <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
+            <div v-if="row.search_provider">
+              <div class="font-medium text-gray-900 dark:text-white">{{ t('usage.webSearch') }}</div>
+              <div class="text-gray-500 dark:text-gray-400">{{ usageSearchProvider(row) }}</div>
+            </div>
+            <div v-else-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
                    :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
@@ -146,8 +150,9 @@
         </template>
 
         <template #cell-tokens="{ row }">
+          <span v-if="row.search_provider" class="text-sm text-gray-700 dark:text-gray-300">{{ t('usage.oneWebSearch') }}</span>
           <!-- 图片生成请求（仅按次计费时显示图片格式） -->
-          <div v-if="isImageUsage(row)" class="flex items-center gap-1.5">
+          <div v-else-if="isImageUsage(row)" class="flex items-center gap-1.5">
             <svg class="h-4 w-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
@@ -227,7 +232,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
+            <div v-if="showAccountBilling && !row.search_provider && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
               A {{ formatUSD(accountBilled(row), 6) }}
             </div>
           </div>
@@ -235,7 +240,8 @@
 
         <!-- 合并首字/总耗时的健康度列：左侧色条上端随首字档、下端随总耗时档，中段(40%-60%)短渐变过渡，便于纵向扫视整体健康状况 -->
         <template #cell-latency="{ row }">
-          <div class="flex items-stretch gap-2">
+          <span v-if="row.search_provider" class="text-sm tabular-nums text-gray-500 dark:text-gray-400">{{ formatDuration(row.duration_ms) }}</span>
+          <div v-else class="flex items-stretch gap-2">
             <span
               class="w-1 shrink-0 rounded-full"
               :class="row.first_token_ms != null
@@ -521,7 +527,7 @@
             <span class="font-semibold text-green-400">{{ formatUSD(tooltipData?.actual_cost || 0, 8) }}</span>
           </div>
           <!-- Account billing (separated from user billing) -->
-          <template v-if="showAccountBilling">
+          <template v-if="showAccountBilling && !tooltipData?.search_provider">
             <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
               <span class="text-gray-400">{{ t('usage.accountMultiplier') }}</span>
               <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.account_rate_multiplier ?? 1) }}x</span>
@@ -551,6 +557,7 @@ import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
+import { usageSearchProvider } from '@/utils/usageSearch'
 import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'

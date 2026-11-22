@@ -36,10 +36,11 @@ const mockTriggerRect = (left: number, width: number) => {
   })
 }
 
-const openSelect = async () => {
+const openSelect = async (compact = false) => {
   const wrapper = mount(Select, {
     props: {
       modelValue: null,
+      compact,
       options: [
         {
           value: 'example',
@@ -88,6 +89,17 @@ describe('Select dropdown viewport constraints', () => {
     expect(dropdown?.style.left).toBe('220px')
     expect(dropdown?.style.minWidth).toBe('92px')
     expect(dropdown?.style.maxWidth).toBe('92px')
+  })
+
+  it('aligns a compact menu at the trigger’s right edge so the options have room on mobile', async () => {
+    setViewportWidth(320)
+    mockTriggerRect(235, 42)
+
+    const dropdown = await openSelect(true)
+
+    expect(dropdown?.style.right).toBe('43px')
+    expect(dropdown?.style.minWidth).toBe('112px')
+    expect(dropdown?.style.maxWidth).toBe('269px')
   })
 
   it('clamps a trigger left of the viewport to the safe padding', async () => {

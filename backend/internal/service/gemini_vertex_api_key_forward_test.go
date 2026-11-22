@@ -12,12 +12,30 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 const geminiVertexAPIKeyTestResponse = `{"candidates":[{"content":{"parts":[{"text":"hello"}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5,"totalTokenCount":15}}`
+
+func TestGeminiForwardNative_WorkbenchPreservesSignedAndUnsignedParallelParts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc, upstream := newGeminiVertexAPIKeyTestService()
+	c, _ := newGeminiNativeTestContext(t)
+	ctx := context.WithValue(c.Request.Context(), ctxkey.WorkbenchGroupID, int64(9))
+	c.Request = c.Request.WithContext(ctx)
+	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"look it up"}]},{"role":"model","parts":[{"functionCall":{"id":"a","name":"search","args":{"query":"one"}},"thoughtSignature":"d29ya2JlbmNo"},{"functionCall":{"id":"b","name":"search","args":{"query":"two"}}}]},{"role":"user","parts":[{"functionResponse":{"id":"a","name":"search","response":{"results":[]}}},{"functionResponse":{"id":"b","name":"search","response":{"results":[]}}}]}]}`)
+	_, err := svc.ForwardNative(ctx, c, geminiVertexAPIKeyTestAccount(""), "gemini-3.7-flash", "generateContent", false, body)
+	require.NoError(t, err)
+	forwarded, err := io.ReadAll(upstream.lastReq.Body)
+	require.NoError(t, err)
+	require.Equal(t, "d29ya2JlbmNo", gjson.GetBytes(forwarded, "contents.1.parts.0.thoughtSignature").String())
+	require.False(t, gjson.GetBytes(forwarded, "contents.1.parts.1.thoughtSignature").Exists())
+	require.Equal(t, "b", gjson.GetBytes(forwarded, "contents.2.parts.1.functionResponse.id").String())
+}
 
 func newGeminiVertexAPIKeyTestService() (*GeminiMessagesCompatService, *geminiCompatHTTPUpstreamStub) {
 	httpStub := &geminiCompatHTTPUpstreamStub{

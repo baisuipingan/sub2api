@@ -178,6 +178,7 @@ export default {
     workbenchOverview: '运行概览',
     workbenchGallery: '云端图库',
     workbenchTasks: '生成任务',
+    workbenchOfficeNodes: '算力节点',
     workbenchSettings: '工作台配置',
     switchAreaLabel: '切换控制台与工作台',
     switchArea: '切换使用区域：当前{area}',

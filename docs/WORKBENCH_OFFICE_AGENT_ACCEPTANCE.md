@@ -1,0 +1,142 @@
+# 工作台对话与办公 Agent 验收记录
+
+日期：2026-11-19。分支：`codex/workbench-office-agent`。仅测试机与 `llm.editor.vip`，未发布生产，也未合入主分支。
+
+## 本次更新：LIVE 整页对照与保真修正
+
+本节是当前测试部署的事实；下方早期“已取得证据”“最终自动回归”“最终测试部署”及端到端记录保留为此前 `6038045b2b4783ffab6bed681a40e99391708240` 阶段的验收基线，不能把旧截图、旧测试数量或旧镜像摘要当作本次重新验收结果。
+
+### 来源与界面修正
+
+- 整页参照改为已登录的 Bisheng LIVE `/workspace/c/new`，1440×1000 视口，核对真实的侧栏、欢迎区、编辑器及展开菜单。固定源码仍为 `a8e5be89c1b8d3a2e512c772e2a38de409336dc8`；LIVE 产品观察不证明其部署版本与该 commit 完全相同。早期 Landing / ClarifyCard / ResultSection 三组件 React harness 仅作为组件级补充，不代替整页验收。
+- UI 提交 `980d4d135`：专用 240px 全高工作台侧栏、欢迎区 34px 标记/26px 标题/60px 间距、28px 编辑器圆角；原简化 textarea 替换为纯文本 contenteditable 与引用 chip，恢复全宽二级工具菜单、附件和个人文件选择。
+- 恢复完整的已接入任务呈现：执行阶段与工具行、置底清单、真实排队/恢复/澄清/取消/失败/部分完成及成果交付。任务归属只认真实 `task_id`，不凭计划顺序猜测；悬挂操作不伪报成功，清单全部完成也不提前宣布 run 完成。补齐内联自填确认、输入法防误提交、提交锁和失败后主动重试。
+- 恢复文件工作区层级、预览/源码、返回/下载/继续修改、面板拖动与键盘调整、单预览实例、引用侧栏及消息选择导出。Word 为客户端真实 OOXML `.docx`，PDF 使用本地浏览器/系统打印“另存为 PDF”；未引入完整 React bundle、Bisheng 后端、RAG、工作流或知识库功能。
+- 来源清单为 32 组目标映射、46 个不同固定源文件，已从本地 pinned 原始文件逐项计算 SHA-256 并核对路径，零不匹配。详见 [移植说明](third-party/bisheng-frontend/README.md) 与 [来源清单](third-party/bisheng-frontend/source-manifest.json)。
+
+### 本次自动检查与 CI
+
+| 范围 | 本次结果与边界 |
+| --- | --- |
+| 前端批量回归 | 54 个测试文件、747 项测试通过；之后新增的 `ChatReferencesPanel` 2 项测试单独通过，不表述为已执行一批 749 项 |
+| 前端静态与构建 | ESLint、类型检查和生产构建通过；ESLint 无错误，仅未改动的 `UsageView.spec.ts` 保留已有 unused 变量警告 |
+| Python 完整回归 | `services/office-agent/.venv/bin/python -m pytest tests -q` 全部 123 项通过（2.51 秒），包含 polling 22 项和 checkpoint latency 2 项；不是对隔离执行器或所有外部供应商的新一轮验收声明 |
+| UI 提交 CI | `980d4d135` 的 [完整 CI 44489448868](https://github.com/baisuipingan/sub2api/actions/runs/44489448868) 六个 job 全部成功；[Security 44489448640](https://github.com/baisuipingan/sub2api/actions/runs/44489448640) 成功 |
+| 最新代码 CI | `c82c4fde2` 已推送；[Security 44492414421](https://github.com/baisuipingan/sub2api/actions/runs/44492414421) 和 [完整 CI 44492414552](https://github.com/baisuipingan/sub2api/actions/runs/44492414552) 全部成功，包含 Go 全量 unit/integration、Office/Desktop race、真实 Go/Python 模型桥图及 Finish、embed 路由、前端、lint、部署与发版脚本；其中 CI 前端关键子集为 31 个文件、615 项通过，与上方本地 747+2 的执行范围分别记录 |
+
+### 当前测试部署
+
+本次仅更新独立测试环境的应用与 chat / office worker，可信执行器、隔离镜像和存储未变更。未部署生产、未合入主分支。
+
+| 产物 | 本次固定摘要 |
+| --- | --- |
+| Go 应用 | `sha256:6668f23223ac7810bca93a7863efc995f8ee1765191d63b040784c37b51527fb` |
+| chat / office worker | `sha256:26407491b6780fbe6ade2a88c49660acb38250745ae652a2c84a2f66b30c54fb` |
+| 前端构建 `index.html` | `40a84a33ecd11e174a7cbde7e1dbad543f751e29efed46820afca70284b4cd74` |
+
+worker 的真实控制面短暂断连演练已观察到 5 秒后自动恢复轮询，容器重启数为 0。重试仅包围尚未获得完整 manifest 的 claim 阶段；已领取任务的执行/付费操作不因此重放，鉴权与契约错误仍停止。半截领取响应由 Go 的旧租约、epoch 和操作状态约束恢复，不由 Python 猜测是否继续。
+
+部署后已在真实浏览器登录测试站，复验欢迎首页、工具菜单、历史办公任务与展开步骤、已生成 Word 的预览、全屏往返，以及 390px 手机预览关闭返回对话。保存的 `milo-test-landing.jpg`、`milo-test-task-files.jpg`（均 1280×720）和 `milo-test-mobile-preview.jpg`（390×844）位于工作区 `output/office-evidence/bisheng-ui/`，均已用 `sips` 验证。当前 Word 预览实际使用页图；本轮 UI 收尾没有再调用付费模型。原先本地 Vite 对照还覆盖 1440/1023/767/576/390、浅深主题、手机导航和导出格式面板。临时视口已恢复，测试站页面保留供用户查看。
+
+本次尚不能声明原生 PDF 查看器在全屏往返后的页码/缩放保持、所有供应商文本/工具/办公兼容或真实联网供应商成功。此前已完成的有限供应商和端到端场景仍按下方记录的原始范围保留，不扩展为本次全量重验或生产开放结论。
+
+## 环境
+
+独立 Compose 项目 `milo-office-test`，独立 PostgreSQL、Redis 和私有测试对象存储。Go 主站、轻量聊天 worker、办公 worker 和可信执行监督器分开运行。不接入测试机已有业务的数据库或网络，不重启 Docker、不全局清理镜像。模型请求经本站原网关与用户工作台系统 Key；测试路由使用运营者已有的模型访问权限，未复制生产数据库或图库。
+
+Linux gVisor `runsc release-20261116.0` 已校验并实际运行。模型脚本的临时容器无网络、非 root、只读根目录、有 CPU/内存/PID/临时盘与时限约束。普通聊天不依赖执行器。
+
+## 此前基线：已取得证据
+
+| 范围 | 验证结果 |
+| --- | --- |
+| Bisheng 来源 | 固定 commit 的活跃源组件、样式、修改映射及 LICENSE/NOTICE 保留；原 React Landing、ClarifyCard、ResultSection 独立样本有截图。未声称完整 Bisheng 应用像素一致 |
+| Vue 界面 | 最终类型检查、ESLint、构建及 683 项关键前端测试通过；真实测试站 1440/390 与 1023/767/576 临界宽度无横向溢出；浅深主题、输入法与滚动通过 |
+| 文件基础 | 中文 TXT 真实上传、元数据列表、点击才取签名预览、下载成功，文件名和 SHA256 一致；列表阶段没有对象 GET |
+| Go 基础 | 定向 service/config/handler/admin/routes/repository/websearch 检查、真实前端 embed 检查通过；完整 repository PostgreSQL 集成的 796 项顶层测试全部通过、无跳过，具体收尾结果见下文 |
+| Agent | 当前 101 项 Python 测试通过；包含普通聊天/办公预设分离、持久检查点、澄清恢复、付费模型与工具防重放、摘要边界、严格工具 JSON/名称分片及诊断日志脱敏 |
+| 文件权限与下载 | 最终应用上用两个独立普通用户复验 TXT/DOCX/XLSX/PPTX/PNG 上传及幂等回放、私有原件哈希、图片预览、删除隐藏；跨用户读取/删除 404，无 JWT 401，伪 PNG/HTML 400；测试用户已清理，未调用模型 |
+| 对话权限与并发读取 | 普通用户读取他人消息/run/事件/用量均 404，管理端 403；无 JWT 401；18 次会话列表并发读取全部 200（六路并发），不将该小样本称为容量压测 |
+| 真实办公隔离 | DOCX 中文内容重读/渲染、XLSX 公式实际重算并保持缓存值、PPTX 中文内容/页图通过；已检查导出的图像 |
+| 资源限制 | 符号链接拒绝、超时、输出上限、临时盘限制通过；PID/内存压力可使沙箱安全中止，结果记为 unknown、无可信快照且不自动重试；探针无遗留任务容器 |
+
+更具体的隔离探针与环境证据见 `deploy/workbench-office-test/ACCEPTANCE.md`。截图/运行日志在工作区 `output/` 或测试机独立 logs 目录，不包含在公开源码中。测试登录信息和网关凭据不进入 Git。
+
+## 真实联调发现并修正的问题
+
+- 内置前端未放行新的内部 worker API，返回网页而非任务清单。已增加精确前缀放行和 embed 中间件回归。
+- 不带文件的任务清单必须显式序列化空数组/对象，避免 Go/Python 对 null 的不同解释。
+- 大办公结果一次写入 stdout 可能发生短写，造成 64KiB 截断。固定执行器改为有界分块、处理短写和中断，重新完成真实 Office 探针。
+- XLSX 安全预览的清洁执行环境缺固定模块路径，已补应用自身路径，未继承宿主环境。
+- 删除会话与完成任务的锁顺序不一致。改为锁用户阻止新接单，再锁运行，最后删除会话。
+- 结果未确认立即持久挂起并撤销运行租约，保留原派发身份接收晚到结果，不等租约超时后才更新界面。
+- 原 usage 异步入账不能被任务预算绕过；只等待下一次调用的准入，不重发已付费请求。
+- 资源清理排除仍被引用的记录及已清理墓碑，独立有界释放已删除会话引用，避免清理批次饥饿。
+- 网页读取使用一次解析后校验并直接连接数值 IP，防止两次 DNS 解析之间的地址切换；重定向重新校验。
+- `run.running` 无显式 status 载荷时，前端从已知事件类型更新状态；工具自己的 completed 状态不能覆盖整个 run。
+- 模型截断的工具参数不得由 SDK 的宽松 partial JSON 自动补齐后执行；先拼接名称，再校验完整 JSON 和完成原因。真实 DeepAgents 图回归确认截断写入不执行、不发布。
+- Python 完成上报曾包含 Go 严格端点未声明的 `clarification:null`，导致真实文本已返回并计费却不进入终态。保留严格端点，仅发送四个契约字段；新增真实 Python worker 到真实 Gin Finish 端点的跨进程回归。
+- LangGraph 默认异步持久化使长流程的迟到写入指向已被四条缓存裁剪的检查点。使用同步 durability，让每个 superstep 先提交再前进；八轮工具、九次模型和真实持久化延迟的图测试先复现 `CHECKPOINT_NOT_FOUND`，修复后通过，未放大缓存规避。
+- 三套技能的修改注释曾位于 YAML 头之前，导致框架跳过技能。将注释放在头之后，用固定版本框架的真实 loader 验证三项均发现；DOCX 引导也移除本站不存在的独立导出工具。
+- 管理概览关联用户表后，未限定的 status 字段发生 SQL 歧义。已加表名并用真实 PostgreSQL 及真实管理 HTTP 接口复验。
+- 历史消息原本只补最后一个任务的事件，刷新后旧成果卡消失。历史接口改为每页一次批量返回各 run 原始不可变版本的公开元数据，排除已删除/未发布文件；前端保留省略投影的既有成果，且不能用旧事件复活已删除资源。
+- 模型正文常使用 `/output/文件名`，原渲染器仅识别 `output/文件名`。两种写法仅在匹配已授权成果时成为文件操作，外部或未授权路径不会变成可下载链接。
+- 私有跨域 PDF 不能直接塞进默认 CSP 的 iframe；Chromium 的 iframe sandbox 也会禁用原生 PDF 插件。改为有界读取、检查 MIME 与 PDF 签名后创建本地 blob；仅增加 `frame-src blob:`。全屏使用同一预览实例，版本缓存有界并在退出时撤销。
+- 同名不同格式如 `summary.xlsx` / `summary.pptx` 原本共享 stem 预览目录，可能错配预览。固定渲染器与归档按含扩展名的完整输出相对路径区分；旧 stem 目录仅在唯一对应一个成果时兼容。新增同名多格式与嵌套路径回归。
+- 模块未配置时，应用退出会对可选的资源清理服务调用 `Stop`。已增加 nil receiver 保护，并通过默认/unit 两种构建的退出回归。
+- 完整 CI 暴露 Office 摘要测试的清理被 `office_agent_context_summaries_user_id_fkey` 阻止，原测试又忽略删除错误，污染后续用户及订阅套件。仅修正 fixture 自有摘要、会话、用户、分组的清理顺序并检查错误；保留生产外键和原业务断言。新增精准回归，确认清完自己的记录且不删除其他用户。
+
+## 此前基线：最终自动回归
+
+- 前端：683 项关键测试、类型检查、ESLint 与完整构建通过。
+- Python Agent：101 项测试通过；隔离执行器 30 项测试及 30 个子场景通过。
+- 真实 PostgreSQL：完整 repository 796 项顶层测试、0 跳过，44.940 秒通过；Office 与原 UserRepo、API Key 分组过滤、Subscription 的联合进程 37 项顶层测试、0 跳过，11.122 秒通过。资源回收最终定向复跑 6.966 秒通过。
+- Go/Python：真实模型桥图及严格 Gin Finish 两个跨进程契约通过；Office/Desktop 定向 race 通过，routes 仅编译且无匹配测试，不计作执行通过。
+- 远端初轮完整 default/unit 曾发现已修正的可选服务 nil 退出问题；unit 还在资源争用时出现一次原 OAuth 时限测试失败，未改该业务或断言，原样连续 20 次复跑通过。最终全量 CI 结果单独记录，不能将初轮命令写成全部通过。
+- 最终代码 `6038045b2b4783ffab6bed681a40e99391708240` 的 [完整 CI](https://github.com/baisuipingan/sub2api/actions/runs/44475161355) 全部成功：全量 unit、全量 integration、Office/Desktop race、真实 Go/Python 图与 Finish、embed 路由、前端、golangci-lint、部署脚本和发版工具；[安全扫描](https://github.com/baisuipingan/sub2api/actions/runs/44475161362) 同样成功。之后交付提交仅修改文档。
+
+## 此前基线：最终测试部署
+
+最终只更新 Go 应用，`/health` 返回 `{"status":"ok"}`，对话页面、管理员概览和任务接口正常。源文件与最终应用构建上下文的非测试 Go 内容一致。前端 dist 的 `index.html` SHA256 为 `1c4c948c5e928000b50753ac87c0ec53e4ccd48dc96f08acfdf4901241ec226b`；公开 HTML 会注入站点配置，不用其动态响应哈希替代构建产物哈希。
+
+| 镜像 | 最终固定摘要 |
+| --- | --- |
+| Go 应用 | `sha256:bd8bad2cf4ea12d58ea6fea08243d90e154d75e49434e2ee08b47d5e892e7110` |
+| chat / office worker | `sha256:a06103857f57e877555cb2a067aed4e9a0cdadebe37e34cd5d6804ea5777f6b2` |
+| 隔离任务 | `sha256:ce43b86246bbdac5c3e79858e5c7d979f00aabfd840aeff16abe12d707c01452` |
+| 可信监督器 | `sha256:9d630af8477240ce1d7d5a0437ce501777d3aba17897402007963c16820f267a` |
+
+应用更新后 worker、监督器和存储正常运行；临时工具容器、gVisor 任务容器和 testcontainers 均为 0。未重启其他业务或全局清理 Docker；未变更生产或主分支。测试登录信息位于工作区未入库的 `output/office-evidence/TEST_ACCESS.txt`（0600），不要提交到公开源码。
+
+最终 CI 成功后，已核对运行容器挂载，清空本轮专用 Go build 缓存并删除已废弃的隔离诊断/应用构建临时副本。保留部署源码、日志证据、凭据、模块缓存和运行/回退镜像；未清理全局 Docker 构建缓存。测试机可用空间由 39 GiB 增至约 50 GiB，清理后健康检查仍为 200。
+
+## 此前基线：测试站端到端结果
+
+| 场景 | 实际结果 |
+| --- | --- |
+| GPT 普通对话 | 首轮记忆口令、第二轮准确取回、重新生成与候选切换、流式中途停止并刷新，共四次明确发起，每次仅一个模型操作且原账本已结算。取消时上游已产生用量，页面停止不等于免计费；刷新没有重发 |
+| 中文 Word | `e783eb53-0fec-46f1-a7bb-94c377076608` 完成，约 53 秒、5 次模型、2 次隔离执行。私有下载的哈希、标题和正文正确，预览已人工查看 |
+| 继续改 Word | `eda616a2-d8df-4ade-9daa-100419da1049` 完成，约 70 秒、9 次模型、4 次隔离执行。同一资源生成新版本，旧版仍可下载且哈希不变；刷新后两张成果卡和正文链接分别关联各自版本 |
+| CSV → Excel + PPT | `4e7c9abe-00e0-42da-8450-ced2c9a678e2` 完成，约 200 秒、25 次模型、4 次隔离执行。两份文件哈希匹配；Excel 保留 `SUM(B2:B3)` 和重算缓存 30，PPT 重读为 1 页且包含两项数据和合计。两张预览均人工查看，并在真实页面分别加载，无同名预览错配 |
+| 预算停止 | 首次组合任务 `b5d4719a-7ef9-41ea-b30f-3bf8250a5ae4` 在 16 次模型调用后明确 `MODEL_BUDGET_EXCEEDED`，未发布未验证成果，未重放。最终验收另开任务，仅测试环境允许最多 32 次模型、48 次工具，不把此上限作为生产默认建议 |
+| 澄清与跨进程恢复 | `16bf8145-0d25-43ab-b0b4-57bd252108bc` 在 1 次模型调用后进入 `waiting_user`，重启办公 worker 后回答“工作计划”，同一 run 回答“已确认：工作计划”并完成。前后共两条模型操作，分别已结算，未重发暂停前请求 |
+| 预览与后台 | 真实 Word PDF 预览签名一次、对象读取一次；全屏与返回复用同一 iframe，没有再次读取。受控跨域浏览器探针验证了 CSP/CORS 兼容，实际测试桶同源，未使用生产 R2。管理员可展开模型/工具、实际上游、Token、费用及耗时 |
+
+模型费用按每次原网关请求结算，验收组合任务的 usage 汇总为 0.06808132 对应计价金额；其耗时和模型次数不能外推为稳定性能或固定价格。建议先用小范围试用收集办公任务耗时、步骤与用量分布，再决定默认预算。工作台并发容量未做生产规模压测。
+
+真实 Linux/gVisor 最终定向复跑通过：同 stem 的 DOCX/XLSX/PPTX 各得到独立 PDF，约 28.8 秒；3 张代表页图人工检查通过。Go 持久层的历史成果回归覆盖不可变旧版、删除排除、跨账户隔离和公开字段边界。
+
+## 此前基线：供应商实测
+
+以下均为测试站 `https://llm.editor.vip` 的实际记录，经本站原网关调用；供应商兼容范围按已执行的场景列示，不从模型名称或单元测试推断。
+
+| 供应商 / 模型 | 实测事实与范围 |
+| --- | --- |
+| GPT / `gpt-5.6-luna` | 普通对话、两轮上下文、重新生成/候选选择、停止与刷新，以及 Word 生成/继续修改已真实通过；均复用原账本与实际上游。Excel/PPT 组合任务及跨进程恢复均已通过，具体调用与性能边界见上方端到端结果 |
+| Claude / `claude-sonnet-4-6` | 最终部署冻结后只执行一次最小普通对话，约 5 秒进入 `completed`；仅一个已完成模型操作、无工具调用，正确返回指定中文句子。原账本 `settled=true`，输入 112 / 输出 18 token，`actual_cost=0.000606`、`charge_credits=60600`；唯一上游为账号 2 `Office test Claude gateway`，实际模型 `claude-sonnet-4-6`。只证明普通对话、完成上报与原账本闭环，不代表工具、视觉或办公能力已实测 |
+| DeepSeek / `deepseek-v4-pro` | 仅执行一次普通对话，原网关记录账号 1 `Office test gateway` 返回上游 HTTP 502；模型操作 inbox 已完成，原账本观察结果 `settled=false`、无 usage 收费记录。旧运行停在 `needs_confirmation`，未重放。后续“已确认 HTTP 失败”分类由契约测试验证，未再次调用供应商，因此不标记 DeepSeek 兼容通过 |
+| Grok | 既有测试凭据的模型发现请求返回 HTTP 错误，未建立有效验收链路；未执行真实对话或办公调用 |
+| Gemini | 未提供有效测试凭据，未建立验收链路；未执行真实对话或办公调用 |
+| 联网搜索 | 测试站未配置有效搜索供应商。目前仅有来源持久化与失败状态的契约测试覆盖，尚无真实搜索供应商成功证据 |
+
+Claude 运行 `e562afc5-d09b-4cad-85c6-b8f263a6260f`，原请求 `office-b4757d105501098d9e31806422195e9667a6ddb3`；DeepSeek 运行 `0b17da57-63b8-4c15-a0de-2cd716c57d1f`，原请求 `office-1c39000cd585bd6583e264a765bcc5e18af22a21`。脱敏证据分别位于工作区 `output/office-evidence/providers/claude-sonnet-4-6-chat.json` 与 `output/office-evidence/providers/deepseek-v4-pro-chat.json`，不包含密钥或资源签名链接，不提交至公开源码。

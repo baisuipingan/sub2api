@@ -94,7 +94,7 @@ export async function testS3Connection(config: BackupS3Config): Promise<TestS3Re
   return data
 }
 
-// Image object storage shared by async image tasks, the Studio gallery and ticket screenshots.
+// Object storage shared by async images, gallery, ticket screenshots, and private office files.
 //
 // Shares the S3 client with backups, so `reuse_backup_s3` borrows the endpoint and
 // credentials configured above and only keeps its own bucket/prefix.
@@ -103,6 +103,7 @@ export interface ImageStorageConfig {
   studio_gallery_enabled: boolean
   studio_jobs_enabled: boolean
   ticket_attachments_enabled: boolean
+  office_bucket?: string
   reuse_backup_s3: boolean
   bucket: string
   prefix: string
@@ -140,6 +141,39 @@ export async function testImageStorageConnection(
     '/admin/backups/image-storage/test',
     config,
   )
+  return data
+}
+
+export interface OfficeStorageConfig {
+  source: 'backup' | 'images' | 'custom'
+  bucket: string
+  endpoint: string
+  region: string
+  access_key_id: string
+  secret_access_key?: string
+  force_path_style: boolean
+}
+
+export interface OfficeStorageConfigResponse {
+  config: OfficeStorageConfig
+  secret_configured: boolean
+  configured: boolean
+  target_in_use: boolean
+  effective_bucket?: string
+}
+
+export async function getOfficeStorageConfig(): Promise<OfficeStorageConfigResponse> {
+  const { data } = await apiClient.get<OfficeStorageConfigResponse>('/admin/backups/office-storage')
+  return data
+}
+
+export async function updateOfficeStorageConfig(config: OfficeStorageConfig): Promise<OfficeStorageConfigResponse> {
+  const { data } = await apiClient.put<OfficeStorageConfigResponse>('/admin/backups/office-storage', config)
+  return data
+}
+
+export async function testOfficeStorageConnection(config: OfficeStorageConfig): Promise<TestS3Response> {
+  const { data } = await apiClient.post<TestS3Response>('/admin/backups/office-storage/test', config)
   return data
 }
 
@@ -192,6 +226,9 @@ export const backupAPI = {
   getImageStorageConfig,
   updateImageStorageConfig,
   testImageStorageConnection,
+  getOfficeStorageConfig,
+  updateOfficeStorageConfig,
+  testOfficeStorageConnection,
   getSchedule,
   updateSchedule,
   createBackup,

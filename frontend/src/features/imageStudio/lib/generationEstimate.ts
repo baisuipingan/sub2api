@@ -1,7 +1,7 @@
 import type { ImageResolutionTier } from './modelRegistry'
 
 export interface GenerationEstimate {
-  creditsPerImage: number
+  costUSDPerImage: number
   /** 耗时的 i18n key 后缀，实际文案由组件翻译（lib 里不写死中文） */
   durationKey: 'durationNormal' | 'duration4K'
 }
@@ -25,16 +25,16 @@ export function getGenerationEstimate(
   const is4K = resolution === '4K'
   const fallback = FALLBACK_UNIT_PRICE[resolution] ?? FALLBACK_UNIT_PRICE['2K']
   return {
-    creditsPerImage:
+    costUSDPerImage:
       typeof unitPrice === 'number' && Number.isFinite(unitPrice) ? unitPrice : fallback,
     durationKey: is4K ? 'duration4K' : 'durationNormal',
   }
 }
 
-export function getEstimatedCredits(
+export function getEstimatedCostUSD(
   resolution: ImageResolutionTier,
   imageCount: number,
   unitPrice?: number,
 ) {
-  return getGenerationEstimate(resolution, unitPrice).creditsPerImage * imageCount
+  return getGenerationEstimate(resolution, unitPrice).costUSDPerImage * imageCount
 }

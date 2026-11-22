@@ -60,9 +60,15 @@ type GalleryTaskLink struct {
 	Ordinal       int
 }
 
+type GalleryTask struct {
+	Task         json.RawMessage `json:"task"`
+	StorageBytes int64           `json:"storage_bytes"`
+}
+
 type GalleryTaskPage struct {
-	Items      []json.RawMessage `json:"items"`
-	NextCursor *string           `json:"next_cursor"`
+	Items              []json.RawMessage `json:"items"`
+	NextCursor         *string           `json:"next_cursor"`
+	StorageBytesByTask map[string]int64  `json:"storage_bytes_by_task"`
 }
 
 // GalleryStats is derived from the current user's committed gallery records,
@@ -84,9 +90,9 @@ type GalleryRepository interface {
 	ReserveAsset(ctx context.Context, asset GalleryAsset) (*GalleryAsset, error)
 	MarkAssetReady(ctx context.Context, userID int64, imageID string) error
 	GetAsset(ctx context.Context, userID int64, imageID string) (*GalleryAsset, error)
-	SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error)
-	SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (json.RawMessage, error)
-	GetTask(ctx context.Context, userID int64, taskID string) (json.RawMessage, error)
+	SaveTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (*GalleryTask, error)
+	SaveAcceptedTask(ctx context.Context, userID int64, taskID, digest string, task json.RawMessage, links []GalleryTaskLink) (*GalleryTask, error)
+	GetTask(ctx context.Context, userID int64, taskID string) (*GalleryTask, error)
 	ListTasks(ctx context.Context, userID int64, cursor string, limit int) (GalleryTaskPage, error)
 	DeleteTask(ctx context.Context, userID int64, taskID string) ([]GalleryAsset, error)
 	ListCleanupAssets(ctx context.Context, limit int) ([]GalleryAsset, error)
@@ -231,7 +237,8 @@ func galleryImageExtension(mime string) string {
 	}
 }
 
-func galleryStoredVariantMIME(key string) string {
+// GalleryStoredVariantMIME returns the format used for a stored preview or thumbnail.
+func GalleryStoredVariantMIME(key string) string {
 	if strings.HasSuffix(key, ".jpg") {
 		return "image/jpeg"
 	}
@@ -445,15 +452,15 @@ type galleryTaskInput struct {
 	MaskTargetImageID         *string  `json:"maskTargetImageId"`
 }
 
-func (s *ImageStudioGalleryService) SaveTask(ctx context.Context, userID int64, raw json.RawMessage) (json.RawMessage, error) {
+func (s *ImageStudioGalleryService) SaveTask(ctx context.Context, userID int64, raw json.RawMessage) (*GalleryTask, error) {
 	return s.saveTask(ctx, userID, raw, true)
 }
 
-func (s *ImageStudioGalleryService) SaveAcceptedJobTask(ctx context.Context, userID int64, raw json.RawMessage) (json.RawMessage, error) {
+func (s *ImageStudioGalleryService) SaveAcceptedJobTask(ctx context.Context, userID int64, raw json.RawMessage) (*GalleryTask, error) {
 	return s.saveTask(ctx, userID, raw, false)
 }
 
-func (s *ImageStudioGalleryService) saveTask(ctx context.Context, userID int64, raw json.RawMessage, requireEnabled bool) (json.RawMessage, error) {
+func (s *ImageStudioGalleryService) saveTask(ctx context.Context, userID int64, raw json.RawMessage, requireEnabled bool) (*GalleryTask, error) {
 	if userID <= 0 || len(raw) == 0 || len(raw) > 256<<10 {
 		return nil, ErrGalleryInvalid
 	}
@@ -515,7 +522,7 @@ func (s *ImageStudioGalleryService) saveTask(ctx context.Context, userID int64, 
 	return s.repo.SaveAcceptedTask(ctx, userID, input.ID, hex.EncodeToString(digest[:]), canonical, links)
 }
 
-func (s *ImageStudioGalleryService) GetTask(ctx context.Context, userID int64, id string) (json.RawMessage, error) {
+func (s *ImageStudioGalleryService) GetTask(ctx context.Context, userID int64, id string) (*GalleryTask, error) {
 	if !galleryIDValid(id) {
 		return nil, ErrGalleryInvalid
 	}
@@ -561,9 +568,9 @@ func (s *ImageStudioGalleryService) AssetURL(ctx context.Context, userID int64, 
 	case "original":
 		key, result.MIME, result.Bytes, result.Width, result.Height = asset.OriginalKey, asset.MIME, asset.Bytes, asset.Width, asset.Height
 	case "preview":
-		key, result.MIME, result.Bytes, result.Width, result.Height = asset.PreviewKey, galleryStoredVariantMIME(asset.PreviewKey), asset.PreviewBytes, asset.PreviewWidth, asset.PreviewHeight
+		key, result.MIME, result.Bytes, result.Width, result.Height = asset.PreviewKey, GalleryStoredVariantMIME(asset.PreviewKey), asset.PreviewBytes, asset.PreviewWidth, asset.PreviewHeight
 	case "thumbnail":
-		key, result.MIME, result.Bytes, result.Width, result.Height = asset.ThumbnailKey, galleryStoredVariantMIME(asset.ThumbnailKey), asset.ThumbnailBytes, asset.ThumbnailWidth, asset.ThumbnailHeight
+		key, result.MIME, result.Bytes, result.Width, result.Height = asset.ThumbnailKey, GalleryStoredVariantMIME(asset.ThumbnailKey), asset.ThumbnailBytes, asset.ThumbnailWidth, asset.ThumbnailHeight
 	default:
 		return GalleryAssetURL{}, ErrGalleryInvalid
 	}

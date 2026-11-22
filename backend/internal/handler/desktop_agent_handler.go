@@ -115,7 +115,7 @@ func (h *DesktopAgentHandler) GetModels(c *gin.Context) {
 		desktopAgentError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"group_id": groupID, "models": models})
+	response.Success(c, models)
 }
 func (h *DesktopAgentHandler) DisableConfig(c *gin.Context) {
 	if !allowDesktopAgentAdmin(c) {

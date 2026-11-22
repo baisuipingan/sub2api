@@ -111,6 +111,7 @@ func truncateAuditExtraString(value string, limit int) string {
 
 // auditSensitiveReads 需要审计的敏感 GET 读取（method+FullPath → 动作名）。
 var auditSensitiveReads = map[string]string{
+	"GET /api/v1/admin/workbench/chat/runs/:id/messages":                               "admin.workbench.chat.messages.read",
 	"GET /api/v1/admin/workbench/gallery":                                              "admin.workbench.gallery.list",
 	"GET /api/v1/admin/workbench/gallery/:user_id/tasks/:task_id/images/:image_id/url": "admin.workbench.gallery.image.read",
 	"GET /api/v1/admin/accounts/data":                                                  "admin.accounts.export",
@@ -161,6 +162,8 @@ var auditBodyOmittedRoutes = map[string]struct{}{
 	"POST /api/v1/user/passkeys/register/finish":                {},
 	"POST /api/v1/admin/accounts/import/codex-session":          {},
 	"PUT /api/v1/admin/accounts/:id/ollama-cloud-usage/session": {},
+	"POST /api/v1/admin/workbench/office-nodes":                 {},
+	"PUT /api/v1/admin/workbench/office-nodes/:id":              {},
 	"PUT /api/v1/admin/prompt-audit/config":                     {},
 	"POST /api/v1/admin/prompt-audit/endpoints/probe":           {},
 	"DELETE /api/v1/admin/prompt-audit/events/:id":              {},

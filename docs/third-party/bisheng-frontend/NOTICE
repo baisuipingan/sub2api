@@ -1,0 +1,9 @@
+Bisheng selective frontend adaptation
+Upstream: https://github.com/dataelement/bisheng
+Baseline: a8e5be89c1b8d3a2e512c772e2a38de409336dc8
+Licensed under Apache License, Version 2.0.
+
+This repository contains modified Vue adaptations of the upstream workbench
+chat, input, conversation history, execution, clarification and artifact UI.
+The original React state, account system and backend APIs are not bundled.
+See source-manifest.json for source paths and baseline SHA-256 digests.

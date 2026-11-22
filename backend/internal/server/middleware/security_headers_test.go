@@ -317,12 +317,14 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Contains(t, enhanced, CloudflareInsightsDomain)
 	})
 
-	t.Run("allows_only_same_origin_plugin_frames", func(t *testing.T) {
+	t.Run("allows_same_origin_and_local_blob_previews_without_arbitrary_https_frames", func(t *testing.T) {
 		policy := "default-src 'self'; frame-src https://checkout.example.com"
 		enhanced := enhanceCSPPolicy(policy)
 
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "'self'"))
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "https://checkout.example.com"))
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "blob:"))
+		assert.Equal(t, 0, countDirectiveValue(enhanced, "frame-src", "https:"))
 		assert.NotContains(t, enhanced, "frame-src *")
 	})
 

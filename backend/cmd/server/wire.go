@@ -126,6 +126,7 @@ func provideCleanup(
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	gallery *service.ImageStudioGalleryService,
+	officeResources *service.OfficeResourcesService,
 	studioJobs *service.StudioJobService,
 	ticketAttachments *service.TicketAttachmentService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
@@ -158,6 +159,7 @@ func provideCleanup(
 				return nil
 			}},
 			{"StudioJobService", func() error { studioJobs.Stop(); return nil }},
+			{"OfficeResourcesService", func() error { officeResources.Stop(); return nil }},
 			{"ImageStudioGalleryService", func() error {
 				gallery.StopCleaner()
 				return nil

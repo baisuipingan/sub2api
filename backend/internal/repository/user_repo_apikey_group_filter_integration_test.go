@@ -24,11 +24,10 @@ func (s *UserRepoAPIKeyGroupFilterSuite) SetupTest() {
 	s.client = testEntClient(s.T())
 	s.repo = newUserRepositoryWithSQL(s.client, integrationDB)
 	// api_keys 必须先于 users 清理（外键）；groups 也清理避免跨用例串扰。
-	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM api_keys")
-	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM user_allowed_groups")
-	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM user_subscriptions")
-	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM users")
-	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM groups")
+	for _, table := range []string{"api_keys", "user_allowed_groups", "user_subscriptions", "users", "groups"} {
+		_, err := integrationDB.ExecContext(s.ctx, "DELETE FROM "+table)
+		s.Require().NoError(err, "clean %s before API key group filter test", table)
+	}
 }
 
 func TestUserRepoAPIKeyGroupFilterSuite(t *testing.T) {

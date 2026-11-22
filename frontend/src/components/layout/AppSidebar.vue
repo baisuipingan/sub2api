@@ -114,7 +114,7 @@
         </div>
 
         <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
+        <div v-if="!authStore.isSimpleMode && personalNavItems.length" class="sidebar-section">
           <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
             <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
               {{ t(workspace.area === 'workbench' ? 'nav.myCreations' : 'nav.myAccount') }}
@@ -171,6 +171,7 @@
           </router-link>
         </div>
       </template>
+    <ConversationList v-if="workspace.area === 'workbench' && workspace.context === 'personal' && route.path.startsWith('/workbench/chat') && !sidebarCollapsed" />
     </nav>
 
     <!-- Bottom Section -->
@@ -233,6 +234,9 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import ConversationList from '@/components/workbench/chat/ConversationList.vue'
+import { workbenchChatApi } from '@/api/workbenchChat'
+import type { ChatStatus } from '@/types/workbenchChat'
 import { useWorkspaceNavigationStore } from '@/stores/workspaceNavigation'
 import { workspaceDefault, workspaceKey, workspaceLocation, type WorkspaceArea } from '@/router/workspace'
 import { desktopDownloadPath } from '@/router/desktopDownloadRoutes'
@@ -288,6 +292,12 @@ const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
 const workspaceNavigation = useWorkspaceNavigationStore()
+const chatFlags = ref<ChatStatus | null>(null)
+watch(() => authStore.user?.id, async id => {
+ chatFlags.value = null
+ if (!id) return
+ try { const flags = await workbenchChatApi.status(); if (authStore.user?.id === id) chatFlags.value = flags } catch { /* feature is not exposed if unavailable */ }
+}, { immediate: true })
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 // Mobile drawers always show labels. Resizing an open drawer back to desktop
@@ -843,7 +853,11 @@ function resolveBadge(item: NavItem): number {
 }
 
 function buildSelfNavItems(withDashboard: boolean, area: WorkspaceArea = workspace.value.area): NavItem[] {
-  if (area === 'workbench') return [{ path: '/workbench/image', label: t('nav.imageStudio'), icon: ImageStudioIcon }]
+  if (area === 'workbench') return [
+ ...(chatFlags.value?.enabled ? [{ path: '/workbench/chat', label: '对话助手', icon: TicketSupportIcon }] : []),
+ { path: '/workbench/image', label: t('nav.imageStudio'), icon: ImageStudioIcon, featureFlag: makeSidebarFlag(FeatureFlags.imageStudio) },
+ ...(chatFlags.value?.files_enabled ? [{ path: '/workbench/files', label: '我的文件', icon: FolderIcon }] : []),
+ ]
   const items: NavItem[] = []
   if (withDashboard) {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
@@ -906,8 +920,11 @@ const adminNavItems = computed((): NavItem[] => buildAdminNavItems(workspace.val
 function buildAdminNavItems(area: WorkspaceArea): NavItem[] {
   if (area === 'workbench') return [
     { path: '/admin/workbench', label: t('nav.workbenchOverview'), icon: ChartIcon },
+    { path: '/admin/workbench/chat', label: '对话记录', icon: TicketSupportIcon },
     { path: '/admin/workbench/tasks', label: t('nav.workbenchTasks'), icon: OrderListIcon },
     { path: '/admin/workbench/gallery', label: t('nav.workbenchGallery'), icon: BatchImageIcon },
+    { path: '/admin/workbench/files', label: '用户文件', icon: FolderIcon },
+    { path: '/admin/workbench/office-nodes', label: t('nav.workbenchOfficeNodes'), icon: ServerIcon },
     { path: '/admin/workbench/settings', label: t('nav.workbenchSettings'), icon: CogIcon },
   ]
   const baseItems: NavItem[] = [

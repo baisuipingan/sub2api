@@ -111,6 +111,7 @@ vi.mock('vue-i18n', async () => {
     ...actual,
     useI18n: () => ({
       t: (key: string) => messages[key] ?? key,
+      locale: { value: 'en' },
     }),
   }
 })
@@ -160,7 +161,7 @@ function mountUsageView() {
         DateRangePicker: true,
         Icon: true,
         UsageStatsCards: chartStub,
-        UsageTable: { ...chartStub, props: ['columns'] },
+        UsageTable: { ...chartStub, props: ['columns', 'data'] },
         UserErrorRequestsTable: chartStub,
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
@@ -233,6 +234,25 @@ describe('user UsageView', () => {
     expect(list).toHaveBeenCalledTimes(1)
     expect(list).toHaveBeenCalledWith(1, 100)
     expect(getAvailable).toHaveBeenCalled()
+  })
+
+  it('shows workbench search charges through the standard per-request history', async () => {
+    const row = { ...usageLog, model: 'workbench-web-search', search_provider: 'deepseek', billing_mode: 'per_request' }
+    const wrapper = mountUsageView()
+    await flushPromises()
+    query.mockResolvedValue({ items: [row], total: 1 })
+
+    const selects = wrapper.findAllComponents(Select)
+    const billingMode = selects.find(select => select.props('options').some((option: SelectOption) => option.value === 'per_request'))!
+    billingMode.vm.$emit('update:modelValue', 'per_request')
+    await wrapper.vm.$nextTick()
+    billingMode.vm.$emit('change', 'per_request')
+    await flushPromises()
+
+    expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ billing_mode: 'per_request' }), expect.anything())
+    expect(wrapper.findComponent(UsageTable).props('data')).toEqual([row])
+    expect(wrapper.text()).toContain('Export CSV')
+    wrapper.unmount()
   })
 
   it('includes API keys after the first page in both record filters and queries by the selected key', async () => {

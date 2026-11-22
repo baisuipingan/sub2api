@@ -155,14 +155,14 @@ func TestDesktopAgentManagedKeyBlockedRowsNeverRecreatedOrReset(t *testing.T) {
 			candidate.GroupID = &f.otherGroupID
 			again, changed, err := f.repo.EnsureDesktopAgentKey(ctx, candidate)
 			require.NoError(t, err)
-			require.False(t, changed)
+			require.True(t, changed)
 			require.Equal(t, key.ID, again.ID)
 			require.Equal(t, key.Key, again.Key)
 			require.Equal(t, before.Status, again.Status)
 			require.Equal(t, before.Quota, again.Quota)
 			require.Equal(t, before.QuotaUsed, again.QuotaUsed)
 			require.Equal(t, before.ExpiresAt, again.ExpiresAt)
-			require.Equal(t, before.GroupID, again.GroupID)
+			require.Equal(t, &f.otherGroupID, again.GroupID)
 		})
 	}
 }
@@ -224,14 +224,15 @@ func TestDesktopAgentRealProviderBootstrapUsesIndependentPurpose(t *testing.T) {
 	client := testEntClient(t)
 	users := NewUserRepository(client, integrationDB)
 	groups := NewGroupRepository(client, integrationDB)
-	keys := service.NewAPIKeyService(f.repo, users, groups, nil, nil, nil, &config.Config{})
+	cache := NewAPIKeyCache(testRedis(t))
+	keys := service.NewAPIKeyService(f.repo, users, groups, nil, nil, cache, &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}})
 	accounts := newAccountRepositoryWithSQL(client, integrationDB, nil)
 	account := &service.Account{
 		Name: fmt.Sprintf("desktop-bootstrap-%d", f.userID), Platform: service.PlatformOpenAI,
 		Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true,
 		Credentials: map[string]any{"model_mapping": map[string]any{"fixture-model": "fixture-upstream"}}, Extra: map[string]any{},
 	}
-	require.NoError(t, accounts.CreateWithAccountGroups(ctx, account, []service.AccountGroup{{GroupID: f.groupID}}))
+	require.NoError(t, accounts.CreateWithAccountGroups(ctx, account, []service.AccountGroup{{GroupID: f.groupID}, {GroupID: f.otherGroupID}}))
 	t.Cleanup(func() {
 		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM scheduler_outbox WHERE account_id=$1", account.ID)
 		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM account_groups WHERE account_id=$1", account.ID)
@@ -265,6 +266,24 @@ func TestDesktopAgentRealProviderBootstrapUsesIndependentPurpose(t *testing.T) {
 	again, err := svc.Bootstrap(ctx, f.userID)
 	require.NoError(t, err)
 	require.Equal(t, first.Credential, again.Credential)
+	issued, err := f.repo.GetByKey(ctx, first.Credential.Key)
+	require.NoError(t, err)
+	oldAuth, err := keys.GetByKey(ctx, issued.Key)
+	require.NoError(t, err)
+	require.Equal(t, f.groupID, *oldAuth.GroupID)
+	oldHash := sha256.Sum256([]byte(issued.Key))
+	cacheID := hex.EncodeToString(oldHash[:])
+	_, err = cache.GetAuthCache(ctx, cacheID)
+	require.NoError(t, err)
+	cfg.GroupID = f.otherGroupID
+	_, err = svc.UpdateConfig(ctx, cfg)
+	require.NoError(t, err)
+	_, err = cache.GetAuthCache(ctx, cacheID)
+	require.ErrorIs(t, err, redis.Nil)
+	updatedAuth, err := keys.GetByKey(ctx, issued.Key)
+	require.NoError(t, err)
+	require.Equal(t, issued.ID, updatedAuth.ID)
+	require.Equal(t, f.otherGroupID, *updatedAuth.GroupID)
 	_, err = integrationDB.ExecContext(ctx, `UPDATE api_keys SET status='disabled' WHERE user_id=$1 AND purpose='desktop_agent'`, f.userID)
 	require.NoError(t, err)
 	blocked, err := svc.Bootstrap(ctx, f.userID)

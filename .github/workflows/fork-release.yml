@@ -127,6 +127,15 @@ jobs:
           make test-unit
           make test-integration
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Workbench office node tests
+        working-directory: services/workbench-office-tools
+        run: |
+          python -m pip install --only-binary=:all: -r requirements.txt
+          python -m unittest discover -s tests -v
+
       - name: Backend lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -148,7 +157,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm test:run
           pnpm run typecheck
-          pnpm run build
+          NODE_OPTIONS=--max-old-space-size=4096 pnpm run build
 
       - name: Validate release scripts
         run: |
@@ -227,6 +236,38 @@ jobs:
           grep -F "${{ needs.validate-and-test.outputs.release_version }}" version.txt
           grep -F "upstream: ${{ needs.validate-and-test.outputs.upstream_version }}" version.txt
 
+      - name: Build office node image
+        id: office
+        uses: docker/build-push-action@v6
+        with:
+          context: services/workbench-office-tools
+          file: services/workbench-office-tools/Dockerfile
+          platforms: linux/amd64
+          push: ${{ env.DRY_RUN != 'true' }}
+          load: ${{ env.DRY_RUN == 'true' }}
+          tags: ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api-office-tools:${{ needs.validate-and-test.outputs.release_version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.validate-and-test.outputs.source_commit }}
+            org.opencontainers.image.version=${{ needs.validate-and-test.outputs.release_version }}
+          build-args: |
+            OFFICE_TOOLS_VERSION=${{ needs.validate-and-test.outputs.release_version }}
+          provenance: ${{ env.DRY_RUN == 'true' && 'false' || 'mode=max' }}
+          sbom: ${{ env.DRY_RUN != 'true' }}
+
+      - name: Verify office node image
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api-office-tools:${{ needs.validate-and-test.outputs.release_version }}"
+          image="$tag"
+          if [[ "${DRY_RUN}" != "true" ]]; then
+            image="$tag@${{ steps.office.outputs.digest }}"
+            docker pull "$image"
+          fi
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "${{ needs.validate-and-test.outputs.source_commit }}" ]]
+          docker run --rm "$image" python -c 'import os; import workbench_office_tools.server; assert os.environ["OFFICE_TOOLS_VERSION"] == "${{ needs.validate-and-test.outputs.release_version }}"'
+
       - name: Generate release manifest
         shell: bash
         run: |
@@ -237,6 +278,12 @@ jobs:
             digest="$(docker image inspect --format '{{.Id}}' "$image")"
           fi
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          office_image="ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api-office-tools"
+          office_digest="${{ steps.office.outputs.digest }}"
+          if [[ -z "$office_digest" ]]; then
+            office_digest="$(docker image inspect --format '{{.Id}}' "$office_image:${{ needs.validate-and-test.outputs.release_version }}")"
+          fi
+          [[ "$office_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           cat > release-manifest.json <<JSON
           {
             "schema_version": 1,
@@ -248,6 +295,7 @@ jobs:
             "image": "ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api@${digest}",
             "image_tag": "ghcr.io/${{ needs.validate-and-test.outputs.owner_lower }}/sub2api:${{ needs.validate-and-test.outputs.release_version }}",
             "digest": "${digest}",
+            "office_node_image": "${office_image}@${office_digest}",
             "database": {
               "max_migration": "${{ needs.validate-and-test.outputs.max_migration }}",
               "schema_epoch": ${{ needs.validate-and-test.outputs.schema_epoch }},
@@ -265,6 +313,7 @@ jobs:
           - Upstream commit: \`${{ needs.validate-and-test.outputs.upstream_commit }}\`
           - Source commit: \`${{ needs.validate-and-test.outputs.source_commit }}\`
           - Image digest: \`${digest}\`
+          - Office node image: \`${office_image}@${office_digest}\`
           - Database policy: \`${{ needs.validate-and-test.outputs.database_rollback }}\`
 
           Deploy on the server:

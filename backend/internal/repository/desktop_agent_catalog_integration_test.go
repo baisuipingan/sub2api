@@ -81,7 +81,8 @@ func TestDesktopAgentCatalogAndConfigPublicationRejectQueuedStaleSnapshots(t *te
 	_, err = lockDesktopAgentProfileCatalog(ctx, tx)
 	require.NoError(t, err)
 	go func() {
-		changed, err := repo.SaveDesktopAgentConfigWithCatalog(ctx, "catalog-old", "config-stale")
+		expected := "catalog-old"
+		changed, _, err := repo.SaveDesktopAgentConfig(ctx, `{"enabled":false}`, &expected)
 		done <- result{changed, err}
 	}()
 	select {
@@ -98,7 +99,8 @@ func TestDesktopAgentCatalogAndConfigPublicationRejectQueuedStaleSnapshots(t *te
 	raw, err = repo.GetValue(ctx, configKey)
 	require.NoError(t, err)
 	require.Equal(t, "config-new", raw)
-	changed, err := repo.SaveDesktopAgentConfigWithCatalog(ctx, "catalog-new", "config-current")
+	expected := "catalog-new"
+	changed, _, err := repo.SaveDesktopAgentConfig(ctx, `{"enabled":false}`, &expected)
 	require.NoError(t, err)
 	require.True(t, changed)
 }

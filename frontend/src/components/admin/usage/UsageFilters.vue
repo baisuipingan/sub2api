@@ -204,6 +204,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
+import { usageModelLabel } from '@/utils/usageSearch'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 
 type ModelValue = Record<string, any>
@@ -267,7 +268,7 @@ let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const modelOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allModels') },
-  ...(props.modelOptions ?? []).map((m) => ({ value: m, label: m })),
+  ...(props.modelOptions ?? []).map((m) => ({ value: m, label: usageModelLabel(m, t) })),
 ])
 const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
 

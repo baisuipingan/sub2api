@@ -74,6 +74,32 @@ func (_u *UsageLogUpdate) SetNillableAccountID(v *int64) *UsageLogUpdate {
 	return _u
 }
 
+// ClearAccountID clears the value of the "account_id" field.
+func (_u *UsageLogUpdate) ClearAccountID() *UsageLogUpdate {
+	_u.mutation.ClearAccountID()
+	return _u
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (_u *UsageLogUpdate) SetSearchProvider(v string) *UsageLogUpdate {
+	_u.mutation.SetSearchProvider(v)
+	return _u
+}
+
+// SetNillableSearchProvider sets the "search_provider" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSearchProvider(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSearchProvider(*v)
+	}
+	return _u
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (_u *UsageLogUpdate) ClearSearchProvider() *UsageLogUpdate {
+	_u.mutation.ClearSearchProvider()
+	return _u
+}
+
 // SetRequestID sets the "request_id" field.
 func (_u *UsageLogUpdate) SetRequestID(v string) *UsageLogUpdate {
 	_u.mutation.SetRequestID(v)
@@ -1176,6 +1202,11 @@ func (_u *UsageLogUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *UsageLogUpdate) check() error {
+	if v, ok := _u.mutation.SearchProvider(); ok {
+		if err := usagelog.SearchProviderValidator(v); err != nil {
+			return &ValidationError{Name: "search_provider", err: fmt.Errorf(`ent: validator failed for field "UsageLog.search_provider": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.RequestID(); ok {
 		if err := usagelog.RequestIDValidator(v); err != nil {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "UsageLog.request_id": %w`, err)}
@@ -1262,9 +1293,6 @@ func (_u *UsageLogUpdate) check() error {
 	if _u.mutation.APIKeyCleared() && len(_u.mutation.APIKeyIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "UsageLog.api_key"`)
 	}
-	if _u.mutation.AccountCleared() && len(_u.mutation.AccountIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "UsageLog.account"`)
-	}
 	return nil
 }
 
@@ -1279,6 +1307,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.SearchProvider(); ok {
+		_spec.SetField(usagelog.FieldSearchProvider, field.TypeString, value)
+	}
+	if _u.mutation.SearchProviderCleared() {
+		_spec.ClearField(usagelog.FieldSearchProvider, field.TypeString)
 	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)
@@ -1769,6 +1803,32 @@ func (_u *UsageLogUpdateOne) SetNillableAccountID(v *int64) *UsageLogUpdateOne {
 	if v != nil {
 		_u.SetAccountID(*v)
 	}
+	return _u
+}
+
+// ClearAccountID clears the value of the "account_id" field.
+func (_u *UsageLogUpdateOne) ClearAccountID() *UsageLogUpdateOne {
+	_u.mutation.ClearAccountID()
+	return _u
+}
+
+// SetSearchProvider sets the "search_provider" field.
+func (_u *UsageLogUpdateOne) SetSearchProvider(v string) *UsageLogUpdateOne {
+	_u.mutation.SetSearchProvider(v)
+	return _u
+}
+
+// SetNillableSearchProvider sets the "search_provider" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSearchProvider(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSearchProvider(*v)
+	}
+	return _u
+}
+
+// ClearSearchProvider clears the value of the "search_provider" field.
+func (_u *UsageLogUpdateOne) ClearSearchProvider() *UsageLogUpdateOne {
+	_u.mutation.ClearSearchProvider()
 	return _u
 }
 
@@ -2887,6 +2947,11 @@ func (_u *UsageLogUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *UsageLogUpdateOne) check() error {
+	if v, ok := _u.mutation.SearchProvider(); ok {
+		if err := usagelog.SearchProviderValidator(v); err != nil {
+			return &ValidationError{Name: "search_provider", err: fmt.Errorf(`ent: validator failed for field "UsageLog.search_provider": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.RequestID(); ok {
 		if err := usagelog.RequestIDValidator(v); err != nil {
 			return &ValidationError{Name: "request_id", err: fmt.Errorf(`ent: validator failed for field "UsageLog.request_id": %w`, err)}
@@ -2973,9 +3038,6 @@ func (_u *UsageLogUpdateOne) check() error {
 	if _u.mutation.APIKeyCleared() && len(_u.mutation.APIKeyIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "UsageLog.api_key"`)
 	}
-	if _u.mutation.AccountCleared() && len(_u.mutation.AccountIDs()) > 0 {
-		return errors.New(`ent: clearing a required unique edge "UsageLog.account"`)
-	}
 	return nil
 }
 
@@ -3007,6 +3069,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.SearchProvider(); ok {
+		_spec.SetField(usagelog.FieldSearchProvider, field.TypeString, value)
+	}
+	if _u.mutation.SearchProviderCleared() {
+		_spec.ClearField(usagelog.FieldSearchProvider, field.TypeString)
 	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)

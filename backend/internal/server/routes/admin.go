@@ -39,6 +39,7 @@ func RegisterAdminRoutes(
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 		registerWorkbenchRoutes(admin, h, stepUpAuth, panelRateLimiter)
+		registerOfficePilotRoutes(admin, h)
 		registerDesktopAgentAdminRoutes(admin, h, stepUpAuth)
 
 		// 用户管理
@@ -149,6 +150,25 @@ func registerWorkbenchRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp
 	workbench.GET("/gallery/:user_id/tasks/:task_id/images/:image_id/url", limiter.Heavy(), h.Admin.Workbench.GalleryImageURL)
 	workbench.GET("/config", h.Admin.Workbench.GetConfig)
 	workbench.PUT("/config", gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.UpdateConfig)
+	workbench.GET("/search", h.Admin.Workbench.GetSearchConfig)
+	workbench.PUT("/search", gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.UpdateSearchConfig)
+	workbench.POST("/search/test", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.Admin.Workbench.TestSearch)
+	if h.OfficeAgent != nil {
+		nodes := workbench.Group("/office-nodes")
+		nodes.GET("", h.OfficeAgent.AdminListOfficeNodes)
+		nodes.POST("", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminSaveOfficeNode)
+		nodes.PUT("/:id", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminSaveOfficeNode)
+		nodes.POST("/:id/check", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminCheckOfficeNode)
+		nodes.DELETE("/:id", gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminDeleteOfficeNode)
+		c := workbench.Group("/chat")
+		c.GET("/overview", limiter.Heavy(), h.OfficeAgent.AdminOverview)
+		c.GET("/runs", limiter.Heavy(), h.OfficeAgent.AdminRuns)
+		c.GET("/runs/:id", limiter.Heavy(), h.OfficeAgent.AdminRun)
+		c.GET("/runs/:id/messages", limiter.Heavy(), h.OfficeAgent.AdminRunMessages)
+		c.GET("/runs/:id/tools/:operation", limiter.Heavy(), h.OfficeAgent.AdminToolDetail)
+		c.GET("/resources", limiter.Heavy(), h.OfficeAgent.AdminResources)
+		c.POST("/resources/:version_id/access", limiter.Heavy(), gin.HandlerFunc(stepUpAuth), h.OfficeAgent.AdminResourceAccess)
+	}
 }
 
 func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
@@ -689,6 +709,10 @@ func registerBackupRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 		backup.PUT("/image-storage", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.UpdateImageStorageConfig)
 		backup.POST("/image-storage/test", h.Admin.Backup.TestImageStorageConnection)
 
+		backup.GET("/office-storage", h.Admin.Backup.GetOfficeStorageConfig)
+		backup.PUT("/office-storage", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.UpdateOfficeStorageConfig)
+		backup.POST("/office-storage/test", h.Admin.Backup.TestOfficeStorageConnection)
+
 		// 定时备份配置
 		backup.GET("/schedule", h.Admin.Backup.GetSchedule)
 		backup.PUT("/schedule", h.Admin.Backup.UpdateSchedule)
@@ -748,6 +772,9 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)
+		if h.OfficeAgent != nil {
+			usage.GET("/workbench-search", h.OfficeAgent.AdminSearchUsage)
+		}
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)

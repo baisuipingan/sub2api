@@ -1,0 +1,58 @@
+import { mount, enableAutoUnmount } from '@vue/test-utils'
+import { afterEach, describe, it, expect } from 'vitest'
+import ClarifyCard from '../ClarifyCard.vue'
+enableAutoUnmount(afterEach)
+const request = { request_id: 'q', questions: [{ id: 'first', question: '需要什么格式？', options: ['Word', 'PPT'] }, { id: 'second', question: '包含哪些内容？', options: ['图表', '摘要'], multiple: true }] }
+describe('Bisheng clarification interaction', () => {
+  it('advances a single choice, collects multiple choices, and submits all answers once', async () => {
+    const wrapper = mount(ClarifyCard, { props: { request } })
+    await wrapper.findAll('.bs-chat-clarify-options button')[0]!.trigger('click')
+    expect(wrapper.text()).toContain('包含哪些内容')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    await wrapper.findAll('.bs-chat-clarify-options button')[0]!.trigger('click')
+    await wrapper.findAll('.bs-chat-clarify-options button')[1]!.trigger('click')
+    await wrapper.find('footer button').trigger('click')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual([{ question_id: 'first', values: ['Word'] }, { question_id: 'second', values: ['图表', '摘要'] }])
+  })
+  it('does not preselect or invent answers when the user closes the questions', async () => {
+    const wrapper = mount(ClarifyCard, { props: { request } })
+    await wrapper.find('header button').trigger('click')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual([{ question_id: 'first', values: [] }, { question_id: 'second', values: [] }])
+  })
+  it('confirms a custom answer inline and never treats IME confirmation or Shift+Enter as submission', async () => {
+    const wrapper = mount(ClarifyCard, { props: { request } })
+    const area = wrapper.get('textarea')
+    await area.trigger('focus')
+    await area.setValue('自定义格式')
+    expect(wrapper.get('.bso-custom-confirm').text()).toContain('确定')
+    await area.trigger('keydown', { key: 'Enter', isComposing: true })
+    await area.trigger('keydown', { key: 'Enter', shiftKey: true })
+    expect(wrapper.text()).toContain('需要什么格式')
+    await wrapper.get('.bso-custom-confirm').trigger('click')
+    expect(wrapper.text()).toContain('包含哪些内容')
+    await wrapper.get('footer button').trigger('click')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual([{ question_id: 'first', values: ['自定义格式'] }, { question_id: 'second', values: [] }])
+  })
+  it('keeps a submitted clarification locked and reopens it only after a failed submission', async () => {
+    const wrapper = mount(ClarifyCard, { props: { request } })
+    await wrapper.get('header button').trigger('click')
+    await wrapper.get('header button').trigger('click')
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    expect(wrapper.get('header button').attributes('disabled')).toBeDefined()
+    await wrapper.setProps({ busy: false, error: '网络暂时不可用' })
+    expect(wrapper.get('header button').attributes('disabled')).toBeUndefined()
+    await wrapper.get('header button').trigger('click')
+    expect(wrapper.emitted('submit')).toHaveLength(2)
+  })
+  it('retains selections when paging back, and skipping clears only the current question', async () => {
+    const wrapper = mount(ClarifyCard, { props: { request } })
+    await wrapper.findAll('.bs-chat-clarify-options button')[0]!.trigger('click')
+    await wrapper.findAll('.bs-chat-clarify-options button')[1]!.trigger('click')
+    await wrapper.get('button[aria-label="上一问"]').trigger('click')
+    expect(wrapper.get('.bs-chat-clarify-options button.selected').text()).toContain('Word')
+    await wrapper.get('footer button').trigger('click')
+    expect(wrapper.get('.bs-chat-clarify-options button.selected').text()).toContain('摘要')
+    await wrapper.get('footer button').trigger('click')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual([{ question_id: 'first', values: [] }, { question_id: 'second', values: ['摘要'] }])
+  })
+})

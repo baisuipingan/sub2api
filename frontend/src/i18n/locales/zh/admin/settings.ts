@@ -780,13 +780,13 @@ export default {
         description: '配置支付系统选项',
         configGuide: '支付配置指南',
         billingCurrency: {
-          title: '人民币计费与积分账本',
-          description: '内部统一使用整数积分记账，USD 与 CNY 仅作为展示和支付售价。切换展示币种不会修改余额或历史账单。',
+          title: '计费引擎与金额展示',
+          description: '站内金额按所选币种和展示汇率显示。计费引擎决定如何扣款，充值到账按充值倍率计算，实付金额按支付渠道币种显示。',
           enabled: '启用积分账本',
           enabledHint: '关闭后新请求继续使用旧 USD 扣费路径；展示币种和汇率仍然生效，已有积分和快照不会丢失。',
           engine: '计费引擎',
           displayCurrency: '展示币种',
-          usdToCny: '展示汇率（1 USD = ? CNY）',
+          usdToCny: '展示汇率（每 1 USD 对应的 CNY 金额）',
           fixedScale: '固定账本刻度',
           rolloutHint: '灰度建议顺序：legacy → shadow（只记录积分并对账）→ credits（正式扣积分）。正式切换前请先备份数据库。',
           engines: {

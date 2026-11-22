@@ -669,7 +669,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 仅对 OpenAI 平台生效：Grok 生图走独立的 forwardGrokResponses 路径，不应被过滤。
 	// 复用前置权限与并发阶段在未修改 body 上确认的显式生图意图，避免大 tools 请求重复扫描。
 	// 该判断已排除 Codex 被动 image_gen namespace，避免 CC-only 账号被误过滤（#4476）。
-	needsResponses := nativeV2 || legacyCompact
+	workbenchNativeResponses, _ := c.Request.Context().Value(ctxkey.WorkbenchNativeResponses).(bool)
+	needsResponses := nativeV2 || legacyCompact || workbenchNativeResponses
 	requiredCapability := openAIResponsesRequiredCapabilityForRequest(imageIntent, needsResponses, requestPlatform)
 	imageSizeRouted := imageIntent && requestPlatform == service.PlatformOpenAI
 	imageSize := ""

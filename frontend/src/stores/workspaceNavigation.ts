@@ -50,6 +50,11 @@ export const useWorkspaceNavigationStore = defineStore('workspaceNavigation', ()
         if (isWorkspaceDestination(resolved, area, context, access)) return saved
       } catch { /* invalid tab storage must not break the sidebar */ }
     }
+    if (area === 'workbench' && context === 'personal') {
+      const entry = ['/workbench/chat', '/workbench/image', '/workbench/files']
+        .find(path => access.visiblePaths.includes(path))
+      if (entry) return entry
+    }
     return workspaceDefault(area, context, access.isAdmin)
   }
 

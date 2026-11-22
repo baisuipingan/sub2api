@@ -19,6 +19,7 @@ const (
 type TavilyProvider struct {
 	apiKey     string
 	httpClient *http.Client
+	bearerAuth bool
 }
 
 // NewTavilyProvider creates a Tavily Search provider.
@@ -30,6 +31,14 @@ func NewTavilyProvider(apiKey string, httpClient *http.Client) *TavilyProvider {
 	return &TavilyProvider{apiKey: apiKey, httpClient: httpClient}
 }
 
+// NewTavilyBearerProvider sends the key in the Authorization header as
+// documented by the current Tavily Search API.
+func NewTavilyBearerProvider(apiKey string, httpClient *http.Client) *TavilyProvider {
+	provider := NewTavilyProvider(apiKey, httpClient)
+	provider.bearerAuth = true
+	return provider
+}
+
 func (t *TavilyProvider) Name() string { return tavilyProviderName }
 
 func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*SearchResponse, error) {
@@ -39,10 +48,12 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 	}
 
 	payload := tavilyRequest{
-		APIKey:      t.apiKey,
 		Query:       req.Query,
 		MaxResults:  maxResults,
 		SearchDepth: tavilySearchDepthBasic,
+	}
+	if !t.bearerAuth {
+		payload.APIKey = &t.apiKey
 	}
 
 	bodyBytes, err := json.Marshal(payload)
@@ -55,6 +66,9 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 		return nil, fmt.Errorf("tavily: build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if t.bearerAuth {
+		httpReq.Header.Set("Authorization", "Bearer "+t.apiKey)
+	}
 
 	resp, err := t.httpClient.Do(httpReq)
 	if err != nil {
@@ -89,10 +103,10 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 }
 
 type tavilyRequest struct {
-	APIKey      string `json:"api_key"`
-	Query       string `json:"query"`
-	MaxResults  int    `json:"max_results"`
-	SearchDepth string `json:"search_depth"`
+	APIKey      *string `json:"api_key,omitempty"`
+	Query       string  `json:"query"`
+	MaxResults  int     `json:"max_results"`
+	SearchDepth string  `json:"search_depth"`
 }
 
 type tavilyResponse struct {

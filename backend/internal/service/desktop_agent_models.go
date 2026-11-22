@@ -34,12 +34,114 @@ func NewDesktopAgentModelCatalog(accounts AccountRepository, routes CompositeMod
 }
 
 func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	return s.modelsForEndpoint(ctx, group, CompositeRouteEndpointResponses)
+}
+
+func (s *desktopAgentModelCatalog) workbenchModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	return (&workbenchChatModelCatalog{base: s}).ModelsForGroup(ctx, group)
+}
+
+// workbenchChatModelCatalog shares routing facts, not the desktop executor's
+// Responses-only projection. Keep the existing desktop catalog unchanged.
+type workbenchChatModelCatalog struct{ base *desktopAgentModelCatalog }
+
+type workbenchModelRoute struct {
+	protocol        workbenchProtocol
+	nativeResponses bool
+}
+
+func NewWorkbenchChatModelCatalog(accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService) DesktopAgentModelCatalog {
+	base := &desktopAgentModelCatalog{accounts: accounts, routes: routes}
+	if channels != nil {
+		base.channels = channels
+	}
+	return &workbenchChatModelCatalog{base: base}
+}
+
+func (s *workbenchChatModelCatalog) ModelsForGroup(ctx context.Context, group *Group) ([]string, error) {
+	routes, err := s.modelRoutes(ctx, group)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(routes))
+	for id := range routes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func (s *workbenchChatModelCatalog) modelRoutes(ctx context.Context, group *Group) (map[string]workbenchModelRoute, error) {
+	out := make(map[string]workbenchModelRoute)
+	preference := []workbenchModelRoute{
+		{protocol: workbenchProtocolResponses},
+		{protocol: workbenchProtocolChatCompletions},
+		{protocol: workbenchProtocolResponses, nativeResponses: true},
+		{protocol: workbenchProtocolAnthropic},
+		{protocol: workbenchProtocolGemini},
+	}
+	for _, route := range preference {
+		ids, err := s.base.workbenchEndpointModels(ctx, group, workbenchProtocolEndpoint(route.protocol), route.nativeResponses)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range ids {
+			out[id] = route
+		}
+	}
+	return out, nil
+}
+
+func workbenchProtocolEndpoint(protocol workbenchProtocol) string {
+	switch protocol {
+	case workbenchProtocolChatCompletions:
+		return CompositeRouteEndpointChatCompletions
+	case workbenchProtocolResponses:
+		return CompositeRouteEndpointResponses
+	case workbenchProtocolAnthropic:
+		return CompositeRouteEndpointMessages
+	case workbenchProtocolGemini:
+		return CompositeRouteEndpointGemini
+	default:
+		return ""
+	}
+}
+
+func (s *desktopAgentModelCatalog) modelsForEndpoint(ctx context.Context, group *Group, endpoint string) ([]string, error) {
+	return s.configuredEndpointModels(ctx, group, endpoint, false, false)
+}
+
+func (s *desktopAgentModelCatalog) workbenchEndpointModels(ctx context.Context, group *Group, endpoint string, requireNativeResponses bool) ([]string, error) {
+	return s.configuredEndpointModels(ctx, group, endpoint, true, requireNativeResponses)
+}
+
+func (s *desktopAgentModelCatalog) configuredEndpointModels(ctx context.Context, group *Group, endpoint string, workbench, requireNativeResponses bool) ([]string, error) {
 	if s == nil || s.accounts == nil || group == nil || group.ID <= 0 {
 		return nil, errors.New("desktop model catalog unavailable")
 	}
 	platforms := []string{PlatformOpenAI}
+	if endpoint == CompositeRouteEndpointChatCompletions {
+		platforms = []string{group.Platform}
+	}
 	if group.Platform == PlatformComposite {
 		platforms = domain.ConcretePlatformIDs()
+	} else if endpoint == CompositeRouteEndpointGemini {
+		if group.Platform != PlatformGemini {
+			return nil, nil
+		}
+		platforms = []string{PlatformGemini}
+	} else if workbench {
+		switch endpoint {
+		case CompositeRouteEndpointResponses:
+			if group.Platform != PlatformOpenAI {
+				return nil, nil
+			}
+		case CompositeRouteEndpointMessages:
+			if group.Platform != PlatformAnthropic {
+				return nil, nil
+			}
+			platforms = []string{PlatformAnthropic}
+		}
 	}
 	// 配置目录不能随限流、过载等临时健康状态变动，也不能查询失败后补全平台默认列表。
 	accounts, err := s.accounts.ListModelAvailabilityCandidates(ctx, &group.ID, platforms, false)
@@ -112,7 +214,7 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 	}
 	for _, route := range routes {
 		if route.Enabled && normalizeCompositeRouteMatchType(route.MatchType) == CompositeRouteMatchExact &&
-			(normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointResponses || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny) {
+			(normalizeCompositeRouteEndpoint(route.Endpoint) == endpoint || normalizeCompositeRouteEndpoint(route.Endpoint) == CompositeRouteEndpointAny) {
 			add(route.PublicModel)
 		}
 	}
@@ -130,12 +232,17 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 		platform, target := group.Platform, model
 		requestCtx := ctx
 		if group.Platform == PlatformComposite {
-			decision := desktopAgentCompositeModelTarget(model, accounts, routes)
+			decision := publicCompositeModelTarget(model, accounts, routes, endpoint)
 			if !decision.Matched || decision.TargetPlatform == PlatformTypeSafe {
 				continue
 			}
 			platform, target = decision.TargetPlatform, decision.UpstreamModel
 			requestCtx = WithCompositeRouteDecision(ctx, decision)
+		}
+		if workbench && (endpoint == CompositeRouteEndpointGemini && (platform != PlatformGemini || !IsSafeGeminiModelPathSegment(model)) ||
+			endpoint == CompositeRouteEndpointMessages && (platform != PlatformAnthropic || group.ClaudeCodeOnly) ||
+			endpoint == CompositeRouteEndpointResponses && platform != PlatformOpenAI) {
+			continue
 		}
 		if isCodexDedicatedMediaModel(target) {
 			continue
@@ -168,6 +275,12 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 		useMixed := platform == PlatformAnthropic || platform == PlatformGemini
 		for i := range accounts {
 			account := &accounts[i]
+			if workbench && endpoint == CompositeRouteEndpointMessages && !supportsWorkbenchAnthropicMessages(account) {
+				continue
+			}
+			if requireNativeResponses && endpoint == CompositeRouteEndpointResponses && !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityResponses) {
+				continue
+			}
 			if !modelSupport.isAccountAllowedForPlatform(account, platform, useMixed) ||
 				(group.RequirePrivacySet && !account.IsPrivacySet()) ||
 				!modelSupport.isModelSupportedByAccountWithContext(requestCtx, account, target) {
@@ -213,11 +326,11 @@ func (s *desktopAgentModelCatalog) ModelsForGroup(ctx context.Context, group *Gr
 	return result, nil
 }
 
-// 与CompositeRouteResolver一致：Responses显式路由优先，其次持久化精确映射
+// 与CompositeRouteResolver一致：请求端点的显式路由优先，其次持久化精确映射
 // 的唯一平台归属，最后才允许内置检测器；不将运行时补齐的默认映射当成归属声明。
-func desktopAgentCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute) CompositeRouteDecision {
-	decision := CompositeRouteDecision{PublicModel: model, UpstreamModel: model, Endpoint: CompositeRouteEndpointResponses}
-	if route, matched := matchCompositeRoute(routes, model, CompositeRouteEndpointResponses); matched {
+func publicCompositeModelTarget(model string, accounts []Account, routes []CompositeModelRoute, endpoint string) CompositeRouteDecision {
+	decision := CompositeRouteDecision{PublicModel: model, UpstreamModel: model, Endpoint: endpoint}
+	if route, matched := matchCompositeRoute(routes, model, endpoint); matched {
 		decision.UpstreamModel = strings.TrimSpace(route.UpstreamModel)
 		if decision.UpstreamModel == "" {
 			decision.UpstreamModel = model

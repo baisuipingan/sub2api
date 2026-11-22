@@ -91,7 +91,7 @@ func loadWorkbenchTaskRoutes(ctx context.Context, tx *sql.Tx, items []service.Wo
         SELECT t.user_id,t.task_id,t.ordinal,u.account_id,COALESCE(a.name,'') AS account_name,
           NULLIF(u.upstream_model,'') AS upstream_model,
           'usage'::text AS outcome,NULL::integer AS status_code,u.created_at AS recorded_at,u.id AS log_id,0::bigint AS event_index
-        FROM targets t JOIN usage_logs u ON u.request_id=t.billing_id AND u.user_id=t.user_id AND u.api_key_id=t.api_key_id
+        FROM targets t JOIN usage_logs u ON u.request_id=t.billing_id AND u.user_id=t.user_id AND u.api_key_id=t.api_key_id AND u.account_id IS NOT NULL
         LEFT JOIN accounts a ON a.id=u.account_id
         UNION ALL
         SELECT t.user_id,t.task_id,t.ordinal,(ev.value->>'account_id')::bigint,

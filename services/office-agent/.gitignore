@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+dist/
+*.egg-info/
+
+# Root ignores Go vendor/ and all tests directories. This reviewed, licensed
+# source bundle and its safety/contract tests are intentional application code.
+!vendor/
+!vendor/**
+!tests/
+!tests/**
+__pycache__/
+*.pyc

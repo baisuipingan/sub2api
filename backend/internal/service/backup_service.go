@@ -504,6 +504,11 @@ func (s *BackupService) UpdateS3Config(ctx context.Context, cfg BackupS3Config) 
 			cfg.SecretAccessKey = old.SecretAccessKey
 		}
 	}
+	if s.asyncImageSettings != nil {
+		if err := s.asyncImageSettings.checkOfficeBackupChange(ctx, &cfg); err != nil {
+			return nil, err
+		}
+	}
 
 	// 加密 SecretAccessKey。这一步不能只在“调用方填了新 secret”时做：表单保存成功
 	// 后本函数会清空返回值里的 secret，所以第二次保存（改端点、存定时配置）送上来的

@@ -28,6 +28,7 @@
       <div
         v-if="tooltipOpen"
         class="absolute right-0 z-50 mt-2 w-[340px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800"
+        :class="{ 'subscription-menu-above': placement === 'top' }"
       >
         <div class="border-b border-gray-100 p-3 dark:border-dark-700">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -187,6 +188,7 @@ import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import type { UserSubscription } from '@/types'
 import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
 
+withDefaults(defineProps<{ placement?: 'top' | 'bottom' }>(), { placement: 'bottom' })
 const { t } = useI18n()
 const { formatUSD } = useBillingCurrency()
 
@@ -315,6 +317,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.subscription-menu-above { top:auto; bottom:calc(100% + 8px); left:0; right:auto; margin-top:0; max-width:calc(100vw - 24px); max-height:calc(100dvh - 120px); overflow-y:auto; }
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.2s ease;

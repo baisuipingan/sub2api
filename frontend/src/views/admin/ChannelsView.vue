@@ -448,6 +448,7 @@
                   :key="idx"
                   :entry="entry"
                   :platform="section.platform"
+                  use-site-currency
                   enable-time-pricing
                   enable-tier-multipliers
                   @update="updatePricingEntry(sIdx, idx, $event)"
@@ -580,6 +581,7 @@
                       :key="pIdx"
                       :entry="entry"
                       :platform="section.platform"
+                      use-site-currency
                       @update="rule.pricing.splice(pIdx, 1, $event)"
                       @remove="removeRulePricingEntry(sIdx, ruleIndex, pIdx)"
                     />

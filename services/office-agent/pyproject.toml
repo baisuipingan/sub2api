@@ -1,0 +1,32 @@
+[project]
+name = "sub2api-office-agent"
+version = "0.1.0"
+description = "Internal pilot runtime for the Sub2API office workbench"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "deepagents==0.6.12",
+  "httpx==0.28.1",
+  "langchain-openai==1.2.2",
+  "loguru==0.7.3",
+  "pydantic==2.12.5",
+]
+
+[dependency-groups]
+dev = ["pytest==9.0.2", "pytest-asyncio==1.3.0"]
+
+[project.scripts]
+office-agent = "office_agent.worker:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/office_agent"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"vendor/bisheng" = "office_agent/vendor/bisheng"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

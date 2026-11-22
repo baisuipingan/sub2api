@@ -1,0 +1,4 @@
+draw.io v32.7.5
+Source: https://viewer.diagrams.net/js/viewer-static.min.js
+SHA-256: e6223a15cdd7df2012b618102456360747844c6c7e8f2c7be692bb4b4eea541f
+The original distribution is vendored so private diagram documents can be rendered locally without reaching the hosted viewer.

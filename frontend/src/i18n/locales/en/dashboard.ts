@@ -493,6 +493,8 @@ export default {
       detailCoordinates: 'Coordinates',
     },
     tabs: { usage: 'Usage', errors: 'Error Requests', ranking: 'User Ranking' },
+    webSearch: 'Web Search',
+    oneWebSearch: '1 search',
     errors: {
       time: 'Time', model: 'Model', endpoint: 'Endpoint', status: 'Status',
       category: 'Category', platform: 'Platform', message: 'Message',

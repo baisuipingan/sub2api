@@ -248,6 +248,7 @@ export interface PublicSettings {
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
   payment_enabled: boolean
+  image_studio_enabled?: boolean
   risk_control_enabled: boolean
   table_default_page_size: number
   table_page_size_options: number[]
@@ -1911,6 +1912,7 @@ export interface UsageLog {
 
   // 计费模式
   billing_mode?: string | null
+  search_provider?: string | null
 
   created_at: string
 

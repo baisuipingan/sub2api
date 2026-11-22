@@ -67,9 +67,10 @@ func TestWorkbenchRoutesRequireActualAdminAuthAndStepUp(t *testing.T) {
 		admin := r.Group("/api/v1/admin")
 		admin.Use(gin.HandlerFunc(middleware.NewAdminAuthMiddleware(auth, users, nil, nil)))
 		h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(service.NewWorkbenchAdminService(repo, nil, nil))}}
+		h.OfficeAgent = handler.NewOfficeAgentHandler(&service.OfficeAgentService{})
 		step := middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.AbortWithStatus(http.StatusForbidden) })
 		registerWorkbenchRoutes(admin, h, step, nil)
-		for _, path := range []string{"/overview", "/tasks", "/config", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url"} {
+		for _, path := range []string{"/overview", "/tasks", "/config", "/search", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url", "/office-nodes"} {
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/workbench"+path, nil))
 			require.Equal(t, http.StatusUnauthorized, rec.Code)
@@ -85,11 +86,21 @@ func TestWorkbenchRoutesRequireActualAdminAuthAndStepUp(t *testing.T) {
 			require.Equal(t, http.StatusOK, rec.Code)
 			require.Equal(t, 1, repo.calls)
 		}
-		request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/workbench/config", nil)
-		request.Header.Set("Authorization", "Bearer "+token)
-		rec = httptest.NewRecorder()
-		r.ServeHTTP(rec, request)
-		require.Equal(t, http.StatusForbidden, rec.Code)
+		for _, route := range []struct{ method, path string }{
+			{http.MethodPut, "/config"},
+			{http.MethodPut, "/search"},
+			{http.MethodPost, "/search/test"},
+			{http.MethodPost, "/office-nodes"},
+			{http.MethodPut, "/office-nodes/test"},
+			{http.MethodDelete, "/office-nodes/test"},
+			{http.MethodPost, "/office-nodes/test/check"},
+		} {
+			request = httptest.NewRequest(route.method, "/api/v1/admin/workbench"+route.path, nil)
+			request.Header.Set("Authorization", "Bearer "+token)
+			rec = httptest.NewRecorder()
+			r.ServeHTTP(rec, request)
+			require.Equal(t, http.StatusForbidden, rec.Code)
+		}
 	}
 }
 
@@ -106,8 +117,9 @@ func TestWorkbenchRoutesDenyScopedAdminKeyWithoutGlobalCapability(t *testing.T) 
 	admin := r.Group("/api/v1/admin")
 	admin.Use(gin.HandlerFunc(middleware.NewAdminAuthMiddleware(nil, service.NewUserService(&scopedRouteUsers{}, nil, nil, nil), settings, nil)))
 	h := &handler.Handlers{Admin: &handler.AdminHandlers{Workbench: adminhandler.NewWorkbenchHandler(service.NewWorkbenchAdminService(repo, nil, nil))}}
+	h.OfficeAgent = handler.NewOfficeAgentHandler(&service.OfficeAgentService{})
 	registerWorkbenchRoutes(admin, h, middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }), nil)
-	for _, path := range []string{"/overview", "/tasks", "/config", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url"} {
+	for _, path := range []string{"/overview", "/tasks", "/config", "/gallery", "/gallery/7/tasks/task-one/images/image-one/url", "/office-nodes"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/workbench"+path, nil)
 		req.Header.Set("x-api-key", key)
 		rec := httptest.NewRecorder()

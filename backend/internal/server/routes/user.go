@@ -26,6 +26,7 @@ func RegisterUserRoutes(
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
 		registerDesktopAgentUserRoutes(authenticated, h)
+		registerOfficeChatRoutes(authenticated, h)
 
 		// 生图工作台：返回（或按需创建）用户专属系统密钥
 		//

@@ -3,17 +3,51 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGeminiWorkbenchSessionHashRequiresTrustedWorkbenchContext(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-3.6-flash:streamGenerateContent", nil)
+	c.Request.Header.Set("session_id", "b4fc4b63-2def-4934-b9f5-6961aad51ab6")
+	require.Empty(t, geminiWorkbenchSessionHash(c, 42, "gemini-3.6-flash"))
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.WorkbenchGroupID, int64(9)))
+	first := geminiWorkbenchSessionHash(c, 42, "gemini-3.6-flash")
+	require.NotEmpty(t, first)
+	require.Equal(t, first, geminiWorkbenchSessionHash(c, 42, "gemini-3.6-flash"))
+	require.NotEqual(t, first, geminiWorkbenchSessionHash(c, 43, "gemini-3.6-flash"))
+	require.NotEqual(t, first, geminiWorkbenchSessionHash(c, 42, "gemini-4-carbon"))
+	c.Request.Header.Set("session_id", "invalid")
+	require.Empty(t, geminiWorkbenchSessionHash(c, 42, "gemini-3.6-flash"))
+}
+
+func TestWorkbenchAnthropicSessionHashUsesConversationAndResolvedModel(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("session_id", "b4fc4b63-2def-4934-b9f5-6961aad51ab6")
+	require.Empty(t, workbenchAnthropicSessionHash(c, 42, "claude-sonnet-4-6"))
+	ctx := context.WithValue(c.Request.Context(), ctxkey.WorkbenchGroupID, int64(9))
+	ctx = context.WithValue(ctx, ctxkey.WorkbenchAnthropicMessages, true)
+	c.Request = c.Request.WithContext(ctx)
+	first := workbenchAnthropicSessionHash(c, 42, "claude-sonnet-4-6")
+	require.NotEmpty(t, first)
+	require.Equal(t, first, workbenchAnthropicSessionHash(c, 42, "claude-sonnet-4-6"))
+	require.NotEqual(t, first, workbenchAnthropicSessionHash(c, 43, "claude-sonnet-4-6"))
+	require.NotEqual(t, first, workbenchAnthropicSessionHash(c, 42, "claude-opus-4-6"))
+	c.Request.Header.Set("session_id", "invalid")
+	require.Empty(t, workbenchAnthropicSessionHash(c, 42, "claude-sonnet-4-6"))
+}
 
 func TestGeminiV1BetaListModels_AllowlistFiltersNativeResponse(t *testing.T) {
 	body := []byte(`{"models":[{"name":"models/gemini-2.5-pro"},{"name":"models/gemini-2.5-flash"}],"nextPageToken":"next"}`)

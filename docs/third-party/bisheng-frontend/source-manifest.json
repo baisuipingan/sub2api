@@ -1,0 +1,572 @@
+{
+  "upstream": "https://github.com/dataelement/bisheng",
+  "commit": "a8e5be89c1b8d3a2e512c772e2a38de409336dc8",
+  "license": "Apache-2.0",
+  "kind": "Selective Vue structure/interaction adaptation of the active Bisheng workbench; no full React application bundle",
+  "hash_algorithm": "SHA-256",
+  "hash_verification": {
+    "date": "2026-11-19",
+    "basis": "Exact bytes in the local downloaded pinned source tree; not hashes of Vue targets or the live deployment",
+    "local_source_root": "output/research/bisheng-office/source-agent",
+    "source_files_modified_for_port": false
+  },
+  "visual_reference": {
+    "kind": "Logged-in live Bisheng whole-page comparison",
+    "route": "/workspace/c/new",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "scope": "Live navigation, welcome surface, editor and actual menu hierarchy; the pinned source controls implementation lineage. This is not a declaration that the live deployment runs the pinned commit.",
+    "legacy_component_harness": "Supplementary only: Landing/ClarifyCard/ResultSection isolation is not whole-page or target-service acceptance."
+  },
+  "excluded_upstream_features": [
+    "workflow canvas and workflow execution",
+    "RAG and knowledge spaces",
+    "application marketplace",
+    "projects and mock project persistence",
+    "user skill upload/management",
+    "Bisheng identity, billing and model registry",
+    "unsupported reasoning/knowledge-ingest/subagent/conversion event branches"
+  ],
+  "site_native_boundaries": [
+    "Sub2API authentication, grouped model/API-key binding, billing and durable run/SSE APIs",
+    "Authenticated immutable resource/version metadata and private signed object access",
+    "Local DOCX OOXML and browser/system print-to-PDF implementation",
+    "Existing site account menu, notifications, workspace switcher and administrator console"
+  ],
+  "files": [
+    {
+      "target": "frontend/src/components/layout/WorkbenchChatLayout.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/layouts/WorkbenchSidebar/WorkbenchSidebar.tsx",
+          "sha256": "c29580ddfe00fe3409bf2004dc003d198de1cbec366695ce85ce40f71eea8515"
+        },
+        {
+          "path": "src/frontend/client/src/layouts/MainLayout.tsx",
+          "sha256": "2ee2f75118c7612f88a17eabbd586662d1072e15dd701bb4b0352cc6642524fc"
+        }
+      ],
+      "modifications": "Dedicated full-height 240px workbench navigation with conversation history and footer account actions; 58px collapsed rail and mobile drawer are site integrations. Reuses Sub2API identity, workspace switching, balance, notices, locale and theme. Desktop chat is not placed below the old global header."
+    },
+    {
+      "target": "frontend/src/views/user/WorkbenchChatView.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/ChatView.tsx",
+          "sha256": "d23ad4a6003a031476b2a1a652eee8887f90bc10d39aa320427a93aab04864df"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Landing.tsx",
+          "sha256": "94d0eecf74edf9937d8afcd14cc641b6c3d638df2b86250a88e9cb02259aaa14"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/AiChatMessages.tsx",
+          "sha256": "e95f87bead397279fbd9b1bbe7e800886de87f86d641c9409d562e3fe9f731f6"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/AiMessageBubble.tsx",
+          "sha256": "607e5b5ac468c8cabeaac57d17e5417ffa2cfc3400012a32fee14d44509a55f5"
+        }
+      ],
+      "modifications": "Vue/Pinia/router ownership replaces React/Recoil. Preserves the 34px welcome mark, 26px heading, 60px welcome/composer gap, conversation turns, answer versions, selection, references and responsive workspace. Uses persistent Sub2API run/message/SSE contracts; never retransmits a paid request just to reconnect."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ConversationList.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/layouts/WorkbenchSidebar/SidebarConversationList.tsx",
+          "sha256": "5dfc07c45ce5c74e14a047e2f47a3097a3cc76dcb3cc062523443530094d75ff"
+        },
+        {
+          "path": "src/frontend/client/src/components/Conversations/Convo.tsx",
+          "sha256": "ef325f9fa62840f81aca233db47dc5785fe59f4821dcc44997c872107e588b2a"
+        },
+        {
+          "path": "src/frontend/client/src/components/Conversations/ConvoOptions/ConvoOptions.tsx",
+          "sha256": "3ae2f47f82e8e1235f9647bb45b6a42036dcc9e2c1d9f13814349f3c17d668e8"
+        }
+      ],
+      "modifications": "Ports the flat sidebar history, active row, rename/delete menu and paging to authenticated Sub2API conversations. Upstream mock project entries are excluded."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatComposer.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/AiChatInput.tsx",
+          "sha256": "f6edc731551f27198a747047217dac89e79d45915cf1910fc91b71cf7776a888"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ChatResourceMenu.tsx",
+          "sha256": "7fbc48b83a879649e1c73f6c8097b9eb90a0df7dcd639e3a2935e959a183eedb"
+        }
+      ],
+      "modifications": "Splits the active composer into Vue children, preserves the 28px rounded shell and right model control, and uses the site model catalogue and confirmed reasoning-effort options. Task and search are real capability flags rather than prompt text."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ComposerEditor.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ComposerEditor.tsx",
+          "sha256": "d0ca2827e06dfad12422fc0114ae9c5905b93be9dd6aa0f66792f59c019857e8"
+        }
+      ],
+      "modifications": "Native contenteditable editor with plain-text paste, IME-safe Enter, native selection/undo and independently identified noneditable reference chips. Replaces React imperative handles with Vue exposure; chip labels are text nodes, not injected HTML."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/composerDocument.ts",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ComposerEditor.tsx",
+          "sha256": "d0ca2827e06dfad12422fc0114ae9c5905b93be9dd6aa0f66792f59c019857e8"
+        }
+      ],
+      "modifications": "Extracts text/chip document parsing and chip construction. Local task/search keys replace upstream skill/tool/space references and remain separate from the prompt; resource version IDs are submitted in structured API fields."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ComposerResourceMenu.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ChatResourceMenu.tsx",
+          "sha256": "7fbc48b83a879649e1c73f6c8097b9eb90a0df7dcd639e3a2935e959a183eedb"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ComposerSubmenu.tsx",
+          "sha256": "d189c35d0282eff27472be00ef3b7f7cafd8d0724ded94e5046baca706ea48ee"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/useComposerMenuAnchor.ts",
+          "sha256": "c156036e9daa682565f5587fd07ef5aa39d830d1695227a98cda8be9927f73f9"
+        }
+      ],
+      "modifications": "Preserves the full-composer-width popup and in-place second-level menu, anchoring, scroll bounds and keyboard navigation. Shows only enabled task/search/upload/personal-file actions; excludes workflow, skill upload and knowledge-space actions."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ComposerAttachmentBar.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/AttachmentBar.tsx",
+          "sha256": "30b6d9247ab41634899800e775d6456138056efe3ca1542c9f5df506333b00f0"
+        }
+      ],
+      "modifications": "Ports attachment/removal and current edit-target presentation to site resource metadata, including busy/upload states and immutable version targeting."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ComposerFilePicker.vue",
+      "mapping_kind": "Site-native replacement at the source resource-menu boundary",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ChatResourceMenu.tsx",
+          "sha256": "7fbc48b83a879649e1c73f6c8097b9eb90a0df7dcd639e3a2935e959a183eedb"
+        }
+      ],
+      "modifications": "Site-native authenticated personal-file selection replaces upstream knowledge/skill selection. Supports current-user metadata paging, filename search, selection limits, existing attachments and stale-request guards; this is not a copy of an upstream personal-file API."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/TaskProgress.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TaskTurnPanel.tsx",
+          "sha256": "9f1abcd62f79b69da834695b2416a0151ab965e648997bdf71cf079d8bd44ff1"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/QueueCard.tsx",
+          "sha256": "1615795f0ff20c42ef2fe0ec8e5e7af6fd09b5e6b01258608199d61d5919b41f"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/BreathingRow.tsx",
+          "sha256": "f7f3c87307e46e5f0d9e938bb2b9f54225ee3dc5801ed1dec79713c70c71f633"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ExecutionFlow.tsx",
+          "sha256": "1d71182db62b5ea112cdb31196b84e7132e5a05315e37f0befedcf4d3294801e"
+        }
+      ],
+      "modifications": "Uses durable real run states, queue/cancel, lazy historical process loading, clarification and terminal/error messages. No synthetic reasoning, raw arguments, executor logs or invented completion; process-load failures are visible separately from the run result."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ExecutionTimeline.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ExecutionTimeline.tsx",
+          "sha256": "5c841b816208335ee184cb9b10781812bc8be5fb92f29720c293c78fa32a2803"
+        }
+      ],
+      "modifications": "Ports the session/task execution hierarchy. Session-scoped operations remain unscoped unless the actual server event supplies task_id; clarification resumes separate episodes."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/taskPresentation.ts",
+      "mapping_kind": "Local projection of the source timeline contract",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/stepUtils.ts",
+          "sha256": "dd451a1ea65eb5501c0124952ff3735ba84ee6767bd75e761c40b5ad90a5c0b1"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/stepTree.ts",
+          "sha256": "762e7bb7f014a67f991e2702b0eeb0739bd94ad26ed5631dce9cceb42b03607a"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/execTypes.ts",
+          "sha256": "c5e3932c1e9fefc4ddc877ab1158c9ee767525c221a61a4f169c7aae1ca9e34b"
+        }
+      ],
+      "modifications": "Adapts source grouping/activity contracts to public Sub2API tool.started/tool.completed/task.updated events. Merges actual operation IDs, preserves explicit task attribution, and marks unresolved terminal operations ended or paused rather than successful. Source-only reasoning/knowledge/subagent event branches are not fabricated."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/DeepStepGroup.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/DeepStepGroup.tsx",
+          "sha256": "a4644bfa79371611fc7af7711cb144f8fa236bc2107331a11f737f9e9a7e3872"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/GroupHeaderLabel.tsx",
+          "sha256": "b777d9dc647f1f4bb4fbd5b1830b768d7194eb4d2780600e3cb6ed332237f6dc"
+        }
+      ],
+      "modifications": "Ports stable manually controlled collapsed execution groups and real operation activity summaries. Omitted upstream narration/reasoning because the site public API does not expose them; tool updates do not change the user fold."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ToolRowLite.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ToolRowLite.tsx",
+          "sha256": "e7fda2ab4822d25077eda16d5c56c5a2ef3728e1b080775ef821e22ec8f279f9"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TimelineRail.tsx",
+          "sha256": "b538a75bbf0b1b73f4a10551a3f187ca2037be86fd08e64428bbdfc278e8642d"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/CollapsibleTimelineItem.tsx",
+          "sha256": "8310b8586dafd8e1c1dc05005a0d8a8a284eb43bb197ea7be6be5c09911866e5"
+        }
+      ],
+      "modifications": "Ports the rail, public tool title/status and optional public detail fold. Omits raw tool inputs, logs and privileged executor contents."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/TaskStepRow.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TaskStepRow.tsx",
+          "sha256": "76bd725fb8a28e973b2dd1f057b97185f3e0ce8f0ecfa91946270cf3f6232820"
+        }
+      ],
+      "modifications": "Keeps planned task names in the pinned checklist; only actual task-attributed execution produces a task timeline row. Empty planned tasks do not become fake execution steps."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/useExecutionCollapse.ts",
+      "mapping_kind": "Local implementation of the documented source fold contract",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/DeepStepGroup.tsx",
+          "sha256": "a4644bfa79371611fc7af7711cb144f8fa236bc2107331a11f737f9e9a7e3872"
+        }
+      ],
+      "modifications": "Implements the source documented conversation-switch fold persistence locally, keyed by actual operation ID. Bounded session storage contains only IDs and booleans and remains optional if storage is unavailable. Does not copy an unavailable upstream hook."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/PinnedTaskPanel.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/PinnedTaskPanel.tsx",
+          "sha256": "b095247d43fd033fbffeb8b989abb44d51b11624f9990fd948924adfb65d82c9"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/TaskPanel.tsx",
+          "sha256": "cd35e4ea52a641892e17883bd440d530f28ebb1448594d4ff8878ec66e8eb854"
+        }
+      ],
+      "modifications": "Ports initially collapsed 16px checklist card, current task/count, 240px expanded list, and reset per run. All todos complete while the run is executing means wrapping up, not run completion; waiting and terminal runs do not keep spinning."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ClarifyCard.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ClarifyCard.tsx",
+          "sha256": "f75450637188a38f707192504f6dbb7291f9bfa0db33eaeb5391c8ce1bfdd5ac"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/clarify.ts",
+          "sha256": "187b4c3c79ee62edaad146abd4d7eac65ae9c205c8b6c97229a8a4fa24794a54"
+        }
+      ],
+      "modifications": "Ports the dotted 16px card, one question per page, immediate single-choice advance, explicit multiple-choice confirmation, inline custom answer/confirm, page navigation and skip/close semantics. Structured answers go through the site clarification API; IME guards, duplicate-submit lock and deliberate retry after errors are preserved."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ResultSection.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/ResultSection.tsx",
+          "sha256": "c0bb58eea35d858610b2cda777faeaebc2cd08f046c7cbe0b4418e48bc8871e5"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/SaveAsButton.tsx",
+          "sha256": "90bd21bf643b5e48b35a9c1e2be9209959464825ae3a0afcc4477adaab3c3f08"
+        }
+      ],
+      "modifications": "Ports primary deliverable link, answer markdown and the complete multi-file output card with always-visible downloads. Authorized citations are passed to the site renderer; server-side format-conversion controls without a site contract are excluded."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ResourcePreview.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspacePanel.tsx",
+          "sha256": "cabe133fea42652a04a750b318dd5a80b5c59700729958e3b276063800b12377"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/PreviewBody.tsx",
+          "sha256": "e4f055c6199ba6f784742dbe675b0819fbfe6f6b1e3976eef83ff6fbc1e4bc67"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/useWorkspacePanel.ts",
+          "sha256": "e825b8875853738c93736709b6d5afd2e1d3c2ff3a720b0e3a54199dae25e3e4"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/SaveAsButton.tsx",
+          "sha256": "90bd21bf643b5e48b35a9c1e2be9209959464825ae3a0afcc4477adaab3c3f08"
+        }
+      ],
+      "modifications": "Ports the workspace toolbar, back/download/fullscreen/continue-edit controls, text preview/source switch and file viewer selection. Keeps one authenticated viewer owner across layout modes, typed bounded PDF blobs, bounded caches, signature refresh and account/logout/abort guards; does not adopt upstream public file URLs."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/WorkspaceFileList.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspacePanel.tsx",
+          "sha256": "cabe133fea42652a04a750b318dd5a80b5c59700729958e3b276063800b12377"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspaceDrawer.tsx",
+          "sha256": "bc981a5d3b42db2cfb40252c7b5091df30ff02a623f1c34ab037fd74698925e7"
+        }
+      ],
+      "modifications": "Ports file-list hierarchy, skeleton/failure/empty states, type metadata and always-visible per-file downloads. Input/output role is authoritative, including outputs whose original resource source was upload."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/WorkspaceFileIcon.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspaceDrawer.tsx",
+          "sha256": "bc981a5d3b42db2cfb40252c7b5091df30ff02a623f1c34ab037fd74698925e7"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/PreviewBody.tsx",
+          "sha256": "e4f055c6199ba6f784742dbe675b0819fbfe6f6b1e3976eef83ff6fbc1e4bc67"
+        }
+      ],
+      "modifications": "Uses site icon primitives with file-type labels and family colors instead of importing the upstream icon package. No remote icon resource is fetched."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/filePresentation.ts",
+      "mapping_kind": "Local presentation helper for the source workspace contract",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspaceDrawer.tsx",
+          "sha256": "bc981a5d3b42db2cfb40252c7b5091df30ff02a623f1c34ab037fd74698925e7"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/PreviewBody.tsx",
+          "sha256": "e4f055c6199ba6f784742dbe675b0819fbfe6f6b1e3976eef83ff6fbc1e4bc67"
+        }
+      ],
+      "modifications": "Local file-type/size/input-output projection for the migrated workspace; immutable site resource metadata remains authoritative."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatReferencesPanel.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/Messages/Content/CitationReferencesDrawer.tsx",
+          "sha256": "20e4d459c8b754e7851069a86f46d4b223db3a2f6e71383913c5cca7ae0ce9a7"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/AiMessageBubble.tsx",
+          "sha256": "607e5b5ac468c8cabeaac57d17e5417ffa2cfc3400012a32fee14d44509a55f5"
+        }
+      ],
+      "modifications": "Ports the source list/sidebar and actual citation-entry presentation to Vue. Only server-issued source metadata and safe HTTP(S) URLs are used; no inferred source from arbitrary numeric citation text."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatMarkdown.vue",
+      "mapping_kind": "Site-native secure renderer at the source integration boundary",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/AiMessageBubble.tsx",
+          "sha256": "607e5b5ac468c8cabeaac57d17e5417ffa2cfc3400012a32fee14d44509a55f5"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/ResultSection.tsx",
+          "sha256": "c0bb58eea35d858610b2cda777faeaebc2cd08f046c7cbe0b4418e48bc8871e5"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Messages/Content/CitationReferencesDrawer.tsx",
+          "sha256": "20e4d459c8b754e7851069a86f46d4b223db3a2f6e71383913c5cca7ae0ce9a7"
+        }
+      ],
+      "modifications": "Site-native marked/DOMPurify renderer at the source message/artifact/citation boundary. Resolves only authorized files and exact actual source URLs; no original React Markdown bundle is embedded. Model HTML/URL handling is owned by the site implementation."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/useWorkbenchResize.ts",
+      "mapping_kind": "Local geometry implementation for the source workspace layout",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/ChatView.tsx",
+          "sha256": "d23ad4a6003a031476b2a1a652eee8887f90bc10d39aa320427a93aab04864df"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/useWorkspacePanel.ts",
+          "sha256": "e825b8875853738c93736709b6d5afd2e1d3c2ff3a720b0e3a54199dae25e3e4"
+        }
+      ],
+      "modifications": "Adapts the responsive chat/workspace ownership to local pointer/keyboard resize, bounded conversation width and surface geometry. Resizing/layout ownership is separated from authenticated file fetching so layout changes do not create another ResourcePreview instance."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatExportToolbar.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/MessageSelection/MessageSelectionToolbar.tsx",
+          "sha256": "1dd1e599b4301a62df76229692dd7cc28beeb410a48ce5d0d5d81e5a285c0175"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/MessageSelection/ExportSelectionButton.tsx",
+          "sha256": "0444ea3b9edddb20ce8eb7fa9e6e3278c06723b5a27fee708bf6e26f9b5e4684"
+        }
+      ],
+      "modifications": "Ports message checkboxes/select-all/count/exit, desktop inline Word/PDF/Markdown/text options and mobile format-sheet entry. Selection and content use real visible site messages; knowledge-import actions are excluded."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/ChatExportDialog.vue",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/MessageSelection/ExportFormatSheet.tsx",
+          "sha256": "baa3efb4bfdc7b31ac9204e40f3d996458f69ac89d28d93f100aee2340ad0e39"
+        }
+      ],
+      "modifications": "Ports the four-format mobile sheet using the site BaseDialog. Export cancellation/account change tears down local export work; does not call the Bisheng export endpoint."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/chatExport.ts",
+      "mapping_kind": "Site-native implementation of the source export-format contract",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/MessageSelection/MessageSelectionToolbar.tsx",
+          "sha256": "1dd1e599b4301a62df76229692dd7cc28beeb410a48ce5d0d5d81e5a285c0175"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/MessageSelection/ExportFormatSheet.tsx",
+          "sha256": "baa3efb4bfdc7b31ac9204e40f3d996458f69ac89d28d93f100aee2340ad0e39"
+        }
+      ],
+      "modifications": "Site-native export backend replacement for the source four-format contract. Markdown/text download directly; Word is a genuine client-generated OOXML .docx ZIP with paragraphs/headings/lists/tables, not HTML renamed as Word. PDF opens the local browser/system print dialog for Save as PDF, not a server-rendered PDF download. Does not copy Bisheng backend conversion or knowledge APIs."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/chat.css",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/chat-surface.css",
+          "sha256": "d3f7ba4b23c76fe5571628c99b2e1c91a0d02a63ae15f93a9f05676ca7257ddc"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/chat-controls.css",
+          "sha256": "d7970936c5b3a25266a1e9302b2188aa5ee6081bc905f00d4fed606af3640ed2"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Landing.tsx",
+          "sha256": "94d0eecf74edf9937d8afcd14cc641b6c3d638df2b86250a88e9cb02259aaa14"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/ChatView.tsx",
+          "sha256": "d23ad4a6003a031476b2a1a652eee8887f90bc10d39aa320427a93aab04864df"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/AiMessageBubble.tsx",
+          "sha256": "607e5b5ac468c8cabeaac57d17e5417ffa2cfc3400012a32fee14d44509a55f5"
+        }
+      ],
+      "modifications": "Scopes source layout/tokens and responsive message/reference/workspace surface styles to the chat surface and portals. Reads final CSS overrides together with TSX; excludes global body/reset styling and old site-header offsets."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/composer.css",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Chat/AiChatInput.tsx",
+          "sha256": "f6edc731551f27198a747047217dac89e79d45915cf1910fc91b71cf7776a888"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ComposerEditor.tsx",
+          "sha256": "d0ca2827e06dfad12422fc0114ae9c5905b93be9dd6aa0f66792f59c019857e8"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ComposerSubmenu.tsx",
+          "sha256": "d189c35d0282eff27472be00ef3b7f7cafd8d0724ded94e5046baca706ea48ee"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/Input/ChatResourceMenu.tsx",
+          "sha256": "7fbc48b83a879649e1c73f6c8097b9eb90a0df7dcd639e3a2935e959a183eedb"
+        },
+        {
+          "path": "src/frontend/client/src/components/Chat/chat-controls.css",
+          "sha256": "d7970936c5b3a25266a1e9302b2188aa5ee6081bc905f00d4fed606af3640ed2"
+        }
+      ],
+      "modifications": "Ports the 28px composer shell, contenteditable/chips, attachment strip and full-width nested command-menu dimensions/styles, scoped to dedicated composer classes. Does not retain the earlier textarea substitute."
+    },
+    {
+      "target": "frontend/src/components/workbench/chat/workbenchArtifacts.css",
+      "mapping_kind": "Vue structure and interaction port",
+      "sources": [
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/execTokens.ts",
+          "sha256": "5a24dd623599d1b2aeec50ebf3655c0d7803da3e9de5a7711fa36dde4f7e0491"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/DeepStepGroup.tsx",
+          "sha256": "a4644bfa79371611fc7af7711cb144f8fa236bc2107331a11f737f9e9a7e3872"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/PinnedTaskPanel.tsx",
+          "sha256": "b095247d43fd033fbffeb8b989abb44d51b11624f9990fd948924adfb65d82c9"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Execution/ClarifyCard.tsx",
+          "sha256": "f75450637188a38f707192504f6dbb7291f9bfa0db33eaeb5391c8ce1bfdd5ac"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/ResultSection.tsx",
+          "sha256": "c0bb58eea35d858610b2cda777faeaebc2cd08f046c7cbe0b4418e48bc8871e5"
+        },
+        {
+          "path": "src/frontend/client/src/components/Linsight/Artifacts/WorkspacePanel.tsx",
+          "sha256": "cabe133fea42652a04a750b318dd5a80b5c59700729958e3b276063800b12377"
+        }
+      ],
+      "modifications": "Ports task timeline/checklist/clarification/result/workspace dimensions and visual hierarchy through inherited light/dark site tokens. Separate bso-* selectors isolate migrated artifacts and preserve generic shared preview styles."
+    }
+  ]
+}

@@ -785,13 +785,13 @@ export default {
         description: 'Configure payment system options',
         configGuide: 'Configuration Guide',
         billingCurrency: {
-          title: 'CNY Billing and Credit Ledger',
-          description: 'The internal ledger uses fixed integer credits. USD and CNY are display and payment-price views; switching currency never changes balances or historical charges.',
+          title: 'Billing Engine and Currency Display',
+          description: 'Site amounts use the selected display currency and exchange rate. The billing engine controls deductions. The recharge multiplier determines the wallet credit, and the payment provider determines the payment currency.',
           enabled: 'Enable Credit Ledger',
           enabledHint: 'When disabled, new requests use the legacy USD deduction path. Display currency and FX still apply; existing credits and snapshots are preserved.',
           engine: 'Billing Engine',
           displayCurrency: 'Display Currency',
-          usdToCny: 'Display FX (1 USD = ? CNY)',
+          usdToCny: 'Display exchange rate (CNY per 1 USD)',
           fixedScale: 'Fixed Ledger Scale',
           rolloutHint: 'Recommended rollout: legacy → shadow (calculate and reconcile credits while retaining USD deductions) → credits. Back up the database before the production switch.',
           engines: {

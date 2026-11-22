@@ -1,0 +1,539 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"slices"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/google/uuid"
+)
+
+type WorkbenchChatStatus struct {
+	OfficeFileExtensions  []string `json:"office_file_extensions,omitempty"`
+	BrowserDriven         bool     `json:"browser_driven"`
+	Enabled               bool     `json:"enabled"`
+	OfficeEnabled         bool     `json:"office_enabled"`
+	SearchAllowed         bool     `json:"search_allowed"`
+	SearchEnabled         bool     `json:"search_enabled"`
+	SearchPricePer1000USD float64  `json:"search_price_per_1000_usd,omitempty"`
+	FilesEnabled          bool     `json:"files_enabled"`
+	UploadsEnabled        bool     `json:"uploads_enabled"`
+	MaxFileBytes          int64    `json:"max_file_bytes"`
+	MaxFiles              int      `json:"max_files"`
+}
+type WorkbenchChatModel struct {
+	Protocol               workbenchProtocol `json:"protocol,omitempty"`
+	ID                     string            `json:"id"`
+	DisplayName            string            `json:"display_name"`
+	SupportsTools          bool              `json:"supports_tools"`
+	SupportsVision         bool              `json:"supports_vision"`
+	ReasoningEfforts       []string          `json:"reasoning_efforts"`
+	DefaultReasoningEffort string            `json:"default_reasoning_effort,omitempty"`
+	ContextWindow          *int              `json:"context_window,omitempty"`
+	MaxInputTokens         *int              `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int              `json:"max_output_tokens,omitempty"`
+	DefaultMaxOutputTokens int               `json:"default_max_output_tokens,omitempty"`
+	profileModel           string
+	replayToolReasoning    bool
+	nativeResponses        bool
+}
+
+type WorkbenchChatModelCatalog struct {
+	Models              []WorkbenchChatModel `json:"models"`
+	DefaultModel        string               `json:"default_model,omitempty"`
+	agentGroupID        int64
+	agentConfigRevision string
+}
+
+func (s *OfficeAgentService) BindWorkbenchProfiles(profiles *DesktopAgentProfileCatalogService) {
+	s.profiles = profiles
+}
+func (s *OfficeAgentService) BindResourcePin(pin func(context.Context, int64, string) error) {
+	s.pinInputs = pin
+}
+func (s *OfficeAgentService) ChatStatus(ctx context.Context) (WorkbenchChatStatus, error) {
+	result := WorkbenchChatStatus{MaxFileBytes: 24 << 20, MaxFiles: 8}
+	if s.settings == nil {
+		return result, nil
+	}
+	cfg, e := s.settings.GetWorkbenchConfig(ctx)
+	if e != nil {
+		return result, e
+	}
+	result.Enabled = s.Enabled() && cfg.ChatEnabled && cfg.AgentGroupID > 0
+	result.BrowserDriven = result.Enabled
+	result.OfficeEnabled = result.Enabled && cfg.OfficeEnabled
+	if result.OfficeEnabled {
+		result.OfficeFileExtensions = []string{".docx", ".md", ".txt", ".csv", ".json", ".py", ".drawio"}
+		if s.remoteOfficeConfigured(ctx) {
+			result.OfficeFileExtensions = append(result.OfficeFileExtensions, ".xlsx", ".pptx", ".zip")
+		}
+	}
+	result.SearchAllowed = result.Enabled && cfg.SearchEnabled
+	if result.SearchAllowed {
+		search, err := s.settings.loadWorkbenchSearchConfig(ctx)
+		if err == nil {
+			_, err = s.settings.workbenchSearchAPIKey(search)
+			if err == nil {
+				result.SearchEnabled = true
+				result.SearchPricePer1000USD = search.pricePer1000USD
+			}
+		}
+	}
+	result.FilesEnabled = cfg.FilesEnabled
+	if cfg.FilesEnabled && s.resources != nil {
+		_, err := s.resources.settings.PrivateOfficeStorageConfig(ctx)
+		result.UploadsEnabled = err == nil
+	}
+	return result, nil
+}
+func (s *OfficeAgentService) ChatModels(ctx context.Context) (*WorkbenchChatModelCatalog, error) {
+	status, e := s.ChatStatus(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if !status.Enabled {
+		return nil, ErrOfficeDisabled
+	}
+	cfg, g, e := s.loadWorkbenchAgentGroup(ctx)
+	if e != nil {
+		return nil, e
+	}
+	result := &WorkbenchChatModelCatalog{
+		Models:              make([]WorkbenchChatModel, 0, len(cfg.agentSelection.Models)),
+		agentGroupID:        g.ID,
+		agentConfigRevision: cfg.agentSelection.Revision,
+	}
+	if len(cfg.agentSelection.Models) == 0 {
+		return result, nil
+	}
+	routes := map[string]workbenchModelRoute{}
+	if catalog, ok := s.catalog.(*workbenchChatModelCatalog); ok {
+		routes, e = catalog.modelRoutes(ctx, g)
+	} else {
+		var ids []string
+		ids, e = s.catalog.ModelsForGroup(ctx, g)
+		for _, id := range ids {
+			routes[id] = workbenchModelRoute{}
+		}
+	}
+	if e != nil {
+		return nil, e
+	}
+	profiles := desktopAgentBuiltinProfiles()
+	if s.profiles != nil {
+		profiles = s.profiles.Snapshot()
+	}
+	for _, agentModel := range cfg.agentSelection.Models {
+		id := agentModel.ID
+		route, routable := routes[id]
+		if !routable || imageStudioImageModel(id) {
+			continue
+		}
+		m := WorkbenchChatModel{ID: id, Protocol: route.protocol, DisplayName: id, ReasoningEfforts: []string{}, nativeResponses: route.nativeResponses}
+		if p := workbenchModelProfile(id, cfg.agentSelection.ModelProfiles, cfg.ModelProfiles, profiles); p != nil {
+			m.DisplayName = p.DisplayName
+			m.profileModel = p.ID
+			m.ContextWindow = p.OfficialContextWindow
+			m.MaxInputTokens = p.MaxInputTokens
+			m.MaxOutputTokens = p.OfficialMaxOutputTokens
+			m.ReasoningEfforts = workbenchReasoningEfforts(m.Protocol, p)
+			if slices.Contains(m.ReasoningEfforts, agentModel.DefaultReasoning) {
+				m.DefaultReasoningEffort = agentModel.DefaultReasoning
+			} else if m.Protocol == workbenchProtocolGemini {
+				effort := workbenchGeminiDefaultReasoningEffort(m.profileModel)
+				if effort != "" && slices.Contains(m.ReasoningEfforts, effort) {
+					m.DefaultReasoningEffort = effort
+				}
+			}
+			m.SupportsTools = p.Model.SupportsToolCall != nil && *p.Model.SupportsToolCall
+			m.SupportsVision = p.Model.Input != nil && p.Model.Input.Image != nil && *p.Model.Input.Image
+			m.replayToolReasoning = p.Source == "official_deepseek"
+		}
+		if desktopAgentString(agentModel.DisplayName, 128) {
+			m.DisplayName = agentModel.DisplayName
+		}
+		m.DefaultMaxOutputTokens = s.workbenchTurnLimits(m.MaxOutputTokens).MaxOutputTokens
+		if agentModel.DefaultMaxOutputTokens > 0 {
+			m.DefaultMaxOutputTokens = min(m.DefaultMaxOutputTokens, agentModel.DefaultMaxOutputTokens)
+		}
+		result.Models = append(result.Models, m)
+		if id == cfg.agentSelection.DefaultModelID {
+			result.DefaultModel = id
+		}
+	}
+	return result, nil
+}
+
+func (s *OfficeAgentService) loadWorkbenchAgentGroup(ctx context.Context) (*WorkbenchConfig, *Group, error) {
+	cfg, err := s.settings.GetWorkbenchConfig(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.AgentGroupID <= 0 {
+		return nil, nil, ErrOfficeRouteChanged
+	}
+	group, err := s.groups.GetByID(ctx, cfg.AgentGroupID)
+	if err != nil || !managedAgentGroupEligible(group, cfg.AgentGroupID) {
+		return nil, nil, ErrOfficeRouteChanged
+	}
+	return cfg, group, nil
+}
+
+type WorkbenchChatSubmit struct {
+	TargetResourceVersionID string   `json:"target_resource_version_id,omitempty"`
+	RunID                   string   `json:"run_id"`
+	Model                   string   `json:"model"`
+	Content                 string   `json:"content"`
+	TaskMode                bool     `json:"task_mode"`
+	WebSearch               bool     `json:"web_search"`
+	SearchPricePer1000USD   float64  `json:"search_price_per_1000_usd,omitempty"`
+	ReasoningEffort         string   `json:"reasoning_effort,omitempty"`
+	ResourceVersionIDs      []string `json:"resource_version_ids,omitempty"`
+	RegenerateRunID         string   `json:"regenerate_run_id,omitempty"`
+}
+
+func (s *OfficeAgentService) SubmitChat(ctx context.Context, user int64, conversation string, in WorkbenchChatSubmit) (*OfficeRun, error) {
+	status, e := s.ChatStatus(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if !status.Enabled {
+		return nil, ErrOfficeDisabled
+	}
+	if in.WebSearch && !status.SearchEnabled {
+		return nil, ErrOfficeSearchUnavailable
+	}
+	if in.WebSearch && in.SearchPricePer1000USD != status.SearchPricePer1000USD {
+		return nil, ErrWorkbenchSearchPriceChanged
+	}
+	if user <= 0 || uuid.Validate(conversation) != nil || uuid.Validate(in.RunID) != nil || !officeModelID(in.Model) || strings.TrimSpace(in.Content) == "" || len(in.Content) > 32<<10 || !utf8.ValidString(in.Content) || len(in.ResourceVersionIDs) > 8 {
+		return nil, ErrOfficeInvalid
+	}
+	if len(in.ResourceVersionIDs) > 0 && !status.FilesEnabled {
+		return nil, ErrOfficeDisabled
+	}
+	if _, e = s.repo.GetConversation(ctx, user, conversation); e != nil {
+		return nil, e
+	}
+	catalog, e := s.ChatModels(ctx)
+	if e != nil {
+		return nil, e
+	}
+	var model *WorkbenchChatModel
+	for i := range catalog.Models {
+		if catalog.Models[i].ID == in.Model {
+			model = &catalog.Models[i]
+			break
+		}
+	}
+	if model == nil {
+		return nil, ErrOfficeRouteChanged
+	}
+	if in.WebSearch && !model.SupportsTools {
+		return nil, ErrOfficeSearchModelUnsupported
+	}
+	if in.ReasoningEffort != "" && !slices.Contains(model.ReasoningEfforts, in.ReasoningEffort) {
+		return nil, ErrOfficeRouteChanged
+	}
+	key, group, e := s.resolve(ctx, user, in.Model)
+	if e != nil {
+		return nil, e
+	}
+	if group != catalog.agentGroupID {
+		return nil, ErrOfficeRouteChanged
+	}
+	var boundary int64
+	if in.RegenerateRunID != "" {
+		repo, e := s.ChatRepository()
+		if e != nil {
+			return nil, e
+		}
+		old, question, e := repo.RegenerationSource(ctx, user, conversation, in.RegenerateRunID)
+		if e != nil {
+			return nil, e
+		}
+		in.RegenerateRunID = old.ID
+		boundary = old.ContextBoundary
+		var oldParams struct {
+			OutputParent struct {
+				VersionID string `json:"version_id"`
+			} `json:"output_parent"`
+		}
+		if json.Unmarshal(old.Parameters, &oldParams) == nil && oldParams.OutputParent.VersionID != "" {
+			in.TargetResourceVersionID = oldParams.OutputParent.VersionID
+		}
+		in.Content, e = officeMessageText(question.Content)
+		if e != nil {
+			return nil, e
+		}
+		in.ResourceVersionIDs = nil
+		for _, ref := range old.InputResources {
+			in.ResourceVersionIDs = append(in.ResourceVersionIDs, ref.VersionID)
+		}
+	}
+	limits := s.workbenchTurnLimits(model.MaxOutputTokens)
+	limits.MaxOutputTokens = model.DefaultMaxOutputTokens
+	if model.Protocol == "" {
+		model.Protocol = workbenchProtocolChatCompletions
+	}
+	parameters := map[string]any{
+		"supports_vision": model.SupportsVision, "protocol": model.Protocol, "profile_model": model.profileModel,
+		"office_tools":        status.OfficeEnabled && status.FilesEnabled && model.SupportsTools,
+		"remote_office_tools": s.remoteOfficeConfigured(ctx),
+		"history_version":     workbenchReplayHistoryVersion,
+	}
+	if model.Protocol == workbenchProtocolGemini {
+		parameters["constrain_gemini_thinking_budget"] = true
+	}
+	if model.replayToolReasoning {
+		parameters["replay_tool_reasoning"] = true
+	}
+	if model.nativeResponses {
+		parameters["native_responses"] = true
+	}
+	if in.WebSearch && in.SearchPricePer1000USD > 0 {
+		parameters["search_price_per_1000_usd"] = in.SearchPricePer1000USD
+	}
+	effort := in.ReasoningEffort
+	if effort == "" {
+		effort = model.DefaultReasoningEffort
+	}
+	if effort != "" {
+		parameters["reasoning_effort"] = effort
+	}
+	if model.ContextWindow != nil {
+		parameters["context_window"] = *model.ContextWindow
+	}
+	if model.MaxInputTokens != nil {
+		parameters["max_input_tokens"] = *model.MaxInputTokens
+	}
+	if in.TargetResourceVersionID != "" {
+		if !status.OfficeEnabled || !status.FilesEnabled || !model.SupportsTools || s.resources == nil {
+			return nil, ErrOfficeInvalid
+		}
+		parent, e := s.resources.repo.GetResourceVersion(ctx, user, in.TargetResourceVersionID, true)
+		if e != nil {
+			return nil, e
+		}
+		if !workbenchOfficeExtension(parent.Name, s.remoteOfficeConfigured(ctx)) {
+			return nil, ErrOfficeInvalid
+		}
+		parameters["output_parent"] = map[string]string{"resource_id": parent.ID, "version_id": parent.VersionID, "path": "output/" + parent.Name}
+		if !slices.Contains(in.ResourceVersionIDs, parent.VersionID) {
+			in.ResourceVersionIDs = append(in.ResourceVersionIDs, parent.VersionID)
+		}
+	}
+	params, _ := json.Marshal(parameters)
+	encoded, _ := json.Marshal(in)
+	refs := []OfficeResourceVersion{}
+	if len(in.ResourceVersionIDs) > 0 {
+		if s.resources == nil {
+			return nil, ErrOfficeDisabled
+		}
+		refs, e = s.resources.ResolveVersions(ctx, user, in.ResourceVersionIDs)
+		if e != nil {
+			return nil, e
+		}
+	}
+	artifacts := make([]map[string]string, 0, len(refs))
+	for _, ref := range refs {
+		resource, e := s.resources.repo.GetResourceVersion(ctx, user, ref.VersionID, true)
+		if e != nil {
+			return nil, e
+		}
+		switch {
+		case model.SupportsVision && strings.HasPrefix(resource.MIME, "image/"):
+		case status.OfficeEnabled && model.SupportsTools && workbenchOfficeExtension(resource.Name, s.remoteOfficeConfigured(ctx)):
+		default:
+			return nil, ErrOfficeResourceType
+		}
+		attachment := map[string]string{"resource_id": ref.ResourceID, "version_id": ref.VersionID, "id": ref.ResourceID, "name": resource.Name, "mime": resource.MIME}
+		if strings.HasPrefix(resource.MIME, "image/") && strings.HasPrefix(resource.PreviewMIME, "image/") && resource.PreviewKey != "" && resource.PreviewSHA256 != "" {
+			attachment["model_image_preview_sha256"] = resource.PreviewSHA256
+		}
+		artifacts = append(artifacts, attachment)
+	}
+	content, _ := json.Marshal(map[string]any{"text": in.Content, "artifacts": artifacts})
+	run, _, e := s.repo.AdmitRun(ctx, OfficeRunAdmission{
+		BrowserDriven: true, UserID: user, ConversationID: conversation, RunID: in.RunID,
+		IdempotencyKey: in.RunID, RequestHash: officeDigest(encoded), APIKeyID: key, GroupID: group,
+		Model: in.Model, UserContent: content, InputResources: refs, Mode: "chat", SearchEnabled: in.WebSearch,
+		Parameters: params, ContextBoundary: boundary, RegenerationOf: in.RegenerateRunID, Limits: limits,
+		AgentConfigRevision: catalog.agentConfigRevision,
+	})
+	return run, e
+}
+
+// The gateway owns user RPM, concurrency and billing for each model call.
+func (s *OfficeAgentService) workbenchTurnLimits(modelMaxOutput *int) OfficeRunLimits {
+	limits := OfficeRunLimits{MaxModelCalls: s.cfg.MaxModelCalls, MaxToolCalls: s.cfg.MaxToolCalls,
+		MaxOutputTokens: s.cfg.MaxOutputTokens, MaxRunSeconds: s.cfg.MaxRunSeconds}
+	if modelMaxOutput != nil && *modelMaxOutput > 0 {
+		limits.MaxOutputTokens = min(limits.MaxOutputTokens, *modelMaxOutput)
+	}
+	return limits
+}
+
+func (s *OfficeAgentService) ChatRepository() (OfficeChatRepository, error) {
+	r, ok := s.repo.(OfficeChatRepository)
+	if !ok {
+		return nil, errors.New("workbench repository unavailable")
+	}
+	return r, nil
+}
+func (s *OfficeAgentService) Conversations(ctx context.Context, user int64, cursor string) ([]OfficeConversation, string, error) {
+	r, e := s.ChatRepository()
+	if e != nil {
+		return nil, "", e
+	}
+	return r.ListConversationPage(ctx, user, cursor, 30)
+}
+func (s *OfficeAgentService) CreateConversation(ctx context.Context, user int64, id, title string) (*OfficeConversation, error) {
+	status, e := s.ChatStatus(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if !status.Enabled {
+		return nil, ErrOfficeDisabled
+	}
+	if id == "" {
+		id = uuid.NewString()
+	}
+	if title == "" {
+		title = "新对话"
+	}
+	return s.repo.CreateConversation(ctx, user, id, title)
+}
+func (s *OfficeAgentService) ConversationMessages(ctx context.Context, user int64, id string, after int64) ([]OfficeMessage, []OfficeRun, error) {
+	rows, e := s.repo.ListMessages(ctx, user, id, after, 100)
+	if e != nil {
+		return nil, nil, e
+	}
+	runs, e := s.repo.ListRuns(ctx, user, id, 100)
+	return rows, runs, e
+}
+
+// History stays readable when new-run admission is disabled.
+func (s *OfficeAgentService) PublicRun(ctx context.Context, user int64, id string) (*OfficeRun, error) {
+	return s.repo.GetRun(ctx, user, id)
+}
+func (s *OfficeAgentService) PublicCancel(ctx context.Context, user int64, id string) (*OfficeRun, error) {
+	run, err := s.repo.CancelRun(ctx, user, id)
+	if err == nil {
+		go func() {
+			call, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			s.cancelRemoteOfficeTools(call, run)
+		}()
+	}
+	return run, err
+}
+func (s *OfficeAgentService) PublicEvents(ctx context.Context, user int64, id string, after int64) ([]OfficeRunEvent, error) {
+	return s.repo.ListEvents(ctx, user, id, after, 100)
+}
+
+func (s *OfficeAgentService) StructuredProgress(ctx context.Context, lease OfficeRunLease, id, kind string, payload json.RawMessage) (*OfficeRunEvent, error) {
+	if !officeIdentifier(id, 128) || len(payload) > 32<<10 || !json.Valid(payload) {
+		return nil, ErrOfficeInvalid
+	}
+	// Decode into typed projections: internal callbacks and arbitrary tool logs
+	// cannot become public events simply by choosing a plausible event name.
+	var safe any
+	switch kind {
+	case "progress":
+		var v struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(payload, &v) != nil || len(v.Message) > 2000 {
+			return nil, ErrOfficeInvalid
+		}
+		safe = v
+	case "tool.started", "tool.completed":
+		var v struct {
+			OperationID string `json:"operation_id"`
+			ToolName    string `json:"tool_name"`
+			Title       string `json:"title"`
+			Status      string `json:"status,omitempty"`
+			Message     string `json:"message,omitempty"`
+		}
+		if json.Unmarshal(payload, &v) != nil || !officeIdentifier(v.OperationID, 128) || !officeApprovedTool(v.ToolName) || len(v.Title) > 300 || len(v.Message) > 2000 {
+			return nil, ErrOfficeInvalid
+		}
+		safe = v
+	case "task.updated":
+		var v struct {
+			Tasks []struct {
+				ID     string `json:"id"`
+				Title  string `json:"title"`
+				Status string `json:"status"`
+			} `json:"tasks"`
+		}
+		if json.Unmarshal(payload, &v) != nil || len(v.Tasks) > 64 {
+			return nil, ErrOfficeInvalid
+		}
+		for _, t := range v.Tasks {
+			if len(t.Title) > 500 || len(t.ID) > 128 || !slices.Contains([]string{"pending", "in_progress", "completed", "failed", "cancelled"}, t.Status) {
+				return nil, ErrOfficeInvalid
+			}
+		}
+		safe = v
+	case "artifact.published": // Resource ownership is checked by publication, not supplied IDs in progress.
+		return nil, ErrOfficeInvalid
+	case "clarification.requested": // Waiting state must be committed together with its event.
+		return nil, ErrOfficeInvalid
+	default:
+		return nil, ErrOfficeInvalid
+	}
+	encoded, e := json.Marshal(safe)
+	if e != nil {
+		return nil, e
+	}
+	return s.repo.AppendEvent(ctx, lease, id, kind, encoded)
+}
+
+func ProvideOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, settings *SettingService, groups *GroupService, keys *APIKeyService, accounts AccountRepository, routes CompositeModelRouteRepository, channels *ChannelService, profiles *DesktopAgentProfileCatalogService, resources *OfficeResourcesService, billingCache *BillingCacheService, encryptor SecretEncryptor, timingWheel *TimingWheelService) *OfficeAgentService {
+	s := NewOfficeAgentService(repo, cfg, settings, groups, keys, accounts, routes, channels)
+	s.BindWorkbenchProfiles(profiles)
+	s.resources = resources
+	s.billingCache = billingCache
+	s.officeNodeEncryptor = encryptor
+	if timingWheel != nil {
+		timingWheel.ScheduleRecurring("workbench-search-reservations", time.Minute, s.sweepSearchReservations)
+		timingWheel.ScheduleRecurring("workbench-payload-retention", time.Minute, s.sweepWorkbenchPayloads)
+		timingWheel.ScheduleRecurring("workbench-office-node-health", 20*time.Second, s.probeOfficeNodes)
+		timingWheel.ScheduleRecurring("workbench-office-delivery", 5*time.Second, s.sweepOfficeDeliveries)
+		timingWheel.ScheduleRecurring("workbench-office-dispatch-cleanup", time.Hour, s.cleanOfficeDispatches)
+	}
+	if resources != nil {
+		s.BindResourcePin(func(ctx context.Context, user int64, id string) error {
+			run, e := repo.GetRun(ctx, user, id)
+			if e != nil {
+				return e
+			}
+			return resources.PinRunInputs(ctx, *run)
+		})
+	}
+	return s
+}
+
+// officeMessageText accepts historic string messages and the resource-aware
+// message projection. File bytes and signed URLs never enter history.
+func officeMessageText(raw json.RawMessage) (string, error) {
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		return text, nil
+	}
+	var value struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &value) != nil || value.Text == "" {
+		return "", ErrOfficeInvalid
+	}
+	return value.Text, nil
+}

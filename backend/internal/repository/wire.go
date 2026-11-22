@@ -134,6 +134,8 @@ var ProviderSet = wire.NewSet(
 	NewImageTaskStore,
 	NewImageStudioGalleryRepository,
 	NewStudioJobRepository,
+	NewOfficeAgentRepository,
+	NewOfficeResourcesRepository,
 	NewWorkbenchAdminRepository,
 	NewImageStudioGalleryObjectStoreFactory,
 	NewBatchImageQueue,

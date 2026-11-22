@@ -2,7 +2,7 @@
   <section id="image-storage" class="card scroll-mt-24 p-5 sm:p-6" data-testid="image-storage-settings" :aria-busy="loading">
     <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.backup.imageStorage.title') }}</h2>
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.workbenchSettings.storageTitle') }}</h2>
         <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-dark-400">{{ t('admin.workbenchSettings.sharedStorageHint') }}</p>
       </div>
       <button type="button" class="btn btn-ghost btn-sm" :disabled="loading || saving || testing" @click="loadConfig">{{ t('common.refresh') }}</button>
@@ -94,7 +94,7 @@ const loadError = ref('')
 const secretConfigured = ref(false)
 const form = ref<ImageStorageConfig>({
   enabled: false, studio_gallery_enabled: false, studio_jobs_enabled: false, ticket_attachments_enabled: false,
-  reuse_backup_s3: true, bucket: '', prefix: 'images/', public_base_url: '',
+  reuse_backup_s3: true, bucket: '', office_bucket: '', prefix: 'images/', public_base_url: '',
   presign_expiry_hours: 24, max_download_bytes: 33554432, endpoint: '', region: 'auto',
   access_key_id: '', secret_access_key: '', force_path_style: false,
 })
@@ -102,6 +102,9 @@ let disposed = false
 
 function errorMessage(error: unknown) {
   if (isStepUpBlocked(error)) return t(stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? 'stepUp.adminApiKeyForbidden' : 'stepUp.notEnabled')
+  if ((error as { reason?: string })?.reason === 'OFFICE_STORAGE_PROBE_FAILED') {
+    return t('admin.workbenchSettings.officeStorage.probeFailed')
+  }
   return (error as { message?: string })?.message || t('errors.networkError')
 }
 
@@ -114,6 +117,7 @@ async function loadConfig() {
     if (disposed) return
     form.value = {
       ...config,
+      office_bucket: config.office_bucket || '',
       studio_gallery_enabled: config.studio_gallery_enabled === true,
       studio_jobs_enabled: config.studio_gallery_enabled === true && config.studio_jobs_enabled === true,
       ticket_attachments_enabled: config.ticket_attachments_enabled === true,

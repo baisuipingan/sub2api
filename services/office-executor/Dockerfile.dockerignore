@@ -1,0 +1,14 @@
+# The root image ignore excludes all Markdown. Office task images must retain
+# the audited source SKILL.md files and references while sending no app/secrets.
+**
+!services/
+!services/office-executor/
+!services/office-executor/office_executor/
+!services/office-executor/office_executor/**
+!services/office-executor/requirements-task.txt
+!services/office-agent/
+!services/office-agent/vendor/
+!services/office-agent/vendor/bisheng/
+!services/office-agent/vendor/bisheng/**
+**/__pycache__/
+**/*.pyc

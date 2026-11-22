@@ -116,6 +116,7 @@ type StudioJob struct {
 	APIKeyID        int64           `json:"-"`
 	Status          string          `json:"status"`
 	Task            json.RawMessage `json:"task"`
+	StorageBytes    *int64          `json:"storage_bytes,omitempty"`
 	Spec            StudioJobSpec   `json:"-"`
 	Calls           []StudioJobCall `json:"calls"`
 	CreatedAt       time.Time       `json:"created_at"`

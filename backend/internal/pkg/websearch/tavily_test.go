@@ -14,8 +14,9 @@ func TestTavilyProvider_Name(t *testing.T) {
 
 func TestTavilyProvider_Search_RequestConstruction(t *testing.T) {
 	// Verify tavilyRequest struct fields map correctly
+	key := "test-key"
 	req := tavilyRequest{
-		APIKey:      "test-key",
+		APIKey:      &key,
 		Query:       "golang",
 		MaxResults:  3,
 		SearchDepth: tavilySearchDepthBasic,

@@ -400,6 +400,7 @@ export default {
       orderType: 'Order Type',
       actions: 'Actions',
       requestRefund: 'Request Refund',
+      refundBalanceAmount: 'Balance to be deducted',
     },
     result: {
       success: 'Payment Successful',

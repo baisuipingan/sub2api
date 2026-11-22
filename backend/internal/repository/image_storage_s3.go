@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -98,7 +99,9 @@ func (s *S3ImageStorage) ProbeReadWriteDeletePrefix(ctx context.Context, prefix 
 		return fmt.Errorf("gallery storage probe put: %w", err)
 	}
 	defer func() {
-		if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &s.bucket, Key: &key}); err != nil && probeErr == nil {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := s.client.DeleteObject(cleanup, &s3.DeleteObjectInput{Bucket: &s.bucket, Key: &key}); err != nil && probeErr == nil {
 			probeErr = fmt.Errorf("gallery storage probe delete: %w", err)
 		}
 	}()
@@ -113,6 +116,57 @@ func (s *S3ImageStorage) ProbeReadWriteDeletePrefix(ctx context.Context, prefix 
 	}
 	if !bytes.Equal(got, data) {
 		return fmt.Errorf("gallery storage probe returned unexpected content")
+	}
+	return nil
+}
+
+// ProbeSignedOfficeRead checks the endpoint used by external readers, in
+// addition to the authenticated SDK calls performed by the connection probe.
+func (s *S3ImageStorage) ProbeSignedOfficeRead(ctx context.Context, prefix string) (probeErr error) {
+	key := strings.TrimRight(prefix, "/") + "/_connection-test/" + uuid.NewString()
+	data := []byte("office-signed-read-probe")
+	link, err := s3.NewPresignClient(s.client).PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: &s.bucket,
+		Key:    &key,
+	}, s3.WithPresignExpires(2*time.Minute))
+	if err != nil {
+		return err
+	}
+	contentType := "text/plain"
+	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &s.bucket, Key: &key, Body: bytes.NewReader(data), ContentType: &contentType,
+	}); err != nil {
+		return fmt.Errorf("office signed read probe put: %w", err)
+	}
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := s.client.DeleteObject(cleanup, &s3.DeleteObjectInput{Bucket: &s.bucket, Key: &key}); err != nil && probeErr == nil {
+			probeErr = fmt.Errorf("office signed read probe cleanup: %w", err)
+		}
+	}()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, link.URL, nil)
+	if err != nil {
+		return fmt.Errorf("office signed read request could not be prepared")
+	}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("office signed read could not reach the storage endpoint")
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("office signed read returned HTTP %d", response.StatusCode)
+	}
+	got, err := io.ReadAll(io.LimitReader(response.Body, int64(len(data)+1)))
+	if err != nil || !bytes.Equal(got, data) {
+		return fmt.Errorf("office signed read returned unexpected content")
 	}
 	return nil
 }
