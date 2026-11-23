@@ -59,7 +59,7 @@ export interface MethodLimit {
   single_min: number
   single_max: number
   fee_rate: number
-  available: boolean
+  available?: boolean
 }
 
 /** Response from /payment/limits API */

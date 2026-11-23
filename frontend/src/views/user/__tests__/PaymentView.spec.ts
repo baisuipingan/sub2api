@@ -116,7 +116,6 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     single_min: 0,
     single_max: 0,
     fee_rate: 0,
-    available: true,
   }
   const data: CheckoutInfoResponse = {
     methods: {
@@ -447,7 +446,9 @@ describe('PaymentView platform recharge quote', () => {
     const submitButton = () => wrapper.get('button.btn.w-full')
     expect(wrapper.getComponent(AmountInput).props('currency')).toBe('CNY')
     expect(wrapper.find('input[name="recharge-currency"]').exists()).toBe(false)
-    expect(wrapper.getComponent(PaymentMethodSelector).props('methods').map(method => method.type)).toEqual(['wxpay'])
+    expect(wrapper.getComponent(PaymentMethodSelector).props('methods')).toEqual([
+      expect.objectContaining({ type: 'wxpay', available: true }),
+    ])
     expect(submitButton().attributes('disabled')).toBeDefined()
 
     await enterAmount(wrapper, 10)

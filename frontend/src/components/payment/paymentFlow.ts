@@ -107,8 +107,8 @@ export function normalizeVisibleMethod(method: string): VisiblePaymentMethod | '
   return normalized ?? ''
 }
 
-export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<string, MethodLimit> {
-  const visible: Record<string, MethodLimit> = {}
+export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<string, MethodLimit & { available: boolean }> {
+  const visible: Record<string, MethodLimit & { available: boolean }> = {}
 
   Object.entries(methods).forEach(([type, limit]) => {
     const normalized = normalizeVisibleMethod(type) || type.trim()
@@ -117,7 +117,8 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
     const isCanonical = type === normalized
     const existing = visible[normalized]
     if (!existing || isCanonical) {
-      visible[normalized] = { ...limit }
+      // Checkout omits this flag for enabled providers. An explicit false still disables the option.
+      visible[normalized] = { ...limit, available: limit.available !== false }
     }
   })
 

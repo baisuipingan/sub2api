@@ -758,11 +758,9 @@ const canSubmitSubscription = computed(() =>
 
 watch([visibleMethods, paymentPhase], ([methods, phase]) => {
   if (phase !== 'select') return
-  const eligible = Object.keys(methods)
+  const eligible = Object.keys(methods).filter(type => methods[type].available)
   if (eligible.includes(selectedMethod.value)) return
-  selectedMethod.value = METHOD_ORDER.find(type => eligible.includes(type) && methods[type]?.available)
-    || eligible.find(type => methods[type]?.available)
-    || eligible[0] || ''
+  selectedMethod.value = METHOD_ORDER.find(type => eligible.includes(type)) || eligible[0] || ''
 })
 
 // Payment button class: follows selected payment method color
