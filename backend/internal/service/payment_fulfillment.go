@@ -122,6 +122,9 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		})
 		return fmt.Errorf("provider mismatch: expected %s, got %s", expectedProviderKey, pk)
 	}
+	if pk == payment.TypeBEpusdt && (tradeNo == "" || o.PaymentTradeNo != tradeNo || metadata["order_id"] != o.OutTradeNo) {
+		return fmt.Errorf("bepusdt transaction does not match the stored order")
+	}
 	if err := validateProviderNotificationMetadata(o, pk, metadata); err != nil {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
 			"detail":  err.Error(),
@@ -137,7 +140,11 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		})
 		return fmt.Errorf("invalid paid amount from provider: %v", paid)
 	}
-	if math.Abs(paid-o.PayAmount) > paymentAmountToleranceForCurrency(PaymentOrderCurrency(o)) {
+	tolerance := paymentAmountToleranceForCurrency(PaymentOrderCurrency(o))
+	if pk == payment.TypeBEpusdt {
+		tolerance = 0
+	}
+	if math.Abs(paid-o.PayAmount) > tolerance {
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
 		return fmt.Errorf("amount mismatch: expected %s, got %s", strconv.FormatFloat(o.PayAmount, 'f', -1, 64), strconv.FormatFloat(paid, 'f', -1, 64))
 	}

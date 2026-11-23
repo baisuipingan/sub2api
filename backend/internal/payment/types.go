@@ -21,6 +21,8 @@ const (
 	TypeLink         PaymentType = "link"
 	TypeEasyPay      PaymentType = "easypay"
 	TypeAirwallex    PaymentType = "airwallex"
+	TypeBEpusdt      PaymentType = "bepusdt"
+	TypeUSDTBSC      PaymentType = "usdt_bsc"
 )
 
 // Order status constants shared across payment and service layers.
@@ -67,11 +69,12 @@ const (
 // Provider-level status constants returned by provider implementations
 // to the service layer (lowercase, distinct from OrderStatus uppercase constants).
 const (
-	ProviderStatusPending  = "pending"
-	ProviderStatusPaid     = "paid"
-	ProviderStatusSuccess  = "success"
-	ProviderStatusFailed   = "failed"
-	ProviderStatusRefunded = "refunded"
+	ProviderStatusPending    = "pending"
+	ProviderStatusConfirming = "confirming"
+	ProviderStatusPaid       = "paid"
+	ProviderStatusSuccess    = "success"
+	ProviderStatusFailed     = "failed"
+	ProviderStatusRefunded   = "refunded"
 )
 
 // DefaultLoadBalanceStrategy is the default load-balancing strategy
@@ -102,15 +105,16 @@ func GetBasePaymentType(t string) string {
 
 // CreatePaymentRequest holds the parameters for creating a new payment.
 type CreatePaymentRequest struct {
-	OrderID     string // Internal order ID
-	Amount      string // 支付金额，按服务商实例配置的币种解释
-	PaymentType string // e.g. "alipay", "wxpay", "stripe"
-	Subject     string // Product description
-	NotifyURL   string // Webhook callback URL
-	ReturnURL   string // Browser redirect URL after payment
-	OpenID      string // WeChat JSAPI payer OpenID when available
-	ClientIP    string // Payer's IP address
-	IsMobile    bool   // Whether the request comes from a mobile device
+	OrderID     string    // Internal order ID
+	Amount      string    // 支付金额，按服务商实例配置的币种解释
+	PaymentType string    // e.g. "alipay", "wxpay", "stripe"
+	Subject     string    // Product description
+	NotifyURL   string    // Webhook callback URL
+	ReturnURL   string    // Browser redirect URL after payment
+	OpenID      string    // WeChat JSAPI payer OpenID when available
+	ClientIP    string    // Payer's IP address
+	IsMobile    bool      // Whether the request comes from a mobile device
+	ExpiresAt   time.Time // Requested upstream checkout expiry
 	// AlipayMobilePrecreate routes a mobile Alipay request through
 	// alipay.trade.precreate instead of alipay.trade.wap.pay.
 	AlipayMobilePrecreate bool
@@ -149,6 +153,7 @@ type WechatJSAPIPayload struct {
 // CreatePaymentResponse is returned after successfully initiating a payment.
 type CreatePaymentResponse struct {
 	TradeNo      string                  // Third-party transaction ID
+	ExpiresAt    time.Time               // Upstream checkout expiry, when supplied
 	PayURL       string                  // H5 payment URL (alipay/wxpay)
 	QRCode       string                  // QR code content for scanning
 	ClientSecret string                  // Stripe PaymentIntent 客户端密钥

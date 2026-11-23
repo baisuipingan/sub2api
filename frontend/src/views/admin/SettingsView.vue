@@ -12663,6 +12663,7 @@ const allPaymentTypes = computed(() => [
   { value: "wxpay", label: t("payment.methods.wxpay") },
   { value: "stripe", label: t("payment.methods.stripe") },
   { value: "airwallex", label: t("payment.methods.airwallex") },
+  { value: "usdt_bsc", label: t("payment.methods.usdt_bsc") },
 ]);
 
 function isPaymentTypeEnabled(type: string): boolean {
@@ -12687,7 +12688,7 @@ function togglePaymentType(type: string) {
 
 async function disableProvidersByType(type: string) {
   const matching = providers.value.filter(
-    (p) => p.provider_key === type && p.enabled,
+    (p) => (p.provider_key === type || (p.provider_key === "bepusdt" && type === "usdt_bsc")) && p.enabled,
   );
   for (const p of matching) {
     try {
@@ -12720,11 +12721,12 @@ const providerKeyOptions = computed(() => [
   { value: "wxpay", label: t("admin.settings.payment.providerWxpay") },
   { value: "stripe", label: t("admin.settings.payment.providerStripe") },
   { value: "airwallex", label: t("admin.settings.payment.providerAirwallex") },
+  { value: "bepusdt", label: t("admin.settings.payment.providerBEpusdt") },
 ]);
 
 const enabledProviderKeyOptions = computed(() => {
   const enabled = form.payment_enabled_types;
-  return providerKeyOptions.value.filter((opt) => enabled.includes(opt.value));
+  return providerKeyOptions.value.filter((opt) => enabled.includes(opt.value === "bepusdt" ? "usdt_bsc" : opt.value));
 });
 
 const loadBalanceOptions = computed(() => [

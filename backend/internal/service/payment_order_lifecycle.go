@@ -26,6 +26,7 @@ const (
 	rateLimitModeFixed         = "fixed"
 	checkPaidResultAlreadyPaid = "already_paid"
 	checkPaidResultCancelled   = "cancelled"
+	checkPaidResultUnavailable = "upstream_unavailable"
 
 	pendingPaymentReconcileLimit = 20
 )
@@ -123,8 +124,11 @@ func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (s
 
 func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, fs, op, ad string) (string, error) {
 	if o.PaymentTradeNo != "" || o.PaymentType != "" {
-		if s.checkPaid(ctx, o) == checkPaidResultAlreadyPaid {
+		switch s.checkPaid(ctx, o) {
+		case checkPaidResultAlreadyPaid:
 			return checkPaidResultAlreadyPaid, nil
+		case checkPaidResultUnavailable:
+			return "", infraerrors.Conflict("PAYMENT_UPSTREAM_UNAVAILABLE", "The payment is being confirmed or its status could not be verified. Please try again.")
 		}
 	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusPending)).SetStatus(fs).Save(ctx)
@@ -163,7 +167,13 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 	finishProviderCall()
 	if err != nil {
 		slog.Warn("query upstream failed", "orderID", o.ID, "error", err)
+		if opts.cancelIfUnpaid && prov.ProviderKey() == payment.TypeBEpusdt {
+			return checkPaidResultUnavailable
+		}
 		return ""
+	}
+	if prov.ProviderKey() == payment.TypeBEpusdt && resp.Metadata["order_id"] != o.OutTradeNo {
+		return checkPaidResultUnavailable
 	}
 	if resp.Status == payment.ProviderStatusPaid {
 		if !isValidProviderAmount(resp.Amount) {
@@ -201,10 +211,19 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 	if !opts.cancelIfUnpaid {
 		return ""
 	}
+	if resp.Status == payment.ProviderStatusConfirming {
+		return checkPaidResultUnavailable
+	}
+	if prov.ProviderKey() == payment.TypeBEpusdt && resp.Status == payment.ProviderStatusFailed {
+		return ""
+	}
 	if cp, ok := prov.(payment.CancelableProvider); ok {
 		finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
-		_ = cp.CancelPayment(ctx, queryRef)
+		err := cp.CancelPayment(ctx, queryRef)
 		finishProviderCall()
+		if err != nil && prov.ProviderKey() == payment.TypeBEpusdt {
+			return checkPaidResultUnavailable
+		}
 	}
 	return ""
 }

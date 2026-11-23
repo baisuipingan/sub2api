@@ -38,6 +38,9 @@ func (s *PaymentService) GetWebhookProviders(ctx context.Context, providerKey, o
 				if err != nil {
 					return nil, err
 				}
+				if providerKey == payment.TypeBEpusdt && prov.ProviderKey() != payment.TypeBEpusdt {
+					return nil, fmt.Errorf("order is not assigned to BEpusdt")
+				}
 				return []payment.Provider{prov}, nil
 			}
 			inst, err := s.getOrderProviderInstance(ctx, order)
