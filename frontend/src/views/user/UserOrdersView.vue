@@ -62,7 +62,7 @@
           </div>
           <div class="mt-2 flex justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.refundBalanceAmount') }}</span>
-            <span class="text-gray-900 dark:text-white">{{ formatUSD(refundTarget.amount) }}</span>
+            <span class="text-gray-900 dark:text-white">{{ formatOrderCredit(refundTarget, locale) }}</span>
           </div>
         </div>
         <div>
@@ -94,10 +94,9 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
-import { useBillingCurrency } from '@/composables/useBillingCurrency'
+import { formatOrderCredit } from '@/components/payment/currency'
 
-const { t } = useI18n()
-const { formatUSD } = useBillingCurrency()
+const { t, locale } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
@@ -175,7 +174,7 @@ async function confirmRefund() {
 }
 
 function canRequestRefund(order: PaymentOrder): boolean {
-  if (order.status !== 'COMPLETED') return false
+  if (order.status !== 'COMPLETED' || order.refund_blocked || order.payment_type === 'usdt_bsc') return false
   if (!order.provider_instance_id) return false
   return refundEligibleProviders.value.has(order.provider_instance_id)
 }

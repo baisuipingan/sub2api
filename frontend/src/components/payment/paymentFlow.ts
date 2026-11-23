@@ -83,6 +83,9 @@ export interface BuildCreateOrderPayloadInput {
   paymentType: string
   orderType: OrderType
   currency?: RechargeCurrency
+  quoteId?: string
+  billingVersion?: number
+  expectedPayAmount?: number
   planId?: number
   origin?: string
   isMobile: boolean
@@ -144,6 +147,15 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
   }
   if (input.currency) {
     payload.currency = input.currency
+  }
+  if (input.quoteId) {
+    payload.quote_id = input.quoteId
+  }
+  if (input.billingVersion !== undefined) {
+    payload.billing_version = input.billingVersion
+  }
+  if (input.expectedPayAmount !== undefined) {
+    payload.expected_pay_amount = input.expectedPayAmount
   }
   if (normalizedOrigin) {
     payload.return_url = `${normalizedOrigin}/payment/result`

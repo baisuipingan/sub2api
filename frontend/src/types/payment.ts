@@ -72,6 +72,13 @@ export interface MethodLimitsResponse {
 /** Response from /payment/checkout-info API — single call for the payment page */
 export interface CheckoutInfoResponse {
   methods: Record<string, MethodLimit>
+  recharge_methods: Record<string, MethodLimit>
+  subscription_methods: Record<string, MethodLimit>
+  platform_currency: RechargeCurrency
+  platform_usd_to_cny: number
+  billing_version: number
+  recharge_min_amount: number
+  recharge_max_amount: number
   global_min: number
   global_max: number
   plans: SubscriptionPlan[]
@@ -110,6 +117,11 @@ export interface PaymentOrder {
   /** 充值赠送额度（USD），已计入 amount */
   bonus_amount?: number
   credited_credits?: number
+  credited_display_amount?: string
+  bonus_display_amount?: string
+  credited_display_currency?: RechargeCurrency
+  credited_at?: string
+  refund_blocked?: boolean
   bonus_credits?: number
   credits_per_usd_snapshot?: number
   usd_to_cny_snapshot?: number
@@ -152,7 +164,7 @@ export interface SubscriptionPlan {
   description: string
   price: number
   original_price?: number
-  /** Display-only ISO 4217 currency label (e.g. "NZD"); empty means no label */
+  /** Published checkout currency, or the stored currency on admin plan records. */
   currency?: string
   validity_days: number
   validity_unit: string
@@ -197,6 +209,9 @@ export interface CreateOrderRequest {
   payment_type: string
   order_type: string
   currency?: RechargeCurrency
+  quote_id?: string
+  billing_version?: number
+  expected_pay_amount?: number
   plan_id?: number
   return_url?: string
   payment_source?: string
@@ -209,6 +224,7 @@ export interface RechargeQuoteRequest {
   amount: number
   payment_type: string
   currency: RechargeCurrency
+  billing_version: number
 }
 
 export interface RechargeQuote {
@@ -220,8 +236,13 @@ export interface RechargeQuote {
   fee_amount: number
   fee_rate: number
   credited_amount: number
-  credited_credits: number
+  credited_credits: string
+  credited_display_amount: number
   bonus_amount: number
+  bonus_display_amount: number
+  quote_id: string
+  expires_at: string
+  billing_version: number
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
@@ -301,4 +322,9 @@ export interface DashboardStats {
   daily_series: DailyPaymentStats[]
   payment_methods: PaymentMethodStats[]
   top_users: Record<string, TopUserPaymentStats[]>
+  usdt_bep20_receipts?: {
+    total_amount: string
+    today_amount: string
+    missing_amount_count: number
+  }
 }

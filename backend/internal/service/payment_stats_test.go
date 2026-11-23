@@ -7,8 +7,49 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUSDTBEP20ReceiptsPreserveExactNativeAmounts(t *testing.T) {
+	t.Parallel()
+
+	today := time.Date(2026, time.November, 24, 0, 0, 0, 0, time.UTC)
+	yesterday := today.Add(-time.Hour)
+	orders := []*dbent.PaymentOrder{
+		{PaymentType: payment.TypeUSDTBSC, PaidAt: &yesterday, ProviderSnapshot: map[string]any{"currency": "USD", "crypto_amount": "3.01"}},
+		{PaymentType: payment.TypeUSDTBSC, PaidAt: &today, ProviderSnapshot: map[string]any{"currency": "CNY", "crypto_amount": "0.000000000000000001"}},
+		{PaymentType: payment.TypeUSDTBSC, PaidAt: &today},
+		{PaymentType: payment.TypeUSDTBSC, ProviderSnapshot: map[string]any{"currency": "USD", "crypto_amount": "10"}},
+	}
+	require.Equal(t, &USDTBEP20ReceiptTotals{
+		TotalAmount: "3.010000000000000001", TodayAmount: "0.000000000000000001", MissingAmountCount: 1,
+	}, sumUSDTBEP20Receipts(orders, today))
+}
+
+func TestPaymentOrderAccountingUsesTheOrderSnapshot(t *testing.T) {
+	t.Parallel()
+
+	completedAt := time.Date(2026, time.November, 24, 0, 0, 0, 0, time.UTC)
+	order := &dbent.PaymentOrder{
+		OrderType: payment.OrderTypeBalance, PaymentType: payment.TypeAlipay,
+		Amount: 1.56, CreditedCredits: 155_555_556, BonusCredits: 7_407_408, UsdToCnySnapshot: 6.75,
+		ProviderSnapshot: map[string]any{"recharge_pricing_version": float64(1), "platform_currency": "CNY"},
+	}
+	require.Equal(t, PaymentOrderAccountingDetails{
+		CreditedDisplayAmount: "10.50", CreditedDisplayCurrency: "CNY", BonusDisplayAmount: "0.50", RefundBlocked: true,
+	}, PaymentOrderAccounting(order))
+
+	order.CompletedAt = &completedAt
+	details := PaymentOrderAccounting(order)
+	require.Equal(t, &completedAt, details.CreditedAt)
+
+	order.ProviderSnapshot = nil
+	details = PaymentOrderAccounting(order)
+	require.False(t, details.RefundBlocked)
+	require.Equal(t, "USD", details.CreditedDisplayCurrency)
+	require.Equal(t, "1.56", details.CreditedDisplayAmount)
+}
 
 func TestComputeBasicStatsGroupsAmountsByCurrency(t *testing.T) {
 	t.Parallel()

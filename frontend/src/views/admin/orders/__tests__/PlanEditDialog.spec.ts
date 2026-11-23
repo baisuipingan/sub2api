@@ -4,12 +4,13 @@ import { mount } from '@vue/test-utils'
 
 import PlanEditDialog from '../PlanEditDialog.vue'
 import type { AdminGroup } from '@/types'
+import type { RechargeCurrency, SubscriptionPlan } from '@/types/payment'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
-      if (key === 'payment.admin.subscriptionCnyPayPreview') return `preview ${params?.amount}`
-      if (key === 'payment.admin.subscriptionCnyPayPreviewWithFee') return `fee ${params?.feeRate} ${params?.total}`
+      if (key === 'payment.admin.subscriptionPaymentPreview') return `preview ${params?.total}`
+      if (key === 'payment.admin.subscriptionPaymentPreviewWithFee') return `fee ${params?.feeRate}`
       return key
     },
   }),
@@ -116,16 +117,21 @@ const groupFixture = (overrides: Partial<AdminGroup>): AdminGroup => ({
 function mountDialog({
   groups = [],
   paymentConfig = null,
+  plan = null,
+  platformCurrency = 'CNY',
 }: {
   groups?: AdminGroup[]
   paymentConfig?: Record<string, unknown> | null
+  plan?: SubscriptionPlan | null
+  platformCurrency?: RechargeCurrency
 } = {}) {
   return mount(PlanEditDialog, {
     props: {
       show: true,
-      plan: null,
+      plan,
       groups,
       paymentConfig,
+      platformCurrency,
     },
     global: {
       stubs: {
@@ -139,7 +145,7 @@ function mountDialog({
 }
 
 describe('PlanEditDialog', () => {
-  it('shows CNY channel charge using the configured subscription rate and fee', async () => {
+  it('defaults the currency to the site and previews the actual fee-inclusive charge', async () => {
     const wrapper = mountDialog({
       paymentConfig: {
         subscription_usd_to_cny_rate: 7.15,
@@ -147,26 +153,41 @@ describe('PlanEditDialog', () => {
       },
     })
 
+    expect(wrapper.get<HTMLSelectElement>('#plan-currency').element.value).toBe('CNY')
     await wrapper.find('input[type="number"]').setValue('9.99')
 
-    expect(wrapper.text()).toContain('preview')
-    expect(wrapper.text()).toContain('¥71.43')
+    expect(wrapper.text()).toContain('preview ¥10.24')
     expect(wrapper.text()).toContain('fee 2.5')
-    expect(wrapper.text()).toContain('¥73.22')
+    expect(wrapper.text()).not.toContain('¥73.22')
+
+    await wrapper.get('#plan-currency').setValue('USD')
+    expect(wrapper.text()).toContain('preview $10.24')
   })
 
-  it('hides the preview when the subscription rate is not configured', async () => {
+  it('requires choosing the currency for a historical plan with an unknown price currency', async () => {
     const wrapper = mountDialog({
-      paymentConfig: {
-        subscription_usd_to_cny_rate: 0,
-        recharge_fee_rate: 2.5,
+      paymentConfig: { recharge_fee_rate: 0 },
+      plan: {
+        id: 1,
+        group_id: 1,
+        name: 'Legacy',
+        description: '',
+        price: 12.99,
+        currency: 'NZD',
+        validity_days: 30,
+        validity_unit: 'days',
+        features: [],
+        for_sale: true,
+        sort_order: 0,
       },
     })
-
-    await wrapper.find('input[type="number"]').setValue('9.99')
-
+    expect(wrapper.get<HTMLSelectElement>('#plan-currency').element.value).toBe('')
+    expect(wrapper.text()).toContain('payment.admin.confirmLegacyPlanCurrency')
+    expect(wrapper.get('[role="switch"]').attributes('aria-checked')).toBe('false')
     expect(wrapper.text()).not.toContain('preview')
-    expect(wrapper.text()).not.toContain('¥71.43')
+
+    await wrapper.get('#plan-currency').setValue('USD')
+    expect(wrapper.text()).toContain('preview $12.99')
   })
 
   it('allows composite subscription groups for payment plans', () => {

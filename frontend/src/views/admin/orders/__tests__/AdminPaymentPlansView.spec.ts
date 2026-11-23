@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AdminPaymentPlansView from '../AdminPaymentPlansView.vue'
 
-const { getPlans, getConfig, getGroups } = vi.hoisted(() => ({
+const { getPlans, getConfig, getGroups, getBillingCurrencyConfig } = vi.hoisted(() => ({
   getPlans: vi.fn(),
   getConfig: vi.fn(),
   getGroups: vi.fn(),
+  getBillingCurrencyConfig: vi.fn(),
 }))
 
 vi.mock('@/api/admin/payment', () => ({
@@ -22,6 +23,7 @@ vi.mock('@/api/admin', () => ({
     groups: {
       getAll: getGroups,
     },
+    settings: { getBillingCurrencyConfig },
   },
 }))
 
@@ -50,6 +52,7 @@ describe('AdminPaymentPlansView', () => {
   beforeEach(() => {
     getGroups.mockResolvedValue([])
     getConfig.mockResolvedValue({ data: {} })
+    getBillingCurrencyConfig.mockResolvedValue({ display_currency: 'USD' })
     getPlans.mockResolvedValue({
       data: [
         {
@@ -82,7 +85,7 @@ describe('AdminPaymentPlansView', () => {
     })
   })
 
-  it('uses the configured currency symbol and keeps legacy prices in USD', async () => {
+  it('labels off-currency and unresolved legacy prices', async () => {
     const wrapper = mount(AdminPaymentPlansView, {
       global: {
         plugins: [createPinia()],
@@ -101,6 +104,9 @@ describe('AdminPaymentPlansView', () => {
 
     expect(wrapper.text()).toContain('¥499.00CNY')
     expect(wrapper.text()).toContain('¥599.00')
-    expect(wrapper.text()).toContain('$10.00')
+    expect(wrapper.text()).toContain('10.00')
+    expect(wrapper.text()).not.toContain('$10.00')
+    expect(wrapper.text()).toContain('payment.admin.planOutsideSiteCurrency')
+    expect(wrapper.text()).toContain('payment.admin.planCurrencyNeedsReview')
   })
 })

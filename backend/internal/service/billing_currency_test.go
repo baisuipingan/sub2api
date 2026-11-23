@@ -114,6 +114,36 @@ func TestUpdateBillingCurrencyConfig_PublishesSnapshot(t *testing.T) {
 	require.JSONEq(t, mustJSONForBillingCurrency(t, updated), repo.values[SettingKeyBillingCurrencyConfig])
 }
 
+func TestUpdateBillingCurrencyConfigRejectsConcurrentWrite(t *testing.T) {
+	ctx := context.Background()
+	current := DefaultBillingCurrencyConfig()
+	current.Version = 4
+	raw := mustJSONForBillingCurrency(t, current)
+	repo := &billingCurrencyConflictRepo{
+		billingCurrencySettingRepo: billingCurrencySettingRepo{
+			values: map[string]string{SettingKeyBillingCurrencyConfig: raw},
+		},
+	}
+	next := current
+	next.DisplayCurrency = BillingDisplayUSD
+	_, err := NewSettingService(repo, nil).UpdateBillingCurrencyConfig(ctx, next)
+	require.ErrorContains(t, err, "reload before saving")
+	require.Equal(t, raw, repo.values[SettingKeyBillingCurrencyConfig])
+	require.Equal(t, raw, repo.expected)
+}
+
+type billingCurrencyConflictRepo struct {
+	billingCurrencySettingRepo
+	expected string
+}
+
+func (r *billingCurrencyConflictRepo) CompareAndSwapBillingCurrencyConfig(_ context.Context, previous *string, _ string) (bool, error) {
+	if previous != nil {
+		r.expected = *previous
+	}
+	return false, nil
+}
+
 func mustJSONForBillingCurrency(t *testing.T, value any) string {
 	t.Helper()
 	body, err := json.Marshal(value)

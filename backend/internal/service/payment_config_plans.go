@@ -12,8 +12,7 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
-// normalizePlanCurrency validates and normalizes the display-only currency label.
-// Empty means "no label" and is kept as-is so existing plans stay unchanged.
+// Empty remains readable for legacy plans. Checkout requires an explicit published currency.
 func normalizePlanCurrency(raw string) (string, error) {
 	if strings.TrimSpace(raw) == "" {
 		return "", nil
@@ -136,6 +135,13 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
+// ListCheckoutPlans returns published prices denominated in the active site currency.
+func (s *PaymentConfigService) ListCheckoutPlans(ctx context.Context, currency string) ([]*dbent.SubscriptionPlan, error) {
+	return s.entClient.SubscriptionPlan.Query().
+		Where(subscriptionplan.ForSaleEQ(true), subscriptionplan.CurrencyEQ(currency)).
+		Order(subscriptionplan.BySortOrder()).All(ctx)
+}
+
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
@@ -143,6 +149,14 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	currency, err := normalizePlanCurrency(req.Currency)
 	if err != nil {
 		return nil, err
+	}
+	if req.ForSale && currency != BillingDisplayUSD && currency != BillingDisplayCNY {
+		return nil, invalidPublishedPlanCurrency()
+	}
+	if req.ForSale {
+		if err := validateCreateOrderAmountCurrency(req.Price, currency); err != nil {
+			return nil, err
+		}
 	}
 	b := s.entClient.SubscriptionPlan.Create().
 		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
@@ -162,6 +176,34 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
 	}
+	if req.Currency != nil || req.ForSale != nil || req.Price != nil {
+		current, err := s.GetPlan(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		currency, price, forSale := current.Currency, current.Price, current.ForSale
+		if req.Currency != nil {
+			currency, err = normalizePlanCurrency(*req.Currency)
+			if err != nil {
+				return nil, err
+			}
+			req.Currency = &currency
+		}
+		if req.Price != nil {
+			price = *req.Price
+		}
+		if req.ForSale != nil {
+			forSale = *req.ForSale
+		}
+		if forSale {
+			if currency != BillingDisplayUSD && currency != BillingDisplayCNY {
+				return nil, invalidPublishedPlanCurrency()
+			}
+			if err := validateCreateOrderAmountCurrency(price, currency); err != nil {
+				return nil, err
+			}
+		}
+	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
 		u.SetGroupID(*req.GroupID)
@@ -179,11 +221,7 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		u.SetOriginalPrice(*req.OriginalPrice)
 	}
 	if req.Currency != nil {
-		currency, err := normalizePlanCurrency(*req.Currency)
-		if err != nil {
-			return nil, err
-		}
-		u.SetCurrency(currency)
+		u.SetCurrency(*req.Currency)
 	}
 	if req.ValidityDays != nil {
 		u.SetValidityDays(*req.ValidityDays)
@@ -204,6 +242,10 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		u.SetSortOrder(*req.SortOrder)
 	}
 	return u.Save(ctx)
+}
+
+func invalidPublishedPlanCurrency() error {
+	return infraerrors.BadRequest("PLAN_CURRENCY_INVALID", "published prices require USD or CNY")
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {

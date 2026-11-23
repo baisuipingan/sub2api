@@ -1,3 +1,5 @@
+import type { PaymentOrder, RechargeCurrency } from '@/types/payment'
+
 export const DEFAULT_PAYMENT_CURRENCY = 'CNY'
 
 const PAYMENT_CURRENCY_SYMBOLS: Record<string, string> = {
@@ -56,4 +58,30 @@ export function formatPaymentAmount(amount: number, currency?: string | null, lo
   } catch {
     return `${normalized} ${(Number.isFinite(amount) ? amount : 0).toFixed(fractionDigits)}`
   }
+}
+
+export function formatOrderCredit(order: PaymentOrder, locale?: string): string {
+  return formatPaymentAmount(Number(order.credited_display_amount ?? order.amount), order.credited_display_currency || 'USD', locale)
+}
+
+export function formatOrderBonus(order: PaymentOrder, locale?: string): string {
+  return formatPaymentAmount(Number(order.bonus_display_amount ?? order.bonus_amount ?? 0), order.credited_display_currency || 'USD', locale)
+}
+
+/** Quoted credit is shown only while a balance order can still be fulfilled. */
+export function showOrderCredit(order: PaymentOrder): boolean {
+  return order.order_type === 'balance' && (!!order.credited_at
+    || order.status === 'PENDING' || order.status === 'PAID' || order.status === 'RECHARGING')
+}
+
+export function isSitePaymentCurrency(currency: unknown): currency is RechargeCurrency {
+  return currency === 'USD' || currency === 'CNY'
+}
+
+/** USD and CNY use cents. The stored percentage rate has at most two decimals. */
+export function fiatPaymentTotal(amount: number, feeRate: number): { fee: number; total: number } {
+  const amountCents = BigInt(Math.round(amount * 100))
+  const feeBasisPoints = BigInt(Math.round(Math.max(0, feeRate) * 100))
+  const feeCents = (amountCents * feeBasisPoints + 9999n) / 10000n
+  return { fee: Number(feeCents) / 100, total: Number(amountCents + feeCents) / 100 }
 }

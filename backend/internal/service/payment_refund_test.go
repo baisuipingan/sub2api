@@ -71,6 +71,57 @@ func TestValidateRefundRequestRejectsLegacyGuessedProviderInstance(t *testing.T)
 	require.Equal(t, "USER_REFUND_DISABLED", infraerrors.Reason(err))
 }
 
+func TestRefundBlockedForBEPusdtAndUnifiedRecharge(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		paymentType  string
+		providerKey  string
+		pricingFlags map[string]any
+	}{
+		{name: "historical-bepusdt", paymentType: payment.TypeUSDTBSC, providerKey: payment.TypeBEpusdt},
+		{name: "unified-easypay", paymentType: payment.TypeAlipay, providerKey: payment.TypeEasyPay,
+			pricingFlags: map[string]any{"recharge_pricing_version": 1, "platform_currency": "CNY"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			client := newPaymentConfigServiceTestClient(t)
+			order := createCompletedRefundableOrderForTest(t, ctx, client, tc.name)
+			instanceID, err := strconv.ParseInt(*order.ProviderInstanceID, 10, 64)
+			require.NoError(t, err)
+			_, err = client.PaymentProviderInstance.UpdateOneID(instanceID).
+				SetProviderKey(tc.providerKey).
+				SetSupportedTypes(tc.paymentType).
+				SetAllowUserRefund(true).
+				Save(ctx)
+			require.NoError(t, err)
+			update := client.PaymentOrder.UpdateOneID(order.ID).SetPaymentType(tc.paymentType)
+			if tc.pricingFlags != nil {
+				update.SetProviderSnapshot(tc.pricingFlags)
+			}
+			order, err = update.Save(ctx)
+			require.NoError(t, err)
+			require.True(t, PaymentOrderAccounting(order).RefundBlocked)
+			svc := &PaymentService{entClient: client}
+
+			err = svc.RequestRefund(ctx, order.ID, order.UserID, "test")
+			require.Equal(t, "USER_REFUND_DISABLED", infraerrors.Reason(err))
+			_, _, err = svc.PrepareRefund(ctx, order.ID, 0, "test", true, true)
+			require.Equal(t, "REFUND_DISABLED", infraerrors.Reason(err))
+			_, err = svc.ExecuteRefund(ctx, &RefundPlan{OrderID: order.ID, Order: order})
+			require.Equal(t, "REFUND_DISABLED", infraerrors.Reason(err))
+
+			order, err = client.PaymentOrder.Get(ctx, order.ID)
+			require.NoError(t, err)
+			require.Equal(t, OrderStatusCompleted, order.Status)
+
+			_, err = client.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusRefundPending).Save(ctx)
+			require.NoError(t, err)
+			_, err = svc.QueryAndFinalizeRefund(ctx, order.ID)
+			require.Equal(t, "REFUND_DISABLED", infraerrors.Reason(err))
+		})
+	}
+}
+
 func TestPrepareRefundRejectsLegacyGuessedProviderInstance(t *testing.T) {
 	ctx := context.Background()
 	client := newPaymentConfigServiceTestClient(t)

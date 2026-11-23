@@ -303,8 +303,8 @@ describe('PaymentResultView', () => {
     expect(resolveOrderPublicByResumeToken).toHaveBeenCalledWith('resume-fail')
     expect(pollOrderStatus).toHaveBeenCalledWith(77)
     expect(verifyOrderPublic).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('payment.result.success')
-    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
+    expect(wrapper.text()).toContain('payment.result.fulfillmentProcessing')
+    expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).not.toBeNull()
   })
 
   it('falls back to public out_trade_no verification when resume_token recovery fails in legacy return flows', async () => {
@@ -334,7 +334,7 @@ describe('PaymentResultView', () => {
     expect(resolveOrderPublicByResumeToken).toHaveBeenCalledWith('resume-fail')
     expect(verifyOrderPublic).toHaveBeenCalledWith('legacy-should-not-run')
     expect(pollOrderStatus).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('payment.result.fulfillmentProcessing')
   })
 
   it('ignores a stale global recovery snapshot when legacy return markers do not identify the order', async () => {
@@ -386,7 +386,7 @@ describe('PaymentResultView', () => {
     expect(verifyOrder).toHaveBeenCalledWith('legacy-123')
     expect(verifyOrderPublic).toHaveBeenCalledWith('legacy-123')
     expect(pollOrderStatus).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('payment.result.fulfillmentProcessing')
   })
 
   it('renders the minimal public out_trade_no verification result without payment_type', async () => {
@@ -415,7 +415,7 @@ describe('PaymentResultView', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('payment.result.fulfillmentProcessing')
     expect(wrapper.text()).toContain('legacy-minimal')
     expect(wrapper.text()).not.toContain('payment.orders.paymentMethod')
   })
@@ -481,7 +481,7 @@ describe('PaymentResultView', () => {
     await flushPromises()
 
     expect(resolveOrderPublicByResumeToken).toHaveBeenCalledWith('resume-77')
-    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('payment.result.fulfillmentProcessing')
   })
 
   it('uses the currency returned by the order API when rendering amounts', async () => {

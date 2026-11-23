@@ -12,6 +12,8 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
+	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/shopspring/decimal"
 )
 
 // --- Dashboard & Analytics ---
@@ -50,7 +52,43 @@ func (s *PaymentService) GetDashboardStats(ctx context.Context, days int) (*Dash
 	st.PaymentMethods = buildMethodDistribution(orders)
 	st.TopUsers = buildTopUsers(orders)
 
+	usdtOrders, err := s.entClient.PaymentOrder.Query().
+		Where(paymentorder.PaymentTypeEQ(payment.TypeUSDTBSC), paymentorder.PaidAtGTE(since)).
+		Select(paymentorder.FieldPaymentType, paymentorder.FieldProviderSnapshot, paymentorder.FieldPaidAt).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	st.USDTBEP20Receipts = sumUSDTBEP20Receipts(usdtOrders, todayStart)
+
 	return st, nil
+}
+
+func sumUSDTBEP20Receipts(orders []*dbent.PaymentOrder, todayStart time.Time) *USDTBEP20ReceiptTotals {
+	if len(orders) == 0 {
+		return nil
+	}
+	total, today := decimal.Zero, decimal.Zero
+	missing := 0
+	for _, order := range orders {
+		if order.PaidAt == nil {
+			continue
+		}
+		amount, err := decimal.NewFromString(PaymentOrderCryptoDetails(order).CryptoAmount)
+		if err != nil || !amount.IsPositive() {
+			missing++
+			continue
+		}
+		total = total.Add(amount)
+		if !order.PaidAt.Before(todayStart) {
+			today = today.Add(amount)
+		}
+	}
+	return &USDTBEP20ReceiptTotals{
+		TotalAmount:        total.String(),
+		TodayAmount:        today.String(),
+		MissingAmountCount: missing,
+	}
 }
 
 func computeBasicStats(st *DashboardStats, orders []*dbent.PaymentOrder, todayStart time.Time) {

@@ -15,17 +15,17 @@
     <template #cell-pay_amount="{ value, row }">
       <div class="text-sm">
         <span v-if="row.payment_type === 'usdt_bsc'" class="mr-1 text-xs text-gray-500">{{ t('payment.orders.fiatAmount') }}</span>
-        <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(row) }}{{ value.toFixed(2) }}</span>
+        <span class="font-medium text-gray-900 dark:text-white">{{ formatPaymentAmount(value, row.currency, locale) }}</span>
         <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
         <div v-if="row.crypto_amount" class="text-xs text-gray-500">
-          {{ t('payment.orders.cryptoAmount') }}: {{ row.crypto_amount }} USDT
+          {{ t(row.paid_at ? 'payment.orders.cryptoReceived' : 'payment.orders.cryptoDue') }}: {{ row.crypto_amount }} USDT
         </div>
-        <div v-if="row.payment_type === 'usdt_bsc' || row.amount !== row.pay_amount || (row.bonus_amount ?? 0) > 0" class="text-xs text-gray-500">
-          {{ t('payment.orders.creditedAmount') }}: {{ formatUSD(row.amount, 2) }}
+        <div v-if="showOrderCredit(row)" class="text-xs text-gray-500">
+          {{ t(row.credited_at ? 'payment.orders.creditedAmount' : 'payment.orders.estimatedCredit') }}: {{ formatOrderCredit(row, locale) }}
           <span v-if="(row.bonus_amount ?? 0) > 0" class="ml-1 text-amber-600 dark:text-amber-400">
-            ({{ t('payment.orders.bonusIncluded', { amount: formatUSD(row.bonus_amount ?? 0, 2) }) }})
+            ({{ t('payment.orders.bonusIncluded', { amount: formatOrderBonus(row, locale) }) }})
           </span>
         </div>
       </div>
@@ -52,11 +52,9 @@ import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
-import { currencySymbol } from '@/components/payment/currency'
-import { useBillingCurrency } from '@/composables/useBillingCurrency'
+import { formatOrderBonus, formatOrderCredit, formatPaymentAmount, showOrderCredit } from '@/components/payment/currency'
 
-const { t } = useI18n()
-const { formatUSD } = useBillingCurrency()
+const { t, locale } = useI18n()
 
 const props = defineProps<{
   orders: PaymentOrder[]
@@ -67,10 +65,6 @@ const props = defineProps<{
 function formatDate(dateStr: string) { return new Date(dateStr).toLocaleString() }
 
 
-function paymentAmountSymbol(order: PaymentOrder): string {
-  return currencySymbol(order.currency)
-}
-
 const columns = computed((): Column[] => {
   const cols: Column[] = [
     { key: 'id', label: t('payment.orders.orderId') },
@@ -80,7 +74,7 @@ const columns = computed((): Column[] => {
     cols.push({ key: 'user_email', label: t('payment.admin.colUser') })
   }
   cols.push(
-    { key: 'pay_amount', label: t('payment.orders.payAmount') },
+    { key: 'pay_amount', label: t('payment.orders.fiatAmount') },
     { key: 'payment_type', label: t('payment.orders.paymentMethod') },
     { key: 'status', label: t('payment.orders.status') },
     { key: 'created_at', label: t('payment.orders.createdAt') },

@@ -6,8 +6,7 @@ import { formatPaymentAmount } from '@/components/payment/currency'
 import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
-import en from '@/i18n/locales/en'
-import zh from '@/i18n/locales/zh'
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import type { CheckoutInfoResponse, MethodLimit, RechargeQuote, SubscriptionPlan } from '@/types/payment'
 
 const routeState = vi.hoisted(() => ({
@@ -123,6 +122,13 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     methods: {
       wxpay: wxpayMethod,
     },
+    recharge_methods: { wxpay: wxpayMethod },
+    subscription_methods: { wxpay: wxpayMethod },
+    platform_currency: 'CNY',
+    platform_usd_to_cny: 6.75,
+    billing_version: 11,
+    recharge_min_amount: 0,
+    recharge_max_amount: 0,
     global_min: 0,
     global_max: 0,
     plans: [],
@@ -136,7 +142,12 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
   }
 
   return {
-    data: { ...data, ...overrides },
+    data: {
+      ...data,
+      ...overrides,
+      recharge_methods: overrides.recharge_methods ?? overrides.methods ?? data.recharge_methods,
+      subscription_methods: overrides.subscription_methods ?? overrides.methods ?? data.subscription_methods,
+    },
   }
 }
 
@@ -152,6 +163,7 @@ function checkoutInfoWithPlansFixture(options: {
     name: 'Starter',
     description: '',
     price: 128,
+    currency: base.platform_currency,
     original_price: 0,
     validity_days: 30,
     validity_unit: 'day',
@@ -170,10 +182,10 @@ function checkoutInfoWithPlansFixture(options: {
   return {
     data: {
       ...base,
-      methods: {
-        ...base.methods,
+      subscription_methods: {
+        ...base.subscription_methods,
         wxpay: {
-          ...base.methods.wxpay,
+          ...base.subscription_methods.wxpay,
           ...options.method,
         },
       },
@@ -377,192 +389,189 @@ describe('PaymentView subscription plan grid', () => {
   })
 })
 
-describe('PaymentView recharge rate preview', () => {
-  it('uses the selected payment method currency in both locale templates', async () => {
-    translate.mockClear()
+describe('PaymentView platform recharge quote', () => {
+  beforeEach(() => {
     routeState.path = '/purchase'
     routeState.query = {}
-    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
-      balance_recharge_multiplier: 0.5,
-      methods: {
-        stripe: {
-          ...checkoutInfoFixture().data.methods.wxpay,
-          currency: 'USD',
-        },
-      },
-    }))
-
-    const wrapper = shallowMount(PaymentView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          Teleport: true,
-          Transition: false,
-        },
-      },
-    })
-    await flushPromises()
-    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 10)
-    await flushPromises()
-
-    expect(translate).toHaveBeenCalledWith('payment.rechargeRatePreview', {
-      currency: 'USD',
-      usd: '0.50',
-    })
-    expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
-    expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')
+    window.localStorage.clear()
+    getRechargeQuote.mockReset()
+    createOrder.mockReset()
+    showWarning.mockReset()
+    setCurrentBillingCurrencySettings({ billing_display_currency: 'USD', billing_usd_to_cny: 7.2 })
+    vi.useFakeTimers()
   })
-})
 
-describe('PaymentView USDT recharge quote', () => {
   afterEach(() => {
     vi.useRealTimers()
     setCurrentBillingCurrencySettings()
   })
 
-  it('defaults to the site currency and submits only the quote for the active currency and amount', async () => {
-    routeState.path = '/purchase'
-    routeState.query = {}
-    window.localStorage.clear()
-    setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY', billing_usd_to_cny: 7.2 })
-    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
-      methods: { usdt_bsc: { ...checkoutInfoFixture().data.methods.wxpay, currency: 'CNY' } },
-    }))
+  const availableMethod = { ...checkoutInfoFixture().data.methods.wxpay, currency: 'CNY' }
+
+  function quoteFixture(overrides: Partial<RechargeQuote> = {}): RechargeQuote {
+    return {
+      amount: 10, currency: 'CNY', min_amount: 1, max_amount: 1000,
+      pay_amount: 10.25, fee_amount: 0.25, fee_rate: 2.5,
+      credited_amount: 1.48148148, credited_credits: '148148148', credited_display_amount: 10,
+      bonus_amount: 0, bonus_display_amount: 0, billing_version: 11,
+      quote_id: 'quote-10', expires_at: new Date(Date.now() + 60_000).toISOString(),
+      ...overrides,
+    }
+  }
+
+  async function mountCheckout() {
     const wrapper = shallowMount(PaymentView, {
       global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } },
     })
     await flushPromises()
-    vi.useFakeTimers()
+    return wrapper
+  }
 
-    const quote: RechargeQuote = {
-      amount: 10, currency: 'USD', min_amount: 0, max_amount: 0,
-      pay_amount: 10.25, fee_amount: 0.25, fee_rate: 2.5,
-      credited_amount: 10, credited_credits: 1_000_000_000, bonus_amount: 0,
-    }
-    let resolveCNYQuote: (value: { data: RechargeQuote }) => void = () => {}
-    getRechargeQuote.mockReset()
-      .mockImplementationOnce(() => new Promise(resolve => { resolveCNYQuote = resolve }))
-      .mockResolvedValueOnce({ data: quote })
-    createOrder.mockReset().mockResolvedValue({
-      order_id: 8, amount: 10, pay_amount: 10.25, fee_rate: 2.5, currency: 'USD',
-      qr_code: 'test-order', crypto_amount: '10.2512', expires_at: '2027-01-02T00:00:00Z',
-    })
-
-    const amountInput = () => wrapper.getComponent(AmountInput)
-    const submitButton = () => wrapper.get('button.btn.w-full')
-    expect(amountInput().props('currency')).toBe('CNY')
-    amountInput().vm.$emit('update:modelValue', 10)
+  async function enterAmount(wrapper: Awaited<ReturnType<typeof mountCheckout>>, amount: number) {
+    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', amount)
     await wrapper.vm.$nextTick()
     await vi.advanceTimersByTimeAsync(250)
-    expect(getRechargeQuote).toHaveBeenCalledWith(
-      { amount: 10, payment_type: 'usdt_bsc', currency: 'CNY' }, expect.any(AbortSignal),
-    )
+  }
+
+  it('follows checkout currency and submits the exact approved quote for a fiat gateway', async () => {
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: { wxpay: availableMethod, alipay: availableMethod },
+      recharge_methods: { wxpay: availableMethod },
+    }))
+    getRechargeQuote.mockResolvedValue({ data: quoteFixture() })
+    createOrder.mockResolvedValue({
+      order_id: 8, amount: 1.48, pay_amount: 10.25, fee_rate: 2.5, currency: 'CNY',
+      qr_code: 'test-order', expires_at: '2099-01-01T00:00:00Z',
+    })
+    const wrapper = await mountCheckout()
+    const submitButton = () => wrapper.get('button.btn.w-full')
+    expect(wrapper.getComponent(AmountInput).props('currency')).toBe('CNY')
+    expect(wrapper.find('input[name="recharge-currency"]').exists()).toBe(false)
+    expect(wrapper.getComponent(PaymentMethodSelector).props('methods').map(method => method.type)).toEqual(['wxpay'])
     expect(submitButton().attributes('disabled')).toBeDefined()
 
-    await wrapper.get('input[name="recharge-currency"][value="USD"]').setValue(true)
-    expect(amountInput().props('currency')).toBe('USD')
-    expect(amountInput().props('modelValue')).toBeNull()
-    expect(getRechargeQuote.mock.calls[0][1].aborted).toBe(true)
-    amountInput().vm.$emit('update:modelValue', 10)
-    await wrapper.vm.$nextTick()
-    await vi.advanceTimersByTimeAsync(250)
-    resolveCNYQuote({ data: { ...quote, currency: 'CNY', pay_amount: 12 } })
-    await flushPromises()
-
-    expect(submitButton().text()).toContain('$10.25')
-    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain('¥72.00')
+    await enterAmount(wrapper, 10)
+    expect(getRechargeQuote).toHaveBeenCalledWith(
+      { amount: 10, payment_type: 'wxpay', currency: 'CNY', billing_version: 11 }, expect.any(AbortSignal),
+    )
+    expect(submitButton().text()).toContain(formatPaymentAmount(10.25, 'CNY'))
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain(formatPaymentAmount(10, 'CNY'))
     await submitButton().trigger('click')
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
-      amount: 10, payment_type: 'usdt_bsc', currency: 'USD', order_type: 'balance',
+      amount: 10, payment_type: 'wxpay', currency: 'CNY', order_type: 'balance', quote_id: 'quote-10',
     }))
+    wrapper.unmount()
+  })
+
+  it('ignores a quote that arrives after the amount changed', async () => {
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      platform_currency: 'USD',
+      recharge_methods: { usdt_bsc: availableMethod },
+    }))
+    let resolveOldQuote: (value: { data: RechargeQuote }) => void = () => {}
+    getRechargeQuote.mockImplementationOnce(() => new Promise(resolve => { resolveOldQuote = resolve }))
+      .mockResolvedValueOnce({ data: quoteFixture({
+        currency: 'USD', amount: 20, pay_amount: 20.50, fee_amount: 0.50, credited_display_amount: 20, quote_id: 'quote-20',
+      }) })
+    const wrapper = await mountCheckout()
+    const submitButton = () => wrapper.get('button.btn.w-full')
+
+    await enterAmount(wrapper, 10)
+    expect(submitButton().attributes('disabled')).toBeDefined()
+    await enterAmount(wrapper, 20)
+    expect(getRechargeQuote.mock.calls[0][1].aborted).toBe(true)
+    resolveOldQuote({ data: quoteFixture({ currency: 'USD' }) })
+    await flushPromises()
+
+    expect(wrapper.getComponent(AmountInput).props('currency')).toBe('USD')
+    expect(submitButton().text()).toContain('$20.50')
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain('$20.00')
+    wrapper.unmount()
+  })
+
+  it('clears stale input when the platform currency changed before submitting', async () => {
+    getCheckoutInfo.mockReset()
+      .mockResolvedValueOnce(checkoutInfoFixture())
+      .mockResolvedValueOnce(checkoutInfoFixture({ platform_currency: 'USD', billing_version: 12, recharge_methods: { usdt_bsc: availableMethod } }))
+    getRechargeQuote.mockResolvedValue({ data: quoteFixture() })
+    createOrder.mockRejectedValue({ reason: 'RECHARGE_QUOTE_CHANGED' })
+    const wrapper = await mountCheckout()
+
+    await enterAmount(wrapper, 10)
+    await wrapper.get('button.btn.w-full').trigger('click')
+    await flushPromises()
+
+    expect(getCheckoutInfo).toHaveBeenCalledTimes(2)
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(wrapper.getComponent(AmountInput).props('currency')).toBe('USD')
+    expect(wrapper.getComponent(AmountInput).props('modelValue')).toBeNull()
+    expect(wrapper.get('button.btn.w-full').attributes('disabled')).toBeDefined()
+    expect(showWarning).toHaveBeenCalledWith('payment.rechargeQuoteStale')
     wrapper.unmount()
   })
 })
 
 describe('PaymentView subscription confirmation amounts', () => {
-  it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
+  it('uses the published CNY price for display and creation even with a legacy exchange rate', async () => {
     const wrapper = await mountSubscriptionConfirm({
       checkout: {
         balance_recharge_multiplier: 0.14,
-        subscription_usd_to_cny_rate: 7.15,
-      },
-      method: {
-        currency: 'CNY',
-      },
-      plan: {
-        price: 9.99,
-        original_price: 12.99,
-      },
-    })
-
-    const text = wrapper.text()
-    const convertedPrice = formatPaymentAmount(71.43, 'CNY')
-    const convertedOriginalPrice = formatPaymentAmount(92.88, 'CNY')
-
-    expect(text).toContain(convertedPrice)
-    expect(text).toContain(convertedOriginalPrice)
-    expect(text).not.toContain(formatPaymentAmount(9.99, 'CNY'))
-    // 换算必须使用订阅汇率（×7.15），而不是余额倍率（÷0.14 = 71.36）
-    expect(text).not.toContain(formatPaymentAmount(71.36, 'CNY'))
-    expect(wrapper.findAll('button').some(button => button.text().includes(convertedPrice))).toBe(true)
-  })
-
-  it('keeps plan price when the subscription rate is not configured or payment currency is not CNY', async () => {
-    // opt-in 回归锁：即使余额倍率已配置，未配置订阅汇率时 CNY 订阅仍按 price 直付
-    const cnyWrapper = await mountSubscriptionConfirm({
-      checkout: {
-        balance_recharge_multiplier: 0.14,
-        subscription_usd_to_cny_rate: 0,
-      },
-      method: {
-        currency: 'CNY',
-      },
-      plan: {
-        price: 7.99,
-      },
-    })
-
-    expect(cnyWrapper.text()).toContain(formatPaymentAmount(7.99, 'CNY'))
-    expect(cnyWrapper.text()).not.toContain(formatPaymentAmount(57.07, 'CNY'))
-    expect(cnyWrapper.text()).not.toContain(formatPaymentAmount(57.13, 'CNY'))
-
-    const usdWrapper = await mountSubscriptionConfirm({
-      checkout: {
-        subscription_usd_to_cny_rate: 7.15,
-      },
-      method: {
-        currency: 'USD',
-      },
-      plan: {
-        price: 7.99,
-        original_price: 9.99,
-      },
-    })
-
-    expect(usdWrapper.text()).toContain(formatPaymentAmount(7.99, 'USD'))
-    expect(usdWrapper.text()).toContain(formatPaymentAmount(9.99, 'USD'))
-  })
-
-  it('adds fee rate after CNY rate conversion to match backend pay_amount', async () => {
-    const wrapper = await mountSubscriptionConfirm({
-      checkout: {
         subscription_usd_to_cny_rate: 7.15,
         recharge_fee_rate: 2.5,
       },
-      method: {
-        currency: 'CNY',
-      },
-      plan: {
-        price: 9.99,
-      },
+      method: { currency: 'CNY' },
+      plan: { price: 9.99, original_price: 12.99 },
+    })
+    createOrder.mockResolvedValue({ ...oauthOrderFixture(), result_type: 'order_created', qr_code: 'test-qr' })
+    const paymentPrice = formatPaymentAmount(9.99, 'CNY')
+    expect(wrapper.text()).toContain(paymentPrice)
+    expect(wrapper.text()).toContain(formatPaymentAmount(12.99, 'CNY'))
+    expect(wrapper.text()).not.toContain(formatPaymentAmount(71.43, 'CNY'))
+    await wrapper.get('button.btn.w-full').trigger('click')
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 9.99, currency: 'CNY', order_type: 'subscription', plan_id: 7,
+      billing_version: 11, expected_pay_amount: 10.24,
+    }))
+  })
+
+  it('reloads a changed plan price without placing a new order', async () => {
+    const wrapper = await mountSubscriptionConfirm({ plan: { price: 7.99 } })
+    getCheckoutInfo.mockResolvedValueOnce(checkoutInfoWithPlansFixture({ plan: { price: 8.99 } }))
+    createOrder.mockRejectedValueOnce({ reason: 'SUBSCRIPTION_PRICE_CHANGED' })
+    await wrapper.get('button.btn.w-full').trigger('click')
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(showWarning).toHaveBeenCalledWith('payment.subscriptionPriceChanged')
+    expect(wrapper.get('button.btn.w-full').text()).toContain(formatPaymentAmount(8.99, 'CNY'))
+  })
+
+  it('shows the published USD price even when the app has a different cached currency', async () => {
+    setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY' })
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: { platform_currency: 'USD' },
+      method: { currency: 'USD' },
+      plan: { price: 7.99, original_price: 9.99 },
+    })
+
+    expect(wrapper.text()).toContain(formatPaymentAmount(7.99, 'USD'))
+    expect(wrapper.text()).toContain(formatPaymentAmount(9.99, 'USD'))
+    setCurrentBillingCurrencySettings()
+  })
+
+  it('adds the configured fee to the published price', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      checkout: { recharge_fee_rate: 2.5 },
+      method: { currency: 'CNY' },
+      plan: { price: 9.99 },
     })
 
     const text = wrapper.text()
-    const convertedPrice = formatPaymentAmount(71.43, 'CNY')
-    const fee = formatPaymentAmount(1.79, 'CNY')
-    const total = formatPaymentAmount(73.22, 'CNY')
+    const price = formatPaymentAmount(9.99, 'CNY')
+    const fee = formatPaymentAmount(0.25, 'CNY')
+    const total = formatPaymentAmount(10.24, 'CNY')
 
-    expect(text).toContain(convertedPrice)
+    expect(text).toContain(price)
     expect(text).toContain(fee)
     expect(text).toContain(total)
     expect(wrapper.findAll('button').some(button => button.text().includes(total))).toBe(true)

@@ -29,9 +29,11 @@
         </template>
         <template #cell-price="{ value, row }">
           <div class="text-sm">
-            <span class="font-medium text-gray-900 dark:text-white">{{ planCurrencySymbol(row.currency) }}{{ (value ?? 0).toFixed(2) }}</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatPlanPrice(value ?? 0, row.currency) }}</span>
             <span v-if="row.currency" class="ml-1 text-xs text-gray-400">{{ row.currency }}</span>
-            <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">{{ planCurrencySymbol(row.currency) }}{{ row.original_price.toFixed(2) }}</span>
+            <span v-if="row.original_price" class="ml-1 text-xs text-gray-400 line-through">{{ formatPlanPrice(row.original_price, row.currency) }}</span>
+            <p v-if="!isSitePaymentCurrency(row.currency)" class="mt-1 text-xs text-amber-700 dark:text-amber-400">{{ t('payment.admin.planCurrencyNeedsReview') }}</p>
+            <p v-else-if="row.for_sale && platformCurrency && row.currency !== platformCurrency" class="mt-1 text-xs text-gray-500">{{ t('payment.admin.planOutsideSiteCurrency') }}</p>
           </div>
         </template>
         <template #cell-validity_days="{ value, row }">
@@ -40,15 +42,18 @@
         <template #cell-for_sale="{ value, row }">
           <button
             type="button"
+            role="switch"
+            :aria-label="t('payment.admin.forSale')"
+            :aria-checked="value && isSitePaymentCurrency(row.currency)"
             :class="[
               'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              value ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
+              value && isSitePaymentCurrency(row.currency) ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
             ]"
             @click="toggleForSale(row)"
           >
             <span :class="[
               'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              value ? 'translate-x-4' : 'translate-x-0'
+              value && isSitePaymentCurrency(row.currency) ? 'translate-x-4' : 'translate-x-0'
             ]" />
           </button>
         </template>
@@ -68,7 +73,7 @@
     </div>
 
     <!-- Plan Edit Dialog -->
-    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :payment-config="paymentConfig" @close="showPlanDialog = false" @saved="loadPlans" />
+    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :payment-config="paymentConfig" :platform-currency="platformCurrency" @close="showPlanDialog = false" @saved="loadPlans" />
 
     <ConfirmDialog :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
   </AppLayout>
@@ -82,7 +87,7 @@ import { adminPaymentAPI } from '@/api/admin/payment'
 import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import adminAPI from '@/api/admin'
-import type { SubscriptionPlan } from '@/types/payment'
+import type { RechargeCurrency, SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -91,20 +96,21 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
-import { currencySymbol } from '@/components/payment/currency'
+import { formatPaymentAmount, isSitePaymentCurrency } from '@/components/payment/currency'
 import { platformTextClass } from '@/utils/platformColors'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 
-function planCurrencySymbol(currency?: string): string {
-  return currencySymbol(currency || 'USD')
+function formatPlanPrice(amount: number, currency?: string): string {
+  return isSitePaymentCurrency(currency) ? formatPaymentAmount(amount, currency, locale?.value) : amount.toFixed(2)
 }
 
 // ==================== Groups ====================
 
 const groups = ref<AdminGroup[]>([])
 const paymentConfig = ref<AdminPaymentConfig | null>(null)
+const platformCurrency = ref<RechargeCurrency>()
 
 async function loadGroups() {
   try {
@@ -117,6 +123,13 @@ async function loadPaymentConfig() {
     const res = await adminPaymentAPI.getConfig()
     paymentConfig.value = res.data
   } catch { /* preview only */ }
+}
+
+async function loadPlatformCurrency() {
+  try {
+    const config = await adminAPI.settings.getBillingCurrencyConfig()
+    platformCurrency.value = config.display_currency
+  } catch { /* The form can still accept an explicit currency. */ }
 }
 
 function getGroup(id: number): AdminGroup | undefined {
@@ -177,6 +190,10 @@ function openPlanEdit(plan: SubscriptionPlan | null) {
 
 /** Quick toggle for_sale from the list */
 async function toggleForSale(plan: SubscriptionPlan) {
+  if (!isSitePaymentCurrency(plan.currency)) {
+    openPlanEdit(plan)
+    return
+  }
   try {
     await adminPaymentAPI.updatePlan(plan.id, { for_sale: !plan.for_sale })
     plan.for_sale = !plan.for_sale
@@ -197,6 +214,7 @@ async function handleDeletePlan() {
 onMounted(() => {
   loadGroups()
   loadPaymentConfig()
+  loadPlatformCurrency()
   loadPlans()
 })
 </script>

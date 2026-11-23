@@ -16,6 +16,15 @@ import (
 // instances and returns limits for each, plus the global widest range.
 // Stripe sub-types (card, link) are aggregated under "stripe".
 func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*MethodLimitsResponse, error) {
+	return s.getAvailableMethodLimits(ctx, nil)
+}
+
+// GetCheckoutMethodLimits requires the global provider switch and an enabled instance.
+func (s *PaymentConfigService) GetCheckoutMethodLimits(ctx context.Context, cfg *PaymentConfig) (*MethodLimitsResponse, error) {
+	return s.getAvailableMethodLimits(ctx, cfg)
+}
+
+func (s *PaymentConfigService) getAvailableMethodLimits(ctx context.Context, cfg *PaymentConfig) (*MethodLimitsResponse, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(paymentproviderinstance.EnabledEQ(true)).All(ctx)
 	if err != nil {
@@ -27,6 +36,18 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		Methods: make(map[string]MethodLimits, len(typeInstances)),
 	}
 	for pt, insts := range typeInstances {
+		if cfg != nil {
+			eligible := make([]*dbent.PaymentProviderInstance, 0, len(insts))
+			for _, inst := range insts {
+				if cfg.checkoutProviderEnabled(inst.ProviderKey) {
+					eligible = append(eligible, inst)
+				}
+			}
+			insts = eligible
+			if len(insts) == 0 {
+				continue
+			}
+		}
 		currency, ok := s.pcAggregateMethodCurrency(insts)
 		if !ok {
 			continue
@@ -38,6 +59,30 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 	}
 	resp.GlobalMin, resp.GlobalMax = pcComputeGlobalRange(resp.Methods)
 	return resp, nil
+}
+
+func (cfg *PaymentConfig) checkoutProviderEnabled(provider string) bool {
+	if provider == payment.TypeBEpusdt {
+		provider = payment.TypeUSDTBSC
+	}
+	for _, enabled := range cfg.EnabledTypes {
+		if enabled == provider {
+			return true
+		}
+	}
+	return false
+}
+
+// RechargeMethods selects channels that can charge the site's exact fiat currency.
+func (r *MethodLimitsResponse) RechargeMethods(currency string) map[string]MethodLimits {
+	methods := make(map[string]MethodLimits)
+	for key, method := range r.Methods {
+		if key == payment.TypeUSDTBSC || method.Currency == currency {
+			method.Currency = currency
+			methods[key] = method
+		}
+	}
+	return methods
 }
 
 func (s *PaymentConfigService) pcApplyEnabledVisibleMethodInstances(ctx context.Context, typeInstances map[string][]*dbent.PaymentProviderInstance, instances []*dbent.PaymentProviderInstance) map[string][]*dbent.PaymentProviderInstance {

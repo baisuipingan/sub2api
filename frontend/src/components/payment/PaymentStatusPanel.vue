@@ -20,12 +20,12 @@
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.out_trade_no }}</span>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t(isUSDT ? 'payment.orders.creditedAmount' : 'payment.orders.amount') }}</span>
+              <div v-if="showOrderCredit(paidOrder)" class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t(paidOrder.credited_at ? 'payment.orders.creditedAmount' : 'payment.orders.estimatedCredit') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  {{ formatUSD(paidOrder.amount, 2) }}
+                  {{ formatOrderCredit(paidOrder, localeCode) }}
                   <span v-if="(paidOrder.bonus_amount ?? 0) > 0" class="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400">
-                    ({{ t('payment.orders.bonusIncluded', { amount: formatUSD(paidOrder.bonus_amount ?? 0, 2) }) }})
+                    ({{ t('payment.orders.bonusIncluded', { amount: formatOrderBonus(paidOrder, localeCode) }) }})
                   </span>
                 </span>
               </div>
@@ -34,7 +34,7 @@
                 <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
               </div>
               <div v-if="paidOrder.crypto_amount || props.cryptoAmount" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t(paidOrder.paid_at ? 'payment.orders.cryptoReceived' : 'payment.orders.cryptoDue') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.crypto_amount || props.cryptoAmount }} USDT</span>
               </div>
             </div>
@@ -43,6 +43,11 @@
         </div>
       </div>
     </template>
+
+    <div v-else-if="fulfilling" class="card p-8 text-center" role="status">
+      <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.fulfillmentProcessing') }}</p>
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('payment.result.fulfillmentHint') }}</p>
+    </div>
 
     <!-- Cancelled -->
     <template v-else-if="outcome === 'cancelled'">
@@ -216,7 +221,7 @@
               <dd class="font-medium text-gray-900 dark:text-white">{{ displayPaymentAmount }}</dd>
             </div>
             <div v-if="props.cryptoAmount" class="flex justify-between">
-              <dt class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</dt>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoDue') }}</dt>
               <dd class="font-medium text-gray-900 dark:text-white">{{ props.cryptoAmount }} USDT</dd>
             </div>
           </dl>
@@ -241,11 +246,10 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePaymentStore } from '@/stores/payment'
 import { useAppStore } from '@/stores'
-import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
-import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { formatOrderBonus, formatOrderCredit, formatPaymentAmount, normalizePaymentCurrency, showOrderCredit } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
@@ -281,13 +285,13 @@ const i18n = useI18n()
 const { t } = i18n
 const paymentStore = usePaymentStore()
 const appStore = useAppStore()
-const { formatUSD } = useBillingCurrency()
 
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
 const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
+const fulfilling = ref(false)
 const deepLinkState = ref<AlipayDeepLinkState>('idle')
 const deepLinkFallbackVisible = ref(false)
 const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
@@ -359,10 +363,6 @@ const displayOrderNumber = computed(() => props.outTradeNo || `#${props.orderId}
 
 function formatGatewayAmount(value: number, currency?: string | null): string {
   return formatPaymentAmount(value, currency || paymentCurrency.value, localeCode.value)
-}
-
-function isSuccessStatus(status: string | null | undefined): boolean {
-  return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
 }
 
 function reopenPopup() {
@@ -448,7 +448,10 @@ async function pollStatus() {
     if (outcome.value) return
     order = await tryRecoverPendingOrder(order)
     if (outcome.value) return
-    if (isSuccessStatus(order.status)) {
+    if (order.status === 'PAID' || order.status === 'RECHARGING') {
+      fulfilling.value = true
+      stopPaymentPrompt()
+    } else if (order.status === 'COMPLETED') {
       cleanup()
       paidOrder.value = order
       setOutcome('success')
@@ -462,17 +465,33 @@ async function pollStatus() {
     }
   } finally {
     pollInFlight = false
+    if (remainingSeconds.value <= 0 && !fulfilling.value && !outcome.value) {
+      setOutcome('expired')
+      cleanup()
+    }
   }
 }
 
 function startCountdown(seconds: number) {
   remainingSeconds.value = Math.max(0, seconds)
   const deadline = Date.now() + remainingSeconds.value * 1000
-  if (remainingSeconds.value <= 0) { setOutcome('expired'); return }
+  if (remainingSeconds.value <= 0) {
+    void checkExpiry()
+    return
+  }
   countdownTimer = setInterval(() => {
     remainingSeconds.value = Math.max(0, Math.floor((deadline - Date.now()) / 1000))
-    if (remainingSeconds.value <= 0) { setOutcome('expired'); cleanup() }
+    if (remainingSeconds.value <= 0) void checkExpiry()
   }, 1000)
+}
+
+async function checkExpiry() {
+  stopPaymentPrompt()
+  if (pollInFlight) return
+  await pollStatus()
+  if (fulfilling.value || outcome.value) return
+  setOutcome('expired')
+  cleanup()
 }
 
 async function handleCancel() {
@@ -493,6 +512,10 @@ function handleDone() { cleanup(); emit('done') }
 
 function cleanup() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  stopPaymentPrompt()
+}
+
+function stopPaymentPrompt() {
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
   alipayLauncher?.dispose()
   alipayLauncher = null

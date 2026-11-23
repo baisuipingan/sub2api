@@ -29,7 +29,8 @@ func TestCreateUSDTOrderLocksRateAndNormalizesDailyLimits(t *testing.T) {
 	svc := &PaymentService{entClient: client}
 	merchantUser := &User{ID: user.ID, Email: user.Email}
 	placeOrder := func(amount float64, currency string) error {
-		quote, quoteErr := buildUSDTRechargeQuote(cfg, billing, amount, currency)
+		billing.DisplayCurrency = currency
+		quote, quoteErr := buildSiteRechargePrice(cfg, billing, amount)
 		require.NoError(t, quoteErr)
 		req := CreateOrderRequest{UserID: user.ID, Currency: currency, PaymentType: payment.TypeUSDTBSC, OrderType: payment.OrderTypeBalance, rechargeQuote: quote}
 		order, createErr := svc.createOrderInTx(ctx, req, merchantUser, nil, cfg, quote.CreditedAmount, quote.payBase, quote.FeeRate, quote.PayAmount, quote.BonusAmount, selection)
@@ -37,7 +38,7 @@ func TestCreateUSDTOrderLocksRateAndNormalizesDailyLimits(t *testing.T) {
 			return createErr
 		}
 		require.Equal(t, quote.CreditedCredits, order.CreditedCredits)
-		require.Equal(t, billing.RechargeRate(currency), order.RechargeRateSnapshot)
+		require.Equal(t, quote.rechargeRate, order.RechargeRateSnapshot)
 		require.Equal(t, currency, PaymentOrderCurrency(order))
 		require.Equal(t, quote.payAmountCNY, payment.PaymentOrderLimitAmount(order))
 		require.NoError(t, client.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusPaid).SetPaidAt(time.Now()).Exec(ctx))

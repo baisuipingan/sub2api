@@ -29,7 +29,7 @@
             {{ statusTitle }}
           </h2>
           <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('payment.result.processingHint') }}
+            {{ t(isFulfilling ? 'payment.result.fulfillmentHint' : 'payment.result.processingHint') }}
           </p>
         </div>
         <!-- Order Info -->
@@ -52,20 +52,20 @@
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t(order.payment_type === 'usdt_bsc' ? 'payment.orders.fiatAmount' : 'payment.orders.payAmount') }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t(order.payment_type === 'usdt_bsc' || !order.paid_at ? 'payment.orders.fiatAmount' : 'payment.orders.payAmount') }}</span>
               <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
             </div>
             <div v-if="hasAmountFields(order) && order.crypto_amount" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t(order.paid_at ? 'payment.orders.cryptoReceived' : 'payment.orders.cryptoDue') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.crypto_amount }} USDT</span>
             </div>
-            <div v-if="hasAmountFields(order) && orderBonusAmount(order) > 0" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && showOrderCredit(order) && orderBonusAmount(order) > 0" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.bonusAmount') }}</span>
-              <span class="font-medium text-amber-600 dark:text-amber-400">+{{ formatCurrentBillingAmount(orderBonusAmount(order), 2) }}</span>
+              <span class="font-medium text-amber-600 dark:text-amber-400">+{{ formatOrderBonus(order, localeCode) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && (order.payment_type === 'usdt_bsc' || order.amount !== order.pay_amount || orderBonusAmount(order) > 0)" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? formatCurrentBillingAmount(order.amount, 2) : formatGatewayAmount(order.amount) }}</span>
+            <div v-if="hasAmountFields(order) && showOrderCredit(order)" class="flex justify-between">
+              <span class="text-gray-500 dark:text-gray-400">{{ t(order.credited_at ? 'payment.orders.creditedAmount' : 'payment.orders.estimatedCredit') }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderCredit(order, localeCode) }}</span>
             </div>
             <div v-if="hasPaymentType(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -107,7 +107,6 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
 import { useRoute, useRouter } from 'vue-router'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import {
@@ -120,7 +119,7 @@ import { useAuthStore } from '@/stores/auth'
 import { paymentAPI } from '@/api/payment'
 import type { PublicOrderVerifyResult } from '@/api/payment'
 import type { OrderStatus, PaymentOrder } from '@/types/payment'
-import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { formatOrderBonus, formatOrderCredit, formatPaymentAmount, normalizePaymentCurrency, showOrderCredit } from '@/components/payment/currency'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
 const i18n = useI18n()
@@ -144,8 +143,8 @@ interface ReturnInfo {
 }
 const returnInfo = ref<ReturnInfo | null>(null)
 
-const SUCCESS_STATUSES = new Set(['COMPLETED', 'PAID', 'RECHARGING'])
-const PENDING_STATUSES = new Set(['PENDING', 'CREATED', 'WAITING', 'PROCESSING'])
+const FULFILLING_STATUSES = new Set(['PAID', 'RECHARGING'])
+const PENDING_STATUSES = new Set(['PENDING', 'CREATED', 'WAITING', 'PROCESSING', ...FULFILLING_STATUSES])
 const STATUS_REFRESH_INTERVAL_MS = 2000
 const STATUS_REFRESH_MAX_ATTEMPTS = 15
 
@@ -179,17 +178,22 @@ const localeCode = computed(() => {
 })
 
 const isSuccess = computed(() => {
-  return isSuccessStatus(order.value?.status)
+  return normalizeOrderStatus(order.value?.status) === 'COMPLETED'
 })
 
 const isPending = computed(() => {
   return isPendingStatus(order.value?.status)
 })
 
+const isFulfilling = computed(() => FULFILLING_STATUSES.has(normalizeOrderStatus(order.value?.status)))
 const statusTitle = computed(() => {
   if (isSuccess.value) {
+    if (hasAmountFields(order.value) && order.value.order_type === 'subscription') {
+      return t('payment.result.subscriptionSuccess')
+    }
     return t('payment.result.success')
   }
+  if (isFulfilling.value) return t('payment.result.fulfillmentProcessing')
   if (isPending.value) {
     return t('payment.result.processing')
   }
@@ -250,10 +254,6 @@ function normalizeOrderStatus(status: string | null | undefined): string {
 
 function displayOrderStatus(status: string): OrderStatus {
   return normalizeOrderStatus(status) as OrderStatus
-}
-
-function isSuccessStatus(status: string | null | undefined): boolean {
-  return SUCCESS_STATUSES.has(normalizeOrderStatus(status))
 }
 
 function isPendingStatus(status: string | null | undefined): boolean {

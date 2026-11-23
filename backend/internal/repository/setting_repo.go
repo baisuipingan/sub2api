@@ -149,6 +149,21 @@ func (r *settingRepository) Delete(ctx context.Context, key string) error {
 	return err
 }
 
+func (r *settingRepository) CompareAndSwapBillingCurrencyConfig(ctx context.Context, previous *string, next string) (bool, error) {
+	now := time.Now()
+	key := service.SettingKeyBillingCurrencyConfig
+	if previous == nil {
+		err := r.client.Setting.Create().SetKey(key).SetValue(next).SetUpdatedAt(now).Exec(ctx)
+		if ent.IsConstraintError(err) {
+			return false, nil
+		}
+		return err == nil, err
+	}
+	count, err := r.client.Setting.Update().Where(setting.KeyEQ(key), setting.ValueEQ(*previous)).
+		SetValue(next).SetUpdatedAt(now).Save(ctx)
+	return count == 1, err
+}
+
 // CompareAndSwapDesktopAgentConfig never upserts: a stale disable cannot replace
 // a newer policy or resurrect a configuration removed by another administrator.
 func (r *settingRepository) CompareAndSwapDesktopAgentConfig(ctx context.Context, previous, next string) (bool, error) {

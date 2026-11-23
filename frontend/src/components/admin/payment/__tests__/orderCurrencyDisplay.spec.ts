@@ -104,7 +104,10 @@ describe('admin order currency display', () => {
     const wrapper = mount(OrderTable, {
       props: {
         orders: [
-          orderFactory({ id: 1, currency: 'USD', amount: 100, pay_amount: 108 }),
+          orderFactory({
+            id: 1, currency: 'USD', amount: 100, pay_amount: 108, order_type: 'balance',
+            credited_at: '2026-06-25T10:01:00Z', credited_display_currency: 'USD', credited_display_amount: '100.00',
+          }),
           orderFactory({ id: 2, currency: 'CNY', amount: 100, pay_amount: 108 }),
         ],
         loading: false,
@@ -124,7 +127,7 @@ describe('admin order currency display', () => {
     expect(text).toContain('$100.00')
   })
 
-  it('converts site credited and refund amounts to CNY while preserving gateway currency', () => {
+  it('uses frozen credited amounts in order history and current balance in the legacy refund dialog', () => {
     const previousConfig = window.__APP_CONFIG__
     window.__APP_CONFIG__ = {
       ...(previousConfig ?? {}),
@@ -137,8 +140,14 @@ describe('admin order currency display', () => {
       const wrapper = mount(OrderTable, {
         props: {
           orders: [
-            orderFactory({ id: 1, currency: 'USD', amount: 100, pay_amount: 108 }),
-            orderFactory({ id: 2, currency: 'CNY', amount: 100, pay_amount: 108 }),
+            orderFactory({
+            id: 1, currency: 'USD', amount: 100, pay_amount: 108, order_type: 'balance',
+            credited_at: '2026-06-25T10:01:00Z', credited_display_currency: 'USD', credited_display_amount: '100.00',
+          }),
+            orderFactory({
+              id: 2, currency: 'CNY', amount: 100, pay_amount: 108, order_type: 'balance',
+              credited_at: '2026-06-25T10:01:00Z', credited_display_currency: 'CNY', credited_display_amount: '675.00',
+            }),
           ],
           loading: false,
         },
@@ -148,8 +157,9 @@ describe('admin order currency display', () => {
       const text = wrapper.text()
       expect(text).toContain('$108.00')
       expect(text).toContain('¥108.00')
-      expect(text).toContain('¥720.00')
-      expect(text).not.toContain('$100.00')
+      expect(text).toContain('¥675.00')
+      expect(text).toContain('$100.00')
+      expect(text).not.toContain('¥720.00')
 
       const detail = mount(AdminRefundDialog, {
         props: {

@@ -87,10 +87,14 @@ type wechatOAuthUserInfoResponse struct {
 }
 
 type wechatPaymentOAuthContext struct {
-	PaymentType string `json:"payment_type"`
-	Amount      string `json:"amount,omitempty"`
-	OrderType   string `json:"order_type,omitempty"`
-	PlanID      int64  `json:"plan_id,omitempty"`
+	PaymentType       string  `json:"payment_type"`
+	Amount            string  `json:"amount,omitempty"`
+	OrderType         string  `json:"order_type,omitempty"`
+	PlanID            int64   `json:"plan_id,omitempty"`
+	QuoteID           string  `json:"quote_id,omitempty"`
+	Currency          string  `json:"currency,omitempty"`
+	BillingVersion    int64   `json:"billing_version,omitempty"`
+	ExpectedPayAmount float64 `json:"expected_pay_amount,omitempty"`
 }
 
 // WeChatOAuthStart starts the WeChat OAuth login flow and stores the short-lived
@@ -355,11 +359,17 @@ func (h *AuthHandler) WeChatPaymentOAuthStart(c *gin.Context) {
 	if redirectTo == "" {
 		redirectTo = wechatPaymentOAuthDefaultTo
 	}
+	expectedPayAmount, _ := strconv.ParseFloat(c.Query("expected_pay_amount"), 64)
+	billingVersion, _ := strconv.ParseInt(c.Query("billing_version"), 10, 64)
 	rawContext, err := encodeWeChatPaymentOAuthContext(wechatPaymentOAuthContext{
-		PaymentType: paymentType,
-		Amount:      strings.TrimSpace(c.Query("amount")),
-		OrderType:   strings.TrimSpace(c.Query("order_type")),
-		PlanID:      parseWeChatPaymentPlanID(c.Query("plan_id")),
+		PaymentType:       paymentType,
+		Amount:            strings.TrimSpace(c.Query("amount")),
+		OrderType:         strings.TrimSpace(c.Query("order_type")),
+		PlanID:            parseWeChatPaymentPlanID(c.Query("plan_id")),
+		QuoteID:           strings.TrimSpace(c.Query("quote_id")),
+		Currency:          strings.TrimSpace(c.Query("currency")),
+		BillingVersion:    billingVersion,
+		ExpectedPayAmount: expectedPayAmount,
 	})
 	if err != nil {
 		response.ErrorFrom(c, infraerrors.InternalServer("OAUTH_CONTEXT_ENCODE_FAILED", "failed to encode oauth context").WithCause(err))
@@ -456,13 +466,17 @@ func (h *AuthHandler) WeChatPaymentOAuthCallback(c *gin.Context) {
 	}
 
 	resumeToken, err := h.wechatPaymentResumeService().CreateWeChatPaymentResumeToken(service.WeChatPaymentResumeClaims{
-		OpenID:      openid,
-		PaymentType: paymentContext.PaymentType,
-		Amount:      paymentContext.Amount,
-		OrderType:   paymentContext.OrderType,
-		PlanID:      paymentContext.PlanID,
-		RedirectTo:  redirectTo,
-		Scope:       scope,
+		OpenID:            openid,
+		PaymentType:       paymentContext.PaymentType,
+		Amount:            paymentContext.Amount,
+		OrderType:         paymentContext.OrderType,
+		PlanID:            paymentContext.PlanID,
+		QuoteID:           paymentContext.QuoteID,
+		Currency:          paymentContext.Currency,
+		BillingVersion:    paymentContext.BillingVersion,
+		ExpectedPayAmount: paymentContext.ExpectedPayAmount,
+		RedirectTo:        redirectTo,
+		Scope:             scope,
 	})
 	if err != nil {
 		redirectOAuthError(c, frontendCallback, "invalid_context", "failed to encode payment resume context", "")

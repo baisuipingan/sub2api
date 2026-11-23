@@ -69,7 +69,7 @@
         <div
           class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-3 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-400"
         >
-          <span>{{ t('admin.settings.payment.rechargeBonus.minAmountLabel') }}</span>
+          <span>{{ t('admin.settings.payment.rechargeBonus.minAmountLabel') }} (CNY)</span>
           <span>
             {{ currentMode === 'discount'
               ? t('admin.settings.payment.rechargeBonus.percentLabelDiscount')

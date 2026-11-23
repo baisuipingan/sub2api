@@ -297,7 +297,18 @@ func (s *SettingService) UpdateBillingCurrencyConfig(ctx context.Context, cfg Bi
 	if s == nil || s.settingRepo == nil {
 		return BillingCurrencyConfig{}, ErrSettingNotFound
 	}
-	current := s.GetBillingCurrencyConfig(ctx)
+	var previous *string
+	current := DefaultBillingCurrencyConfig()
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyBillingCurrencyConfig)
+	if err == nil {
+		previous = &raw
+		current, err = parseBillingCurrencyConfig(raw)
+		if err != nil {
+			return BillingCurrencyConfig{}, fmt.Errorf("read existing billing currency config: %w", err)
+		}
+	} else if !errors.Is(err, ErrSettingNotFound) {
+		return BillingCurrencyConfig{}, fmt.Errorf("read existing billing currency config: %w", err)
+	}
 	if cfg.Version > 0 && cfg.Version != current.Version {
 		return BillingCurrencyConfig{}, infraerrors.Conflict(
 			"BILLING_CURRENCY_VERSION_CONFLICT",
@@ -314,7 +325,20 @@ func (s *SettingService) UpdateBillingCurrencyConfig(ctx context.Context, cfg Bi
 	if err != nil {
 		return BillingCurrencyConfig{}, fmt.Errorf("marshal billing currency config: %w", err)
 	}
-	if err := s.settingRepo.Set(ctx, SettingKeyBillingCurrencyConfig, string(payload)); err != nil {
+	if repo, ok := s.settingRepo.(interface {
+		CompareAndSwapBillingCurrencyConfig(context.Context, *string, string) (bool, error)
+	}); ok {
+		saved, err := repo.CompareAndSwapBillingCurrencyConfig(ctx, previous, string(payload))
+		if err != nil {
+			return BillingCurrencyConfig{}, fmt.Errorf("save billing currency config: %w", err)
+		}
+		if !saved {
+			return BillingCurrencyConfig{}, infraerrors.Conflict(
+				"BILLING_CURRENCY_VERSION_CONFLICT",
+				"billing currency settings changed; reload before saving",
+			)
+		}
+	} else if err := s.settingRepo.Set(ctx, SettingKeyBillingCurrencyConfig, string(payload)); err != nil {
 		return BillingCurrencyConfig{}, fmt.Errorf("save billing currency config: %w", err)
 	}
 	normalized = publishBillingCurrencyConfig(normalized)

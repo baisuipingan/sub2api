@@ -71,22 +71,26 @@ func generateRandomString(n int) string {
 }
 
 type CreateOrderRequest struct {
-	UserID          int64
-	Amount          float64
-	PaymentType     string
-	Currency        string
-	OpenID          string
-	ClientIP        string
-	IsMobile        bool
-	IsWeChatBrowser bool
-	SrcHost         string
-	SrcURL          string
-	ReturnURL       string
-	PaymentSource   string
-	OrderType       string
-	PlanID          int64
-	Locale          string
-	rechargeQuote   *RechargeQuote
+	UserID            int64
+	Amount            float64
+	PaymentType       string
+	Currency          string
+	BillingVersion    int64
+	ExpectedPayAmount float64
+	QuoteID           string
+	OpenID            string
+	ClientIP          string
+	IsMobile          bool
+	IsWeChatBrowser   bool
+	SrcHost           string
+	SrcURL            string
+	ReturnURL         string
+	PaymentSource     string
+	OrderType         string
+	PlanID            int64
+	Locale            string
+	rechargeQuote     *RechargeQuote
+	rechargeOrderNo   string
 }
 
 type CreateOrderResponse struct {
@@ -158,9 +162,17 @@ type DashboardStats struct {
 	AvgAmount     CurrencyAmounts `json:"avg_amount"`
 	PendingOrders int             `json:"pending_orders"`
 
-	DailySeries    []DailyStats        `json:"daily_series"`
-	PaymentMethods []PaymentMethodStat `json:"payment_methods"`
-	TopUsers       TopUsersByCurrency  `json:"top_users"`
+	DailySeries       []DailyStats            `json:"daily_series"`
+	PaymentMethods    []PaymentMethodStat     `json:"payment_methods"`
+	TopUsers          TopUsersByCurrency      `json:"top_users"`
+	USDTBEP20Receipts *USDTBEP20ReceiptTotals `json:"usdt_bep20_receipts,omitempty"`
+}
+
+// USDTBEP20ReceiptTotals keeps chain decimal precision independent of fiat totals.
+type USDTBEP20ReceiptTotals struct {
+	TotalAmount        string `json:"total_amount"`
+	TodayAmount        string `json:"today_amount"`
+	MissingAmountCount int    `json:"missing_amount_count"`
 }
 
 // CurrencyAmounts holds payment amounts keyed by their ISO 4217 currency.

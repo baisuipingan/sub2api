@@ -8022,7 +8022,7 @@
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
-                      placeholder="Sub2API"
+                      placeholder="MiloRouter"
                     />
                   </div>
                   <div>
@@ -8033,7 +8033,7 @@
                       v-model="form.payment_product_name_suffix"
                       type="text"
                       class="input"
-                      placeholder="CNY"
+                      :placeholder="t('admin.settings.payment.optionalNameAffix')"
                     />
                   </div>
                   <div>
@@ -8043,19 +8043,18 @@
                     <div
                       class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
                     >
-                      {{
-                        (form.payment_product_name_prefix || "Sub2API") +
-                        " 100 " +
-                        (form.payment_product_name_suffix || "CNY")
-                      }}
+                      {{ paymentSubjectPreview }}
                     </div>
                   </div>
                 </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {{ t('admin.settings.payment.platformPricingHint', { currency: billingView.displayCurrency, rate: billingView.usdToCny }) }}
+                </p>
                 <!-- Row 2: Balance toggle + amounts -->
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
                     <label class="input-label">{{
-                      t("admin.settings.payment.minAmount")
+                      t("admin.settings.payment.minAmount") + " (CNY)"
                     }}</label
                     ><input
                       :value="form.payment_min_amount || ''"
@@ -8074,7 +8073,7 @@
                   </div>
                   <div>
                     <label class="input-label">{{
-                      t("admin.settings.payment.maxAmount")
+                      t("admin.settings.payment.maxAmount") + " (CNY)"
                     }}</label
                     ><input
                       :value="form.payment_max_amount || ''"
@@ -8093,7 +8092,7 @@
                   </div>
                   <div>
                     <label class="input-label">{{
-                      t("admin.settings.payment.dailyLimit")
+                      t("admin.settings.payment.dailyLimit") + " (CNY)"
                     }}</label
                     ><input
                       :value="form.payment_daily_limit || ''"
@@ -8110,134 +8109,7 @@
                       :placeholder="t('admin.settings.payment.noLimit')"
                     />
                   </div>
-                  <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.balanceRechargeMultiplier")
-                    }}</label>
-                    <input
-                      :value="form.payment_balance_recharge_multiplier || ''"
-                      @input="
-                        form.payment_balance_recharge_multiplier =
-                          parseFloat(
-                            ($event.target as HTMLInputElement).value,
-                          ) || 1
-                      "
-                      type="number"
-                      step="0.000001"
-                      min="0.000001"
-                      class="input"
-                    />
-                    <p class="mt-0.5 text-xs text-gray-400">
-                      {{
-                        t(
-                          "admin.settings.payment.balanceRechargeMultiplierHint",
-                        )
-                      }}
-                    </p>
-                    <p
-                      class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400"
-                    >
-                      {{
-                        t("admin.settings.payment.balanceRechargePreview", {
-                          usd: formatBalanceRechargeMultiplier(
-                            Number(form.payment_balance_recharge_multiplier) ||
-                              1,
-                          ),
-                        })
-                      }}
-                    </p>
-                  </div>
-                  <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.subscriptionUsdToCnyRate")
-                    }}</label>
-                    <input
-                      :value="form.payment_subscription_usd_to_cny_rate || ''"
-                      @input="
-                        form.payment_subscription_usd_to_cny_rate =
-                          parseFloat(
-                            ($event.target as HTMLInputElement).value,
-                          ) || 0
-                      "
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      class="input"
-                      :placeholder="
-                        t(
-                          'admin.settings.payment.subscriptionUsdToCnyRateDisabled',
-                        )
-                      "
-                    />
-                    <p class="mt-0.5 text-xs text-gray-400">
-                      {{
-                        t("admin.settings.payment.subscriptionUsdToCnyRateHint")
-                      }}
-                    </p>
-                  </div>
-                  <div>
-                    <label class="input-label">{{
-                      t("admin.settings.payment.rechargeFeeRate")
-                    }}</label>
-                    <div class="relative">
-                      <input
-                        :value="form.payment_recharge_fee_rate ?? ''"
-                        @input="
-                          form.payment_recharge_fee_rate = Math.min(
-                            100,
-                            Math.max(
-                              0,
-                              Math.round(
-                                parseFloat(
-                                  ($event.target as HTMLInputElement).value ||
-                                    '0',
-                                ) * 100,
-                              ) / 100,
-                            ),
-                          )
-                        "
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        class="input pr-8"
-                      />
-                      <span
-                        class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400"
-                        >%</span
-                      >
-                    </div>
-                    <p class="mt-0.5 text-xs text-gray-400">
-                      {{ t("admin.settings.payment.rechargeFeeRateHint") }}
-                    </p>
-                    <p
-                      v-if="(Number(form.payment_recharge_fee_rate) || 0) > 0"
-                      class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400"
-                    >
-                      {{
-                        t("admin.settings.payment.rechargeFeePreview", {
-                          fee: (
-                            Number(form.payment_recharge_fee_rate) || 0
-                          ).toFixed(2),
-                        })
-                      }}
-                    </p>
-                  </div>
-                  <div>
-                    <label class="input-label"
-                      >{{ t("admin.settings.payment.orderTimeout") }}
-                      <span class="text-red-500">*</span></label
-                    ><input
-                      v-model.number="form.payment_order_timeout_minutes"
-                      type="number"
-                      min="1"
-                      class="input"
-                      required
-                    />
-                    <p class="mt-0.5 text-xs text-gray-400">
-                      {{ t("admin.settings.payment.orderTimeoutHint") }}
-                    </p>
-                  </div>
+
                 </div>
                 <!-- Row 3: Pending orders + load balance + cancel rate limit (all in one row) -->
                 <div class="flex flex-wrap items-end gap-4">
@@ -9110,7 +8982,6 @@ import AgentSettings from "@/components/admin/settings/AgentSettings.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
-import { formatBalanceRechargeMultiplier } from "@/utils/rechargeBonus";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
@@ -9132,6 +9003,7 @@ const {
   usdToDisplay,
   displayToUSD,
   symbol: billingSymbol,
+  view: billingView,
 } = useBillingCurrency();
 const appStore = useAppStore();
 // 关闭 step-up 开关是敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 码重试
@@ -9142,6 +9014,13 @@ const isZhLocale = computed(() => locale.value.startsWith("zh"));
 function localText(zh: string, en: string): string {
   return isZhLocale.value ? zh : en;
 }
+
+const paymentSubjectPreview = computed(() => {
+  const prefix = form.payment_product_name_prefix?.trim();
+  const suffix = form.payment_product_name_suffix?.trim();
+  return [prefix || (suffix ? "" : "MiloRouter"), "100.00", billingView.value.displayCurrency, suffix]
+    .filter(Boolean).join(" ");
+});
 
 const paymentGuideHref = computed(() =>
   locale.value.startsWith("zh")

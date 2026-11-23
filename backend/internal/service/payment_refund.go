@@ -194,9 +194,12 @@ func (s *PaymentService) validateRefundRequest(ctx context.Context, oid, uid int
 	if o.Status != OrderStatusCompleted {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "only completed orders can request refund")
 	}
+	if paymentOrderRefundBlocked(o) {
+		return nil, infraerrors.Forbidden("USER_REFUND_DISABLED", "refund is not available for this order")
+	}
 	// Check provider instance allows user refund
 	inst, err := s.getRefundOrderProviderInstance(ctx, o)
-	if err != nil || inst == nil {
+	if err != nil || inst == nil || inst.ProviderKey == payment.TypeBEpusdt {
 		return nil, infraerrors.Forbidden("USER_REFUND_DISABLED", "refund is not available for this order")
 	}
 	if !inst.AllowUserRefund {
@@ -215,6 +218,9 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 	if !psSliceContains(ok, o.Status) {
 		return nil, nil, infraerrors.BadRequest("INVALID_STATUS", "order status does not allow refund")
 	}
+	if err := requirePaymentOrderRefund(o); err != nil {
+		return nil, nil, err
+	}
 	// Check provider instance allows admin refund
 	inst, instErr := s.getRefundOrderProviderInstance(ctx, o)
 	if instErr != nil {
@@ -225,7 +231,7 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 		// Legacy order without provider_instance_id — block refund
 		return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not available for this order")
 	}
-	if !inst.RefundEnabled {
+	if !inst.RefundEnabled || inst.ProviderKey == payment.TypeBEpusdt {
 		return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not enabled for this provider")
 	}
 	if math.IsNaN(amt) || math.IsInf(amt, 0) {
@@ -305,6 +311,9 @@ func (s *PaymentService) invalidateRefundBalanceCache(ctx context.Context, userI
 }
 
 func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
+	if err := requirePaymentOrderRefund(p.Order); err != nil {
+		return nil, err
+	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(p.OrderID), paymentorder.StatusIn(OrderStatusCompleted, OrderStatusRefundRequested, OrderStatusRefundFailed)).SetStatus(OrderStatusRefunding).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("lock: %w", err)
@@ -435,6 +444,9 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 	}
 	if o.Status != OrderStatusRefundPending {
 		return nil, infraerrors.BadRequest("INVALID_STATUS", "only refund pending orders can be finalized")
+	}
+	if err := requirePaymentOrderRefund(o); err != nil {
+		return nil, err
 	}
 
 	prov, err := s.getRefundProvider(ctx, o)
@@ -740,6 +752,9 @@ func (s *PaymentService) latestRefundPendingDetail(ctx context.Context, oid int6
 // getRefundProvider creates a provider using the order's original instance config.
 // Delegates to getOrderProvider which handles instance lookup and fallback.
 func (s *PaymentService) getRefundProvider(ctx context.Context, o *dbent.PaymentOrder) (payment.Provider, error) {
+	if err := requirePaymentOrderRefund(o); err != nil {
+		return nil, err
+	}
 	inst, err := s.getRefundOrderProviderInstance(ctx, o)
 	if err != nil {
 		return nil, err
@@ -747,7 +762,20 @@ func (s *PaymentService) getRefundProvider(ctx context.Context, o *dbent.Payment
 	if inst == nil {
 		return nil, fmt.Errorf("refund provider instance is unavailable for order %d", o.ID)
 	}
+	if inst.ProviderKey == payment.TypeBEpusdt {
+		return nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not available for this order")
+	}
 	return s.createProviderFromInstance(ctx, inst)
+}
+
+// Unified recharges store exact integer wallet credits, including fractions of
+// a USD cent. The legacy refund flow deducts USD values from rounded order
+// fields and cannot write a matching credit-ledger reversal.
+func requirePaymentOrderRefund(order *dbent.PaymentOrder) error {
+	if paymentOrderRefundBlocked(order) {
+		return infraerrors.Forbidden("REFUND_DISABLED", "refund is not available for this order")
+	}
+	return nil
 }
 
 func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr error) (*RefundResult, error) {

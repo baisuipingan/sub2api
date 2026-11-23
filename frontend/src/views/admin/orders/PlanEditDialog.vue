@@ -38,10 +38,10 @@
         <div>
           <label class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label>
           <input v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required />
-          <p v-if="subscriptionCnyPreview" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400">
-            {{ t('payment.admin.subscriptionCnyPayPreview', { amount: subscriptionCnyPreview.amount }) }}
-            <span v-if="subscriptionCnyPreview.feeRate > 0">
-              {{ t('payment.admin.subscriptionCnyPayPreviewWithFee', { feeRate: subscriptionCnyPreview.feeRate, total: subscriptionCnyPreview.total }) }}
+          <p v-if="paymentPreview" class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400">
+            {{ t('payment.admin.subscriptionPaymentPreview', { total: paymentPreview.total }) }}
+            <span v-if="paymentPreview.feeRate > 0">
+              {{ t('payment.admin.subscriptionPaymentPreviewWithFee', { feeRate: paymentPreview.feeRate }) }}
             </span>
           </p>
         </div>
@@ -54,9 +54,14 @@
       <div class="grid grid-cols-2 gap-4">
         <div><label class="input-label">{{ t('payment.admin.sortOrder') }}</label><input v-model.number="planForm.sort_order" type="number" min="0" class="input" /></div>
         <div>
-          <label class="input-label">{{ t('payment.admin.currency') }}</label>
-          <input v-model="planForm.currency" type="text" maxlength="3" class="input uppercase" :placeholder="t('payment.admin.currencyPlaceholder')" />
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.currencyHint') }}</p>
+          <label for="plan-currency" class="input-label">{{ t('payment.admin.currency') }}</label>
+          <select id="plan-currency" v-model="planForm.currency" class="input" :required="planForm.for_sale">
+            <option value="" disabled>{{ t('payment.admin.currencyPlaceholder') }}</option>
+            <option value="USD">USD ($)</option>
+            <option value="CNY">CNY (¥)</option>
+          </select>
+          <p v-if="legacyCurrency" class="mt-1 text-xs text-amber-700 dark:text-amber-400">{{ t('payment.admin.confirmLegacyPlanCurrency') }}</p>
+          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.currencyHint') }}</p>
         </div>
       </div>
       <div>
@@ -68,6 +73,9 @@
         <label class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.admin.forSale') }}</label>
         <button
           type="button"
+          role="switch"
+          :aria-checked="planForm.for_sale"
+          :aria-label="t('payment.admin.forSale')"
           :class="[
             'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
             planForm.for_sale ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
@@ -97,8 +105,8 @@ import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatPaymentAmount } from '@/components/payment/currency'
-import type { SubscriptionPlan } from '@/types/payment'
+import { fiatPaymentTotal, formatPaymentAmount, isSitePaymentCurrency } from '@/components/payment/currency'
+import type { RechargeCurrency, SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -112,6 +120,7 @@ const props = defineProps<{
   plan: SubscriptionPlan | null
   groups: AdminGroup[]
   paymentConfig?: AdminPaymentConfig | null
+  platformCurrency?: RechargeCurrency
 }>()
 
 const { formatUSD } = useBillingCurrency()
@@ -125,7 +134,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, currency: '' as RechargeCurrency | '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
 
 const validityUnitOptions = computed(() => [
@@ -149,41 +158,29 @@ const selectedGroupInfo = computed(() => {
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
 
-function roundCnyAmount(value: number): number {
-  return Math.round(value * 100) / 100
-}
-
-function ceilCnyAmount(value: number): number {
-  return Math.ceil(value * 100) / 100
-}
-
-const subscriptionCnyPreview = computed(() => {
-  const price = Number(planForm.price) || 0
-  const rate = Number(props.paymentConfig?.subscription_usd_to_cny_rate) || 0
-  if (price <= 0 || rate <= 0) return null
-
-  const amount = roundCnyAmount(price * rate)
-  const feeRate = Number(props.paymentConfig?.recharge_fee_rate) || 0
-  const fee = feeRate > 0 ? ceilCnyAmount((amount * feeRate) / 100) : 0
-  const total = feeRate > 0 ? roundCnyAmount(amount + fee) : amount
-
-  return {
-    amount: formatPaymentAmount(amount, 'CNY'),
-    feeRate,
-    total: formatPaymentAmount(total, 'CNY'),
-  }
+const legacyCurrency = computed(() => !!props.plan && !isSitePaymentCurrency(props.plan.currency))
+const paymentPreview = computed(() => {
+  const price = Number(planForm.price)
+  if (!Number.isFinite(price) || price <= 0 || !planForm.currency || !props.paymentConfig) return null
+  const feeRate = props.paymentConfig.recharge_fee_rate || 0
+  const { total } = fiatPaymentTotal(price, feeRate)
+  return { total: formatPaymentAmount(total, planForm.currency), feeRate }
 })
 
 // Reset form when dialog opens
 watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, currency: props.plan.currency || '', validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, currency: isSitePaymentCurrency(props.plan.currency) ? props.plan.currency : '', validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale && !legacyCurrency.value })
     planFeaturesText.value = (props.plan.features || []).join('\n')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, currency: props.platformCurrency || '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
     planFeaturesText.value = ''
   }
+}, { immediate: true })
+
+watch(() => props.platformCurrency, currency => {
+  if (props.show && !props.plan && !planForm.currency && currency) planForm.currency = currency
 })
 
 /** Build request payload with snake_case keys matching backend JSON tags */
@@ -195,7 +192,7 @@ function buildPlanPayload() {
     description: planForm.description,
     price: planForm.price,
     original_price: planForm.original_price || 0,
-    currency: planForm.currency.trim().toUpperCase(),
+    currency: planForm.currency || undefined,
     validity_days: planForm.validity_days,
     validity_unit: planForm.validity_unit,
     sort_order: planForm.sort_order,
@@ -211,6 +208,10 @@ async function handleSavePlan() {
   }
   if (!planForm.price || planForm.price <= 0) {
     appStore.showError(t('payment.admin.priceRequired'))
+    return
+  }
+  if (planForm.for_sale && !isSitePaymentCurrency(planForm.currency)) {
+    appStore.showError(t('payment.admin.confirmLegacyPlanCurrency'))
     return
   }
   if (!planForm.validity_days || planForm.validity_days < 1) {

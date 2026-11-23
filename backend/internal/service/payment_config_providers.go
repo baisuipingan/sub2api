@@ -467,6 +467,7 @@ func (s *PaymentConfigService) UpdateProviderInstance(ctx context.Context, id in
 func (s *PaymentConfigService) GetUserRefundEligibleInstanceIDs(ctx context.Context) ([]string, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(
+			paymentproviderinstance.ProviderKeyNEQ(payment.TypeBEpusdt),
 			paymentproviderinstance.RefundEnabledEQ(true),
 			paymentproviderinstance.AllowUserRefundEQ(true),
 		).Select(paymentproviderinstance.FieldID).All(ctx)

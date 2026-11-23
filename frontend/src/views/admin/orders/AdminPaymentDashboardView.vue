@@ -30,6 +30,24 @@
       </div>
       <template v-else-if="stats">
         <OrderStatsCards :stats="stats" />
+        <div v-if="stats.usdt_bep20_receipts" class="card p-4">
+          <h3 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('payment.admin.usdtReceipts') }}
+          </h3>
+          <dl class="flex flex-wrap gap-x-8 gap-y-3">
+            <div>
+              <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.usdtReceiptsToday') }}</dt>
+              <dd class="text-base font-medium tabular-nums text-gray-900 dark:text-white">{{ stats.usdt_bep20_receipts.today_amount }} USDT</dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.usdtReceiptsPeriod') }}</dt>
+              <dd class="text-base font-medium tabular-nums text-gray-900 dark:text-white">{{ stats.usdt_bep20_receipts.total_amount }} USDT</dd>
+            </div>
+          </dl>
+          <p v-if="stats.usdt_bep20_receipts.missing_amount_count" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('payment.admin.usdtReceiptsMissing', { count: stats.usdt_bep20_receipts.missing_amount_count }) }}
+          </p>
+        </div>
         <DailyRevenueChart :data="stats.daily_series || []" :loading="loading" />
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div class="card p-4">

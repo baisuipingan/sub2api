@@ -44,7 +44,14 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 // GetPlans returns subscription plans available for sale.
 // GET /api/v1/payment/plans
 func (h *PaymentHandler) GetPlans(c *gin.Context) {
-	plans, err := h.configService.ListPlansForSale(c.Request.Context())
+	ctx := c.Request.Context()
+	cfg, err := h.configService.GetPaymentConfig(ctx)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	billing, _ := cfg.RechargeCheckoutCurrency(ctx)
+	plans, err := h.configService.ListCheckoutPlans(ctx, billing.DisplayCurrency)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -96,15 +103,12 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Fetch limits (methods + global range)
-	limitsResp, err := h.configService.GetAvailableMethodLimits(ctx)
+	cfg, err := h.configService.GetPaymentConfig(ctx)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	// Fetch payment config
-	cfg, err := h.configService.GetPaymentConfig(ctx)
+	limitsResp, err := h.configService.GetCheckoutMethodLimits(ctx, cfg)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -119,7 +123,12 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	// Fetch plans with group info
-	plans, _ := h.configService.ListPlansForSale(ctx)
+	billing, rechargeRange := cfg.RechargeCheckoutCurrency(ctx)
+	plans, err := h.configService.ListCheckoutPlans(ctx, billing.DisplayCurrency)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
@@ -140,12 +149,17 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		})
 	}
 
-	if limits, ok := limitsResp.Methods[payment.TypeUSDTBSC]; ok {
-		limits.RechargeLimits = cfg.RechargeQuoteLimits(c.Request.Context())
-		limitsResp.Methods[payment.TypeUSDTBSC] = limits
-	}
+	subscriptionMethods := limitsResp.RechargeMethods(billing.DisplayCurrency)
+	delete(subscriptionMethods, payment.TypeUSDTBSC)
 	response.Success(c, checkoutInfoResponse{
 		Methods:                       limitsResp.Methods,
+		RechargeMethods:               limitsResp.RechargeMethods(billing.DisplayCurrency),
+		SubscriptionMethods:           subscriptionMethods,
+		PlatformCurrency:              billing.DisplayCurrency,
+		PlatformUSDToCNY:              billing.USDToCNY,
+		BillingVersion:                billing.Version,
+		RechargeMinAmount:             rechargeRange.MinAmount,
+		RechargeMaxAmount:             rechargeRange.MaxAmount,
 		GlobalMin:                     limitsResp.GlobalMin,
 		GlobalMax:                     limitsResp.GlobalMax,
 		Plans:                         planList,
@@ -165,6 +179,13 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 }
 
 type checkoutInfoResponse struct {
+	SubscriptionMethods           map[string]service.MethodLimits `json:"subscription_methods"`
+	RechargeMethods               map[string]service.MethodLimits `json:"recharge_methods"`
+	PlatformCurrency              string                          `json:"platform_currency"`
+	PlatformUSDToCNY              float64                         `json:"platform_usd_to_cny"`
+	BillingVersion                int64                           `json:"billing_version"`
+	RechargeMinAmount             float64                         `json:"recharge_min_amount"`
+	RechargeMaxAmount             float64                         `json:"recharge_max_amount"`
 	Methods                       map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                     float64                         `json:"global_min"`
 	GlobalMax                     float64                         `json:"global_max"`
@@ -241,6 +262,9 @@ type CreateOrderRequest struct {
 	Amount            float64 `json:"amount"`
 	PaymentType       string  `json:"payment_type" binding:"required"`
 	Currency          string  `json:"currency"`
+	BillingVersion    int64   `json:"billing_version"`
+	QuoteID           string  `json:"quote_id"`
+	ExpectedPayAmount float64 `json:"expected_pay_amount"`
 	OpenID            string  `json:"openid"`
 	WechatResumeToken string  `json:"wechat_resume_token"`
 	ReturnURL         string  `json:"return_url"`
@@ -253,23 +277,24 @@ type CreateOrderRequest struct {
 	IsMobile *bool `json:"is_mobile,omitempty"`
 }
 
-// GetRechargeQuote returns a fiat-to-credit quote for a USDT recharge.
+// GetRechargeQuote returns a fiat-to-credit quote for the current site currency.
 func (h *PaymentHandler) GetRechargeQuote(c *gin.Context) {
 	subject, ok := requireAuth(c)
 	if !ok {
 		return
 	}
 	var req struct {
-		Amount      float64 `json:"amount"`
-		PaymentType string  `json:"payment_type" binding:"required"`
-		Currency    string  `json:"currency"`
+		Amount         float64 `json:"amount"`
+		PaymentType    string  `json:"payment_type" binding:"required"`
+		Currency       string  `json:"currency"`
+		BillingVersion int64   `json:"billing_version"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
 	quote, err := h.paymentService.RechargeQuote(c.Request.Context(), service.CreateOrderRequest{
-		UserID: subject.UserID, Amount: req.Amount, PaymentType: req.PaymentType, Currency: req.Currency,
+		UserID: subject.UserID, Amount: req.Amount, PaymentType: req.PaymentType, Currency: req.Currency, BillingVersion: req.BillingVersion,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -308,21 +333,24 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		mobile = *req.IsMobile
 	}
 	result, err := h.paymentService.CreateOrder(c.Request.Context(), service.CreateOrderRequest{
-		UserID:          subject.UserID,
-		Amount:          req.Amount,
-		PaymentType:     req.PaymentType,
-		Currency:        req.Currency,
-		OpenID:          req.OpenID,
-		ClientIP:        c.ClientIP(),
-		IsMobile:        mobile,
-		IsWeChatBrowser: isWeChatBrowser(c),
-		SrcHost:         c.Request.Host,
-		SrcURL:          c.Request.Referer(),
-		ReturnURL:       req.ReturnURL,
-		PaymentSource:   req.PaymentSource,
-		OrderType:       req.OrderType,
-		PlanID:          req.PlanID,
-		Locale:          c.GetHeader("Accept-Language"),
+		UserID:            subject.UserID,
+		Amount:            req.Amount,
+		PaymentType:       req.PaymentType,
+		Currency:          req.Currency,
+		BillingVersion:    req.BillingVersion,
+		ExpectedPayAmount: req.ExpectedPayAmount,
+		QuoteID:           req.QuoteID,
+		OpenID:            req.OpenID,
+		ClientIP:          c.ClientIP(),
+		IsMobile:          mobile,
+		IsWeChatBrowser:   isWeChatBrowser(c),
+		SrcHost:           c.Request.Host,
+		SrcURL:            c.Request.Referer(),
+		ReturnURL:         req.ReturnURL,
+		PaymentSource:     req.PaymentSource,
+		OrderType:         req.OrderType,
+		PlanID:            req.PlanID,
+		Locale:            c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -352,6 +380,18 @@ func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeC
 	}
 	req.PaymentType = paymentType
 	req.OpenID = openid
+	if claims.Currency != "" {
+		req.Currency = claims.Currency
+		req.BillingVersion = claims.BillingVersion
+		req.ExpectedPayAmount = claims.ExpectedPayAmount
+	}
+
+	if claims.QuoteID != "" {
+		if req.QuoteID != "" && req.QuoteID != claims.QuoteID {
+			return infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_RESUME_TOKEN", "wechat payment resume quote mismatch")
+		}
+		req.QuoteID = claims.QuoteID
+	}
 
 	if strings.TrimSpace(claims.Amount) != "" {
 		amount, err := strconv.ParseFloat(strings.TrimSpace(claims.Amount), 64)
@@ -536,6 +576,7 @@ type PublicOrderResult struct {
 	PlanID              *int64     `json:"plan_id,omitempty"`
 
 	service.PaymentCryptoDetails
+	service.PaymentOrderAccountingDetails
 }
 
 // PublicOrderVerifyResult is returned by the legacy anonymous out_trade_no
@@ -552,27 +593,28 @@ type PublicOrderVerifyResult struct {
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	return PublicOrderResult{
-		ID:                   order.ID,
-		OutTradeNo:           order.OutTradeNo,
-		Amount:               service.PaymentOrderCreditedAmount(order),
-		PayAmount:            order.PayAmount,
-		FeeRate:              order.FeeRate,
-		BonusAmount:          service.PaymentOrderBonusAmount(order),
-		Currency:             service.PaymentOrderCurrency(order),
-		PaymentCryptoDetails: service.PaymentOrderCryptoDetails(order),
-		PaymentType:          order.PaymentType,
-		OrderType:            order.OrderType,
-		Status:               order.Status,
-		CreatedAt:            order.CreatedAt,
-		ExpiresAt:            order.ExpiresAt,
-		PaidAt:               order.PaidAt,
-		CompletedAt:          order.CompletedAt,
-		RefundAmount:         order.RefundAmount,
-		RefundReason:         order.RefundReason,
-		RefundRequestedAt:    order.RefundRequestedAt,
-		RefundRequestedBy:    order.RefundRequestedBy,
-		RefundRequestReason:  order.RefundRequestReason,
-		PlanID:               order.PlanID,
+		ID:                            order.ID,
+		OutTradeNo:                    order.OutTradeNo,
+		Amount:                        service.PaymentOrderCreditedAmount(order),
+		PayAmount:                     order.PayAmount,
+		FeeRate:                       order.FeeRate,
+		BonusAmount:                   service.PaymentOrderBonusAmount(order),
+		Currency:                      service.PaymentOrderCurrency(order),
+		PaymentCryptoDetails:          service.PaymentOrderCryptoDetails(order),
+		PaymentOrderAccountingDetails: service.PaymentOrderAccounting(order),
+		PaymentType:                   order.PaymentType,
+		OrderType:                     order.OrderType,
+		Status:                        order.Status,
+		CreatedAt:                     order.CreatedAt,
+		ExpiresAt:                     order.ExpiresAt,
+		PaidAt:                        order.PaidAt,
+		CompletedAt:                   order.CompletedAt,
+		RefundAmount:                  order.RefundAmount,
+		RefundReason:                  order.RefundReason,
+		RefundRequestedAt:             order.RefundRequestedAt,
+		RefundRequestedBy:             order.RefundRequestedBy,
+		RefundRequestReason:           order.RefundRequestReason,
+		PlanID:                        order.PlanID,
 	}
 }
 
@@ -686,6 +728,7 @@ type PaymentOrderResult struct {
 	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
 
 	service.PaymentCryptoDetails
+	service.PaymentOrderAccountingDetails
 }
 
 func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []PaymentOrderResult {
@@ -703,29 +746,30 @@ func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderRes
 		return nil
 	}
 	return &PaymentOrderResult{
-		ID:                   order.ID,
-		UserID:               order.UserID,
-		Amount:               service.PaymentOrderCreditedAmount(order),
-		PayAmount:            order.PayAmount,
-		FeeRate:              order.FeeRate,
-		BonusAmount:          service.PaymentOrderBonusAmount(order),
-		Currency:             service.PaymentOrderCurrency(order),
-		PaymentCryptoDetails: service.PaymentOrderCryptoDetails(order),
-		PaymentType:          order.PaymentType,
-		OutTradeNo:           order.OutTradeNo,
-		Status:               order.Status,
-		OrderType:            order.OrderType,
-		CreatedAt:            order.CreatedAt,
-		ExpiresAt:            order.ExpiresAt,
-		PaidAt:               order.PaidAt,
-		CompletedAt:          order.CompletedAt,
-		RefundAmount:         order.RefundAmount,
-		RefundReason:         order.RefundReason,
-		RefundRequestedAt:    order.RefundRequestedAt,
-		RefundRequestedBy:    order.RefundRequestedBy,
-		RefundRequestReason:  order.RefundRequestReason,
-		PlanID:               order.PlanID,
-		ProviderInstanceID:   order.ProviderInstanceID,
+		ID:                            order.ID,
+		UserID:                        order.UserID,
+		Amount:                        service.PaymentOrderCreditedAmount(order),
+		PayAmount:                     order.PayAmount,
+		FeeRate:                       order.FeeRate,
+		BonusAmount:                   service.PaymentOrderBonusAmount(order),
+		Currency:                      service.PaymentOrderCurrency(order),
+		PaymentCryptoDetails:          service.PaymentOrderCryptoDetails(order),
+		PaymentOrderAccountingDetails: service.PaymentOrderAccounting(order),
+		PaymentType:                   order.PaymentType,
+		OutTradeNo:                    order.OutTradeNo,
+		Status:                        order.Status,
+		OrderType:                     order.OrderType,
+		CreatedAt:                     order.CreatedAt,
+		ExpiresAt:                     order.ExpiresAt,
+		PaidAt:                        order.PaidAt,
+		CompletedAt:                   order.CompletedAt,
+		RefundAmount:                  order.RefundAmount,
+		RefundReason:                  order.RefundReason,
+		RefundRequestedAt:             order.RefundRequestedAt,
+		RefundRequestedBy:             order.RefundRequestedBy,
+		RefundRequestReason:           order.RefundRequestReason,
+		PlanID:                        order.PlanID,
+		ProviderInstanceID:            order.ProviderInstanceID,
 	}
 }
 

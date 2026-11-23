@@ -47,7 +47,14 @@ type DefaultLoadBalancer struct {
 
 type contextKey string
 
-const wxpayJSAPIAppIDContextKey contextKey = "payment.wxpay.jsapi_app_id"
+const (
+	wxpayJSAPIAppIDContextKey     contextKey = "payment.wxpay.jsapi_app_id"
+	strictChannelLimitsContextKey contextKey = "payment.strict_channel_limits"
+)
+
+func WithStrictChannelLimits(ctx context.Context) context.Context {
+	return context.WithValue(ctx, strictChannelLimitsContextKey, true)
+}
 
 // NewDefaultLoadBalancer creates a new load balancer.
 func NewDefaultLoadBalancer(db *dbent.Client, encryptionKey []byte) *DefaultLoadBalancer {
@@ -103,7 +110,8 @@ func (lb *DefaultLoadBalancer) SelectInstance(
 	// Step 3: filter by limits.
 	available := filterByLimits(candidates, paymentType, orderAmount)
 	if len(available) == 0 {
-		if providerKey == TypeBEpusdt && paymentType == TypeUSDTBSC {
+		strict, _ := ctx.Value(strictChannelLimitsContextKey).(bool)
+		if strict || (providerKey == TypeBEpusdt && paymentType == TypeUSDTBSC) {
 			return nil, nil
 		}
 		slog.Warn("all instances exceeded limits, using full candidate list",

@@ -24,6 +24,7 @@
         </div>
         <span class="text-sm font-medium text-gray-900 dark:text-white">{{ provider.name }}</span>
         <span class="text-xs text-gray-400 dark:text-gray-500">{{ keyLabel }}</span>
+        <span class="text-xs text-gray-600 dark:text-gray-300">{{ providerCurrencies }}</span>
         <span v-if="provider.payment_mode" class="text-xs text-gray-400 dark:text-gray-500">· {{ modeLabel }}</span>
         <span v-if="enabled && availableTypes.length" class="text-xs text-gray-300 dark:text-gray-600">|</span>
         <div v-if="enabled" class="flex items-center gap-1">
@@ -45,8 +46,8 @@
       <!-- Right: toggles + actions -->
       <div class="flex items-center gap-4">
         <ToggleSwitch :label="t('common.enabled')" :checked="provider.enabled" @toggle="emit('toggleField', 'enabled')" />
-        <ToggleSwitch :label="t('admin.settings.payment.refundEnabled')" :checked="provider.refund_enabled" @toggle="emit('toggleField', 'refund_enabled')" />
-        <ToggleSwitch v-if="provider.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="provider.allow_user_refund" @toggle="emit('toggleField', 'allow_user_refund')" />
+        <ToggleSwitch v-if="provider.provider_key !== 'bepusdt'" :label="t('admin.settings.payment.refundEnabled')" :checked="provider.refund_enabled" @toggle="emit('toggleField', 'refund_enabled')" />
+        <ToggleSwitch v-if="provider.provider_key !== 'bepusdt' && provider.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="provider.allow_user_refund" @toggle="emit('toggleField', 'allow_user_refund')" />
         <div class="flex items-center gap-2 border-l border-gray-200 pl-3 dark:border-dark-600">
           <button type="button" @click="emit('edit')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400">
             <Icon name="edit" size="sm" />
@@ -96,6 +97,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const keyLabel = computed(() => t(PROVIDER_KEY_LABELS[props.provider.provider_key] || props.provider.provider_key))
+
+const providerCurrencies = computed(() => {
+  const { provider_key: key, config } = props.provider
+  if (key === 'bepusdt') return 'USD / CNY · USDT (BEP20)'
+  if (key === 'stripe' || key === 'airwallex') return config?.currency || 'CNY'
+  return 'CNY'
+})
 
 const modeLabel = computed(() => {
   if (props.provider.payment_mode === PAYMENT_MODE_QRCODE) return t('admin.settings.payment.modeQRCode')
