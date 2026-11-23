@@ -6,10 +6,49 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCreateUSDTOrderLocksRateAndNormalizesDailyLimits(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	user, err := client.User.Create().SetEmail("usdt@example.com").SetPasswordHash("hash").Save(ctx)
+	require.NoError(t, err)
+	instance, err := client.PaymentProviderInstance.Create().
+		SetProviderKey(payment.TypeBEpusdt).SetName("USDT").SetConfig("{}").
+		SetSupportedTypes(payment.TypeUSDTBSC).SetPaymentMode("redirect").SetEnabled(true).Save(ctx)
+	require.NoError(t, err)
+
+	cfg := &PaymentConfig{DailyLimit: 80}
+	billing := DefaultBillingCurrencyConfig()
+	billing.RechargeRates = map[string]float64{"USD": 1.25, "CNY": 7.2}
+	selection := &payment.InstanceSelection{ProviderKey: payment.TypeBEpusdt, InstanceID: strconv.FormatInt(instance.ID, 10)}
+	svc := &PaymentService{entClient: client}
+	merchantUser := &User{ID: user.ID, Email: user.Email}
+	placeOrder := func(amount float64, currency string) error {
+		quote, quoteErr := buildUSDTRechargeQuote(cfg, billing, amount, currency)
+		require.NoError(t, quoteErr)
+		req := CreateOrderRequest{UserID: user.ID, Currency: currency, PaymentType: payment.TypeUSDTBSC, OrderType: payment.OrderTypeBalance, rechargeQuote: quote}
+		order, createErr := svc.createOrderInTx(ctx, req, merchantUser, nil, cfg, quote.CreditedAmount, quote.payBase, quote.FeeRate, quote.PayAmount, quote.BonusAmount, selection)
+		if createErr != nil {
+			return createErr
+		}
+		require.Equal(t, quote.CreditedCredits, order.CreditedCredits)
+		require.Equal(t, billing.RechargeRate(currency), order.RechargeRateSnapshot)
+		require.Equal(t, currency, PaymentOrderCurrency(order))
+		require.Equal(t, quote.payAmountCNY, payment.PaymentOrderLimitAmount(order))
+		require.NoError(t, client.PaymentOrder.UpdateOneID(order.ID).SetStatus(OrderStatusPaid).SetPaidAt(time.Now()).Exec(ctx))
+		return nil
+	}
+
+	require.NoError(t, placeOrder(10, "USD"))
+	billing.USDToCNY = 7.1
+	require.ErrorContains(t, placeOrder(9, "CNY"), "daily_limit_exceeded")
+	require.NoError(t, placeOrder(8, "CNY"))
+}
 
 func TestBuildPaymentOrderProviderSnapshot_ExcludesSensitiveConfig(t *testing.T) {
 	t.Parallel()

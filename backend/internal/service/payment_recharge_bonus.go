@@ -323,6 +323,9 @@ func paymentOrderAmountWithoutBonus(o *dbent.PaymentOrder) float64 {
 	if o == nil {
 		return 0
 	}
+	if o.PaymentType == payment.TypeUSDTBSC && o.CreditedCredits > o.BonusCredits {
+		return CreditsToUSD(o.CreditedCredits - o.BonusCredits)
+	}
 	if o.OrderType != payment.OrderTypeBalance || o.BonusAmount <= 0 {
 		return o.Amount
 	}

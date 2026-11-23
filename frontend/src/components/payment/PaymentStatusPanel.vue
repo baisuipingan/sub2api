@@ -21,7 +21,7 @@
                 <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.out_trade_no }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t(isUSDT ? 'payment.orders.creditedAmount' : 'payment.orders.amount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">
                   {{ formatUSD(paidOrder.amount, 2) }}
                   <span v-if="(paidOrder.bonus_amount ?? 0) > 0" class="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400">
@@ -30,8 +30,12 @@
                 </span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-gray-400">{{ t(isUSDT ? 'payment.orders.fiatAmount' : 'payment.orders.payAmount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
+              </div>
+              <div v-if="paidOrder.crypto_amount || props.cryptoAmount" class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.crypto_amount || props.cryptoAmount }} USDT</span>
               </div>
             </div>
           </div>
@@ -205,7 +209,17 @@
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
           <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t(isUSDT ? 'payment.usdtPaymentWaiting' : 'payment.qr.payInNewWindowHint') }}</p>
+          <dl v-if="isUSDT" class="w-full max-w-sm space-y-2 text-sm">
+            <div class="flex justify-between">
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fiatAmount') }}</dt>
+              <dd class="font-medium text-gray-900 dark:text-white">{{ displayPaymentAmount }}</dd>
+            </div>
+            <div v-if="props.cryptoAmount" class="flex justify-between">
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</dt>
+              <dd class="font-medium text-gray-900 dark:text-white">{{ props.cryptoAmount }} USDT</dd>
+            </div>
+          </dl>
           <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
             {{ t('payment.qr.openPayWindow') }}
           </button>
@@ -254,6 +268,7 @@ const props = defineProps<{
   payUrl?: string
   orderType?: string
   currency?: string
+  cryptoAmount?: string
   outTradeNo?: string
   mobileAlipayDeepLink?: boolean
 }>()
@@ -298,6 +313,7 @@ const VERIFY_RETRY_INTERVAL_MS = 15000
 const VERIFY_RETRY_MAX_ATTEMPTS = 6
 
 const isAlipay = computed(() => isBuiltInAlipayMethod(props.paymentType))
+const isUSDT = computed(() => props.paymentType === 'usdt_bsc')
 const isWxpay = computed(() => isBuiltInWxpayMethod(props.paymentType))
 const isMobileAlipayDeepLink = computed(() => props.mobileAlipayDeepLink === true && isAlipay.value && !!qrUrl.value)
 const showQRCode = computed(() => !!qrUrl.value && (!isMobileAlipayDeepLink.value || deepLinkFallbackVisible.value))

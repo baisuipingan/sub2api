@@ -3,11 +3,12 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
+import { setCurrentBillingCurrencySettings } from '@/utils/billingCurrency'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
-import type { CheckoutInfoResponse, MethodLimit, SubscriptionPlan } from '@/types/payment'
+import type { CheckoutInfoResponse, MethodLimit, RechargeQuote, SubscriptionPlan } from '@/types/payment'
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -24,6 +25,7 @@ const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
+const getRechargeQuote = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(() => vi.fn((key: string) => key))
 // Public settings live in a reactive holder so tests can flip feature flags after mount
@@ -99,6 +101,7 @@ vi.mock('@/stores', async () => {
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     getCheckoutInfo,
+    getRechargeQuote,
   },
 }))
 
@@ -408,6 +411,71 @@ describe('PaymentView recharge rate preview', () => {
     })
     expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
     expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')
+  })
+})
+
+describe('PaymentView USDT recharge quote', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    setCurrentBillingCurrencySettings()
+  })
+
+  it('defaults to the site currency and submits only the quote for the active currency and amount', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    window.localStorage.clear()
+    setCurrentBillingCurrencySettings({ billing_display_currency: 'CNY', billing_usd_to_cny: 7.2 })
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      methods: { usdt_bsc: { ...checkoutInfoFixture().data.methods.wxpay, currency: 'CNY' } },
+    }))
+    const wrapper = shallowMount(PaymentView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true } },
+    })
+    await flushPromises()
+    vi.useFakeTimers()
+
+    const quote: RechargeQuote = {
+      amount: 10, currency: 'USD', min_amount: 0, max_amount: 0,
+      pay_amount: 10.25, fee_amount: 0.25, fee_rate: 2.5,
+      credited_amount: 10, credited_credits: 1_000_000_000, bonus_amount: 0,
+    }
+    let resolveCNYQuote: (value: { data: RechargeQuote }) => void = () => {}
+    getRechargeQuote.mockReset()
+      .mockImplementationOnce(() => new Promise(resolve => { resolveCNYQuote = resolve }))
+      .mockResolvedValueOnce({ data: quote })
+    createOrder.mockReset().mockResolvedValue({
+      order_id: 8, amount: 10, pay_amount: 10.25, fee_rate: 2.5, currency: 'USD',
+      qr_code: 'test-order', crypto_amount: '10.2512', expires_at: '2027-01-02T00:00:00Z',
+    })
+
+    const amountInput = () => wrapper.getComponent(AmountInput)
+    const submitButton = () => wrapper.get('button.btn.w-full')
+    expect(amountInput().props('currency')).toBe('CNY')
+    amountInput().vm.$emit('update:modelValue', 10)
+    await wrapper.vm.$nextTick()
+    await vi.advanceTimersByTimeAsync(250)
+    expect(getRechargeQuote).toHaveBeenCalledWith(
+      { amount: 10, payment_type: 'usdt_bsc', currency: 'CNY' }, expect.any(AbortSignal),
+    )
+    expect(submitButton().attributes('disabled')).toBeDefined()
+
+    await wrapper.get('input[name="recharge-currency"][value="USD"]').setValue(true)
+    expect(amountInput().props('currency')).toBe('USD')
+    expect(amountInput().props('modelValue')).toBeNull()
+    expect(getRechargeQuote.mock.calls[0][1].aborted).toBe(true)
+    amountInput().vm.$emit('update:modelValue', 10)
+    await wrapper.vm.$nextTick()
+    await vi.advanceTimersByTimeAsync(250)
+    resolveCNYQuote({ data: { ...quote, currency: 'CNY', pay_amount: 12 } })
+    await flushPromises()
+
+    expect(submitButton().text()).toContain('$10.25')
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain('¥72.00')
+    await submitButton().trigger('click')
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 10, payment_type: 'usdt_bsc', currency: 'USD', order_type: 'balance',
+    }))
+    wrapper.unmount()
   })
 })
 

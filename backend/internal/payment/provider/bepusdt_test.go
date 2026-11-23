@@ -14,6 +14,15 @@ import (
 )
 
 func TestBEpusdtOrderLifecycle(t *testing.T) {
+	for _, currency := range []string{"CNY", "USD"} {
+		t.Run(currency, func(t *testing.T) {
+			testBEpusdtOrderLifecycle(t, currency)
+		})
+	}
+}
+
+func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
+	t.Helper()
 	const (
 		tradeID = "BepusdtTestTrade01"
 		orderID = "sub2_test_usdt"
@@ -31,13 +40,13 @@ func TestBEpusdtOrderLifecycle(t *testing.T) {
 		switch req.URL.Path {
 		case "/api/v1/order/create-transaction":
 			timeout, _ := payload["timeout"].(float64)
-			if payload["signature"] != provider.sign(payload) || payload["fiat"] != "CNY" ||
+			if payload["signature"] != provider.sign(payload) || payload["fiat"] != currency ||
 				payload["trade_type"] != "usdt.bep20" || payload["amount"] != 20.15 ||
 				timeout < 1750 || payload["order_id"] != orderID {
 				t.Errorf("unexpected create order payload: %v", payload)
 			}
 			result = map[string]any{
-				"trade_id": tradeID, "order_id": orderID, "trade_type": "usdt.bep20", "fiat": "CNY",
+				"trade_id": tradeID, "order_id": orderID, "trade_type": "usdt.bep20", "fiat": currency,
 				"status": bepusdtWaiting, "amount": "20.15", "actual_amount": "2.925",
 				"expiration_time": 1799, "payment_url": "http://internal:8080/pay/checkout/" + tradeID,
 			}
@@ -46,7 +55,7 @@ func TestBEpusdtOrderLifecycle(t *testing.T) {
 				t.Errorf("unexpected query payload: %v", payload)
 			}
 			result = map[string]any{
-				"trade_id": tradeID, "order_id": reportedOrder, "trade_type": "usdt.bep20", "fiat": "CNY",
+				"trade_id": tradeID, "order_id": reportedOrder, "trade_type": "usdt.bep20", "fiat": currency,
 				"status": status, "money": "20.15", "actual_amount": "2.925",
 			}
 		case "/api/v1/order/cancel-transaction":
@@ -72,12 +81,14 @@ func TestBEpusdtOrderLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 	response, err := provider.CreatePayment(ctx, payment.CreatePaymentRequest{
-		OrderID: orderID, PaymentType: payment.TypeUSDTBSC, Amount: "20.15",
+		OrderID: orderID, PaymentType: payment.TypeUSDTBSC, Amount: "20.15", Currency: currency,
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://checkout.example/pay/checkout/"+tradeID, response.PayURL)
 	require.Equal(t, tradeID, response.TradeNo)
+	require.Equal(t, currency, response.Currency)
+	require.Equal(t, "2.925", response.CryptoAmount)
 	require.WithinDuration(t, time.Now().Add(30*time.Minute), response.ExpiresAt, 2*time.Second)
 
 	status = bepusdtConfirming
@@ -85,6 +96,8 @@ func TestBEpusdtOrderLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, payment.ProviderStatusConfirming, query.Status)
 	require.Equal(t, orderID, query.Metadata["order_id"])
+	require.Equal(t, currency, query.Metadata["currency"])
+	require.Equal(t, "2.925", query.Metadata["crypto_amount"])
 
 	fields := map[string]any{
 		"trade_id": tradeID, "order_id": orderID, "status": 2.0, "amount": 20.15, "actual_amount": "2.925",
@@ -98,6 +111,10 @@ func TestBEpusdtOrderLifecycle(t *testing.T) {
 	require.ErrorContains(t, provider.ConfirmNotification(ctx, notification), "does not match")
 	status = bepusdtPaid
 	require.NoError(t, provider.ConfirmNotification(ctx, notification))
+	require.Equal(t, currency, notification.Metadata["currency"])
+	notification.Metadata["crypto_amount"] = "2.926"
+	require.ErrorContains(t, provider.ConfirmNotification(ctx, notification), "does not match")
+	notification.Metadata["crypto_amount"] = "2.925"
 	reportedOrder = "different-order"
 	require.ErrorContains(t, provider.ConfirmNotification(ctx, notification), "does not match")
 	_, err = provider.VerifyNotification(ctx, strings.Replace(string(raw), "20.15", "200.15", 1), nil)

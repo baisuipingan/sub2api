@@ -40,6 +40,13 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if err != nil {
 		return nil, err
 	}
+	if req.PaymentType == payment.TypeUSDTBSC {
+		req.rechargeQuote, err = buildUSDTRechargeQuote(cfg, cfg.rechargeBillingConfig(ctx), req.Amount, req.Currency)
+		if err != nil {
+			return nil, err
+		}
+		req.Currency = req.rechargeQuote.Currency
+	}
 	if err := s.checkCancelRateLimit(ctx, req.UserID, cfg); err != nil {
 		return nil, err
 	}
@@ -55,7 +62,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	feeRate := cfg.RechargeFeeRate
 	methodCurrency := payment.DefaultPaymentCurrency
-	if s.configService != nil {
+	if req.rechargeQuote != nil {
+		methodCurrency = req.Currency
+	} else if s.configService != nil {
 		methodCurrency, err = s.configService.ValidateMethodCurrencyConsistency(ctx, req.PaymentType)
 		if err != nil {
 			return nil, err
@@ -64,7 +73,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	orderAmount := req.Amount
 	limitAmount := req.Amount
 	bonusAmount := 0.0
-	if plan != nil {
+	if quote := req.rechargeQuote; quote != nil {
+		orderAmount, limitAmount, bonusAmount = quote.CreditedAmount, quote.payBase, quote.BonusAmount
+	} else if plan != nil {
 		orderAmount = plan.Price
 		limitAmount = plan.Price
 	} else if req.OrderType == payment.OrderTypeBalance {
@@ -74,29 +85,35 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		bonusAmount = quote.Bonus
 		orderAmount = quote.Credited
 	}
-	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
-	if err != nil {
-		return nil, err
+	var payAmountStr string
+	var payAmount, selectionAmount float64
+	if quote := req.rechargeQuote; quote != nil {
+		payAmountStr, payAmount, selectionAmount = quote.payAmountStr, quote.PayAmount, quote.payAmountCNY
+	} else {
+		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
+		if err != nil {
+			return nil, err
+		}
+		selectionAmount = payAmount
 	}
-	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
+	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, selectionAmount)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.validateSelectedCreateOrderInstance(ctx, req, sel); err != nil {
 		return nil, err
 	}
-	selectedCurrency := payment.DefaultPaymentCurrency
-	if sel != nil {
-		selectedCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
-	}
+	selectedCurrency := createOrderCurrency(req, sel)
 	if selectedCurrency != methodCurrency {
 		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
-		return nil, err
+	if req.rechargeQuote == nil {
+		if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
+			return nil, err
+		}
 	}
 	oauthResp, err := s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, limitAmount, payAmount, feeRate, sel)
 	if err != nil {
@@ -137,7 +154,7 @@ func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrder
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) || req.Amount <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount must be a positive number")
 	}
-	if (cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount) {
+	if req.PaymentType != payment.TypeUSDTBSC && ((cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount)) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount out of range").
 			WithMetadata(map[string]string{"min": fmt.Sprintf("%.2f", cfg.MinAmount), "max": fmt.Sprintf("%.2f", cfg.MaxAmount)})
 	}
@@ -171,7 +188,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	if err := s.checkPendingLimit(ctx, tx, req.UserID, cfg.MaxPendingOrders); err != nil {
 		return nil, err
 	}
-	if err := s.checkDailyLimit(ctx, tx, req.UserID, limitAmount, cfg.DailyLimit); err != nil {
+	dailyAmount := limitAmount
+	if req.rechargeQuote != nil {
+		dailyAmount = req.rechargeQuote.payAmountCNY
+	}
+	if err := s.checkDailyLimit(ctx, tx, req.UserID, dailyAmount, cfg.DailyLimit); err != nil {
 		return nil, err
 	}
 	tm := cfg.OrderTimeoutMin
@@ -186,11 +207,11 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	providerSnapshot := buildPaymentOrderProviderSnapshot(sel, req)
 	selectedInstanceID := ""
 	selectedProviderKey := ""
-	paidCurrency := payment.DefaultPaymentCurrency
-	if sel != nil {
-		paidCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
+	paidCurrency := createOrderCurrency(req, sel)
+	billingCurrency := cfg.rechargeBillingConfig(ctx)
+	if req.rechargeQuote != nil {
+		billingCurrency = req.rechargeQuote.billing
 	}
-	billingCurrency := GetBillingCurrencySettings(ctx)
 	if sel != nil {
 		selectedInstanceID = strings.TrimSpace(sel.InstanceID)
 		selectedProviderKey = strings.TrimSpace(sel.ProviderKey)
@@ -231,6 +252,8 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	}
 	if plan != nil {
 		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
+	} else if quote := req.rechargeQuote; quote != nil {
+		b.SetCreditedCredits(quote.CreditedCredits).SetBonusCredits(quote.bonusCredits)
 	} else if req.OrderType == payment.OrderTypeBalance {
 		b.SetCreditedCredits(USDToCredits(orderAmount)).SetBonusCredits(USDToCredits(bonusAmount))
 	}
@@ -330,6 +353,11 @@ func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req Creat
 		}
 		snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
 	}
+	if providerKey == payment.TypeBEpusdt && req.rechargeQuote != nil {
+		snapshot["schema_version"] = 3
+		snapshot["currency"] = req.rechargeQuote.Currency
+		snapshot["pay_amount_cny"] = req.rechargeQuote.payAmountCNY
+	}
 
 	if len(snapshot) == 1 {
 		return nil
@@ -359,7 +387,7 @@ func (s *PaymentService) checkDailyLimit(ctx context.Context, tx *dbent.Tx, user
 	var used float64
 	for _, o := range orders {
 		if o.OrderType == payment.OrderTypeBalance {
-			used += o.PayAmount
+			used += payment.PaymentOrderLimitAmount(o)
 			continue
 		}
 		used += o.Amount
@@ -376,7 +404,11 @@ func (s *PaymentService) selectCreateOrderInstance(ctx context.Context, req Crea
 	if err != nil {
 		return nil, err
 	}
-	sel, err := s.loadBalancer.SelectInstance(selectCtx, "", req.PaymentType, payment.Strategy(cfg.LoadBalanceStrategy), payAmount)
+	providerKey := ""
+	if req.PaymentType == payment.TypeUSDTBSC {
+		providerKey = payment.TypeBEpusdt
+	}
+	sel, err := s.loadBalancer.SelectInstance(selectCtx, providerKey, req.PaymentType, payment.Strategy(cfg.LoadBalanceStrategy), payAmount)
 	if err != nil {
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", "method_not_configured").
 			WithMetadata(map[string]string{"payment_type": req.PaymentType})
@@ -439,6 +471,9 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
 	}
 	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel)
+	if req.rechargeQuote != nil {
+		subject = buildBalancePaymentSubject(limitAmount, cfg, req.Currency)
+	}
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
@@ -466,6 +501,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	}
 	providerReq := buildProviderCreatePaymentRequest(CreateOrderRequest{
 		PaymentType: req.PaymentType,
+		Currency:    req.Currency,
 		OpenID:      req.OpenID,
 		ClientIP:    req.ClientIP,
 		IsMobile:    req.IsMobile,
@@ -493,6 +529,13 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	if !pr.ExpiresAt.IsZero() {
 		order.ExpiresAt = pr.ExpiresAt
 		update.SetExpiresAt(pr.ExpiresAt)
+	}
+	if req.rechargeQuote != nil {
+		if pr.CryptoAmount == "" {
+			return nil, fmt.Errorf("BEpusdt returned an empty USDT amount")
+		}
+		order.ProviderSnapshot["crypto_amount"] = pr.CryptoAmount
+		update.SetProviderSnapshot(order.ProviderSnapshot)
 	}
 	if _, err = update.Save(ctx); err != nil {
 		return nil, fmt.Errorf("update order with payment details: %w", err)
@@ -544,6 +587,7 @@ func buildProviderCreatePaymentRequest(req CreateOrderRequest, sel *payment.Inst
 	return payment.CreatePaymentRequest{
 		OrderID:            orderID,
 		Amount:             amount,
+		Currency:           req.Currency,
 		PaymentType:        req.PaymentType,
 		Subject:            subject,
 		ReturnURL:          req.ReturnURL,
@@ -573,7 +617,11 @@ func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limit
 	if sel != nil {
 		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 	}
-	amountStr := payment.FormatAmountForCurrency(limitAmount, currency)
+	return buildBalancePaymentSubject(limitAmount, cfg, currency)
+}
+
+func buildBalancePaymentSubject(amount float64, cfg *PaymentConfig, currency string) string {
+	amountStr := payment.FormatAmountForCurrency(amount, currency)
 	if hasPaymentProductNameAffix(cfg) {
 		return applyPaymentProductNameAffix(amountStr, cfg)
 	}
@@ -642,6 +690,9 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 }
 
 func (s *PaymentService) validateSelectedCreateOrderInstance(ctx context.Context, req CreateOrderRequest, sel *payment.InstanceSelection) error {
+	if req.rechargeQuote != nil && (sel == nil || sel.ProviderKey != payment.TypeBEpusdt) {
+		return infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", "method_not_configured")
+	}
 	if !requiresWeChatJSAPICompatibleSelection(req, sel) {
 		return nil
 	}
@@ -760,28 +811,33 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 }
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {
+	currency := pr.Currency
+	if req.rechargeQuote != nil {
+		currency = PaymentOrderCurrency(order)
+	}
 	return &CreateOrderResponse{
-		OrderID:      order.ID,
-		Amount:       order.Amount,
-		PayAmount:    payAmount,
-		FeeRate:      order.FeeRate,
-		BonusAmount:  order.BonusAmount,
-		Status:       OrderStatusPending,
-		ResultType:   resultType,
-		PaymentType:  req.PaymentType,
-		OutTradeNo:   order.OutTradeNo,
-		PayURL:       pr.PayURL,
-		QRCode:       pr.QRCode,
-		ClientSecret: pr.ClientSecret,
-		IntentID:     pr.IntentID,
-		Currency:     pr.Currency,
-		CountryCode:  pr.CountryCode,
-		PaymentEnv:   pr.PaymentEnv,
-		OAuth:        pr.OAuth,
-		JSAPI:        pr.JSAPI,
-		JSAPIPayload: pr.JSAPI,
-		ExpiresAt:    order.ExpiresAt,
-		PaymentMode:  sel.PaymentMode,
+		OrderID:              order.ID,
+		Amount:               PaymentOrderCreditedAmount(order),
+		PayAmount:            payAmount,
+		FeeRate:              order.FeeRate,
+		BonusAmount:          PaymentOrderBonusAmount(order),
+		Status:               OrderStatusPending,
+		ResultType:           resultType,
+		PaymentType:          req.PaymentType,
+		OutTradeNo:           order.OutTradeNo,
+		PayURL:               pr.PayURL,
+		QRCode:               pr.QRCode,
+		ClientSecret:         pr.ClientSecret,
+		IntentID:             pr.IntentID,
+		Currency:             currency,
+		PaymentCryptoDetails: PaymentOrderCryptoDetails(order),
+		CountryCode:          pr.CountryCode,
+		PaymentEnv:           pr.PaymentEnv,
+		OAuth:                pr.OAuth,
+		JSAPI:                pr.JSAPI,
+		JSAPIPayload:         pr.JSAPI,
+		ExpiresAt:            order.ExpiresAt,
+		PaymentMode:          sel.PaymentMode,
 	}
 }
 

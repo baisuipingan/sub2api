@@ -34,7 +34,7 @@
               <span class="h-1 w-1 shrink-0 rounded-full bg-white"></span>
             </span>
           </span>
-          <span class="block">{{ amt }}</span>
+          <span class="block">{{ currency ? formatPaymentAmount(amt, currency, locale) : amt }}</span>
           <!-- 配置了优惠阶梯时，所有按钮都显示第二行，保持高度一致：赠金显示到账 USD，折扣显示折后实付 -->
           <span
             v-if="showSecondLine"
@@ -55,7 +55,7 @@
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-          $
+          {{ currency ? currencySymbol(currency) : '$' }}
         </span>
         <input
           type="text"
@@ -76,7 +76,7 @@ import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
 import { useI18n } from 'vue-i18n'
 import type { RechargeBonusTier } from '@/types/payment'
 import { formatRechargeBonusNumber, quoteRechargeBonus, type RechargeBonusMode } from '@/utils/rechargeBonus'
-import { formatPaymentAmount } from './currency'
+import { currencySymbol, formatPaymentAmount } from './currency'
 
 const props = withDefaults(defineProps<{
   amounts?: number[]
@@ -105,7 +105,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: number | null]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const customText = ref('')
 

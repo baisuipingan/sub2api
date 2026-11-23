@@ -106,7 +106,8 @@ func GetBasePaymentType(t string) string {
 // CreatePaymentRequest holds the parameters for creating a new payment.
 type CreatePaymentRequest struct {
 	OrderID     string    // Internal order ID
-	Amount      string    // 支付金额，按服务商实例配置的币种解释
+	Amount      string    // 支付金额
+	Currency    string    // 订单支付币种，可覆盖支持多币种的渠道默认值
 	PaymentType string    // e.g. "alipay", "wxpay", "stripe"
 	Subject     string    // Product description
 	NotifyURL   string    // Webhook callback URL
@@ -159,6 +160,7 @@ type CreatePaymentResponse struct {
 	ClientSecret string                  // Stripe PaymentIntent 客户端密钥
 	IntentID     string                  // 前端 SDK 需要的服务商支付意图 ID
 	Currency     string                  // 服务商支付币种
+	CryptoAmount string                  // 精确链上应付金额，按十进制字符串保留
 	CountryCode  string                  // 服务商收银台国家/地区代码
 	PaymentEnv   string                  // 服务商前端环境标识
 	ResultType   CreatePaymentResultType // Typed result contract for frontend flows

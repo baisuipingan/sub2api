@@ -23,6 +23,8 @@ export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' 
 
 export type OrderType = 'balance' | 'subscription'
 
+export type RechargeCurrency = 'USD' | 'CNY'
+
 // ==================== Configuration ====================
 
 /** 充值赠送档位：支付金额 ≥ min_amount 时在到账基数上赠送 bonus_percent% */
@@ -49,6 +51,7 @@ export interface PaymentConfig {
 
 export interface MethodLimit {
   currency?: string
+  recharge_limits?: Partial<Record<RechargeCurrency, { min_amount: number; max_amount: number }>>
   display_name?: string
   daily_limit: number
   daily_used: number
@@ -100,6 +103,9 @@ export interface PaymentOrder {
   amount: number
   pay_amount: number
   currency?: string
+  crypto_amount?: string
+  crypto_currency?: 'USDT'
+  crypto_network?: 'BEP20'
   fee_rate: number
   /** 充值赠送额度（USD），已计入 amount */
   bonus_amount?: number
@@ -190,12 +196,32 @@ export interface CreateOrderRequest {
   amount: number
   payment_type: string
   order_type: string
+  currency?: RechargeCurrency
   plan_id?: number
   return_url?: string
   payment_source?: string
   openid?: string
   wechat_resume_token?: string
   is_mobile?: boolean
+}
+
+export interface RechargeQuoteRequest {
+  amount: number
+  payment_type: string
+  currency: RechargeCurrency
+}
+
+export interface RechargeQuote {
+  amount: number
+  currency: RechargeCurrency
+  min_amount: number
+  max_amount: number
+  pay_amount: number
+  fee_amount: number
+  fee_rate: number
+  credited_amount: number
+  credited_credits: number
+  bonus_amount: number
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
@@ -226,6 +252,9 @@ export interface CreateOrderResult {
   client_secret?: string
   intent_id?: string
   currency?: string
+  crypto_amount?: string
+  crypto_currency?: 'USDT'
+  crypto_network?: 'BEP20'
   country_code?: string
   payment_env?: string
   pay_amount: number

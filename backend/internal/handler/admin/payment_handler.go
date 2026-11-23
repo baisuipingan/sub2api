@@ -15,6 +15,11 @@ import (
 type PaymentHandler struct {
 	paymentService *service.PaymentService
 	configService  *service.PaymentConfigService
+	onConfigUpdate func()
+}
+
+func (h *PaymentHandler) SetOnConfigUpdate(callback func()) {
+	h.onConfigUpdate = callback
 }
 
 // NewPaymentHandler creates a new admin PaymentHandler.
@@ -158,6 +163,8 @@ type AdminPaymentOrderResult struct {
 	SrcURL              *string    `json:"src_url,omitempty"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
+
+	service.PaymentCryptoDetails
 }
 
 func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
@@ -175,47 +182,48 @@ func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPayme
 		return nil
 	}
 	return &AdminPaymentOrderResult{
-		ID:                  order.ID,
-		UserID:              order.UserID,
-		UserEmail:           order.UserEmail,
-		UserName:            order.UserName,
-		UserNotes:           order.UserNotes,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		FeeRate:             order.FeeRate,
-		BonusAmount:         order.BonusAmount,
-		Currency:            service.PaymentOrderCurrency(order),
-		RechargeCode:        order.RechargeCode,
-		OutTradeNo:          order.OutTradeNo,
-		PaymentType:         order.PaymentType,
-		PaymentTradeNo:      order.PaymentTradeNo,
-		PayURL:              order.PayURL,
-		QRCode:              order.QrCode,
-		QRCodeImg:           order.QrCodeImg,
-		OrderType:           order.OrderType,
-		PlanID:              order.PlanID,
-		SubscriptionGroupID: order.SubscriptionGroupID,
-		SubscriptionDays:    order.SubscriptionDays,
-		ProviderInstanceID:  order.ProviderInstanceID,
-		ProviderKey:         order.ProviderKey,
-		Status:              order.Status,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundAt:            order.RefundAt,
-		ForceRefund:         order.ForceRefund,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestReason: order.RefundRequestReason,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		FailedAt:            order.FailedAt,
-		FailedReason:        order.FailedReason,
-		ClientIP:            order.ClientIP,
-		SrcHost:             order.SrcHost,
-		SrcURL:              order.SrcURL,
-		CreatedAt:           order.CreatedAt,
-		UpdatedAt:           order.UpdatedAt,
+		ID:                   order.ID,
+		UserID:               order.UserID,
+		UserEmail:            order.UserEmail,
+		UserName:             order.UserName,
+		UserNotes:            order.UserNotes,
+		Amount:               service.PaymentOrderCreditedAmount(order),
+		PayAmount:            order.PayAmount,
+		FeeRate:              order.FeeRate,
+		BonusAmount:          service.PaymentOrderBonusAmount(order),
+		Currency:             service.PaymentOrderCurrency(order),
+		PaymentCryptoDetails: service.PaymentOrderCryptoDetails(order),
+		RechargeCode:         order.RechargeCode,
+		OutTradeNo:           order.OutTradeNo,
+		PaymentType:          order.PaymentType,
+		PaymentTradeNo:       order.PaymentTradeNo,
+		PayURL:               order.PayURL,
+		QRCode:               order.QrCode,
+		QRCodeImg:            order.QrCodeImg,
+		OrderType:            order.OrderType,
+		PlanID:               order.PlanID,
+		SubscriptionGroupID:  order.SubscriptionGroupID,
+		SubscriptionDays:     order.SubscriptionDays,
+		ProviderInstanceID:   order.ProviderInstanceID,
+		ProviderKey:          order.ProviderKey,
+		Status:               order.Status,
+		RefundAmount:         order.RefundAmount,
+		RefundReason:         order.RefundReason,
+		RefundAt:             order.RefundAt,
+		ForceRefund:          order.ForceRefund,
+		RefundRequestedAt:    order.RefundRequestedAt,
+		RefundRequestReason:  order.RefundRequestReason,
+		RefundRequestedBy:    order.RefundRequestedBy,
+		ExpiresAt:            order.ExpiresAt,
+		PaidAt:               order.PaidAt,
+		CompletedAt:          order.CompletedAt,
+		FailedAt:             order.FailedAt,
+		FailedReason:         order.FailedReason,
+		ClientIP:             order.ClientIP,
+		SrcHost:              order.SrcHost,
+		SrcURL:               order.SrcURL,
+		CreatedAt:            order.CreatedAt,
+		UpdatedAt:            order.UpdatedAt,
 	}
 }
 
@@ -500,6 +508,9 @@ func (h *PaymentHandler) UpdateConfig(c *gin.Context) {
 	if err := h.configService.UpdatePaymentConfig(c.Request.Context(), req); err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if req.Enabled != nil && h.onConfigUpdate != nil {
+		h.onConfigUpdate()
 	}
 	response.Success(c, gin.H{"message": "updated"})
 }

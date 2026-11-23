@@ -103,6 +103,9 @@ func (lb *DefaultLoadBalancer) SelectInstance(
 	// Step 3: filter by limits.
 	available := filterByLimits(candidates, paymentType, orderAmount)
 	if len(available) == 0 {
+		if providerKey == TypeBEpusdt && paymentType == TypeUSDTBSC {
+			return nil, nil
+		}
 		slog.Warn("all instances exceeded limits, using full candidate list",
 			"provider", providerKey, "payment_type", paymentType,
 			"order_amount", orderAmount, "count", len(candidates))
@@ -178,7 +181,34 @@ func (lb *DefaultLoadBalancer) attachDailyUsage(
 		ids[i] = fmt.Sprintf("%d", inst.ID)
 	}
 
-	// Batch query: sum pay_amount grouped by provider_instance_id.
+	// BEpusdt limits use CNY. Accumulate those instances separately so USD
+	// orders are compared in their stored CNY equivalent.
+	var bepusdtIDs []string
+	var nativeIDs []string
+	for i, inst := range instances {
+		if inst.ProviderKey == TypeBEpusdt {
+			bepusdtIDs = append(bepusdtIDs, ids[i])
+		} else {
+			nativeIDs = append(nativeIDs, ids[i])
+		}
+	}
+	usageMap := lb.nativeDailyUsage(ctx, nativeIDs, todayStart)
+	for id, used := range lb.bepusdtDailyUsage(ctx, bepusdtIDs, todayStart) {
+		usageMap[id] = used
+	}
+
+	candidates := make([]instanceCandidate, len(instances))
+	for i, inst := range instances {
+		candidates[i] = instanceCandidate{inst: inst, dailyUsed: usageMap[ids[i]]}
+	}
+	return candidates
+}
+
+func (lb *DefaultLoadBalancer) nativeDailyUsage(ctx context.Context, ids []string, todayStart time.Time) map[string]float64 {
+	usage := make(map[string]float64, len(ids))
+	if len(ids) == 0 {
+		return usage
+	}
 	type row struct {
 		InstanceID string  `json:"provider_instance_id"`
 		Sum        float64 `json:"sum"`
@@ -200,19 +230,46 @@ func (lb *DefaultLoadBalancer) attachDailyUsage(
 		slog.Warn("batch daily usage query failed, treating all as zero", "error", err)
 	}
 
-	usageMap := make(map[string]float64, len(rows))
 	for _, r := range rows {
-		usageMap[r.InstanceID] = r.Sum
+		usage[r.InstanceID] = r.Sum
 	}
+	return usage
+}
 
-	candidates := make([]instanceCandidate, len(instances))
-	for i, inst := range instances {
-		candidates[i] = instanceCandidate{
-			inst:      inst,
-			dailyUsed: usageMap[fmt.Sprintf("%d", inst.ID)],
+func (lb *DefaultLoadBalancer) bepusdtDailyUsage(ctx context.Context, ids []string, todayStart time.Time) map[string]float64 {
+	usage := make(map[string]float64, len(ids))
+	if len(ids) == 0 {
+		return usage
+	}
+	orders, err := lb.db.PaymentOrder.Query().
+		Where(
+			paymentorder.ProviderInstanceIDIn(ids...),
+			paymentorder.StatusIn(OrderStatusPending, OrderStatusPaid, OrderStatusCompleted, OrderStatusRecharging),
+			paymentorder.CreatedAtGTE(todayStart),
+		).
+		Select(paymentorder.FieldProviderInstanceID, paymentorder.FieldPaymentType, paymentorder.FieldPayAmount, paymentorder.FieldProviderSnapshot).
+		All(ctx)
+	if err != nil {
+		slog.Warn("BEpusdt daily usage query failed, treating all as zero", "error", err)
+		return usage
+	}
+	for _, order := range orders {
+		if order.ProviderInstanceID != nil {
+			usage[*order.ProviderInstanceID] += PaymentOrderLimitAmount(order)
 		}
 	}
-	return candidates
+	return usage
+}
+
+// PaymentOrderLimitAmount keeps historical BEpusdt orders in CNY and uses the
+// locked CNY equivalent of new USD orders, regardless of subsequent FX changes.
+func PaymentOrderLimitAmount(order *dbent.PaymentOrder) float64 {
+	if order.PaymentType == TypeUSDTBSC {
+		if amount, ok := order.ProviderSnapshot["pay_amount_cny"].(float64); ok && amount > 0 {
+			return amount
+		}
+	}
+	return order.PayAmount
 }
 
 // filterByLimits removes instances that cannot accommodate the order:

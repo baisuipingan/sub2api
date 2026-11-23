@@ -43,7 +43,7 @@
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.out_trade_no }}</span>
             </div>
-            <div v-if="hasAmountFields(order)" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && (order.payment_type !== 'usdt_bsc' || order.fee_rate > 0)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</span>
             </div>
@@ -52,14 +52,18 @@
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t(order.payment_type === 'usdt_bsc' ? 'payment.orders.fiatAmount' : 'payment.orders.payAmount') }}</span>
               <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
+            </div>
+            <div v-if="hasAmountFields(order) && order.crypto_amount" class="flex justify-between">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ order.crypto_amount }} USDT</span>
             </div>
             <div v-if="hasAmountFields(order) && orderBonusAmount(order) > 0" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.bonusAmount') }}</span>
-              <span class="font-medium text-amber-600 dark:text-amber-400">+{{ formatCurrency(orderBonusAmount(order)) }}</span>
+              <span class="font-medium text-amber-600 dark:text-amber-400">+{{ formatCurrentBillingAmount(orderBonusAmount(order), 2) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && (order.amount !== order.pay_amount || orderBonusAmount(order) > 0)" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && (order.payment_type === 'usdt_bsc' || order.amount !== order.pay_amount || orderBonusAmount(order) > 0)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? formatCurrentBillingAmount(order.amount, 2) : formatGatewayAmount(order.amount) }}</span>
             </div>
@@ -117,7 +121,6 @@ import { paymentAPI } from '@/api/payment'
 import type { PublicOrderVerifyResult } from '@/api/payment'
 import type { OrderStatus, PaymentOrder } from '@/types/payment'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
-import { formatCurrency } from '@/utils/format'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
 const i18n = useI18n()

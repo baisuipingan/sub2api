@@ -74,6 +74,7 @@ type CreateOrderRequest struct {
 	UserID          int64
 	Amount          float64
 	PaymentType     string
+	Currency        string
 	OpenID          string
 	ClientIP        string
 	IsMobile        bool
@@ -85,6 +86,7 @@ type CreateOrderRequest struct {
 	OrderType       string
 	PlanID          int64
 	Locale          string
+	rechargeQuote   *RechargeQuote
 }
 
 type CreateOrderResponse struct {
@@ -111,6 +113,8 @@ type CreateOrderResponse struct {
 	PaymentMode                   string                          `json:"payment_mode,omitempty"`
 	ResumeToken                   string                          `json:"resume_token,omitempty"`
 	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link,omitempty"`
+
+	PaymentCryptoDetails
 }
 
 type OrderListParams struct {

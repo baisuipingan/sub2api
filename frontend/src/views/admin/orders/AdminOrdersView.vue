@@ -66,8 +66,12 @@
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</p><p class="font-mono text-sm font-medium text-gray-900 dark:text-white">#{{ selectedOrder.id }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedOrder.out_trade_no }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</p><OrderStatusBadge :status="selectedOrder.status" /></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatUSD(selectedOrder.amount, 2) }}</p></div>
-          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(selectedOrder) }}{{ selectedOrder.pay_amount.toFixed(2) }}</p></div>
+          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t(selectedOrder.payment_type === 'usdt_bsc' ? 'payment.orders.creditedAmount' : 'payment.orders.amount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatUSD(selectedOrder.amount, 2) }}</p></div>
+          <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t(selectedOrder.payment_type === 'usdt_bsc' ? 'payment.orders.fiatAmount' : 'payment.orders.payAmount') }}</p><p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol(selectedOrder) }}{{ selectedOrder.pay_amount.toFixed(2) }}</p></div>
+          <div v-if="selectedOrder.crypto_amount">
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.cryptoAmount') }}</p>
+            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ selectedOrder.crypto_amount }} USDT</p>
+          </div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.methods.' + selectedOrder.payment_type, selectedOrder.payment_type) }}</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.feeRate') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.fee_rate }}%</p></div>
           <div><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.createdAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.created_at) }}</p></div>

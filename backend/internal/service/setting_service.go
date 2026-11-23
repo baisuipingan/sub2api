@@ -400,6 +400,14 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
+// NotifyPaymentConfigUpdated refreshes settings consumers after a payment
+// configuration update changes the payment availability in the public page.
+func (s *SettingService) NotifyPaymentConfigUpdated() {
+	if s != nil && s.onUpdate != nil {
+		s.onUpdate()
+	}
+}
+
 // SubscribeChannelMonitorRuntime registers a listener that is invoked after
 // settings are successfully persisted (and process caches refreshed).
 // Used by ChannelMonitorRunner / ChannelMonitorV2Aggregator for immediate

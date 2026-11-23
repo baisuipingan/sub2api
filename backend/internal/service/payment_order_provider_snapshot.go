@@ -8,6 +8,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/shopspring/decimal"
 )
 
 type paymentOrderProviderSnapshot struct {
@@ -127,7 +128,13 @@ func expectedNotificationProviderKeyForOrder(registry *payment.Registry, order *
 }
 
 func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey string, metadata map[string]string) error {
-	if order == nil || len(metadata) == 0 {
+	if order == nil {
+		return nil
+	}
+	if strings.TrimSpace(providerKey) == payment.TypeBEpusdt {
+		return validateBEpusdtOrderMetadata(order, metadata)
+	}
+	if len(metadata) == 0 {
 		return nil
 	}
 
@@ -222,6 +229,25 @@ func validateProviderSnapshotMetadata(order *dbent.PaymentOrder, providerKey str
 		}
 	}
 
+	return nil
+}
+
+func validateBEpusdtOrderMetadata(order *dbent.PaymentOrder, metadata map[string]string) error {
+	expectedCurrency := PaymentOrderCurrency(order)
+	if metadata["currency"] != expectedCurrency {
+		return fmt.Errorf("BEpusdt currency mismatch: expected %s, got %s", expectedCurrency, metadata["currency"])
+	}
+	if psSnapshotIntValue(order.ProviderSnapshot["schema_version"]) < 3 {
+		return nil
+	}
+	expected, err := decimal.NewFromString(PaymentOrderCryptoDetails(order).CryptoAmount)
+	if err != nil || !expected.IsPositive() {
+		return fmt.Errorf("BEpusdt order is missing its stored USDT amount")
+	}
+	actual, err := decimal.NewFromString(metadata["crypto_amount"])
+	if err != nil || !actual.Equal(expected) {
+		return fmt.Errorf("BEpusdt USDT amount mismatch")
+	}
 	return nil
 }
 

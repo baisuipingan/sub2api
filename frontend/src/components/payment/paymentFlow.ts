@@ -3,6 +3,7 @@ import type {
   CreateOrderResult,
   MethodLimit,
   OrderType,
+  RechargeCurrency,
   WechatJSAPIPayload,
   WechatOAuthInfo,
 } from '@/types/payment'
@@ -42,6 +43,7 @@ export interface PaymentRecoverySnapshot {
   clientSecret: string
   intentId: string
   currency: string
+  cryptoAmount?: string
   countryCode: string
   paymentEnv: string
   payAmount: number
@@ -80,6 +82,7 @@ export interface BuildCreateOrderPayloadInput {
   amount: number
   paymentType: string
   orderType: OrderType
+  currency?: RechargeCurrency
   planId?: number
   origin?: string
   isMobile: boolean
@@ -139,6 +142,9 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
   if (input.planId) {
     payload.plan_id = input.planId
   }
+  if (input.currency) {
+    payload.currency = input.currency
+  }
   if (normalizedOrigin) {
     payload.return_url = `${normalizedOrigin}/payment/result`
   }
@@ -162,6 +168,7 @@ export function decidePaymentLaunch(
     clientSecret: result.client_secret || '',
     intentId: result.intent_id || '',
     currency: result.currency || '',
+    ...(result.crypto_amount ? { cryptoAmount: result.crypto_amount } : {}),
     countryCode: result.country_code || '',
     paymentEnv: result.payment_env || '',
     payAmount: result.pay_amount,
@@ -290,6 +297,7 @@ export function readPaymentRecoverySnapshot(
       || typeof parsed.clientSecret !== 'string'
       || (parsed.intentId != null && typeof parsed.intentId !== 'string')
       || (parsed.currency != null && typeof parsed.currency !== 'string')
+      || (parsed.cryptoAmount != null && typeof parsed.cryptoAmount !== 'string')
       || (parsed.countryCode != null && typeof parsed.countryCode !== 'string')
       || (parsed.paymentEnv != null && typeof parsed.paymentEnv !== 'string')
       || typeof parsed.payAmount !== 'number'
@@ -321,6 +329,7 @@ export function readPaymentRecoverySnapshot(
       clientSecret: parsed.clientSecret,
       intentId: parsed.intentId || '',
       currency: parsed.currency || '',
+      ...(parsed.cryptoAmount ? { cryptoAmount: parsed.cryptoAmount } : {}),
       countryCode: parsed.countryCode || '',
       paymentEnv: parsed.paymentEnv || '',
       payAmount: parsed.payAmount,

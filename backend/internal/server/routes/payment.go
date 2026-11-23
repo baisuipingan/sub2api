@@ -47,6 +47,7 @@ func RegisterPaymentRoutes(
 		authenticated.GET("/checkout-info", paymentHandler.GetCheckoutInfo)
 		authenticated.GET("/plans", paymentHandler.GetPlans)
 		authenticated.GET("/limits", paymentHandler.GetLimits)
+		authenticated.POST("/recharge-quote", paymentHandler.GetRechargeQuote)
 
 		orders := authenticated.Group("/orders")
 		{
@@ -90,6 +91,9 @@ func RegisterPaymentRoutes(
 	}
 
 	// --- Admin payment endpoints (admin auth) ---
+	if adminPaymentHandler != nil {
+		adminPaymentHandler.SetOnConfigUpdate(settingService.NotifyPaymentConfigUpdated)
+	}
 	adminGroup := v1.Group("/admin/payment")
 	adminGroup.Use(gin.HandlerFunc(adminAuth))
 	adminGroup.Use(panelRateLimiter.Global())

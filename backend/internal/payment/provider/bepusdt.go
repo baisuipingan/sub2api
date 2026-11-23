@@ -19,6 +19,7 @@ import (
 
 const (
 	bepusdtTradeType    = "usdt.bep20"
+	bepusdtCurrencyUSD  = "USD"
 	bepusdtCheckoutPath = "/pay/checkout/"
 	bepusdtWaiting      = 1
 	bepusdtPaid         = 2
@@ -99,6 +100,7 @@ type bepusdtOrder struct {
 	Fiat           string           `json:"fiat"`
 	Money          *decimal.Decimal `json:"money"`
 	Amount         *decimal.Decimal `json:"amount"`
+	ActualAmount   *decimal.Decimal `json:"actual_amount"`
 	Status         int              `json:"status"`
 	ExpirationTime int64            `json:"expiration_time"`
 }
@@ -107,9 +109,13 @@ func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRe
 	if req.PaymentType != payment.TypeUSDTBSC {
 		return nil, fmt.Errorf("bepusdt supports only USDT on BSC")
 	}
-	minorAmount, err := payment.AmountToMinorUnit(req.Amount, payment.DefaultPaymentCurrency)
+	currency, err := payment.NormalizePaymentCurrency(req.Currency)
+	if err != nil || !bepusdtSupportsFiat(currency) {
+		return nil, fmt.Errorf("bepusdt supports only USD and CNY order currencies")
+	}
+	minorAmount, err := payment.AmountToMinorUnit(req.Amount, currency)
 	if err != nil || minorAmount <= 0 {
-		return nil, fmt.Errorf("bepusdt invalid CNY amount")
+		return nil, fmt.Errorf("bepusdt invalid fiat amount")
 	}
 	returnURL := strings.TrimSpace(req.ReturnURL)
 	if returnURL == "" {
@@ -122,7 +128,7 @@ func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRe
 	amount := decimal.NewFromInt(minorAmount).Shift(-2)
 	payload := map[string]any{
 		"order_id": req.OrderID, "amount": amount.InexactFloat64(), "name": req.Subject,
-		"fiat": payment.DefaultPaymentCurrency, "trade_type": bepusdtTradeType,
+		"fiat": currency, "trade_type": bepusdtTradeType,
 		"notify_url": b.notifyURL, "redirect_url": returnURL,
 	}
 	if !req.ExpiresAt.IsZero() {
@@ -133,15 +139,20 @@ func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRe
 		return nil, err
 	}
 	if !bepusdtTradeID.MatchString(order.TradeID) || order.OrderID != req.OrderID ||
-		order.TradeType != bepusdtTradeType || order.Fiat != payment.DefaultPaymentCurrency ||
+		order.TradeType != bepusdtTradeType || order.Fiat != currency ||
 		order.Amount == nil || !order.Amount.Equal(amount) || order.Status != bepusdtWaiting ||
+		order.ActualAmount == nil || !order.ActualAmount.IsPositive() ||
 		order.ExpirationTime <= 0 || order.ExpirationTime > 3600 {
 		return nil, fmt.Errorf("bepusdt create order response did not match the request")
 	}
 	return &payment.CreatePaymentResponse{
 		TradeNo: order.TradeID, PayURL: b.checkoutOrigin + bepusdtCheckoutPath + order.TradeID,
-		Currency: order.Fiat, ExpiresAt: time.Now().Add(time.Duration(order.ExpirationTime) * time.Second),
+		Currency: order.Fiat, CryptoAmount: order.ActualAmount.String(), ExpiresAt: time.Now().Add(time.Duration(order.ExpirationTime) * time.Second),
 	}, nil
+}
+
+func bepusdtSupportsFiat(currency string) bool {
+	return currency == payment.DefaultPaymentCurrency || currency == bepusdtCurrencyUSD
 }
 
 func (b *BEpusdt) queryOrder(ctx context.Context, tradeID string) (*bepusdtOrder, error) {
@@ -153,7 +164,8 @@ func (b *BEpusdt) queryOrder(ctx context.Context, tradeID string) (*bepusdtOrder
 		return nil, err
 	}
 	if order.TradeID != tradeID || order.OrderID == "" || order.TradeType != bepusdtTradeType ||
-		order.Fiat != payment.DefaultPaymentCurrency || order.Money == nil || !order.Money.IsPositive() {
+		!bepusdtSupportsFiat(order.Fiat) || order.Money == nil || !order.Money.IsPositive() ||
+		order.ActualAmount == nil || !order.ActualAmount.IsPositive() {
 		return nil, fmt.Errorf("bepusdt order query response did not match the trade")
 	}
 	return &order, nil
@@ -179,7 +191,9 @@ func (b *BEpusdt) QueryOrder(ctx context.Context, tradeID string) (*payment.Quer
 	}
 	return &payment.QueryOrderResponse{
 		TradeNo: order.TradeID, Status: status, Amount: order.Money.InexactFloat64(),
-		Metadata: map[string]string{"order_id": order.OrderID},
+		Metadata: map[string]string{
+			"order_id": order.OrderID, "currency": order.Fiat, "crypto_amount": order.ActualAmount.String(),
+		},
 	}, nil
 }
 
@@ -204,12 +218,14 @@ func (b *BEpusdt) VerifyNotification(_ context.Context, rawBody string, _ map[st
 		return nil, fmt.Errorf("bepusdt unknown webhook status")
 	}
 	if !bepusdtTradeID.MatchString(notice.TradeID) || notice.OrderID == "" ||
-		notice.Amount == nil || !notice.Amount.IsPositive() {
+		notice.Amount == nil || !notice.Amount.IsPositive() ||
+		notice.ActualAmount == nil || !notice.ActualAmount.IsPositive() {
 		return nil, fmt.Errorf("bepusdt incomplete paid webhook")
 	}
 	return &payment.PaymentNotification{
 		TradeNo: notice.TradeID, OrderID: notice.OrderID, Amount: notice.Amount.InexactFloat64(),
-		Status: payment.NotificationStatusSuccess, Metadata: map[string]string{"order_id": notice.OrderID},
+		Status:   payment.NotificationStatusSuccess,
+		Metadata: map[string]string{"order_id": notice.OrderID, "crypto_amount": notice.ActualAmount.String()},
 	}, nil
 }
 
@@ -219,9 +235,11 @@ func (b *BEpusdt) ConfirmNotification(ctx context.Context, n *payment.PaymentNot
 		return err
 	}
 	if order.Status != bepusdtPaid || order.OrderID != n.OrderID ||
-		!order.Money.Equal(decimal.NewFromFloat(n.Amount)) {
+		!order.Money.Equal(decimal.NewFromFloat(n.Amount)) || order.ActualAmount.String() != n.Metadata["crypto_amount"] {
 		return fmt.Errorf("bepusdt paid webhook does not match the upstream order")
 	}
+	// The native notification omits fiat; the authoritative order query supplies it.
+	n.Metadata["currency"] = order.Fiat
 	return nil
 }
 

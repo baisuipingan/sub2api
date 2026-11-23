@@ -50,6 +50,7 @@ const (
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
+	billingCurrency           *BillingCurrencyConfig
 	Enabled                   bool     `json:"enabled"`
 	MinAmount                 float64  `json:"min_amount"`
 	MaxAmount                 float64  `json:"max_amount"`
@@ -131,13 +132,14 @@ type UpdatePaymentConfigRequest struct {
 
 // MethodLimits holds per-payment-type limits.
 type MethodLimits struct {
-	PaymentType string  `json:"payment_type"`
-	DisplayName string  `json:"display_name,omitempty"`
-	Currency    string  `json:"currency"`
-	FeeRate     float64 `json:"fee_rate"`
-	DailyLimit  float64 `json:"daily_limit"`
-	SingleMin   float64 `json:"single_min"`
-	SingleMax   float64 `json:"single_max"`
+	PaymentType    string                         `json:"payment_type"`
+	DisplayName    string                         `json:"display_name,omitempty"`
+	Currency       string                         `json:"currency"`
+	FeeRate        float64                        `json:"fee_rate"`
+	DailyLimit     float64                        `json:"daily_limit"`
+	SingleMin      float64                        `json:"single_min"`
+	SingleMax      float64                        `json:"single_max"`
+	RechargeLimits map[string]RechargeAmountRange `json:"recharge_limits,omitempty"`
 }
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.
@@ -238,12 +240,16 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingAlipayForceQRCode, SettingAlipayMobilePrecreateDeepLink,
 		SettingPaymentVisibleMethodAlipayEnabled, SettingPaymentVisibleMethodAlipaySource,
 		SettingPaymentVisibleMethodWxpayEnabled, SettingPaymentVisibleMethodWxpaySource,
+		SettingKeyBillingCurrencyConfig,
 	}
 	vals, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
 		return nil, fmt.Errorf("get payment config settings: %w", err)
 	}
 	cfg := s.parsePaymentConfig(vals)
+	if billing, err := parseBillingCurrencyConfig(vals[SettingKeyBillingCurrencyConfig]); err == nil {
+		cfg.billingCurrency = &billing
+	}
 	// Load Stripe publishable key from the first enabled Stripe provider instance
 	cfg.StripePublishableKey = s.getStripePublishableKey(ctx)
 	return cfg, nil

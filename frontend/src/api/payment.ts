@@ -11,7 +11,9 @@ import type {
   CheckoutInfoResponse,
   CreateOrderRequest,
   CreateOrderResult,
-  PaymentOrder
+  PaymentOrder,
+  RechargeQuote,
+  RechargeQuoteRequest
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -42,6 +44,11 @@ export const paymentAPI = {
   /** Get payment method limits and fee rates */
   getLimits() {
     return apiClient.get<MethodLimitsResponse>('/payment/limits')
+  },
+
+  /** Preview the fiat total and balance credit for a recharge */
+  getRechargeQuote(data: RechargeQuoteRequest, signal?: AbortSignal) {
+    return apiClient.post<RechargeQuote>('/payment/recharge-quote', data, { signal })
   },
 
   /** Create a new payment order */
