@@ -125,6 +125,26 @@ func officeBridgeBody(content string) []byte {
 	return []byte(fmt.Sprintf(`{"model":"public-model","messages":[{"role":"user","content":%q}],"max_tokens":1024}`, content))
 }
 
+func TestWorkbenchManagedAgentKeyFailureReasons(t *testing.T) {
+	group := &Group{ID: 7}
+	key := APIKey{
+		UserID: 42, Key: "fixture", KeyType: APIKeyTypeSystem, Purpose: APIKeyPurposeDesktopAgent,
+		GroupID: &group.ID, Status: StatusAPIKeyActive, User: &User{Status: StatusActive},
+	}
+	require.NoError(t, checkOfficeAgentKey(&key, 42, group))
+	require.ErrorIs(t, checkOfficeAgentKey(&key, 43, group), ErrOfficeRouteChanged)
+
+	key.Status = StatusAPIKeyDisabled
+	require.ErrorIs(t, checkOfficeAgentKey(&key, 42, group), ErrOfficeAgentKeyDisabled)
+	key.Status = StatusAPIKeyExpired
+	require.ErrorIs(t, checkOfficeAgentKey(&key, 42, group), ErrAPIKeyExpired)
+	key.Status = StatusAPIKeyQuotaExhausted
+	require.ErrorIs(t, checkOfficeAgentKey(&key, 42, group), ErrAPIKeyQuotaExhausted)
+	key.Status = StatusAPIKeyActive
+	key.Quota, key.QuotaUsed = 5, 5
+	require.ErrorIs(t, checkOfficeAgentKey(&key, 42, group), ErrAPIKeyQuotaExhausted)
+}
+
 func TestOfficeBridgeUsesExistingRouterAndReplaysInboxWithoutSecondCall(t *testing.T) {
 	var calls atomic.Int32
 	svc, repo := officeBridgeFixture(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

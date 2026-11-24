@@ -358,8 +358,11 @@ async function submit(input: Omit<ChatSubmit, 'run_id'>, fromComposer = false) {
     }
   } catch (error) {
     if (owner !== auth.user?.id || epoch !== pageEpoch) return
-    if (store.activeConversationId && conversationId.value !== store.activeConversationId) {
-      await router.replace(`/workbench/chat/${store.activeConversationId}`)
+    const createdConversationId = store.activeConversationId
+    const openedNewConversation = createdConversationId && conversationId.value !== createdConversationId
+    if (openedNewConversation) {
+      await router.replace(`/workbench/chat/${createdConversationId}`)
+      if (owner !== auth.user?.id || epoch !== pageEpoch) return
     }
     const failure = error as { code?: string; reason?: string; error?: { code?: string } } | null
     const codes = [failure?.code, failure?.reason, failure?.error?.code]
@@ -372,6 +375,9 @@ async function submit(input: Omit<ChatSubmit, 'run_id'>, fromComposer = false) {
       } catch {
         if (owner === auth.user?.id) actionError.value = '联网搜索价格已变更，请刷新页面获取新单价。'
       }
+    } else if (openedNewConversation) {
+      // Loading the newly created conversation clears the store error.
+      actionError.value = chatError(error)
     }
   }
 }

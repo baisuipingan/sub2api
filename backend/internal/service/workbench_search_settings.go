@@ -194,6 +194,12 @@ func (s *SettingService) searchWorkbench(ctx context.Context, query string, limi
 	return s.searchWorkbenchWithConfig(ctx, cfg, query, limit, client)
 }
 
+type workbenchSearchProviderStatus int
+
+func (workbenchSearchProviderStatus) Error() string {
+	return "search provider returned an error status"
+}
+
 func (s *SettingService) searchWorkbenchWithConfig(ctx context.Context, cfg workbenchSearchStoredConfig, query string, limit int, client *http.Client) (*WorkbenchSearchResult, error) {
 	query = strings.TrimSpace(query)
 	if query == "" || len(query) > 2000 || !utf8.ValidString(query) {
@@ -228,6 +234,10 @@ func (s *SettingService) searchWorkbenchWithConfig(ctx context.Context, cfg work
 		}
 		if errors.Is(err, context.Canceled) {
 			return failure, ErrWorkbenchSearchUpstream.WithCause(context.Canceled)
+		}
+		var statusErr *websearch.HTTPStatusError
+		if errors.As(err, &statusErr) {
+			return failure, ErrWorkbenchSearchUpstream.WithCause(workbenchSearchProviderStatus(statusErr.StatusCode))
 		}
 		return failure, ErrWorkbenchSearchUpstream
 	}

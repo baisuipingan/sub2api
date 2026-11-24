@@ -20,14 +20,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrOfficeDisabled     = errors.New("office agent pilot is disabled")
-	ErrOfficeUnauthorized = errors.New("office agent credential is invalid or expired")
-	ErrOfficeRouteChanged = errors.New("workbench key, group or public model changed")
-	ErrOfficeCapacity     = errors.New("office agent model capacity is exhausted")
+	ErrOfficeDisabled         = errors.New("office agent pilot is disabled")
+	ErrOfficeUnauthorized     = errors.New("office agent credential is invalid or expired")
+	ErrOfficeRouteChanged     = errors.New("workbench key, group or public model changed")
+	ErrOfficeCapacity         = errors.New("office agent model capacity is exhausted")
+	ErrOfficeAgentKeyDisabled = infraerrors.Forbidden("API_KEY_DISABLED", "workbench API key is disabled")
 )
 
 const officeLeaseDuration = 90 * time.Second
@@ -102,8 +104,8 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 		if err != nil {
 			return 0, 0, err
 		}
-		if !officeKeyMatches(key, userID, group) {
-			return 0, 0, ErrOfficeRouteChanged
+		if err := checkOfficeAgentKey(key, userID, group); err != nil {
+			return 0, 0, err
 		}
 		return key.ID, group.ID, nil
 	}
@@ -119,7 +121,13 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 			return "", ErrOfficeRouteChanged
 		}
 		key, err := keys.GetByID(ctx, run.APIKeyID)
-		if err != nil || !officeKeyMatches(key, run.UserID, group) {
+		if err != nil {
+			return "", ErrOfficeRouteChanged
+		}
+		if err := checkOfficeAgentKey(key, run.UserID, group); err != nil {
+			if run.BrowserDriven {
+				return "", err
+			}
 			return "", ErrOfficeRouteChanged
 		}
 		if group.IsExclusive || key.User.RestrictPublicGroups {
@@ -134,10 +142,23 @@ func NewOfficeAgentService(repo OfficeAgentRepository, cfg *config.Config, setti
 	return s
 }
 
-func officeKeyMatches(key *APIKey, userID int64, group *Group) bool {
-	return key != nil && key.UserID == userID && key.KeyType == APIKeyTypeSystem && key.Purpose == APIKeyPurposeDesktopAgent &&
-		key.Key != "" && key.IsActive() && !key.IsExpired() && !key.IsQuotaExhausted() && key.GroupID != nil && *key.GroupID == group.ID &&
-		key.User != nil && key.User.IsActive()
+func checkOfficeAgentKey(key *APIKey, userID int64, group *Group) error {
+	if key == nil || key.UserID != userID || key.KeyType != APIKeyTypeSystem || key.Purpose != APIKeyPurposeDesktopAgent ||
+		key.Key == "" || key.GroupID == nil || *key.GroupID != group.ID || key.User == nil {
+		return ErrOfficeRouteChanged
+	}
+	switch {
+	case !key.User.IsActive():
+		return ErrUserNotActive
+	case key.Status == StatusAPIKeyExpired || key.IsExpired():
+		return ErrAPIKeyExpired
+	case key.Status == StatusAPIKeyQuotaExhausted || key.IsQuotaExhausted():
+		return ErrAPIKeyQuotaExhausted
+	case !key.IsActive():
+		return ErrOfficeAgentKeyDisabled
+	default:
+		return nil
+	}
 }
 
 func (s *OfficeAgentService) BindGatewayRouter(router http.Handler) {
@@ -180,6 +201,10 @@ func (s *OfficeAgentService) SubmitPilot(ctx context.Context, userID int64, in O
 	}
 	keyID, groupID, err := s.resolve(ctx, userID, in.Model)
 	if err != nil {
+		if errors.Is(err, ErrAPIKeyExpired) || errors.Is(err, ErrAPIKeyQuotaExhausted) ||
+			errors.Is(err, ErrOfficeAgentKeyDisabled) || errors.Is(err, ErrUserNotActive) {
+			return nil, ErrOfficeRouteChanged
+		}
 		return nil, err
 	}
 	_, err = s.repo.GetConversation(ctx, userID, in.ConversationID)

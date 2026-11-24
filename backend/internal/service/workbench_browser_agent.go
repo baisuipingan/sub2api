@@ -222,7 +222,8 @@ func (s *OfficeAgentService) executeBrowserStep(ctx context.Context, repo workbe
 	if err != nil {
 		var upstream *workbenchNativeUpstreamError
 		if errors.As(err, &upstream) {
-			return s.failBrowserStep(ctx, lease, "MODEL_INCOMPLETE", "模型提前结束了回答。请调整内容或发送“继续”。")
+			code, message := workbenchModelIncompleteError(upstream.Reason)
+			return s.failBrowserStep(ctx, lease, code, message)
 		}
 		return s.failBrowserStep(ctx, lease, "INVALID_MODEL_RESULT", "模型返回了无法继续处理的结果。")
 	}
@@ -281,8 +282,18 @@ func (s *OfficeAgentService) executeBrowserStep(ctx context.Context, repo workbe
 	switch {
 	case errors.Is(err, ErrOfficeBudgetExceeded):
 		return s.failBrowserStep(ctx, lease, "WORKBENCH_RUN_LIMIT", "本轮已达到执行上限。可以发送“继续”开始下一轮。")
-	case errors.Is(err, ErrOfficeRouteChanged), errors.Is(err, ErrGroupNotAllowed):
+	case errors.Is(err, ErrOfficeRouteChanged):
 		return s.failBrowserStep(ctx, lease, "MODEL_ROUTE_CHANGED", "模型或工作台分组已变化，请重新选模型并发送消息。")
+	case errors.Is(err, ErrAPIKeyExpired):
+		return s.failBrowserStep(ctx, lease, "API_KEY_EXPIRED", "工作台的 API Key 已过期，请联系管理员。")
+	case errors.Is(err, ErrAPIKeyQuotaExhausted):
+		return s.failBrowserStep(ctx, lease, "API_KEY_QUOTA_EXHAUSTED", "工作台 API Key 总额度已用完，请联系管理员。")
+	case errors.Is(err, ErrOfficeAgentKeyDisabled):
+		return s.failBrowserStep(ctx, lease, "API_KEY_DISABLED", "工作台的 API Key 已停用，请联系管理员。")
+	case errors.Is(err, ErrUserNotActive):
+		return s.failBrowserStep(ctx, lease, "USER_INACTIVE", "当前账号无法使用工作台，请联系管理员。")
+	case errors.Is(err, ErrGroupNotAllowed):
+		return s.failBrowserStep(ctx, lease, "GROUP_NOT_ALLOWED", "当前账号无法访问工作台模型，请联系管理员。")
 	case errors.Is(err, errWorkbenchContextTooLarge):
 		return s.failBrowserStep(ctx, lease, "MODEL_CONTEXT_TOO_LARGE", "本轮内容和工具结果已达到模型上下文上限。可以减少附件或拆分任务后继续。")
 	case errors.Is(err, ErrOfficeModelInputTooLarge):
@@ -313,19 +324,6 @@ func (s *OfficeAgentService) finishBrowserAnswer(ctx context.Context, lease Offi
 }
 
 func workbenchModelError(reply *OfficeGatewayReply) (string, string) {
-	message := "上游模型调用失败，请稍后重试。"
-	switch reply.Status {
-	case http.StatusPaymentRequired:
-		message = "余额不足，请充值后重新发送消息。"
-	case http.StatusTooManyRequests:
-		message = "模型或账户的请求频率已达上限，请稍后重试。"
-	case http.StatusForbidden:
-		message = "当前账号或上游未授权使用此模型。"
-	case http.StatusBadRequest:
-		message = "模型拒绝了本次请求参数，请更换模型或调整附件后重试。"
-	case http.StatusNotFound, http.StatusServiceUnavailable:
-		message = "当前模型没有可用的上游，请稍后重试或切换模型。"
-	}
 	code := reply.ErrorCode
 	if code == "" {
 		code = officeGatewayErrorCode(reply.Body)
@@ -335,8 +333,90 @@ func workbenchModelError(reply *OfficeGatewayReply) (string, string) {
 		return "INSUFFICIENT_BALANCE", "余额不足，请充值后重新发送消息。"
 	case "MODEL_ROUTE_CHANGED":
 		return "MODEL_ROUTE_CHANGED", "工作台分组已变化，请重新发送消息。"
+	case "GROUP_DISABLED", "GROUP_DELETED":
+		return code, "当前工作台分组已停用或删除，请联系管理员。"
+	case "GROUP_NOT_ALLOWED", "ACCESS_DENIED":
+		return code, "当前账号无法访问工作台模型，请联系管理员。"
+	case "INVALID_API_KEY", "API_KEY_REQUIRED":
+		return code, "工作台的 API Key 无法使用，请联系管理员。"
+	case "API_KEY_DISABLED":
+		return code, "工作台的 API Key 已停用，请联系管理员。"
+	case "API_KEY_EXPIRED":
+		return code, "工作台的 API Key 已过期，请联系管理员。"
+	case "USER_INACTIVE", "USER_NOT_FOUND":
+		return code, "当前账号无法使用工作台，请联系管理员。"
+	case "API_KEY_AUTH_OVERLOADED":
+		return code, "工作台鉴权服务暂时繁忙，请稍后重试。"
+	case "API_KEY_QUOTA_EXHAUSTED":
+		return code, "工作台 API Key 总额度已用完，请联系管理员。"
+	case "INSUFFICIENT_QUOTA":
+		// An unqualified provider quota code cannot identify whose quota is exhausted.
+		if reply.Status == http.StatusTooManyRequests || reply.Status == http.StatusPaymentRequired {
+			return "MODEL_QUOTA_EXHAUSTED", "当前模型调用额度不足，请稍后重试或切换模型。"
+		}
+	case "API_KEY_RATE_5H_EXCEEDED", "API_KEY_RATE_1D_EXCEEDED", "API_KEY_RATE_7D_EXCEEDED":
+		return code, "工作台 API Key 的周期额度已用完，请等额度重置后重试。"
+	case "USER_PLATFORM_DAILY_QUOTA_EXHAUSTED", "USER_PLATFORM_WEEKLY_QUOTA_EXHAUSTED", "USER_PLATFORM_MONTHLY_QUOTA_EXHAUSTED":
+		return code, "你在这个模型平台上的周期额度已用完，请等额度重置或切换模型平台。"
+	case "USAGE_LIMIT_EXCEEDED", "DAILY_LIMIT_EXCEEDED", "WEEKLY_LIMIT_EXCEEDED", "MONTHLY_LIMIT_EXCEEDED":
+		return code, "订阅周期额度已用完，请等额度重置后重试。"
+	case "SUBSCRIPTION_NOT_FOUND", "SUBSCRIPTION_INVALID", "SUBSCRIPTION_EXPIRED", "SUBSCRIPTION_SUSPENDED":
+		return code, "当前分组没有可用订阅，请检查订阅状态或切换模型。"
+	case "RATE_LIMIT_EXCEEDED", "GROUP_RPM_EXCEEDED", "USER_RPM_EXCEEDED", "INVALID_AUTH_RATE_LIMITED":
+		return code, "请求频率已达上限，请稍后重试。"
+	case "GATEWAY_QUEUE_FULL":
+		return code, "等待中的请求太多，请稍后重试。"
+	case "GATEWAY_CONCURRENCY_LIMIT":
+		return code, "同时执行的请求已达上限，请等进行中的请求结束后重试。"
+	case "BILLING_SERVICE_ERROR", "SUBSCRIPTION_MAINTENANCE_FAILED":
+		return code, "计费服务暂时不可用，请稍后重试。"
+	case "MODEL_PRICING_UNAVAILABLE":
+		return code, "当前模型暂时无法计费，请切换模型或联系管理员。"
+	case "MODEL_NOT_FOUND":
+		return code, "当前分组暂不支持这个模型，请切换模型。"
+	case "MODEL_UPSTREAM_RATE_LIMITED":
+		return code, "当前模型的上游请求已达频率上限，请稍后重试或切换模型。"
+	case "MODEL_UPSTREAM_UNAVAILABLE":
+		return code, "当前模型暂时没有可用的上游，请稍后重试或切换模型。"
+	case "CONTEXT_LENGTH_EXCEEDED", "CONTEXT_TOO_LARGE":
+		return "MODEL_CONTEXT_TOO_LARGE", "对话内容超出模型上下文上限，请减少附件或开启新对话。"
 	}
-	return fmt.Sprintf("MODEL_HTTP_%d", reply.Status), message
+	switch reply.Status {
+	case http.StatusPaymentRequired:
+		return "MODEL_HTTP_402", "当前请求未通过计费检查，请检查账户余额或额度后重试。"
+	case http.StatusTooManyRequests:
+		return "MODEL_HTTP_429", "当前请求受限，请稍后重试。"
+	case http.StatusForbidden:
+		return "MODEL_HTTP_403", "当前账号或上游未授权使用此模型。"
+	case http.StatusUnauthorized:
+		return "MODEL_HTTP_401", "模型调用未通过身份验证，请重试或联系管理员。"
+	case http.StatusBadRequest:
+		return "MODEL_HTTP_400", "模型拒绝了本次请求参数，请更换模型或调整附件后重试。"
+	case http.StatusRequestEntityTooLarge:
+		return "MODEL_HTTP_413", "本次请求超过模型接口的大小限制，请减少附件或开启新对话。"
+	case http.StatusNotFound:
+		return "MODEL_HTTP_404", "当前模型或调用接口不可用，请切换模型。"
+	case http.StatusServiceUnavailable:
+		return "MODEL_HTTP_503", "模型服务暂时不可用，请稍后重试或切换模型。"
+	case http.StatusGatewayTimeout:
+		return "MODEL_HTTP_504", "模型服务响应超时，请稍后重试。"
+	}
+	return fmt.Sprintf("MODEL_HTTP_%d", reply.Status), "上游模型调用失败，请稍后重试。"
+}
+
+func workbenchModelIncompleteError(reason string) (string, string) {
+	switch strings.ToLower(reason) {
+	case "max_output_tokens", "max_tokens", "length":
+		return "MODEL_OUTPUT_LIMIT", "模型达到单次输出上限，请缩短任务或分步发送。"
+	case "content_filter", "safety", "recitation", "blocklist", "prohibited_content", "spii", "refusal":
+		return "MODEL_CONTENT_BLOCKED", "模型限制了本次内容，请调整后重试。"
+	case "empty_output":
+		return "EMPTY_MODEL_RESULT", "模型没有返回可显示的回答。"
+	case "failed", "upstream_error":
+		return "MODEL_STREAM_FAILED", "模型在回复过程中返回错误，请稍后重试。"
+	default:
+		return "MODEL_INCOMPLETE", "模型提前结束了回答。请调整内容或发送“继续”。"
+	}
 }
 
 func (s *OfficeAgentService) runBrowserModel(ctx context.Context, repo workbenchBrowserRepository, lease OfficeRunLease, params workbenchBrowserParameters, operation string, exchanges []workbenchNativeExchange) error {

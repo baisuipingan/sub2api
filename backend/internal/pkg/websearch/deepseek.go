@@ -67,7 +67,7 @@ func (p *DeepSeekProvider) Search(ctx context.Context, req SearchRequest) (*Sear
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("deepseek search: status %d", resp.StatusCode)
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode, detail: fmt.Sprintf("deepseek search: status %d", resp.StatusCode)}
 	}
 	response, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 	if err != nil {

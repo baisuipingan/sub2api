@@ -185,3 +185,40 @@ func TestWorkbenchSearchReplaysExistingToolResultWithNoConfiguredProvider(t *tes
 	require.NoError(t, err)
 	require.Equal(t, output, got)
 }
+
+func TestWorkbenchSearchReportsSafeProviderFailureCategories(t *testing.T) {
+	const privateResponse = "private response with key and URL https://example.com/?token=private"
+	ctx := context.Background()
+	for _, tc := range []struct {
+		provider string
+		status   int
+		code     string
+	}{
+		{websearch.ProviderTypeBrave, http.StatusUnauthorized, "SEARCH_PROVIDER_AUTH_FAILED"},
+		{websearch.ProviderTypeTavily, http.StatusForbidden, "SEARCH_PROVIDER_AUTH_FAILED"},
+		{websearch.ProviderTypeDeepSeek, http.StatusPaymentRequired, "SEARCH_PROVIDER_QUOTA_EXCEEDED"},
+		{websearch.ProviderTypeTavily, http.StatusTooManyRequests, "SEARCH_PROVIDER_RATE_LIMITED"},
+		{websearch.ProviderTypeBrave, http.StatusServiceUnavailable, "SEARCH_PROVIDER_UNAVAILABLE"},
+		{websearch.ProviderTypeDeepSeek, http.StatusBadRequest, "SEARCH_FAILED"},
+	} {
+		t.Run(tc.provider+"/"+tc.code, func(t *testing.T) {
+			svc, _ := workbenchSearchFixture(true)
+			_, err := svc.UpdateSearchConfig(ctx, tc.provider, "workbench-only-secret", nil)
+			require.NoError(t, err)
+			client := &http.Client{Transport: workbenchSearchMockTransport(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(privateResponse))}, nil
+			})}
+			result, err := svc.settings.searchWorkbench(ctx, "test query", 3, client)
+			require.ErrorIs(t, err, ErrWorkbenchSearchUpstream)
+			require.NotContains(t, err.Error(), privateResponse)
+			require.Equal(t, tc.provider, result.Provider)
+			receipt, encodeErr := officeNetworkReceipt("web_search", result, err, nil)
+			require.NoError(t, encodeErr)
+			require.Equal(t, tc.code, receipt.ErrorCode)
+			require.Equal(t, "failed", receipt.ToolStatus)
+			require.NotEmpty(t, receipt.ErrorMessage)
+			require.NotContains(t, string(receipt.Output), "private")
+			require.NotContains(t, string(receipt.Output), "workbench-only-secret")
+		})
+	}
+}

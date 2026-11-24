@@ -82,7 +82,7 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tavily: status %d: %s", resp.StatusCode, truncateBody(body))
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode, detail: fmt.Sprintf("tavily: status %d: %s", resp.StatusCode, truncateBody(body))}
 	}
 
 	var raw tavilyResponse

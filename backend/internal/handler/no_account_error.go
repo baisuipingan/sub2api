@@ -34,6 +34,20 @@ type noAccountErrorClassification struct {
 	ModelNotFound bool // true when this is a 404 model_not_found classification
 }
 
+func (classification noAccountErrorClassification) markWorkbench(c *gin.Context) {
+	if c.Request == nil {
+		return
+	}
+	switch classification.Status {
+	case http.StatusNotFound:
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), classification.Status, "MODEL_NOT_FOUND")
+	case http.StatusTooManyRequests:
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), classification.Status, "MODEL_UPSTREAM_RATE_LIMITED")
+	case http.StatusServiceUnavailable:
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), classification.Status, "MODEL_UPSTREAM_UNAVAILABLE")
+	}
+}
+
 var selectionModelRateLimitedPattern = regexp.MustCompile(`(?:model_rate_limited|rate_limited)=(\d+)`)
 
 // classifySelectionFailureError preserves the scheduler's compact reason when

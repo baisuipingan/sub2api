@@ -435,6 +435,14 @@ func officeHandlerError(c *gin.Context, err error) bool {
 		status, code, message = http.StatusConflict, "NEEDS_CONFIRMATION", "这一步可能已经调用上游，但结果尚未确认；已停止自动重试，避免重复计费"
 	case errors.Is(err, service.ErrOfficeRouteChanged):
 		status, code, message = http.StatusConflict, "MODEL_ROUTE_CHANGED", "工作台模型、密钥或分组配置已变化，未发起新的模型调用"
+	case errors.Is(err, service.ErrAPIKeyExpired):
+		status, code, message = http.StatusForbidden, "API_KEY_EXPIRED", "工作台的 API Key 已过期，请联系管理员"
+	case errors.Is(err, service.ErrOfficeAgentKeyDisabled):
+		status, code, message = http.StatusForbidden, "API_KEY_DISABLED", "工作台的 API Key 已停用，请联系管理员"
+	case errors.Is(err, service.ErrAPIKeyQuotaExhausted):
+		status, code, message = http.StatusTooManyRequests, "API_KEY_QUOTA_EXHAUSTED", "工作台 API Key 总额度已用完，请联系管理员"
+	case errors.Is(err, service.ErrUserNotActive):
+		status, code, message = http.StatusForbidden, "USER_INACTIVE", "当前账号无法使用工作台，请联系管理员"
 	case errors.Is(err, service.ErrGroupNotAllowed), errors.Is(err, service.ErrInsufficientPerms):
 		status, code, message = http.StatusForbidden, "WORKBENCH_AGENT_GROUP_FORBIDDEN", "当前账号无权使用工作台的 Agent 分组"
 	case errors.Is(err, service.ErrOfficeModelInputTooLarge):

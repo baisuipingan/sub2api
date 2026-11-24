@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -79,6 +80,7 @@ func reserveInflightBalanceCtx(
 	}
 	estimate, priced := estimator.EstimateInflightReservation(ctx, apiKey, req)
 	if !priced && billing.InflightReservationFailClosedOnUnpriced() {
+		service.MarkWorkbenchGatewayFailure(ctx, http.StatusForbidden, "MODEL_PRICING_UNAVAILABLE")
 		return ctx, inflightNoop, service.ErrInsufficientBalance
 	}
 	if estimate <= 0 {

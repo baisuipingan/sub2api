@@ -18,7 +18,14 @@ import (
 var (
 	ErrOfficeSearchUnavailable      = errors.New("workbench search is unavailable")
 	ErrOfficeSearchModelUnsupported = errors.New("workbench model does not support search tools")
+	errWorkbenchWebReadURLInvalid   = errors.New("the web read URL is invalid")
+	errWorkbenchWebReadContentType  = errors.New("the web page content type is unsupported")
+	errWorkbenchWebReadTooLarge     = errors.New("the web page exceeds its read limit")
 )
+
+type workbenchWebPageStatus int
+
+func (status workbenchWebPageStatus) Error() string { return fmt.Sprintf("page status %d", status) }
 
 type WorkbenchSearchProviderStatus string
 
@@ -119,6 +126,10 @@ func (s *OfficeAgentService) Search(ctx context.Context, lease OfficeRunLease, i
 	if searchErr == nil {
 		search, searchErr = s.settings.searchWorkbenchWithConfig(toolCtx, cfg, query, maximum, workbenchSearchClient)
 	}
+	var providerStatus workbenchSearchProviderStatus
+	if !lease.Run.BrowserDriven && errors.As(searchErr, &providerStatus) {
+		searchErr = ErrWorkbenchSearchUpstream
+	}
 	receipt, err := officeNetworkReceipt("web_search", search, searchErr, toolCtx.Err())
 	if err != nil {
 		return nil, err
@@ -157,15 +168,27 @@ func (s *OfficeAgentService) ReadWeb(ctx context.Context, lease OfficeRunLease, 
 		}
 		defer func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("page status %d", resp.StatusCode)
+			if !lease.Run.BrowserDriven {
+				return nil, fmt.Errorf("page status %d", resp.StatusCode)
+			}
+			return nil, workbenchWebPageStatus(resp.StatusCode)
 		}
 		contentType := resp.Header.Get("Content-Type")
 		if !strings.HasPrefix(contentType, "text/html") && !strings.HasPrefix(contentType, "text/plain") {
-			return nil, ErrOfficeInvalid
+			if !lease.Run.BrowserDriven {
+				return nil, ErrOfficeInvalid
+			}
+			return nil, errWorkbenchWebReadContentType
 		}
 		body, e := io.ReadAll(io.LimitReader(resp.Body, (2<<20)+1))
-		if e != nil || len(body) > 2<<20 {
+		if !lease.Run.BrowserDriven && (e != nil || len(body) > 2<<20) {
 			return nil, ErrOfficeBudgetExceeded
+		}
+		if e != nil {
+			return nil, e
+		}
+		if len(body) > 2<<20 {
+			return nil, errWorkbenchWebReadTooLarge
 		}
 		text := string(body)
 		if strings.HasPrefix(contentType, "text/html") {
@@ -252,15 +275,35 @@ func workbenchNetworkOutcome(tool string, err, contextErr error) (code, status s
 	var timeout net.Error
 	timedOut := errors.Is(contextErr, context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout()
 	if tool == "web_read" {
-		if timedOut {
+		switch {
+		case timedOut:
 			return "WEB_READ_TIMEOUT", "failed"
+		case errors.Is(err, ErrOfficeSearchUnavailable):
+			return "WEB_READ_UNAVAILABLE", "failed"
+		case errors.Is(err, errWorkbenchWebReadURLInvalid):
+			return "WEB_READ_URL_INVALID", "failed"
+		case errors.Is(err, errWorkbenchWebReadContentType):
+			return "WEB_READ_UNSUPPORTED_CONTENT", "failed"
+		case errors.Is(err, errWorkbenchWebReadTooLarge):
+			return "WEB_READ_TOO_LARGE", "failed"
+		}
+		var status workbenchWebPageStatus
+		if errors.As(err, &status) {
+			switch int(status) {
+			case http.StatusUnauthorized, http.StatusForbidden:
+				return "WEB_READ_ACCESS_DENIED", "failed"
+			case http.StatusNotFound, http.StatusGone:
+				return "WEB_READ_NOT_FOUND", "failed"
+			case http.StatusTooManyRequests:
+				return "WEB_READ_RATE_LIMITED", "failed"
+			}
 		}
 		return "WEB_READ_FAILED", "failed"
 	}
 	switch {
 	case timedOut:
 		return "SEARCH_TIMEOUT", "failed"
-	case errors.Is(err, ErrWorkbenchSearchUnavailable):
+	case errors.Is(err, ErrWorkbenchSearchUnavailable), errors.Is(err, ErrOfficeSearchUnavailable):
 		return "SEARCH_UNAVAILABLE", "failed"
 	case errors.Is(err, ErrWorkbenchSearchQuery):
 		return "SEARCH_QUERY_INVALID", "failed"
@@ -268,7 +311,19 @@ func workbenchNetworkOutcome(tool string, err, contextErr error) (code, status s
 		return "SEARCH_INSUFFICIENT_BALANCE", "failed"
 	case errors.Is(err, ErrWorkbenchSearchPriceChanged):
 		return "SEARCH_PRICE_CHANGED", "failed"
-	default:
-		return "SEARCH_FAILED", "failed"
 	}
+	var providerStatus workbenchSearchProviderStatus
+	if errors.As(err, &providerStatus) {
+		switch {
+		case providerStatus == http.StatusUnauthorized || providerStatus == http.StatusForbidden:
+			return "SEARCH_PROVIDER_AUTH_FAILED", "failed"
+		case providerStatus == http.StatusPaymentRequired:
+			return "SEARCH_PROVIDER_QUOTA_EXCEEDED", "failed"
+		case providerStatus == http.StatusTooManyRequests:
+			return "SEARCH_PROVIDER_RATE_LIMITED", "failed"
+		case providerStatus >= 500 && providerStatus < 600:
+			return "SEARCH_PROVIDER_UNAVAILABLE", "failed"
+		}
+	}
+	return "SEARCH_FAILED", "failed"
 }

@@ -235,21 +235,73 @@ func workbenchToolErrorMessage(name string, result OfficeOperationResult, state 
 	}
 	switch result.ErrorCode {
 	case "TOOL_TIMEOUT":
-		return "工具执行超时"
+		return "工具执行超时，可以在当前会话中重试此操作"
 	case "SEARCH_TIMEOUT":
 		return "搜索供应商响应超时"
 	case "SEARCH_UNAVAILABLE":
-		return "工作台搜索供应商尚未配置"
+		return "工作台联网搜索暂不可用"
 	case "SEARCH_QUERY_INVALID":
 		return "搜索关键词无效或过长"
 	case "SEARCH_INSUFFICIENT_BALANCE":
 		return "余额不足，未发起联网搜索"
 	case "SEARCH_PRICE_CHANGED":
 		return "联网搜索价格已更新，请刷新工作台后重试"
+	case "SEARCH_PROVIDER_AUTH_FAILED":
+		return "搜索供应商拒绝了认证，请联系管理员检查供应商配置"
+	case "SEARCH_PROVIDER_QUOTA_EXCEEDED":
+		return "搜索供应商的额度或计费不可用，请联系管理员"
+	case "SEARCH_PROVIDER_RATE_LIMITED":
+		return "搜索供应商限制了请求频率，请稍后重试"
+	case "SEARCH_PROVIDER_UNAVAILABLE":
+		return "搜索供应商暂不可用，请稍后重试"
 	case "WEB_READ_TIMEOUT":
 		return "网页读取超时"
+	case "WEB_READ_UNAVAILABLE":
+		return "工作台网页读取暂不可用"
+	case "WEB_READ_URL_INVALID":
+		return "网页地址无效，请使用完整的 HTTP 或 HTTPS 链接"
+	case "WEB_READ_ACCESS_DENIED":
+		return "目标网站拒绝访问，请换一个公开链接"
+	case "WEB_READ_NOT_FOUND":
+		return "网页不存在或已下线，请检查链接"
+	case "WEB_READ_RATE_LIMITED":
+		return "目标网站限制了访问频率，请稍后再试"
+	case "WEB_READ_UNSUPPORTED_CONTENT":
+		return "该链接未返回可读取的网页或纯文本"
+	case "WEB_READ_TOO_LARGE":
+		return "网页内容超过读取上限"
 	case "WEB_READ_FAILED":
 		return "网页无法访问或返回了暂不支持的内容"
+	case "OFFICE_OUTPUT_EXPIRED":
+		return "生成的文件已过期，请重试文档操作"
+	case "OFFICE_FILE_UNAVAILABLE", "INPUT_UNAVAILABLE":
+		return "文件无法读取，请选用当前对话的文件或重新上传"
+	case "FILE_QUOTA_EXCEEDED":
+		return "文件存储空间已满，请删除不再需要的文件或会话后重试"
+	case "FILE_TYPE_INVALID":
+		return "文件格式不符合此工具的要求"
+	case "FILE_STORAGE_UNAVAILABLE":
+		return "文件存储暂时不可用"
+	case "FILE_TOO_LARGE":
+		return "文件超过服务可处理的大小"
+	case "TOOL_RESULT_TOO_LARGE":
+		return "工具结果过大，请缩小读取范围后重试"
+	case "INVALID_ARGUMENT":
+		return "文件或工具参数无法处理，请检查文件版本和操作要求"
+	case "INVALID_DOCUMENT":
+		return "文档格式或内容无法处理，请检查文件后重新上传"
+	case "NO_MATCH":
+		return "没有找到要替换的内容，请核对原文后重试"
+	case "NO_DOCUMENTS_CHANGED":
+		return "这次批量操作没有成功修改任何 Word 文件，请检查压缩包和替换条件"
+	case "VERIFY_FAILED":
+		return "无法核对修改结果，请检查输入文档后重试"
+	case "CALC_UNAVAILABLE":
+		return "表格公式重算暂不可用"
+	case "CALC_FAILED":
+		return "表格公式重算失败，请检查工作簿后重试"
+	case "UNSUPPORTED_FORMULA":
+		return "工作簿包含外部引用，请移除外部引用后重试公式重算"
 	case "WORKER_BUSY", "OFFICE_WORKER_BUSY":
 		return "办公服务繁忙"
 	case "FILE_CONFLICT", "OFFICE_VERSION_CONFLICT":

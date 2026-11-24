@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -81,6 +80,16 @@ func (s *OfficeAgentService) runBrowserTool(ctx context.Context, repo workbenchB
 		return s.runRemoteOfficeTool(ctx, repo, lease, op, call, args.VersionID)
 	}
 
+	if call.Name == "web_search" || call.Name == "web_read" {
+		var cause error = ErrWorkbenchSearchQuery
+		if !lease.Run.SearchEnabled {
+			cause = ErrOfficeSearchUnavailable
+		} else if call.Name == "web_read" {
+			cause = errWorkbenchWebReadURLInvalid
+		}
+		return s.completeBrowserToolError(ctx, lease, id, call.Name, cause)
+	}
+
 	var output any
 	err = ErrOfficeInvalid
 	if decodeErr == nil && params.OfficeTools && s.resources != nil {
@@ -117,30 +126,30 @@ func (s *OfficeAgentService) runBrowserTool(ctx context.Context, repo workbenchB
 	return err
 }
 
-func browserToolError(name string, err error) string {
+func browserToolErrorCode(err error) string {
 	switch {
 	case errors.Is(err, errOfficeOutputExpired):
-		return "办公节点上的成品已过期，请重试文档操作。"
+		return "OFFICE_OUTPUT_EXPIRED"
 	case errors.Is(err, context.DeadlineExceeded):
-		return "等待办公节点超时。可以在当前会话中重试文档操作。"
-	case errors.Is(err, ErrOfficeNotFound), errors.Is(err, ErrGalleryGone):
-		return "请使用当前对话已上传或生成的文件版本。"
+		return "TOOL_TIMEOUT"
+	case errors.Is(err, ErrOfficeNotFound), errors.Is(err, ErrGalleryNotFound), errors.Is(err, ErrGalleryGone):
+		return "OFFICE_FILE_UNAVAILABLE"
 	case errors.Is(err, ErrOfficeResourceQuota):
-		return "文件存储空间已满，请删除不再需要的文件或会话后重试。"
+		return "FILE_QUOTA_EXCEEDED"
 	case errors.Is(err, ErrOfficeResourceType):
-		return "文件格式不符合此工具的要求。"
+		return "FILE_TYPE_INVALID"
 	case errors.Is(err, ErrOfficeStorageUnavailable):
-		return "文件存储暂时不可用。"
+		return "FILE_STORAGE_UNAVAILABLE"
 	case errors.Is(err, ErrOfficeResourceTooLarge):
-		return "文档超过服务可处理的大小。"
+		return "FILE_TOO_LARGE"
 	case errors.Is(err, ErrOfficeConflict):
-		return "文件版本已变化，请读取最新版本后再编辑。"
+		return "OFFICE_VERSION_CONFLICT"
 	case errors.Is(err, ErrOfficeCapacity):
-		return "文档工具当前繁忙，可以稍后重试。"
+		return "OFFICE_WORKER_BUSY"
 	case errors.Is(err, ErrOfficeInvalid):
-		return fmt.Sprintf("工具 %s 的参数无效，或当前对话未启用该工具。请检查文件版本和工具参数。", name)
+		return "INVALID_ARGUMENT"
 	default:
-		return "文档操作暂未完成。请检查文件内容后重试。"
+		return "TOOL_FAILED"
 	}
 }
 

@@ -35,6 +35,19 @@ type OfficeGatewayReply struct {
 	ErrorCode        string                `json:"error_code,omitempty"`
 }
 
+type workbenchGatewayFailure struct {
+	status int
+	code   string
+}
+
+// MarkWorkbenchGatewayFailure records a local gateway decision for the browser
+// workbench without changing the public response format for any protocol.
+func MarkWorkbenchGatewayFailure(ctx context.Context, status int, code string) {
+	if failure, ok := ctx.Value(ctxkey.WorkbenchGatewayFailure).(*workbenchGatewayFailure); ok && failure.code == "" && status >= 400 && code != "" {
+		*failure = workbenchGatewayFailure{status: status, code: strings.ToUpper(code)}
+	}
+}
+
 // InvokeModel uses the ordinary gateway router and persists bounded results
 // before returning them to the worker. Assistant SSE text is exposed separately
 // as Go-owned conversation events; completed inbox replay never calls upstream.
@@ -130,6 +143,10 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 	callCtx, cancel := context.WithDeadline(baseCtx, deadline)
 	defer cancel()
 	callCtx = context.WithValue(callCtx, ctxkey.ClientRequestID, requestID)
+	var failure workbenchGatewayFailure
+	if lease.Run.BrowserDriven {
+		callCtx = context.WithValue(callCtx, ctxkey.WorkbenchGatewayFailure, &failure)
+	}
 	if lease.Run.GroupID > 0 {
 		callCtx = context.WithValue(callCtx, ctxkey.WorkbenchGroupID, lease.Run.GroupID)
 	}
@@ -209,7 +226,12 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 	complete := officeResponseComplete(writer)
 	reply := &OfficeGatewayReply{Status: writer.status, ContentType: writer.header.Get("Content-Type"),
 		Body: writer.body.Bytes(), RequestID: requestID}
-	if protocol != "" && writer.status >= 200 && writer.status < 300 {
+	if protocol != "" && failure.code != "" && writer.body.Len() > 0 {
+		// A keepalive may already have committed HTTP 200 before a local failure.
+		reply.Status = failure.status
+		reply.ErrorCode = failure.code
+		complete = true
+	} else if protocol != "" && writer.status >= 200 && writer.status < 300 {
 		parsed, parseErr := parseWorkbenchNativeResponse(protocol, writer.body.Bytes())
 		var upstream *workbenchNativeUpstreamError
 		switch {
@@ -232,7 +254,9 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 		return nil, s.unknownOfficeOperation(lease, operationID)
 	}
 	if protocol != "" {
-		reply.ErrorCode = officeGatewayErrorCode(reply.Body)
+		if reply.ErrorCode == "" {
+			reply.ErrorCode = officeGatewayErrorCode(reply.Body)
+		}
 		reply.Body = nil
 	}
 	encoded, err := json.Marshal(reply)
@@ -252,14 +276,26 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 
 func officeGatewayErrorCode(body []byte) string {
 	var decoded struct {
+		Code  json.RawMessage `json:"code"`
 		Error struct {
-			Code string `json:"code"`
+			Code json.RawMessage `json:"code"`
+			Type string          `json:"type"`
 		} `json:"error"`
 	}
-	if json.Unmarshal(body, &decoded) != nil || !officeIdentifier(decoded.Error.Code, 64) {
+	if json.Unmarshal(body, &decoded) != nil {
 		return ""
 	}
-	return strings.ToUpper(decoded.Error.Code)
+	for _, field := range []json.RawMessage{decoded.Error.Code, decoded.Code} {
+		var code string
+		if json.Unmarshal(field, &code) == nil && officeIdentifier(code, 64) {
+			return strings.ToUpper(code)
+		}
+	}
+	switch decoded.Error.Type {
+	case "model_not_found", "billing_service_error", "rate_limit_exceeded":
+		return strings.ToUpper(decoded.Error.Type)
+	}
+	return ""
 }
 
 func (reply OfficeGatewayReply) workbenchResult(protocol workbenchProtocol) (workbenchNativeReply, error) {

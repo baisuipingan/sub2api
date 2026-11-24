@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -158,6 +160,96 @@ func TestWorkbenchNetworkFailureDepositsReplayableToolResult(t *testing.T) {
 		})
 	require.NoError(t, err)
 	require.Equal(t, result, replayed)
+}
+
+func TestWorkbenchOfficeToolPreservesKnownFailureReasons(t *testing.T) {
+	cases := []struct {
+		cause error
+		code  string
+		hint  string
+	}{
+		{ErrOfficeResourceQuota, "FILE_QUOTA_EXCEEDED", "文件存储空间已满"},
+		{ErrOfficeStorageUnavailable, "FILE_STORAGE_UNAVAILABLE", "文件存储暂时不可用"},
+		{ErrOfficeResourceTooLarge, "FILE_TOO_LARGE", "超过服务可处理的大小"},
+		{ErrOfficeResourceType, "FILE_TYPE_INVALID", "文件格式不符合"},
+		{ErrOfficeConflict, "OFFICE_VERSION_CONFLICT", "请选用最新版本"},
+		{ErrOfficeCapacity, "OFFICE_WORKER_BUSY", "办公服务繁忙"},
+		{ErrOfficeNotFound, "OFFICE_FILE_UNAVAILABLE", "文件无法读取"},
+		{errOfficeOutputExpired, "OFFICE_OUTPUT_EXPIRED", "生成的文件已过期"},
+		{context.DeadlineExceeded, "TOOL_TIMEOUT", "工具执行超时"},
+		{errors.New("private diagnostic"), "TOOL_FAILED", "文件处理失败"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			svc, repo := officeBridgeFixture(nil)
+			svc.repo = &workbenchToolTestRepo{repo}
+			ctx := context.Background()
+			const id = "tool"
+			_, _, err := svc.PrepareTool(ctx, repo.lease, id, json.RawMessage(`{"tool":"edit_docx"}`))
+			require.NoError(t, err)
+			require.NoError(t, svc.completeBrowserToolError(ctx, repo.lease, id, "edit_docx", fmt.Errorf("private diagnostic: %w", tc.cause)))
+			op := repo.ops[id]
+			require.Equal(t, tc.code, op.Result.ErrorCode)
+			require.Contains(t, op.Result.ErrorMessage, tc.hint)
+			require.NotContains(t, string(op.Result.Output), "private diagnostic")
+			op.ToolProjection = BuildWorkbenchToolProjection(op)
+			op.Input, op.Result = nil, nil
+			detail := workbenchToolDetail(repo.lease.Run, op)
+			require.Equal(t, "failed", detail.State)
+			require.Contains(t, detail.ErrorMessage, tc.hint)
+		})
+	}
+}
+
+func TestWorkbenchInvalidNetworkToolArgumentsHaveReplayableErrors(t *testing.T) {
+	cases := []struct {
+		name, args, code string
+		searchEnabled    bool
+	}{
+		{"web_search", `{"query":"  "}`, "SEARCH_QUERY_INVALID", true},
+		{"web_search", `{"query":12}`, "SEARCH_QUERY_INVALID", true},
+		{"web_read", `{"url":"missing-scheme.example"}`, "WEB_READ_URL_INVALID", true},
+		{"web_read", `{"url":"https://example.test"}`, "WEB_READ_UNAVAILABLE", false},
+		{"web_search", `{"query":"weather"}`, "SEARCH_UNAVAILABLE", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			svc, repo := officeBridgeFixture(nil)
+			svc.repo = &workbenchToolTestRepo{repo}
+			repo.lease.Run.SearchEnabled = tc.searchEnabled
+			call := workbenchNativeCall{Name: tc.name, Arguments: json.RawMessage(tc.args)}
+			ctx := context.Background()
+			const id = "tool"
+			require.NoError(t, svc.runBrowserTool(ctx, nil, repo.lease, workbenchBrowserParameters{}, id, call))
+			first := repo.ops[id]
+			require.Equal(t, tc.code, first.Result.ErrorCode)
+			require.Equal(t, "failed", first.Result.ToolStatus)
+			require.NotEmpty(t, workbenchToolDetail(repo.lease.Run, first).ErrorMessage)
+			require.NoError(t, svc.runBrowserTool(ctx, nil, repo.lease, workbenchBrowserParameters{}, id, call))
+			require.Equal(t, first, repo.ops[id])
+		})
+	}
+}
+
+func TestWorkbenchWebReadFailureCodesExcludeUpstreamDiagnostics(t *testing.T) {
+	cases := []struct {
+		cause error
+		code  string
+	}{
+		{workbenchWebPageStatus(http.StatusUnauthorized), "WEB_READ_ACCESS_DENIED"},
+		{workbenchWebPageStatus(http.StatusGone), "WEB_READ_NOT_FOUND"},
+		{workbenchWebPageStatus(http.StatusTooManyRequests), "WEB_READ_RATE_LIMITED"},
+		{workbenchWebPageStatus(http.StatusInternalServerError), "WEB_READ_FAILED"},
+		{errWorkbenchWebReadContentType, "WEB_READ_UNSUPPORTED_CONTENT"},
+		{errWorkbenchWebReadTooLarge, "WEB_READ_TOO_LARGE"},
+		{context.DeadlineExceeded, "WEB_READ_TIMEOUT"},
+	}
+	for _, tc := range cases {
+		result, err := officeNetworkReceipt("web_read", nil, fmt.Errorf("private diagnostic: %w", tc.cause), nil)
+		require.NoError(t, err)
+		require.Equal(t, tc.code, result.ErrorCode)
+		require.NotContains(t, string(result.Output), "private diagnostic")
+	}
 }
 
 type workbenchToolTestRepo struct{ *officeBridgeTestRepo }

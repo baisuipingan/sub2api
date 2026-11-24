@@ -69,7 +69,7 @@ func (e *ExaProvider) Search(ctx context.Context, req SearchRequest) (*SearchRes
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("exa: status %d: %s", resp.StatusCode, truncateBody(body))
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode, detail: fmt.Sprintf("exa: status %d: %s", resp.StatusCode, truncateBody(body))}
 	}
 
 	var raw exaResponse

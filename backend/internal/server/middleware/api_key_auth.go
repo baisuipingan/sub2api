@@ -322,6 +322,7 @@ func hasAPIKeyCredentialInput(c *gin.Context) bool {
 func abortWithAPIKeyQuotaError(c *gin.Context) {
 	const message = "API key 额度已用完"
 	if isOpenAICompatibleAPIKeyRequest(c) {
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), http.StatusTooManyRequests, "API_KEY_QUOTA_EXHAUSTED")
 		abortWithOpenAIQuotaError(c, http.StatusTooManyRequests, message)
 		return
 	}

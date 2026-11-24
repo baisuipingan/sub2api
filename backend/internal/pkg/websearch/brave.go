@@ -70,7 +70,7 @@ func (b *BraveProvider) Search(ctx context.Context, req SearchRequest) (*SearchR
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("brave: status %d: %s", resp.StatusCode, truncateBody(body))
+		return nil, &HTTPStatusError{StatusCode: resp.StatusCode, detail: fmt.Sprintf("brave: status %d: %s", resp.StatusCode, truncateBody(body))}
 	}
 
 	var raw braveResponse

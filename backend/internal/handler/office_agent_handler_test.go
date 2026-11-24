@@ -191,6 +191,28 @@ func TestOfficeHandlerUncertainResultsAreExplicitWithoutLeakingInternalError(t *
 	require.NotContains(t, rec.Body.String(), "private-key")
 }
 
+func TestOfficeHandlerManagedAgentKeyFailureReasons(t *testing.T) {
+	for _, tc := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{service.ErrAPIKeyExpired, http.StatusForbidden, "API_KEY_EXPIRED"},
+		{service.ErrOfficeAgentKeyDisabled, http.StatusForbidden, "API_KEY_DISABLED"},
+		{service.ErrAPIKeyQuotaExhausted, http.StatusTooManyRequests, "API_KEY_QUOTA_EXHAUSTED"},
+		{service.ErrUserNotActive, http.StatusForbidden, "USER_INACTIVE"},
+	} {
+		t.Run(tc.code, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(rec)
+			require.True(t, officeHandlerError(ctx, tc.err))
+			require.Equal(t, tc.status, rec.Code)
+			require.Contains(t, rec.Body.String(), `"code":"`+tc.code+`"`)
+			require.Contains(t, rec.Body.String(), `"retryable":false`)
+		})
+	}
+}
+
 func TestOfficeModelReplyMarksOnlyConfirmedInboxResponses(t *testing.T) {
 	for _, status := range []int{http.StatusOK, http.StatusBadRequest, http.StatusBadGateway} {
 		recorder := httptest.NewRecorder()

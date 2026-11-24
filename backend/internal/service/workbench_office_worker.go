@@ -540,9 +540,18 @@ func (s *OfficeAgentService) publishBrowserFile(ctx context.Context, lease Offic
 }
 
 func (s *OfficeAgentService) completeBrowserToolError(ctx context.Context, lease OfficeRunLease, id, name string, cause error) error {
-	message := browserToolError(name, cause)
-	encoded, _ := json.Marshal(map[string]string{"error": "TOOL_FAILED", "message": message})
-	_, err := s.CompleteTool(ctx, lease, id, OfficeOperationResult{Output: encoded, ErrorCode: "TOOL_FAILED", ErrorMessage: message})
+	if name == "web_search" || name == "web_read" {
+		result, err := officeNetworkReceipt(name, nil, cause, ctx.Err())
+		if err != nil {
+			return err
+		}
+		_, err = s.CompleteTool(ctx, lease, id, result)
+		return err
+	}
+	result := OfficeOperationResult{ErrorCode: browserToolErrorCode(cause)}
+	result.ErrorMessage = workbenchToolErrorMessage(name, result, "failed")
+	result.Output, _ = json.Marshal(map[string]string{"error": result.ErrorCode, "message": result.ErrorMessage})
+	_, err := s.CompleteTool(ctx, lease, id, result)
 	return err
 }
 

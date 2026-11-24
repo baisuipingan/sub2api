@@ -7,20 +7,20 @@ import { useWorkbenchChatStore } from '@/stores/workbenchChat'
 import { useAuthStore } from '@/stores/auth'
 import type { ChatEvent, ChatMessage, ChatModel, ChatRun } from '@/types/workbenchChat'
 
-const mocks = vi.hoisted(() => ({ mounts: vi.fn(), unmounts: vi.fn(), send: vi.fn(), initialize: vi.fn() }))
+const mocks = vi.hoisted(() => ({ mounts: vi.fn(), unmounts: vi.fn(), send: vi.fn(), initialize: vi.fn(), replace: vi.fn(), selectConversation: vi.fn() }))
 const route = reactive({ params: { conversationId: 'conversation' as string | undefined }, query: {} })
-vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ replace: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => ({ replace: mocks.replace }) }))
 vi.mock('@vueuse/core', () => ({ useMediaQuery: () => ref(false) }))
 vi.mock('@/api/workbenchChat', () => ({ workbenchChatApi: { toolDetail: vi.fn() } }))
 vi.mock('@/stores/app', () => ({ useAppStore: defineStore('preview-view-app', () => ({ siteName: ref('MiloRouter'), siteLogo: ref('') })) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: defineStore('preview-view-auth', () => ({ user: ref({ id: 1 }) })) }))
 vi.mock('@/stores/workbenchChat', () => ({
-  chatError: () => '请求失败',
+  chatError: (error: { error?: { message?: string } }) => error?.error?.message || '请求失败',
   useWorkbenchChatStore: defineStore('preview-view-chat', () => ({
     status: ref({ enabled: true, office_enabled: true, search_enabled: true, search_allowed: true, search_price_per_1000_usd: 0 }), models: ref<ChatModel[]>([{ id: 'gpt', supports_tools: true }, { id: 'text', supports_tools: false }]), modelCatalog: ref({ default_model: 'gpt' }),
     history: ref({ messages: [], runs: [{ id: 'run', model: 'gpt', status: 'completed', mode: 'office', created_at: '' }] }), events: ref<Record<string, ChatEvent[]>>({}),
     modelRouteChangedRunID: ref(''),
-    activeConversationId: ref('conversation'), activeRun: computed(() => null), initialize: mocks.initialize, selectConversation: vi.fn(), pause: vi.fn(), send: mocks.send,
+    activeConversationId: ref('conversation'), activeRun: computed(() => null), initialize: mocks.initialize, selectConversation: mocks.selectConversation, pause: vi.fn(), send: mocks.send, error: ref(''),
   })),
 }))
 const Preview = defineComponent({ name: 'ResourcePreview', props: ['fullscreen'], emits: ['fullscreen', 'close'], setup(props, { emit }) { onMounted(mocks.mounts); onUnmounted(mocks.unmounts); return () => h('section', { 'data-preview': '' }, [h('iframe', { src: 'about:blank' }), h('button', { 'data-toggle-fullscreen': '', onClick: () => emit('fullscreen') }, props.fullscreen ? '退出全屏' : '全屏预览')]) } })
@@ -159,6 +159,40 @@ describe('conversation preview lifetime', () => {
     await flushPromises()
     expect(mocks.send).toHaveBeenLastCalledWith({ model: 'flash', content: '重试这条消息', web_search: false, regenerate_run_id: 'run', reasoning_effort: 'high' })
     expect(composer.props('modelValue')).toBe('还没有发送的新稿')
+  })
+
+  it('keeps the submitted draft and rejection visible after opening the newly created conversation', async () => {
+    route.params.conversationId = undefined
+    const store = useWorkbenchChatStore()
+    store.activeConversationId = ''
+    store.history = { messages: [], runs: [] }
+    const message = '当前账号无权使用工作台的 Agent 分组'
+    mocks.send.mockImplementationOnce(async () => {
+      store.activeConversationId = 'created'
+      store.error = message
+      throw { error: { code: 'WORKBENCH_AGENT_GROUP_FORBIDDEN', message } }
+    })
+    mocks.replace.mockImplementationOnce(async () => {
+      route.params.conversationId = 'created'
+      await nextTick()
+    })
+    mocks.selectConversation.mockImplementation(async () => { store.error = '' })
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: { name: 'ChatComposer', props: ['modelValue'], template: '<div />' },
+      Icon: true, TaskProgress: true, ResultSection: true, ResourcePreview: true,
+    } } })
+    await flushPromises()
+    const composer = wrapper.getComponent({ name: 'ChatComposer' })
+    composer.vm.$emit('update:modelValue', '保留这条草稿')
+    composer.vm.$emit('send')
+    await flushPromises()
+
+    expect(mocks.replace).toHaveBeenCalledWith('/workbench/chat/created')
+    expect(mocks.selectConversation).toHaveBeenCalledWith('created', false)
+    expect(store.error).toBe('')
+    expect(wrapper.get('[role="alert"]').text()).toBe(message)
+    expect(composer.props('modelValue')).toBe('保留这条草稿')
   })
 
   it('clears the old conversation draft when the sidebar already reset the store selection', async () => {

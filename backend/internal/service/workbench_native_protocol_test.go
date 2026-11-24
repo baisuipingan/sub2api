@@ -206,6 +206,143 @@ func (r *workbenchNativeBridgeRepo) AppendEvent(_ context.Context, _ OfficeRunLe
 	return &OfficeRunEvent{}, nil
 }
 
+func TestWorkbenchNativeBridgePreservesGatewayFailureReason(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		wantCode string
+		wantText string
+	}{
+		{
+			name:     "gateway authentication balance rejection",
+			body:     `{"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}`,
+			wantCode: "INSUFFICIENT_BALANCE",
+			wantText: "余额不足，请充值后重新发送消息。",
+		},
+		{
+			name:     "existing nested code",
+			body:     `{"code":403,"error":{"code":"insufficient_credits","message":"Insufficient credits"}}`,
+			wantCode: "INSUFFICIENT_BALANCE",
+			wantText: "余额不足，请充值后重新发送消息。",
+		},
+		{
+			name:     "nested code takes precedence",
+			body:     `{"code":"INSUFFICIENT_BALANCE","error":{"code":"permission_denied"}}`,
+			wantCode: "MODEL_HTTP_403",
+			wantText: "当前账号或上游未授权使用此模型。",
+		},
+		{
+			name:     "provider permission error with a numeric status",
+			body:     `{"error":{"code":403,"status":"PERMISSION_DENIED","message":"Permission denied"}}`,
+			wantCode: "MODEL_HTTP_403",
+			wantText: "当前账号或上游未授权使用此模型。",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo := officeBridgeFixture(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			repo.lease.Run.BrowserDriven = true
+			const operation = "browser:model:0"
+			_, err := svc.invokeOfficeGateway(context.Background(), repo.lease, operation,
+				"/v1/responses", []byte(`{"model":"public-model","input":"hello"}`), "", workbenchProtocolResponses)
+			require.NoError(t, err)
+			require.NotContains(t, string(repo.ops[operation].Result.Output), `"body"`)
+
+			state, err := workbenchState(workbenchProtocolResponses, []OfficeOperation{repo.ops[operation]})
+			require.NoError(t, err)
+			require.NotNil(t, state.ModelError)
+			code, message := workbenchModelError(state.ModelError)
+			require.Equal(t, tc.wantCode, code)
+			require.Equal(t, tc.wantText, message)
+		})
+	}
+}
+
+func TestWorkbenchBridgeRetainsLocalFailureAcrossGatewayProtocols(t *testing.T) {
+	cases := []struct {
+		name       string
+		protocol   workbenchProtocol
+		wireStatus int
+		status     int
+		code       string
+		body       string
+		wantText   string
+	}{
+		{"Gemini balance error", workbenchProtocolGemini, http.StatusForbidden, http.StatusForbidden,
+			"INSUFFICIENT_BALANCE", `{"error":{"code":403,"status":"PERMISSION_DENIED","message":"Insufficient account balance"}}`,
+			"余额不足"},
+		{"Responses balance error after keepalive", workbenchProtocolResponses, http.StatusOK, http.StatusForbidden,
+			"INSUFFICIENT_BALANCE", "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"billing_error\"}}}\n\n",
+			"余额不足"},
+		{"model price missing", workbenchProtocolChatCompletions, http.StatusForbidden, http.StatusForbidden,
+			"MODEL_PRICING_UNAVAILABLE", `{"error":{"type":"billing_error","message":"insufficient balance"}}`,
+			"当前模型暂时无法计费"},
+		{"platform quota", workbenchProtocolAnthropic, http.StatusTooManyRequests, http.StatusTooManyRequests,
+			"USER_PLATFORM_DAILY_QUOTA_EXHAUSTED", `{"error":{"type":"rate_limit_exceeded"}}`,
+			"模型平台上的周期额度"},
+		{"gateway queue full after keepalive", workbenchProtocolResponses, http.StatusOK, http.StatusTooManyRequests,
+			"GATEWAY_QUEUE_FULL", "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\"}}\n\n",
+			"等待中的请求太多"},
+		{"no upstream after keepalive", workbenchProtocolResponses, http.StatusOK, http.StatusServiceUnavailable,
+			"MODEL_UPSTREAM_UNAVAILABLE", "data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\"}}\n\n",
+			"暂时没有可用的上游"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo := officeBridgeFixture(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.wireStatus == http.StatusOK {
+					w.Header().Set("Content-Type", "text/event-stream")
+					_, _ = io.WriteString(w, ": keepalive\n\n")
+				} else {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tc.wireStatus)
+				}
+				MarkWorkbenchGatewayFailure(r.Context(), tc.status, tc.code)
+				if tc.code == "MODEL_PRICING_UNAVAILABLE" {
+					MarkWorkbenchGatewayFailure(r.Context(), tc.status, "INSUFFICIENT_BALANCE")
+				}
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			repo.lease.Run.BrowserDriven = true
+			reply, err := svc.invokeOfficeGateway(context.Background(), repo.lease, "browser:model:0",
+				"/v1/responses", []byte(`{"model":"public-model","input":"hello"}`), "", tc.protocol)
+			require.NoError(t, err)
+			require.Equal(t, tc.status, reply.Status)
+			require.Empty(t, reply.Body)
+			code, message := workbenchModelError(reply)
+			require.Equal(t, tc.code, code)
+			require.Contains(t, message, tc.wantText)
+		})
+	}
+}
+
+func TestWorkbenchModelErrorFallbacks(t *testing.T) {
+	code, message := workbenchModelError(&OfficeGatewayReply{Status: http.StatusPaymentRequired})
+	require.Equal(t, "MODEL_HTTP_402", code)
+	require.NotContains(t, message, "请充值")
+	code, _ = workbenchModelError(&OfficeGatewayReply{Status: http.StatusRequestEntityTooLarge})
+	require.Equal(t, "MODEL_HTTP_413", code)
+	code, message = workbenchModelError(&OfficeGatewayReply{Status: http.StatusServiceUnavailable,
+		Body: []byte(`{"error":{"type":"billing_service_error","message":"private diagnostic"}}`)})
+	require.Equal(t, "BILLING_SERVICE_ERROR", code)
+	require.NotContains(t, message, "private diagnostic")
+	for reason, expected := range map[string]string{
+		"max_output_tokens": "MODEL_OUTPUT_LIMIT",
+		"MAX_TOKENS":        "MODEL_OUTPUT_LIMIT",
+		"SAFETY":            "MODEL_CONTENT_BLOCKED",
+		"empty_output":      "EMPTY_MODEL_RESULT",
+		"failed":            "MODEL_STREAM_FAILED",
+		"unrecognized":      "MODEL_INCOMPLETE",
+	} {
+		got, _ := workbenchModelIncompleteError(reason)
+		require.Equal(t, expected, got, reason)
+	}
+}
+
 func TestWorkbenchNativeBridgeSendsToolResultsAndReplaysGatewayInbox(t *testing.T) {
 	for _, tc := range []struct {
 		protocol          workbenchProtocol
