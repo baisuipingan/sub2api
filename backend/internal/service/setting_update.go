@@ -35,6 +35,18 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	return s.UpdateSettingsOmitting(ctx, settings, nil)
 }
 
+func (s *SettingService) UpdateMiloCodeDownloadEntry(ctx context.Context, enabled bool) error {
+	if err := s.settingRepo.SetMultiple(ctx, map[string]string{
+		SettingKeyMiloCodeDownloadEntryEnabled: strconv.FormatBool(enabled),
+	}); err != nil {
+		return err
+	}
+	if s.onUpdate != nil {
+		s.onUpdate()
+	}
+	return nil
+}
+
 // UpdateSettingsOmitting persists system settings, leaving the keys in omitted
 // at their stored value.
 func (s *SettingService) UpdateSettingsOmitting(ctx context.Context, settings *SystemSettings, omitted OmittedSettingKeys) error {

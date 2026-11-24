@@ -1280,16 +1280,14 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 			HTML: notificationEmailCard("#16a34a", "Recharge successful", `
 <p>Hello {{recipient_name}},</p>
 <p>Your balance recharge of <strong>{{recharge_amount}}</strong> has been completed.</p>
-<p>Current balance: <strong>{{current_balance}}</strong></p>
-<p>Order ID: {{order_id}}</p>`),
+<p>Current balance: <strong>{{current_balance}}</strong></p>`),
 		},
 		notificationEmailLocaleChinese: {
 			Subject: "[{{site_name}}] 余额充值成功",
 			HTML: notificationEmailCard("#16a34a", "余额充值成功", `
 <p>{{recipient_name}}，您好：</p>
 <p>您的余额充值 <strong>{{recharge_amount}}</strong> 已完成。</p>
-<p>当前余额：<strong>{{current_balance}}</strong></p>
-			<p>订单号：{{order_id}}</p>`),
+<p>当前余额：<strong>{{current_balance}}</strong></p>`),
 		},
 	},
 	NotificationEmailEventAccountQuotaAlert: {

@@ -490,6 +490,7 @@ export interface SystemSettings {
   api_base_url: string;
   contact_info: string;
   doc_url: string;
+  milocode_download_entry_enabled?: boolean;
   /** 充值/订阅外部链接（如卡网），留空则走站内 /purchase */
   purchase_subscription_url?: string;
   purchase_subscription_enabled?: boolean;
@@ -1119,6 +1120,14 @@ export async function updateBillingCurrencyConfig(
   const { data } = await apiClient.put<BillingCurrencyConfig>(
     '/admin/settings/billing-currency',
     config,
+  )
+  return data
+}
+
+export async function updateMiloCodeDownloadEntry(enabled: boolean): Promise<{ milocode_download_entry_enabled: boolean }> {
+  const { data } = await apiClient.put<{ milocode_download_entry_enabled: boolean }>(
+    '/admin/settings/milocode-download-entry',
+    { milocode_download_entry_enabled: enabled },
   )
   return data
 }

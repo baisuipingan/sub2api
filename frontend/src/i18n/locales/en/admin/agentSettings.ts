@@ -2,6 +2,9 @@ export default {
   agentSettings: {
     title: 'Desktop client',
     description: 'Configure MiloCode’s billing group, client models and defaults. Accounts, balance and inference continue to use the existing gateway.',
+    downloadEntryTitle: 'Show MiloCode download entry',
+    downloadEntryDescription: 'Show the MiloCode download button in the site header. You can still share the download page directly while the button is hidden.',
+    downloadEntrySaveFailed: 'Could not save the MiloCode download entry setting. Please try again.',
     connectionTitle: 'Service overview',
     unconfigured: 'Agent is not configured. Select a group, add models and declare their capabilities and budgets, then save to make them available.',
     unpublished: 'This configuration is not published. Review and save the complete valid configuration to make it available to the desktop Agent.',

@@ -1087,6 +1087,7 @@ export default {
         previewing: 'Previewing...',
         save: 'Save Template',
         saving: 'Saving...',
+        unsavedChanges: 'This template has unsaved changes.',
         restoreOfficial: 'Restore Official',
         restoring: 'Restoring...',
         restoreConfirm: 'Restore the official template for this event and locale? Your custom version will be replaced.',

@@ -15,26 +15,18 @@
         <button
           type="button"
           class="btn btn-secondary btn-sm"
-          :disabled="loadingTemplate || previewing || !canPreview"
-          @click="refreshPreview"
+          :disabled="editorBusy || previewing || !canPreview"
+          @click="refreshPreview()"
         >
           {{ previewing ? t("admin.settings.emailTemplates.previewing") : t("admin.settings.emailTemplates.preview") }}
         </button>
         <button
           type="button"
           class="btn btn-secondary btn-sm"
-          :disabled="loadingTemplate || restoring || !selectedEvent || !selectedLocale"
+          :disabled="editorBusy || !draftMatchesSelection"
           @click="restoreOfficial"
         >
           {{ restoring ? t("admin.settings.emailTemplates.restoring") : t("admin.settings.emailTemplates.restoreOfficial") }}
-        </button>
-        <button
-          type="button"
-          class="btn btn-primary btn-sm"
-          :disabled="loadingTemplate || saving || !canSave"
-          @click="saveTemplate"
-        >
-          {{ saving ? t("admin.settings.emailTemplates.saving") : t("admin.settings.emailTemplates.save") }}
         </button>
       </div>
     </div>
@@ -60,7 +52,7 @@
               id="email-template-event"
               v-model="selectedEvent"
               class="input"
-              :disabled="loadingTemplate || eventOptions.length === 0"
+              :disabled="editorBusy || eventOptions.length === 0"
             >
               <option
                 v-for="option in eventOptions"
@@ -79,7 +71,7 @@
               id="email-template-locale"
               v-model="selectedLocale"
               class="input"
-              :disabled="loadingTemplate || localeOptions.length === 0"
+              :disabled="editorBusy || localeOptions.length === 0"
             >
               <option
                 v-for="localeOption in localeOptions"
@@ -145,7 +137,7 @@
                 v-model="subject"
                 type="text"
                 class="input"
-                :disabled="loadingTemplate"
+                :disabled="editorBusy || !draftMatchesSelection"
                 :placeholder="t('admin.settings.emailTemplates.subjectPlaceholder')"
               />
             </div>
@@ -159,9 +151,23 @@
                 v-model="html"
                 rows="18"
                 class="input min-h-[28rem] resize-y font-mono text-sm leading-6"
-                :disabled="loadingTemplate"
+                :disabled="editorBusy || !draftMatchesSelection"
                 :placeholder="t('admin.settings.emailTemplates.htmlPlaceholder')"
               ></textarea>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                :disabled="editorBusy || !hasChanges"
+                @click="saveTemplate"
+              >
+                {{ saving ? t("admin.settings.emailTemplates.saving") : t("admin.settings.emailTemplates.save") }}
+              </button>
+              <p v-if="hasChanges" class="text-xs text-amber-700 dark:text-amber-300">
+                {{ t("admin.settings.emailTemplates.unsavedChanges") }}
+              </p>
             </div>
 
             <div
@@ -199,7 +205,11 @@
                     {{ t("admin.settings.emailTemplates.livePreview") }}
                   </div>
                   <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ previewSubject || t("admin.settings.emailTemplates.noPreview") }}
+                    {{
+                      previewing
+                        ? t("admin.settings.emailTemplates.previewing")
+                        : previewError || previewSubject || t("admin.settings.emailTemplates.noPreview")
+                    }}
                   </div>
                 </div>
                 <span
@@ -213,7 +223,7 @@
                 <iframe
                   class="h-[36rem] w-full rounded-md border border-gray-200 bg-white dark:border-dark-700"
                   sandbox=""
-                  :srcdoc="previewHtml"
+                  :srcdoc="previewing ? '' : previewHtml"
                   :title="t('admin.settings.emailTemplates.livePreview')"
                 ></iframe>
               </div>
@@ -230,10 +240,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
 import type {
+  EmailTemplateDetail,
   EmailTemplateEventOption,
   EmailTemplateOption,
 } from "@/api/admin/settings";
@@ -242,6 +253,7 @@ import { extractApiErrorMessage } from "@/utils/apiError";
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
+const props = defineProps<{ disabled?: boolean }>();
 
 const fallbackPlaceholders = [
   "{{site_name}}",
@@ -327,7 +339,10 @@ const isCustomTemplate = ref(false);
 const placeholders = ref<string[]>([]);
 const previewSubject = ref("");
 const previewHtml = ref("");
+const previewError = ref("");
 const initializingSelection = ref(false);
+const loadedTemplate = ref<EmailTemplateDetail>();
+let previewVersion = 0;
 
 interface EventDisplayMeta {
   label: string;
@@ -547,15 +562,18 @@ function formatPlaceholder(placeholder: string): string {
   return `{{${trimmed}}}`;
 }
 
-const canSave = computed(
-  () =>
-    Boolean(selectedEvent.value && selectedLocale.value) &&
-    subject.value.trim().length > 0 &&
-    html.value.trim().length > 0,
+const editorBusy = computed(
+  () => props.disabled || loadingList.value || loadingTemplate.value || saving.value || restoring.value,
 );
-
+const draftMatchesSelection = computed(
+  () => loadedTemplate.value?.event === selectedEvent.value && loadedTemplate.value?.locale === selectedLocale.value,
+);
+const hasChanges = computed(
+  () => draftMatchesSelection.value &&
+    (subject.value !== loadedTemplate.value?.subject || html.value !== loadedTemplate.value?.html),
+);
 const canPreview = computed(
-  () => Boolean(selectedEvent.value && selectedLocale.value) && html.value.trim().length > 0,
+  () => draftMatchesSelection.value && subject.value.trim().length > 0 && html.value.trim().length > 0,
 );
 
 function formatLocale(locale: string): string {
@@ -585,32 +603,31 @@ function selectInitialLocale(locales: string[]): string {
   return locales[0] || "";
 }
 
-function applyTemplate(template: {
-  subject: string;
-  html: string;
-  is_custom?: boolean;
-  placeholders?: string[];
-}) {
+function applyTemplate(template: EmailTemplateDetail) {
   subject.value = template.subject;
   html.value = template.html;
   isCustomTemplate.value = template.is_custom === true;
   placeholders.value = template.placeholders || [];
+  loadedTemplate.value = template;
 }
 
 async function loadTemplate() {
-  if (!selectedEvent.value || !selectedLocale.value) return;
+  const event = selectedEvent.value;
+  const locale = selectedLocale.value;
+  if (!event || !locale) return;
+  const selectionIsCurrent = () => selectedEvent.value === event && selectedLocale.value === locale;
+  loadedTemplate.value = undefined;
+  subject.value = "";
+  html.value = "";
+  isCustomTemplate.value = false;
   loadingTemplate.value = true;
   try {
-    const template = await adminAPI.settings.getEmailTemplate(
-      selectedEvent.value,
-      selectedLocale.value,
-    );
-    applyTemplate(template);
-    await refreshPreview();
+    const template = await adminAPI.settings.getEmailTemplate(event, locale);
+    if (selectionIsCurrent()) applyTemplate(template);
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    if (selectionIsCurrent()) appStore.showError(extractApiErrorMessage(err, t("common.error")));
   } finally {
-    loadingTemplate.value = false;
+    if (selectionIsCurrent()) loadingTemplate.value = false;
   }
 }
 
@@ -634,10 +651,12 @@ async function loadTemplateList() {
   }
 }
 
-async function saveTemplate() {
-  if (!canSave.value) {
+async function saveChanges(): Promise<boolean> {
+  if (!hasChanges.value) return true;
+  if (loadingTemplate.value || saving.value || restoring.value) return false;
+  if (!canPreview.value) {
     appStore.showError(t("admin.settings.emailTemplates.validationRequired"));
-    return;
+    return false;
   }
   saving.value = true;
   try {
@@ -650,40 +669,55 @@ async function saveTemplate() {
       },
     );
     applyTemplate(template);
-    await refreshPreview();
-    appStore.showSuccess(t("admin.settings.emailTemplates.saveSuccess"));
+    return true;
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    return false;
   } finally {
     saving.value = false;
   }
 }
 
-async function refreshPreview() {
-  if (!canPreview.value) {
-    previewSubject.value = "";
-    previewHtml.value = "";
-    return;
+async function saveTemplate() {
+  if (hasChanges.value && (await saveChanges())) {
+    appStore.showSuccess(t("admin.settings.emailTemplates.saveSuccess"));
   }
+}
+
+async function refreshPreview() {
+  if (!canPreview.value) return;
+  const version = ++previewVersion;
+  const draft = {
+    event: selectedEvent.value,
+    locale: selectedLocale.value,
+    subject: subject.value,
+    html: html.value,
+  };
+  const isCurrentPreview = () =>
+    version === previewVersion &&
+    draft.event === selectedEvent.value &&
+    draft.locale === selectedLocale.value &&
+    draft.subject === subject.value &&
+    draft.html === html.value;
   previewing.value = true;
+  previewError.value = "";
   try {
-    const preview = await adminAPI.settings.previewEmailTemplate({
-      event: selectedEvent.value,
-      locale: selectedLocale.value,
-      subject: subject.value,
-      html: html.value,
-    });
+    const preview = await adminAPI.settings.previewEmailTemplate(draft);
+    if (!isCurrentPreview()) return;
     previewSubject.value = preview.subject;
     previewHtml.value = preview.html;
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t("common.error")));
+    if (!isCurrentPreview()) return;
+    previewSubject.value = "";
+    previewHtml.value = "";
+    previewError.value = extractApiErrorMessage(err, t("common.error"));
   } finally {
-    previewing.value = false;
+    if (isCurrentPreview()) previewing.value = false;
   }
 }
 
 async function restoreOfficial() {
-  if (!selectedEvent.value || !selectedLocale.value) return;
+  if (editorBusy.value || !draftMatchesSelection.value) return;
   if (!window.confirm(t("admin.settings.emailTemplates.restoreConfirm"))) return;
 
   restoring.value = true;
@@ -693,7 +727,6 @@ async function restoreOfficial() {
       selectedLocale.value,
     );
     applyTemplate(template);
-    await refreshPreview();
     appStore.showSuccess(t("admin.settings.emailTemplates.restoreSuccess"));
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t("common.error")));
@@ -718,7 +751,24 @@ watch([selectedEvent, selectedLocale], ([eventValue, localeValue], [oldEvent, ol
   void loadTemplate();
 });
 
+watch([selectedEvent, selectedLocale, subject, html, loadedTemplate], (_, __, onCleanup) => {
+  ++previewVersion;
+  previewing.value = canPreview.value;
+  previewError.value = "";
+  if (!canPreview.value) {
+    previewSubject.value = "";
+    previewHtml.value = "";
+    return;
+  }
+  const timeout = setTimeout(() => void refreshPreview(), 300);
+  onCleanup(() => clearTimeout(timeout));
+});
+
+onBeforeUnmount(() => { ++previewVersion; });
+
 onMounted(() => {
   void loadTemplateList();
 });
+
+defineExpose({ saveChanges, saving });
 </script>

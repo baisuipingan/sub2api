@@ -33,6 +33,9 @@ beforeEach(() => {
 const {
   getSettings,
   updateSettings,
+  getEmailTemplates,
+  getEmailTemplate,
+  updateEmailTemplate,
   getBillingCurrencyConfig,
   updateBillingCurrencyConfig,
   getWebSearchEmulationConfig,
@@ -63,6 +66,9 @@ const {
 } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
+  getEmailTemplates: vi.fn().mockResolvedValue({ events: [], locales: [] }),
+  getEmailTemplate: vi.fn(),
+  updateEmailTemplate: vi.fn(),
   getBillingCurrencyConfig: vi.fn(),
   updateBillingCurrencyConfig: vi.fn(),
   getWebSearchEmulationConfig: vi.fn(),
@@ -112,6 +118,10 @@ vi.mock("@/api", () => ({
     settings: {
       getSettings,
       updateSettings,
+      getEmailTemplates,
+      getEmailTemplate,
+      updateEmailTemplate,
+      previewEmailTemplate: vi.fn().mockResolvedValue({ subject: "", html: "" }),
       getBillingCurrencyConfig,
       updateBillingCurrencyConfig,
       getWebSearchEmulationConfig,
@@ -1291,6 +1301,49 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
     expect(payload).not.toHaveProperty("payment_balance_recharge_multiplier");
     expect(payload).not.toHaveProperty("payment_subscription_usd_to_cny_rate");
+  });
+
+  it("saves an edited email template through the bottom settings button and reloads the saved HTML", async () => {
+    const event = "balance.recharge_success";
+    const subject = "余额充值成功";
+    const editedHTML = "<p>充值完成。</p>";
+    const initialHTML = editedHTML + "<p>订单号：{{order_id}}</p>";
+    getEmailTemplates.mockResolvedValue({ events: [event], locales: ["zh"] });
+    getEmailTemplate.mockResolvedValue({ event, locale: "zh", subject, html: initialHTML });
+    updateEmailTemplate.mockImplementation(async (event, locale, draft) => {
+      const saved = { event, locale, ...draft, is_custom: true };
+      getEmailTemplate.mockResolvedValue(saved);
+      return saved;
+    });
+
+    try {
+      settingsRoute.hash = "#email";
+      const wrapper = mountView();
+      await flushPromises();
+      const field = "#email-template-html";
+      expect((wrapper.get(field).element as HTMLTextAreaElement).value).toBe(initialHTML);
+      await wrapper.get(field).setValue(editedHTML);
+      await wrapper.get("form").trigger("submit");
+      await flushPromises();
+
+      expect(updateSettings).toHaveBeenCalledTimes(1);
+      expect(updateEmailTemplate).toHaveBeenCalledTimes(1);
+      expect(updateEmailTemplate).toHaveBeenCalledWith(event, "zh", { subject, html: editedHTML });
+      expect(showSuccess).toHaveBeenCalledWith("admin.settings.settingsSaved");
+      wrapper.unmount();
+
+      const reloaded = mountView();
+      await flushPromises();
+      expect((reloaded.get(field).element as HTMLTextAreaElement).value).toBe(editedHTML);
+      await reloaded.get("form").trigger("submit");
+      await flushPromises();
+      expect(updateEmailTemplate).toHaveBeenCalledTimes(1);
+      reloaded.unmount();
+    } finally {
+      getEmailTemplates.mockResolvedValue({ events: [], locales: [] });
+      getEmailTemplate.mockReset();
+      updateEmailTemplate.mockReset();
+    }
   });
 
   it.each([[6.75, "$1.00"], [1, "$0.15"]])(

@@ -547,6 +547,9 @@ const (
 	// admin "site billing mode" selector. Defaults to true (opt-out feature).
 	SettingKeySubscriptionEnabled = "subscription_enabled"
 
+	// SettingKeyMiloCodeDownloadEntryEnabled controls the download promotion in the site header.
+	SettingKeyMiloCodeDownloadEntryEnabled = "milocode_download_entry_enabled"
+
 	// SettingKeyModelPlazaEnabled is a DB-backed soft switch for the Model Plaza page
 	// (public group/model pricing showcase). When false: the plaza endpoint returns 404
 	// and the header entry is hidden. Defaults to false (opt-in feature).

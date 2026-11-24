@@ -2,6 +2,9 @@ export default {
   agentSettings: {
     title: '桌面客户端',
     description: '为 MiloCode 配置计费分组、客户端模型和默认参数。账户余额与模型调用继续使用现有网关。',
+    downloadEntryTitle: '显示 MiloCode 下载入口',
+    downloadEntryDescription: '控制站点顶栏的 MiloCode 下载按钮。关闭期间仍可将下载页链接直接分享给需要的用户。',
+    downloadEntrySaveFailed: 'MiloCode 下载入口设置保存失败，请重试。',
     connectionTitle: '服务概况',
     unconfigured: '尚未配置桌面服务。选择计费分组并添加模型，确认能力后保存发布。',
     unpublished: '当前配置尚未发布。检查并保存完整有效配置后，即可供桌面 Agent 使用。',

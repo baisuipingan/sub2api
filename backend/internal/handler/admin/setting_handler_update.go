@@ -2484,8 +2484,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GrokCrossClientModelMapEnabled: updatedSettings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         updatedSettings.GrokDefaultBaseURLMode,
 
-		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
-		SubscriptionEnabled:      updatedSettings.SubscriptionEnabled,
+		AvailableChannelsEnabled:     updatedSettings.AvailableChannelsEnabled,
+		SubscriptionEnabled:          updatedSettings.SubscriptionEnabled,
+		MiloCodeDownloadEntryEnabled: updatedSettings.MiloCodeDownloadEntryEnabled,
 
 		ModelPlazaEnabled:       updatedSettings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   updatedSettings.ModelPlazaRequireAuth,

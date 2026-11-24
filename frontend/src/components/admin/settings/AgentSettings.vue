@@ -12,6 +12,7 @@
       </div>
     </div>
 
+    <MiloCodeDownloadEntrySettings />
     <AgentProfileCatalogSettings :active="props.active" :disabled="loading || saving" @updated="retryProfiles" />
 
     <template v-if="loaded">
@@ -89,6 +90,7 @@ import Select from '@/components/common/Select.vue'
 import AgentModelSettingsCard from './AgentModelSettingsCard.vue'
 import DesktopReleaseStorageSettings from './DesktopReleaseStorageSettings.vue'
 import AgentProfileCatalogSettings from './AgentProfileCatalogSettings.vue'
+import MiloCodeDownloadEntrySettings from './MiloCodeDownloadEntrySettings.vue'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const { t } = useI18n()

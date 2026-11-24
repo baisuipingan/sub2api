@@ -3,16 +3,66 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUpdateMiloCodeDownloadEntryPersistsOnlyVisibility(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeySiteName:           "Example Gateway",
+		service.SettingKeyDesktopAgentConfig: `{"enabled":true,"group_id":12}`,
+	})
+	invalidations := 0
+	h.settingService.SetOnUpdateCallback(func() { invalidations++ })
+	update := func(body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings/milocode-download-entry", bytes.NewBufferString(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		h.UpdateMiloCodeDownloadEntry(c)
+		return rec
+	}
+
+	require.Equal(t, http.StatusBadRequest, update(`{}`).Code)
+	require.Zero(t, invalidations)
+	for _, enabled := range []bool{false, true} {
+		raw, err := json.Marshal(map[string]bool{"milocode_download_entry_enabled": enabled})
+		require.NoError(t, err)
+		rec := update(string(raw))
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Contains(t, rec.Body.String(), string(raw))
+		require.Len(t, repo.lastUpdates, 1)
+		require.Contains(t, repo.lastUpdates, service.SettingKeyMiloCodeDownloadEntryEnabled)
+		require.Equal(t, `{"enabled":true,"group_id":12}`, repo.values[service.SettingKeyDesktopAgentConfig])
+
+		settings, err := h.settingService.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, enabled, settings.MiloCodeDownloadEntryEnabled)
+		public, err := h.settingService.GetPublicSettings(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, enabled, public.MiloCodeDownloadEntryEnabled)
+		injected, err := h.settingService.GetPublicSettingsForInjection(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, enabled, injected.(*service.PublicSettingsInjectionPayload).MiloCodeDownloadEntryEnabled)
+	}
+	require.Equal(t, 2, invalidations)
+
+	require.Equal(t, http.StatusOK, update(`{"milocode_download_entry_enabled":false}`).Code)
+	rec := doUpdateSettings(t, h, map[string]any{"site_name": "After"}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "false", repo.values[service.SettingKeyMiloCodeDownloadEntryEnabled])
+	require.NotContains(t, repo.lastUpdates, service.SettingKeyMiloCodeDownloadEntryEnabled)
+}
 
 // Saving settings is a whole-document PUT. A client that sends only the field it
 // cares about must not reset everything else: a payload as small as

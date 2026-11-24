@@ -25,7 +25,7 @@
       <!-- Right: Desktop Client + Announcements + Account Actions -->
       <div class="flex shrink-0 items-center gap-1 sm:gap-3">
         <router-link
-          v-if="user && (authStore.isAdmin || !appStore.backendModeEnabled)"
+          v-if="user && miloCodeDownloadEntryEnabled && (authStore.isAdmin || !appStore.backendModeEnabled)"
           :to="downloadPath"
           :title="t('nav.milocodeDownload')"
           :aria-label="t('nav.milocodeDownload')"
@@ -138,7 +138,7 @@ import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMi
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
-import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { FeatureFlags, isFeatureFlagEnabled, resolveFeatureFlag } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { formatCurrentBillingAmount } from '@/utils/billingCurrency'
@@ -156,6 +156,7 @@ const workspace = computed(() => workspaceLocation(route, authStore.isAdmin
   ? adminSettingsStore.customMenuItems.filter(item => item.visibility === 'admin').map(item => item.id)
   : []))
 const downloadPath = computed(() => desktopDownloadPath(workspace.value.area, workspace.value.context))
+const miloCodeDownloadEntryEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.miloCodeDownloadEntry))
 
 const user = computed(() => authStore.user)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))

@@ -114,6 +114,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Model Plaza',
   }),
+  miloCodeDownloadEntry: defineFlag({
+    key: 'milocode_download_entry_enabled',
+    mode: 'opt-out',
+    label: 'MiloCode Download Entry',
+  }),
   pluginManagement: defineFlag({
     key: 'plugin_management_enabled',
     mode: 'opt-in',

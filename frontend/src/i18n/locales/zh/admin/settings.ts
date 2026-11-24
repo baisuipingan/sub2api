@@ -1082,6 +1082,7 @@ export default {
         previewing: '预览中...',
         save: '保存模板',
         saving: '保存中...',
+        unsavedChanges: '模板有未保存的修改。',
         restoreOfficial: '恢复官方模板',
         restoring: '恢复中...',
         restoreConfirm: '确定恢复此事件和语言的官方模板吗？当前自定义版本将被替换。',

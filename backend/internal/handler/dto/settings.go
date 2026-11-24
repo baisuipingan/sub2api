@@ -332,7 +332,8 @@ type SystemSettings struct {
 
 	// Subscription feature switch: gates the whole user-facing subscription surface
 	// (sidebar entries, purchase-page subscription tab, header badge, /subscriptions route).
-	SubscriptionEnabled bool `json:"subscription_enabled"`
+	SubscriptionEnabled          bool `json:"subscription_enabled"`
+	MiloCodeDownloadEntryEnabled bool `json:"milocode_download_entry_enabled"`
 
 	// Model Plaza feature (public group/model pricing showcase)
 	ModelPlazaEnabled       bool   `json:"model_plaza_enabled"`
@@ -455,7 +456,8 @@ type PublicSettings struct {
 
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
-	SubscriptionEnabled bool `json:"subscription_enabled"`
+	SubscriptionEnabled          bool `json:"subscription_enabled"`
+	MiloCodeDownloadEntryEnabled bool `json:"milocode_download_entry_enabled"`
 
 	ModelPlazaEnabled       bool `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth   bool `json:"model_plaza_require_auth"`

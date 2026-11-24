@@ -8681,7 +8681,7 @@
             </div>
           </div>
 
-          <EmailTemplateEditor />
+          <EmailTemplateEditor ref="emailTemplateEditor" :disabled="saving" />
 
           <!-- Balance Low Notification -->
           <div class="card">
@@ -8835,7 +8835,7 @@
         <div v-show="activeTab !== 'backup' && activeTab !== 'agent'" class="settings-save-dock">
           <button
             type="submit"
-            :disabled="saving || loadFailed || (activeTab === 'payment' && billingCurrencySettings?.saving)"
+            :disabled="saving || loadFailed || (activeTab === 'payment' && billingCurrencySettings?.saving) || (activeTab === 'email' && emailTemplateEditor?.saving)"
             class="btn btn-primary"
           >
             <svg
@@ -9155,6 +9155,7 @@ const loading = ref(true);
 const loadFailed = ref(false);
 const saving = ref(false);
 const billingCurrencySettings = ref<InstanceType<typeof BillingCurrencySettingsCard> | null>(null);
+const emailTemplateEditor = ref<InstanceType<typeof EmailTemplateEditor> | null>(null);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
@@ -11316,7 +11317,8 @@ async function saveSettings() {
   // 原因：独立Agent区域位于现有外层form中，Enter不能误提交其他系统设置。
   if (activeTab.value === "agent" || saving.value) return;
   const billingCard = activeTab.value === "payment" ? billingCurrencySettings.value : null;
-  if (billingCard?.saving) return;
+  const emailEditor = activeTab.value === "email" ? emailTemplateEditor.value : null;
+  if (billingCard?.saving || emailEditor?.saving) return;
   saving.value = true;
   try {
     const normalizedTableDefaultPageSize = Math.floor(
@@ -11920,10 +11922,11 @@ async function saveSettings() {
     // Save web search emulation config separately (errors handled internally)
     const wsOk = await saveWebSearchConfig();
     const billingOk = billingCard ? await billingCard.saveChanges() : true;
+    const emailOk = emailEditor ? await emailEditor.saveChanges() : true;
     // Refresh cached settings so sidebar/header update immediately
     await appStore.fetchPublicSettings(true);
     await adminSettingsStore.fetch(true);
-    if (wsOk && billingOk) {
+    if (wsOk && billingOk && emailOk) {
       appStore.showSuccess(t("admin.settings.settingsSaved"));
     }
   } catch (error: unknown) {

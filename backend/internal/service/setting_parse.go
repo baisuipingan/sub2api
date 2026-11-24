@@ -842,6 +842,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Subscription feature (default: enabled; only an explicit false disables)
 	result.SubscriptionEnabled = !isFalseSettingValue(settings[SettingKeySubscriptionEnabled])
+	result.MiloCodeDownloadEntryEnabled = !isFalseSettingValue(settings[SettingKeyMiloCodeDownloadEntryEnabled])
 
 	// Model plaza feature (default: disabled; strict true)
 	result.ModelPlazaEnabled = settings[SettingKeyModelPlazaEnabled] == "true"

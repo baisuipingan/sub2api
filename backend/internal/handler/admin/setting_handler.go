@@ -49,6 +49,21 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func (h *SettingHandler) UpdateMiloCodeDownloadEntry(c *gin.Context) {
+	var req struct {
+		Enabled *bool `json:"milocode_download_entry_enabled" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "milocode_download_entry_enabled must be a boolean")
+		return
+	}
+	if err := h.settingService.UpdateMiloCodeDownloadEntry(c.Request.Context(), *req.Enabled); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, req)
+}
+
 // SettingHandler 系统设置处理器
 type SettingHandler struct {
 	settingService           *service.SettingService
@@ -393,8 +408,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		GrokCrossClientModelMapEnabled: settings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         settings.GrokDefaultBaseURLMode,
 
-		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
-		SubscriptionEnabled:      settings.SubscriptionEnabled,
+		AvailableChannelsEnabled:     settings.AvailableChannelsEnabled,
+		SubscriptionEnabled:          settings.SubscriptionEnabled,
+		MiloCodeDownloadEntryEnabled: settings.MiloCodeDownloadEntryEnabled,
 
 		ModelPlazaEnabled:       settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   settings.ModelPlazaRequireAuth,

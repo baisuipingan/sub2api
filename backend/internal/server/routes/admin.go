@@ -625,6 +625,7 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpA
 	{
 		adminSettings.GET("", h.Admin.Setting.GetSettings)
 		adminSettings.PUT("", h.Admin.Setting.UpdateSettings)
+		adminSettings.PUT("/milocode-download-entry", h.Admin.Setting.UpdateMiloCodeDownloadEntry)
 		adminSettings.GET("/billing-currency", h.Admin.Setting.GetBillingCurrencySettings)
 		adminSettings.PUT("/billing-currency", h.Admin.Setting.UpdateBillingCurrencySettings)
 		adminSettings.POST("/test-smtp", h.Admin.Setting.TestSMTPConnection)
