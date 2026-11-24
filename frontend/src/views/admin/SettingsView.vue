@@ -8048,7 +8048,9 @@
                   </div>
                 </div>
                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                  {{ t('admin.settings.payment.platformPricingHint', { currency: billingView.displayCurrency, rate: billingView.usdToCny }) }}
+                  {{ billingView.displayCurrency === 'USD'
+                    ? t('admin.settings.payment.platformPricingUsdHint', { rate: billingView.usdToCny })
+                    : t('admin.settings.payment.platformPricingCnyHint') }}
                 </p>
                 <!-- Row 2: Balance toggle + amounts -->
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -8070,6 +8072,9 @@
                       class="input"
                       :placeholder="t('admin.settings.payment.noLimit')"
                     />
+                    <p v-if="usdMinimumPreview" class="mt-1 text-xs text-gray-500 dark:text-gray-400" data-testid="payment-usd-minimum-preview">
+                      {{ t('admin.settings.payment.effectiveUsdMinimum', { amount: usdMinimumPreview }) }}
+                    </p>
                   </div>
                   <div>
                     <label class="input-label">{{
@@ -8985,6 +8990,7 @@ import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiErro
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
+import { formatPaymentAmount } from "@/components/payment/currency";
 import {
   isRegistrationEmailSuffixDomainValid,
   normalizeRegistrationEmailSuffixDomain,
@@ -9020,6 +9026,27 @@ const paymentSubjectPreview = computed(() => {
   const suffix = form.payment_product_name_suffix?.trim();
   return [prefix || (suffix ? "" : "MiloRouter"), "100.00", billingView.value.displayCurrency, suffix]
     .filter(Boolean).join(" ");
+});
+
+// Match the server's upward rounding of the CNY threshold to the nearest USD cent.
+function decimalParts(value: number) {
+  const [coefficient, exponent = "0"] = String(value).split("e");
+  const [whole, fraction = ""] = coefficient.split(".");
+  return { digits: BigInt(whole + fraction), power: Number(exponent) - fraction.length };
+}
+
+const usdMinimumPreview = computed(() => {
+  const { displayCurrency, usdToCny } = billingView.value;
+  const minimum = Number(form.payment_min_amount);
+  if (displayCurrency !== "USD" || !Number.isFinite(minimum) || minimum <= 0) return null;
+
+  const amount = decimalParts(minimum);
+  const rate = decimalParts(usdToCny);
+  const power = amount.power - rate.power + 2;
+  const numerator = amount.digits * 10n ** BigInt(Math.max(0, power));
+  const denominator = rate.digits * 10n ** BigInt(Math.max(0, -power));
+  const cents = (numerator + denominator - 1n) / denominator;
+  return formatPaymentAmount(Number(cents) / 100, "USD", locale.value);
 });
 
 const paymentGuideHref = computed(() =>
@@ -9676,6 +9703,8 @@ type SettingsForm = Omit<
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
   | "openai_oauth_scheduling_rate_multiplier"
+  | "payment_balance_recharge_multiplier"
+  | "payment_subscription_usd_to_cny_rate"
 > & {
   /** Form always binds a concrete boolean (SystemSettings marks this optional). */
   channel_monitor_hide_throughput: boolean;
@@ -9789,8 +9818,6 @@ const form = reactive<SettingsForm>({
   payment_max_pending_orders: 3,
   payment_order_timeout_minutes: 30,
   payment_balance_disabled: false,
-  payment_balance_recharge_multiplier: 1,
-  payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
   payment_recharge_bonus_tiers: [],
   payment_recharge_bonus_mode: "bonus",
@@ -11687,10 +11714,6 @@ async function saveSettings() {
       payment_order_timeout_minutes:
         Number(form.payment_order_timeout_minutes) || 0,
       payment_balance_disabled: form.payment_balance_disabled,
-      payment_balance_recharge_multiplier:
-        Number(form.payment_balance_recharge_multiplier) || 1,
-      payment_subscription_usd_to_cny_rate:
-        Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
       payment_recharge_bonus_tiers: sanitizeRechargeBonusTiersForSubmit(
         form.payment_recharge_bonus_tiers,

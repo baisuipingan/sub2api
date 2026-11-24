@@ -18,26 +18,7 @@
       <LoadingSpinner size="md" />
     </div>
     <div v-else class="space-y-5 p-6">
-      <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 p-4 dark:border-dark-700">
-        <div>
-          <label class="font-medium text-gray-900 dark:text-white">
-            {{ t('admin.settings.payment.billingCurrency.enabled') }}
-          </label>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            {{ t('admin.settings.payment.billingCurrency.enabledHint') }}
-          </p>
-        </div>
-        <Toggle v-model="form.enabled" :disabled="disabled || saving" />
-      </div>
-
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div>
-          <label class="input-label">{{ t('admin.settings.payment.billingCurrency.engine') }}</label>
-          <Select v-model="form.engine" :options="engineOptions" :disabled="disabled || saving || !form.enabled" />
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {{ t(`admin.settings.payment.billingCurrency.engineHints.${form.engine}`) }}
-          </p>
-        </div>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label for="billing-display-currency" class="input-label">{{ t('admin.settings.payment.billingCurrency.displayCurrency') }}</label>
           <Select
@@ -49,8 +30,9 @@
           />
         </div>
         <div>
-          <label class="input-label">{{ t('admin.settings.payment.billingCurrency.usdToCny') }}</label>
+          <label for="billing-usd-to-cny" class="input-label">{{ t('admin.settings.payment.billingCurrency.usdToCny') }}</label>
           <input
+            id="billing-usd-to-cny"
             v-model.number="form.usd_to_cny"
             type="number"
             min="0.0001"
@@ -59,22 +41,40 @@
             :disabled="disabled || saving"
             @keydown.enter.prevent="save"
           />
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ form.display_currency === 'USD'
+              ? t('admin.settings.payment.billingCurrency.usdRateHint')
+              : t('admin.settings.payment.billingCurrency.cnyRateHint') }}
+          </p>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div class="rounded-xl bg-gray-50 p-4 text-sm dark:bg-dark-800">
-          <p class="font-medium text-gray-800 dark:text-gray-200">
-            {{ t('admin.settings.payment.billingCurrency.fixedScale') }}
-          </p>
-          <p class="mt-1 font-mono text-gray-600 dark:text-gray-400">
-            1 USD = {{ Number(form.credits_per_usd || 100000000).toLocaleString() }} credits
-          </p>
+      <details class="rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-700">
+        <summary class="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200">
+          {{ t('admin.settings.payment.billingCurrency.advanced') }}
+        </summary>
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="flex items-start gap-4">
+            <div>
+              <p class="input-label">{{ t('admin.settings.payment.billingCurrency.enabled') }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.payment.billingCurrency.enabledHint') }}
+              </p>
+            </div>
+            <Toggle v-model="form.enabled" :disabled="disabled || saving" />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.settings.payment.billingCurrency.engine') }}</label>
+            <Select v-model="form.engine" :options="engineOptions" :disabled="disabled || saving || !form.enabled" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t(`admin.settings.payment.billingCurrency.engineHints.${form.engine}`) }}
+            </p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.payment.billingCurrency.fixedScale') }} · 1 USD = {{ Number(form.credits_per_usd || 100000000).toLocaleString() }} credits
+            </p>
+          </div>
         </div>
-        <div class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-          {{ t('admin.settings.payment.billingCurrency.rolloutHint') }}
-        </div>
-      </div>
+      </details>
     </div>
   </div>
 </template>

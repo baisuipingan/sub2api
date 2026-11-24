@@ -177,6 +177,7 @@ vi.mock("@/utils/apiError", () => ({
 vi.mock("vue-i18n", async () => {
   const actual = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
   const translations: Record<string, string> = {
+    "admin.settings.payment.effectiveUsdMinimum": "美元模式最低充值 {amount}",
     "admin.settings.wechatConnect.title": "微信登录",
     "admin.settings.wechatConnect.description": "用于微信开放平台或公众号/小程序的第三方登录配置。",
     "admin.settings.wechatConnect.enabledLabel": "启用微信登录",
@@ -1288,7 +1289,31 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+    expect(payload).not.toHaveProperty("payment_balance_recharge_multiplier");
+    expect(payload).not.toHaveProperty("payment_subscription_usd_to_cny_rate");
   });
+
+  it.each([[6.75, "$1.00"], [1, "$0.15"]])(
+    "shows the effective USD minimum for a CNY threshold of %s and saves its configured value",
+    async (minimum, expected) => {
+      setCurrentBillingCurrencySettings({ billing_display_currency: "USD", billing_usd_to_cny: 6.75 });
+      getSettings.mockResolvedValue({ ...baseSettingsResponse, payment_min_amount: minimum });
+      const wrapper = mountView();
+      try {
+        await flushPromises();
+        await openPaymentTab(wrapper);
+        expect(wrapper.get('[data-testid="payment-usd-minimum-preview"]').text()).toContain(expected);
+        const card = wrapper.getComponent(BillingCurrencySettingsCard);
+        expect(card.get("details").attributes("open")).toBeUndefined();
+        await wrapper.get("form").trigger("submit");
+        await flushPromises();
+        expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ payment_min_amount: minimum }));
+      } finally {
+        wrapper.unmount();
+        setCurrentBillingCurrencySettings();
+      }
+    },
+  );
 
   it("persists display currency through the bottom save and reloads the saved currency", async () => {
     setCurrentBillingCurrencySettings({ billing_display_currency: "CNY", billing_usd_to_cny: 7.2 });
