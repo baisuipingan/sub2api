@@ -175,7 +175,7 @@ func TestWorkbenchOfficeToolPreservesKnownFailureReasons(t *testing.T) {
 		{ErrOfficeConflict, "OFFICE_VERSION_CONFLICT", "请选用最新版本"},
 		{ErrOfficeCapacity, "OFFICE_WORKER_BUSY", "办公服务繁忙"},
 		{ErrOfficeNotFound, "OFFICE_FILE_UNAVAILABLE", "文件无法读取"},
-		{errOfficeOutputExpired, "OFFICE_OUTPUT_EXPIRED", "生成的文件已过期"},
+		{errOfficeOutputExpired, "OFFICE_OUTPUT_EXPIRED", "成品已过期"},
 		{context.DeadlineExceeded, "TOOL_TIMEOUT", "工具执行超时"},
 		{errors.New("private diagnostic"), "TOOL_FAILED", "文件处理失败"},
 	}

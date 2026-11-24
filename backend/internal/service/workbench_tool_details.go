@@ -273,7 +273,7 @@ func workbenchToolErrorMessage(name string, result OfficeOperationResult, state 
 	case "WEB_READ_FAILED":
 		return "网页无法访问或返回了暂不支持的内容"
 	case "OFFICE_OUTPUT_EXPIRED":
-		return "生成的文件已过期，请重试文档操作"
+		return "办公节点上的成品已过期，请重试文档操作。"
 	case "OFFICE_FILE_UNAVAILABLE", "INPUT_UNAVAILABLE":
 		return "文件无法读取，请选用当前对话的文件或重新上传"
 	case "FILE_QUOTA_EXCEEDED":
