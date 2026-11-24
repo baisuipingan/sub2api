@@ -17,7 +17,11 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
-const rechargeCheckoutSnapshotKey = "recharge_checkout_response"
+const (
+	rechargeCheckoutSnapshotKey = "recharge_checkout_response"
+	usdtAmountBusy              = "USDT_AMOUNT_BUSY"
+	usdtCheckoutUnavailable     = "USDT_CHECKOUT_UNAVAILABLE"
+)
 
 var errRechargeQuoteUsed = errors.New("recharge quote already created an order")
 
@@ -84,6 +88,11 @@ func (s *PaymentService) replayRechargeOrder(ctx context.Context, client *dbent.
 		return nil, fmt.Errorf("look up recharge quote order: %w", err)
 	}
 	if order.Status == OrderStatusFailed {
+		if order.PaymentType == payment.TypeUSDTBSC && order.FailedReason != nil {
+			if err := usdtCheckoutError(*order.FailedReason); err != nil {
+				return nil, err
+			}
+		}
 		return nil, infraerrors.Conflict("RECHARGE_ORDER_FAILED", "the order created from this quote failed; check the order before requesting a new quote")
 	}
 	if order.Status != OrderStatusPending || !time.Now().Before(order.ExpiresAt) {
@@ -108,6 +117,17 @@ func (s *PaymentService) replayRechargeOrder(ctx context.Context, client *dbent.
 		return &response, nil
 	}
 	return nil, infraerrors.Conflict("RECHARGE_QUOTE_CHANGED", "the checkout details must be recovered from the existing order")
+}
+
+func usdtCheckoutError(reason string) error {
+	switch reason {
+	case usdtAmountBusy:
+		return infraerrors.Conflict(reason, "this USDT amount is currently unavailable; try another amount or retry later")
+	case usdtCheckoutUnavailable:
+		return infraerrors.ServiceUnavailable(reason, "the USDT checkout could not be confirmed; try again later")
+	default:
+		return nil
+	}
 }
 
 func rechargeCheckoutKey(signingKey []byte) [32]byte {

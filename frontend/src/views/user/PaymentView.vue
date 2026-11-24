@@ -65,9 +65,9 @@
                 :max="checkout.recharge_max_amount"
                 :currency="rechargeCurrency"
               />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
+              <p v-if="amountError" role="alert" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
               <p v-if="quotePending" role="status" class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.rechargeQuoteLoading') }}</p>
-              <button v-if="quoteError" type="button" class="mt-2 text-sm font-medium text-primary-700 dark:text-primary-400" :disabled="submitting" @click="reloadCheckoutInfo">
+              <button v-if="quoteError" type="button" class="mt-2 text-sm font-medium text-primary-700 dark:text-primary-400" :disabled="submitting || refreshingCheckout" @click="reloadCheckoutInfo">
                 {{ t('payment.refreshRechargeQuote') }}
               </button>
             </div>
@@ -92,6 +92,10 @@
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t(isUSDTRecharge ? 'payment.orders.fiatAmount' : 'payment.actualPay') }}</span>
                   <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(rechargeQuote.pay_amount) }}</span>
                 </div>
+                <div v-if="isUSDTRecharge && rechargeQuote.crypto_amount" class="flex justify-between" data-testid="recharge-crypto-due">
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.orders.cryptoDue') }}</span>
+                  <span class="font-semibold text-gray-900 dark:text-white">{{ rechargeQuote.crypto_amount }} USDT</span>
+                </div>
                 <div v-if="showBonusRow" class="flex justify-between" data-testid="recharge-bonus-row">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.bonusAmount') }}</span>
                   <span class="font-medium text-red-600 dark:text-red-400">+{{ formatSelectedPaymentAmount(rechargeQuote.bonus_display_amount) }}</span>
@@ -100,7 +104,7 @@
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.estimatedCredit') }}</span>
                   <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(rechargeQuote.credited_display_amount) }}</span>
                 </div>
-                <p v-if="isUSDTRecharge" class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.rechargeQuoteCryptoHint') }}</p>
+                <p v-if="isUSDTRecharge && !rechargeQuote.crypto_amount" class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.rechargeQuoteCryptoHint') }}</p>
               </div>
             </div>
             <button type="button" :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!rechargeQuote || submitting || refreshingCheckout" @click="handleSubmitRecharge">
@@ -673,6 +677,7 @@ watch([quoteRequest, quoteRetry], ([request], _, onCleanup) => {
       }
       quoteResult.value = { request, quote: data }
       expirationTimer = setTimeout(() => {
+        if (quoteResult.value?.quote !== data) return
         quoteResult.value = null
         quoteFailure.value = { request, message: t('payment.rechargeQuoteStale') }
       }, remaining)
@@ -1003,6 +1008,18 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     }
   } catch (err: unknown) {
     const apiErr = err as Record<string, unknown>
+    if (orderType === 'balance' && requestType === 'usdt_bsc'
+      && (apiErr.reason === 'USDT_AMOUNT_BUSY' || apiErr.reason === 'USDT_CHECKOUT_UNAVAILABLE')) {
+      const message = t(`payment.errors.${apiErr.reason}`)
+      const failedQuote = quoteResult.value
+      if (failedQuote && failedQuote.quote === options.quote && failedQuote.request === quoteRequest.value) {
+        quoteResult.value = null
+        quoteFailure.value = { request: failedQuote.request, message }
+      } else {
+        appStore.showError(message)
+      }
+      return
+    }
     if (orderType === 'balance' && isStaleQuoteError(err)) {
       quoteResult.value = null
       appStore.showWarning(t('payment.rechargeQuoteStale'))

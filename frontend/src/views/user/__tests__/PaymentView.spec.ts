@@ -472,7 +472,7 @@ describe('PaymentView platform recharge quote', () => {
     let resolveOldQuote: (value: { data: RechargeQuote }) => void = () => {}
     getRechargeQuote.mockImplementationOnce(() => new Promise(resolve => { resolveOldQuote = resolve }))
       .mockResolvedValueOnce({ data: quoteFixture({
-        currency: 'USD', amount: 20, pay_amount: 20.50, fee_amount: 0.50, credited_display_amount: 20, quote_id: 'quote-20',
+        currency: 'USD', amount: 20, pay_amount: 20.50, crypto_amount: '20.50', fee_amount: 0.50, credited_display_amount: 20, quote_id: 'quote-20',
       }) })
     const wrapper = await mountCheckout()
     const submitButton = () => wrapper.get('button.btn.w-full')
@@ -486,7 +486,56 @@ describe('PaymentView platform recharge quote', () => {
 
     expect(wrapper.getComponent(AmountInput).props('currency')).toBe('USD')
     expect(submitButton().text()).toContain('$20.50')
+    expect(wrapper.get('[data-testid="recharge-crypto-due"]').text()).toContain('20.50 USDT')
     expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain('$20.00')
+    wrapper.unmount()
+  })
+
+  it('keeps a busy USDT payment blocked until the user refreshes and confirms a fresh quote', async () => {
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      platform_currency: 'USD',
+      recharge_methods: { usdt_bsc: availableMethod },
+    }))
+    const initialQuote = quoteFixture({
+      currency: 'USD',
+      crypto_amount: '10.25',
+    })
+    getRechargeQuote.mockResolvedValueOnce({ data: initialQuote })
+    createOrder.mockRejectedValueOnce({ reason: 'USDT_AMOUNT_BUSY' })
+    const wrapper = await mountCheckout()
+    const submitButton = () => wrapper.get('button.btn.w-full')
+
+    await enterAmount(wrapper, 10)
+    await submitButton().trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('payment.errors.USDT_AMOUNT_BUSY')
+    expect(submitButton().attributes('disabled')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(wrapper.get('[role="alert"]').text()).toBe('payment.errors.USDT_AMOUNT_BUSY')
+    expect(getRechargeQuote).toHaveBeenCalledTimes(1)
+
+    getRechargeQuote.mockResolvedValueOnce({ data: quoteFixture({
+      currency: 'USD',
+      crypto_amount: '10.25',
+      quote_id: 'fresh-quote',
+    }) })
+    const refreshButton = wrapper.findAll('button').find(button => button.text() === 'payment.refreshRechargeQuote')
+    expect(refreshButton).toBeDefined()
+    await refreshButton!.trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(submitButton().attributes('disabled')).toBeUndefined()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+
+    createOrder.mockResolvedValueOnce({
+      order_id: 8, amount: 10, pay_amount: 10.25, fee_rate: 2.5, currency: 'USD',
+      qr_code: 'test-order', expires_at: '2099-01-01T00:00:00Z',
+    })
+    await submitButton().trigger('click')
+    expect(createOrder).toHaveBeenLastCalledWith(expect.objectContaining({ quote_id: 'fresh-quote' }))
     wrapper.unmount()
   })
 

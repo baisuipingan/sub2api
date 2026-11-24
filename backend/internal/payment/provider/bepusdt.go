@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -105,6 +106,22 @@ type bepusdtOrder struct {
 	ExpirationTime int64            `json:"expiration_time"`
 }
 
+// BEpusdtAmountMismatchError identifies a withheld USD checkout. CancelErr
+// is nil only when the gateway confirms that the order was cancelled.
+type BEpusdtAmountMismatchError struct {
+	TradeID   string
+	Expected  string
+	Actual    string
+	CancelErr error
+}
+
+func (e *BEpusdtAmountMismatchError) Error() string {
+	if e.CancelErr != nil {
+		return fmt.Sprintf("bepusdt USD trade %s: expected %s, got %s, cancellation unconfirmed: %v", e.TradeID, e.Expected, e.Actual, e.CancelErr)
+	}
+	return fmt.Sprintf("bepusdt USD trade %s cancelled: expected %s, got %s", e.TradeID, e.Expected, e.Actual)
+}
+
 func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRequest) (*payment.CreatePaymentResponse, error) {
 	if req.PaymentType != payment.TypeUSDTBSC {
 		return nil, fmt.Errorf("bepusdt supports only USDT on BSC")
@@ -131,6 +148,11 @@ func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRe
 		"fiat": currency, "trade_type": bepusdtTradeType,
 		"notify_url": b.notifyURL, "redirect_url": returnURL,
 	}
+	if currency == bepusdtCurrencyUSD {
+		// USD on MiloRouter is intentionally a fixed 1:1 quote with USDT.
+		// CNY keeps the gateway's configured market-rate behavior.
+		payload["rate"] = "1"
+	}
 	if !req.ExpiresAt.IsZero() {
 		payload["timeout"] = float64(max(180, min(3600, int(time.Until(req.ExpiresAt).Seconds()))))
 	}
@@ -145,10 +167,32 @@ func (b *BEpusdt) CreatePayment(ctx context.Context, req payment.CreatePaymentRe
 		order.ExpirationTime <= 0 || order.ExpirationTime > 3600 {
 		return nil, fmt.Errorf("bepusdt create order response did not match the request")
 	}
+	if currency == bepusdtCurrencyUSD && !order.ActualAmount.Equal(amount) {
+		return nil, &BEpusdtAmountMismatchError{
+			TradeID: order.TradeID, Expected: amount.String(), Actual: order.ActualAmount.String(),
+			CancelErr: b.cancelUnexposedOrder(ctx, &order),
+		}
+	}
 	return &payment.CreatePaymentResponse{
 		TradeNo: order.TradeID, PayURL: b.checkoutOrigin + bepusdtCheckoutPath + order.TradeID,
 		Currency: order.Fiat, CryptoAmount: order.ActualAmount.String(), ExpiresAt: time.Now().Add(time.Duration(order.ExpirationTime) * time.Second),
 	}, nil
+}
+
+func (b *BEpusdt) cancelUnexposedOrder(ctx context.Context, order *bepusdtOrder) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cancelErr := b.CancelPayment(ctx, order.TradeID)
+	current, err := b.queryOrder(ctx, order.TradeID)
+	if err != nil {
+		return errors.Join(cancelErr, err)
+	}
+	if current.OrderID != order.OrderID || current.Fiat != order.Fiat ||
+		!current.Money.Equal(*order.Amount) || !current.ActualAmount.Equal(*order.ActualAmount) ||
+		current.Status != bepusdtCancelled {
+		return errors.Join(cancelErr, fmt.Errorf("bepusdt cancellation query did not confirm the order (status %d)", current.Status))
+	}
+	return nil
 }
 
 func bepusdtSupportsFiat(currency string) bool {

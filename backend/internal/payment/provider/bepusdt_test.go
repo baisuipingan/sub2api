@@ -28,6 +28,10 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 		orderID = "sub2_test_usdt"
 	)
 	status, reportedOrder := bepusdtWaiting, orderID
+	cryptoAmount := "2.925"
+	if currency == bepusdtCurrencyUSD {
+		cryptoAmount = "20.15"
+	}
 	var provider *BEpusdt
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		var payload map[string]any
@@ -45,9 +49,12 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 				timeout < 1750 || payload["order_id"] != orderID {
 				t.Errorf("unexpected create order payload: %v", payload)
 			}
+			if currency == bepusdtCurrencyUSD && payload["rate"] != "1" || currency != bepusdtCurrencyUSD && payload["rate"] != nil {
+				t.Errorf("unexpected rate in %s order: %v", currency, payload["rate"])
+			}
 			result = map[string]any{
 				"trade_id": tradeID, "order_id": orderID, "trade_type": "usdt.bep20", "fiat": currency,
-				"status": bepusdtWaiting, "amount": "20.15", "actual_amount": "2.925",
+				"status": bepusdtWaiting, "amount": "20.15", "actual_amount": cryptoAmount,
 				"expiration_time": 1799, "payment_url": "http://internal:8080/pay/checkout/" + tradeID,
 			}
 		case "/api/v1/pay/info":
@@ -56,7 +63,7 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 			}
 			result = map[string]any{
 				"trade_id": tradeID, "order_id": reportedOrder, "trade_type": "usdt.bep20", "fiat": currency,
-				"status": status, "money": "20.15", "actual_amount": "2.925",
+				"status": status, "money": "20.15", "actual_amount": cryptoAmount,
 			}
 		case "/api/v1/order/cancel-transaction":
 			if payload["trade_id"] != tradeID || payload["signature"] != provider.sign(payload) {
@@ -88,7 +95,7 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 	require.Equal(t, "https://checkout.example/pay/checkout/"+tradeID, response.PayURL)
 	require.Equal(t, tradeID, response.TradeNo)
 	require.Equal(t, currency, response.Currency)
-	require.Equal(t, "2.925", response.CryptoAmount)
+	require.Equal(t, cryptoAmount, response.CryptoAmount)
 	require.WithinDuration(t, time.Now().Add(30*time.Minute), response.ExpiresAt, 2*time.Second)
 
 	status = bepusdtConfirming
@@ -97,10 +104,10 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 	require.Equal(t, payment.ProviderStatusConfirming, query.Status)
 	require.Equal(t, orderID, query.Metadata["order_id"])
 	require.Equal(t, currency, query.Metadata["currency"])
-	require.Equal(t, "2.925", query.Metadata["crypto_amount"])
+	require.Equal(t, cryptoAmount, query.Metadata["crypto_amount"])
 
 	fields := map[string]any{
-		"trade_id": tradeID, "order_id": orderID, "status": 2.0, "amount": 20.15, "actual_amount": "2.925",
+		"trade_id": tradeID, "order_id": orderID, "status": 2.0, "amount": 20.15, "actual_amount": cryptoAmount,
 	}
 	fields["signature"] = provider.sign(fields)
 	raw, err := json.Marshal(fields)
@@ -114,7 +121,7 @@ func testBEpusdtOrderLifecycle(t *testing.T, currency string) {
 	require.Equal(t, currency, notification.Metadata["currency"])
 	notification.Metadata["crypto_amount"] = "2.926"
 	require.ErrorContains(t, provider.ConfirmNotification(ctx, notification), "does not match")
-	notification.Metadata["crypto_amount"] = "2.925"
+	notification.Metadata["crypto_amount"] = cryptoAmount
 	reportedOrder = "different-order"
 	require.ErrorContains(t, provider.ConfirmNotification(ctx, notification), "does not match")
 	_, err = provider.VerifyNotification(ctx, strings.Replace(string(raw), "20.15", "200.15", 1), nil)

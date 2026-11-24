@@ -78,6 +78,9 @@ import type { RechargeBonusTier } from '@/types/payment'
 import { formatRechargeBonusNumber, quoteRechargeBonus, type RechargeBonusMode } from '@/utils/rechargeBonus'
 import { currencySymbol, formatPaymentAmount } from './currency'
 
+const usdPresets = [5, 10, 20, 50, 100, 200]
+const defaultPresets = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
+
 const props = withDefaults(defineProps<{
   amounts?: number[]
   modelValue: number | null
@@ -92,7 +95,6 @@ const props = withDefaults(defineProps<{
   /** 支付币种（折扣模式第二行实付金额的币种与精度） */
   currency?: string
 }>(), {
-  amounts: () => [10, 20, 50, 100, 200, 500, 1000, 2000, 5000],
   min: 0,
   max: 0,
   bonusTiers: () => [],
@@ -110,9 +112,10 @@ const { t, locale } = useI18n()
 const customText = ref('')
 
 // 0 = no limit
-const filteredAmounts = computed(() =>
-  props.amounts.filter((a) => (props.min <= 0 || a >= props.min) && (props.max <= 0 || a <= props.max))
-)
+const filteredAmounts = computed(() => {
+  const presets = props.amounts ?? (props.currency === 'USD' ? usdPresets : defaultPresets)
+  return presets.filter((amount) => (props.min <= 0 || amount >= props.min) && (props.max <= 0 || amount <= props.max))
+})
 
 const showSecondLine = computed(() => props.bonusTiers.length > 0)
 

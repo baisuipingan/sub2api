@@ -15,6 +15,24 @@ function mountInput(value: number | null = null) {
 }
 
 describe('recharge amount input', () => {
+  it('shows the dollar presets from $5 through $200 and still allows larger custom amounts', async () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: null, currency: 'USD' } })
+    const amounts = () => wrapper.findAll('button').map(button => button.attributes('data-testid'))
+    expect(amounts()).toEqual([5, 10, 20, 50, 100, 200].map(amount => `quick-amount-${amount}`))
+    await wrapper.get('input').setValue('250')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[250]])
+
+    await wrapper.setProps({ min: 10, max: 100 })
+    expect(amounts()).toEqual([10, 20, 50, 100].map(amount => `quick-amount-${amount}`))
+  })
+
+  it('keeps the existing preset amounts in CNY', () => {
+    const wrapper = mount(AmountInput, { props: { modelValue: null, currency: 'CNY' } })
+    expect(wrapper.findAll('button').map(button => button.attributes('data-testid'))).toEqual(
+      [10, 20, 50, 100, 200, 500, 1000, 2000, 5000].map(amount => `quick-amount-${amount}`),
+    )
+  })
+
   it.each(['10abc', '10.555', '-10', '1e2'])('restores the accepted amount after rejecting %s', async (value) => {
     const wrapper = mountInput(10)
     const input = wrapper.get('input')

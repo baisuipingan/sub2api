@@ -159,10 +159,16 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	resp, err := s.invokeProvider(ctx, order, req, cfg, limitAmount, payAmountStr, payAmount, plan, sel)
 	if err != nil {
-		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
+		update := s.entClient.PaymentOrder.UpdateOneID(order.ID).
 			Where(paymentorder.StatusEQ(OrderStatusPending)).
-			SetStatus(OrderStatusFailed).
-			Save(ctx)
+			SetStatus(OrderStatusFailed)
+		reason := infraerrors.Reason(err)
+		if reason == usdtAmountBusy || reason == usdtCheckoutUnavailable {
+			update.SetFailedReason(reason).SetFailedAt(time.Now())
+		}
+		if _, updateErr := update.Save(ctx); updateErr != nil && !dbent.IsNotFound(updateErr) {
+			slog.Error("[PaymentService] Could not mark checkout failed", "order_id", order.ID, "error", updateErr)
+		}
 		return nil, err
 	}
 	return resp, nil
@@ -594,7 +600,18 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	pr, err := prov.CreatePayment(ctx, providerReq)
 	finishProviderCall()
 	if err != nil {
-		slog.Error("[PaymentService] CreatePayment failed", "provider", sel.ProviderKey, "instance", sel.InstanceID, "error", err)
+		slog.Error("[PaymentService] CreatePayment failed", "order_id", order.ID, "merchant_order", outTradeNo, "provider", sel.ProviderKey, "instance", sel.InstanceID, "error", err)
+		var mismatch *provider.BEpusdtAmountMismatchError
+		if errors.As(err, &mismatch) {
+			s.writeAuditLog(ctx, order.ID, "USDT_CHECKOUT_WITHHELD", sel.ProviderKey, map[string]any{
+				"tradeNo": mismatch.TradeID, "expected": mismatch.Expected, "actual": mismatch.Actual,
+				"cancellationConfirmed": mismatch.CancelErr == nil,
+			})
+			if mismatch.CancelErr != nil {
+				return nil, usdtCheckoutError(usdtCheckoutUnavailable)
+			}
+			return nil, usdtCheckoutError(usdtAmountBusy)
+		}
 		if appErr := new(infraerrors.ApplicationError); errors.As(err, &appErr) {
 			return nil, appErr
 		}

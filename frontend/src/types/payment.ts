@@ -233,6 +233,7 @@ export interface RechargeQuote {
   min_amount: number
   max_amount: number
   pay_amount: number
+  crypto_amount?: string
   fee_amount: number
   fee_rate: number
   credited_amount: number

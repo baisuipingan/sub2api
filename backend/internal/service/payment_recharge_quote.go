@@ -31,6 +31,7 @@ type RechargeQuote struct {
 	Amount                float64   `json:"amount"`
 	Currency              string    `json:"currency"`
 	PayAmount             float64   `json:"pay_amount"`
+	CryptoAmount          string    `json:"crypto_amount,omitempty"`
 	FeeAmount             float64   `json:"fee_amount"`
 	FeeRate               float64   `json:"fee_rate"`
 	CreditedAmount        float64   `json:"credited_amount"`
@@ -135,6 +136,9 @@ func (s *PaymentService) buildSiteRechargeQuote(ctx context.Context, req CreateO
 	selectionAmount := quote.PayAmount
 	if req.PaymentType == payment.TypeUSDTBSC {
 		selectionAmount = quote.payAmountCNY
+		if quote.Currency == BillingDisplayUSD {
+			quote.CryptoAmount = quote.payAmountStr
+		}
 	}
 	if (method.SingleMin > 0 && selectionAmount < method.SingleMin) ||
 		(method.SingleMax > 0 && selectionAmount > method.SingleMax) {
