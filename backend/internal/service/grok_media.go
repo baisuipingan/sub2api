@@ -744,7 +744,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		upstreamReq.Header.Set("Content-Type", contentType)
 	}
 	// 账号级请求头覆写最后应用，配置值优先于内置默认头。
-	account.ApplyHeaderOverrides(upstreamReq.Header)
+	account.ApplyHeaderOverrides(upstreamReq.Context(), upstreamReq.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -848,7 +848,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	if account.IsGrokOAuth() && isGrokCLIProxyTarget(statusURL) {
 		applyGrokCLIHeaders(statusReq.Header)
 	}
-	account.ApplyHeaderOverrides(statusReq.Header)
+	account.ApplyHeaderOverrides(statusReq.Context(), statusReq.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -911,7 +911,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		if account.IsGrokOAuth() && isGrokCLIProxyTarget(contentURL) {
 			applyGrokCLIHeaders(contentReq.Header)
 		}
-		account.ApplyHeaderOverrides(contentReq.Header)
+		account.ApplyHeaderOverrides(contentReq.Context(), contentReq.Header)
 	}
 
 	contentResp, err := s.httpUpstream.Do(contentReq, proxyURL, account.ID, account.Concurrency)
