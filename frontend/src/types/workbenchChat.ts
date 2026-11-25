@@ -83,6 +83,7 @@ export interface ChatToolSummary {
   name?: string
   title: string
   state: ChatToolStatus
+  preview?: string
 }
 export type ChatToolArtifact = Pick<ChatArtifact, 'name' | 'version_id'> & Partial<Pick<ChatArtifact, 'id' | 'mime' | 'bytes' | 'preview_kind'>>
 export interface ChatToolDetail extends ChatToolSummary {

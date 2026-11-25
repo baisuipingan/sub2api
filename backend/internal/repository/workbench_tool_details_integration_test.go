@@ -113,3 +113,59 @@ func TestWorkbenchRemoteToolReceiptPersistsStatusAndEvent(t *testing.T) {
 	require.Less(t, started[0].Sequence, completed[0].Sequence)
 	require.JSONEq(t, `{"operation_id":"browser:tool:0:0","tool_name":"edit_docx","title":"修改文件","status":"partial"}`, string(completed[0].Payload))
 }
+
+func TestWorkbenchToolPreviewAcrossEventsAndHistory(t *testing.T) {
+	ctx := context.Background()
+	base, input := officeTestAdmission(t)
+	repo := base.(*officeAgentRepository)
+	input.BrowserDriven = true
+	input.Mode = "chat"
+	_, _, err := repo.AdmitRun(ctx, input)
+	require.NoError(t, err)
+	lease, _, err := repo.ClaimBrowserStep(ctx, input.UserID, input.RunID, time.Minute)
+	require.NoError(t, err)
+	const operationID = "browser:tool:0:0"
+	_, _, err = repo.PrepareOperation(ctx, *lease, service.OfficeOperationPrepare{
+		ID: operationID, Kind: service.OfficeOperationTool, InputHash: strings.Repeat("0", 64), RequestID: uuid.NewString(),
+		Input: json.RawMessage(`{"tool":"web_read","arguments":{"url":"https://source.example/private?token=secret"}}`),
+	})
+	require.NoError(t, err)
+	_, err = repo.DispatchOperation(ctx, *lease, operationID)
+	require.NoError(t, err)
+
+	assertSummary := func(state, preview string) {
+		t.Helper()
+		operations, err := repo.WorkbenchToolOperations(ctx, input.UserID, input.RunID)
+		require.NoError(t, err)
+		require.Len(t, operations, 1)
+		summary := service.WorkbenchToolOperationSummary(lease.Run, operations[0])
+		require.Equal(t, state, summary.State)
+		require.Equal(t, preview, summary.Preview)
+	}
+	assertSummary("running", "source.example")
+
+	_, err = repo.RecordOperationResult(ctx, *lease, operationID, service.OfficeOperationResult{
+		Output: json.RawMessage(`{"url":"https://redirect.example/private?session=secret","title":"private title","text":"private content"}`),
+	})
+	require.NoError(t, err)
+	assertSummary("completed", "redirect.example")
+
+	events, err := repo.ListEvents(ctx, input.UserID, input.RunID, 0, 100)
+	require.NoError(t, err)
+	var phases []service.OfficeRunEvent
+	for _, event := range events {
+		if strings.HasPrefix(event.Type, "tool.") {
+			phases = append(phases, event)
+		}
+	}
+	require.Len(t, phases, 2)
+	require.Equal(t, "tool.started", phases[0].Type)
+	require.JSONEq(t, `{"operation_id":"browser:tool:0:0","tool_name":"web_read","title":"读取网页","status":"running","preview":"source.example"}`, string(phases[0].Payload))
+	require.Equal(t, "tool.completed", phases[1].Type)
+	require.JSONEq(t, `{"operation_id":"browser:tool:0:0","tool_name":"web_read","title":"读取网页","status":"completed","preview":"redirect.example"}`, string(phases[1].Payload))
+
+	// Older completed operations can still have the raw receipt and no projection.
+	_, err = integrationDB.ExecContext(ctx, `UPDATE office_agent_operations SET tool_projection=NULL WHERE run_id=$1 AND operation_id=$2`, input.RunID, operationID)
+	require.NoError(t, err)
+	assertSummary("completed", "redirect.example")
+}

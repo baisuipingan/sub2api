@@ -25,7 +25,11 @@ func TestWorkbenchRetentionPreservesLateSearchSettlementAndPartialAnswer(t *test
 		{"delta:a", "assistant.delta", `{"text":"部分","operation_id":"browser:model:0"}`},
 		{"summary:a", "reasoning.delta", `{"text":"摘要"}`},
 		{"delta:b", "assistant.delta", `{"text":"回答","operation_id":"browser:model:0"}`},
-		{"delta:c", "assistant.delta", `{"text":"下一步","operation_id":"browser:model:1"}`},
+		{"delta:abandoned", "assistant.delta", `{"text":"已丢弃的回答","operation_id":"browser:model:1"}`},
+		{"summary:abandoned", "reasoning.delta", `{"text":"已丢弃的摘要","operation_id":"browser:model:1"}`},
+		{"retry:one", "model.retrying", `{"operation_id":"browser:model:1","attempt":1,"max_retries":2}`},
+		{"delta:c", "assistant.delta", `{"text":"下一步","operation_id":"browser:model:1:retry:1"}`},
+		{"summary:b", "reasoning.delta", `{"text":"继续","operation_id":"browser:model:1:retry:1"}`},
 	} {
 		_, err := repo.AppendEvent(ctx, lease, chunk.id, chunk.kind, json.RawMessage(chunk.text))
 		require.NoError(t, err)
@@ -36,15 +40,17 @@ func TestWorkbenchRetentionPreservesLateSearchSettlementAndPartialAnswer(t *test
 	require.NoError(t, err)
 	cutoff := time.Now().Add(-24 * time.Hour)
 	require.NoError(t, repo.SweepWorkbenchPayloads(ctx, cutoff, cutoff, 20))
-	var retained, purged int
+	var snapshots, retries, deltas int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FILTER(WHERE event_type='assistant.partial'),
-		COUNT(*) FILTER(WHERE event_type IN ('assistant.delta','reasoning.delta')) FROM office_agent_run_events WHERE run_id=$1`, lease.Run.ID).Scan(&retained, &purged))
-	require.Equal(t, 1, retained)
-	require.Zero(t, purged)
+		COUNT(*) FILTER(WHERE event_type='model.retrying'),
+		COUNT(*) FILTER(WHERE event_type IN ('assistant.delta','reasoning.delta')) FROM office_agent_run_events WHERE run_id=$1`, lease.Run.ID).Scan(&snapshots, &retries, &deltas))
+	require.Equal(t, 1, snapshots)
+	require.Equal(t, 1, retries)
+	require.Zero(t, deltas)
 	var snapshot string
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT payload::text FROM office_agent_run_events
 		WHERE run_id=$1 AND event_type='assistant.partial'`, lease.Run.ID).Scan(&snapshot))
-	require.JSONEq(t, `{"text":"部分回答\n\n下一步","reasoning_summary":"摘要"}`, snapshot)
+	require.JSONEq(t, `{"text":"部分回答\n\n下一步","reasoning_summary":"摘要继续"}`, snapshot)
 	// A late result can still settle with the original dispatch identity; it only
 	// stores a bounded projection and its replay fingerprint after compaction.
 	result := service.OfficeOperationResult{Output: json.RawMessage(`{"provider":"deepseek","results":[{"url":"https://example.org/","title":"来源","snippet":"temporary payload"}]}`)}

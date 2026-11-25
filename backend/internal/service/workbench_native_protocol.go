@@ -463,8 +463,15 @@ func workbenchNativeImageURL(image workbenchNativeImage) string {
 	return "data:" + image.MIME + ";base64," + image.Data
 }
 
+type workbenchNativeParseFailure struct{ reason string }
+
+func (e workbenchNativeParseFailure) Error() string {
+	return ErrOfficeResultUnknown.Error() + ": " + e.reason
+}
+func (workbenchNativeParseFailure) Unwrap() error { return ErrOfficeResultUnknown }
+
 func workbenchNativeParseError(reason string) error {
-	return fmt.Errorf("%w: %s", ErrOfficeResultUnknown, reason)
+	return workbenchNativeParseFailure{reason: reason}
 }
 
 type workbenchNativeUpstreamError struct {
@@ -483,6 +490,7 @@ type workbenchNativeStream struct {
 	text     strings.Builder
 	summary  strings.Builder
 	finish   string
+	sawEvent bool
 
 	geminiParts   []json.RawMessage
 	responseItems map[int]json.RawMessage
@@ -574,7 +582,10 @@ func (s *workbenchNativeStream) Result() (workbenchNativeReply, error) {
 		return s.anthropic.result(s.text.String())
 	}
 	if s.finish == "" {
-		return workbenchNativeReply{}, workbenchNativeParseError("missing stream finish event")
+		if !s.sawEvent {
+			return workbenchNativeReply{}, workbenchNativeParseError("no model stream events")
+		}
+		return workbenchNativeReply{}, workbenchNativeParseError(workbenchMissingFinish)
 	}
 	reply := workbenchNativeReply{Text: s.text.String(), ReasoningSummary: s.summary.String(), FinishReason: s.finish}
 	var calls []workbenchProtocolCall
@@ -630,7 +641,7 @@ func finishWorkbenchNativeReply(reply workbenchNativeReply, calls []workbenchPro
 	seen := make(map[string]bool, len(calls))
 	for _, call := range calls {
 		if call.ID == "" || call.Name == "" || !workbenchJSONObject(call.Arguments) || seen[call.ID] {
-			return reply, workbenchNativeParseError("invalid function call")
+			return reply, workbenchNativeParseError(workbenchInvalidCall)
 		}
 		seen[call.ID] = true
 	}
@@ -684,6 +695,7 @@ func (s *workbenchNativeStream) readGeminiFrame(payload []byte) (workbenchNative
 	if json.Unmarshal(payload, &frame) != nil {
 		return delta, workbenchNativeParseError("invalid Gemini SSE data")
 	}
+	s.sawEvent = s.sawEvent || len(frame.Candidates) > 0
 	if len(frame.Error) > 0 && string(frame.Error) != "null" {
 		s.finish = "upstream_error"
 	}
@@ -772,6 +784,7 @@ func (s *workbenchNativeStream) readResponsesFrame(payload []byte) (workbenchNat
 	if json.Unmarshal(payload, &frame) != nil {
 		return delta, workbenchNativeParseError("invalid Responses SSE data")
 	}
+	s.sawEvent = s.sawEvent || strings.HasPrefix(frame.Type, "response.")
 	switch frame.Type {
 	case "response.output_text.delta", "response.refusal.delta":
 		delta.Text = frame.Delta
@@ -880,11 +893,13 @@ func (s *workbenchNativeStream) readChatFrame(payload []byte) (workbenchNativeDe
 			} `json:"delta"`
 		} `json:"choices"`
 		Error json.RawMessage `json:"error"`
+		Usage json.RawMessage `json:"usage"`
 	}
 	var delta workbenchNativeDelta
 	if json.Unmarshal(payload, &frame) != nil {
 		return delta, workbenchNativeParseError("invalid Chat Completions SSE data")
 	}
+	s.sawEvent = s.sawEvent || len(frame.Choices) > 0 || workbenchJSONObject(frame.Usage)
 	if len(frame.Error) > 0 && string(frame.Error) != "null" {
 		s.finish = "upstream_error"
 	}

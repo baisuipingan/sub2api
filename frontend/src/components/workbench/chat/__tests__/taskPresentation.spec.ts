@@ -17,7 +17,7 @@ describe('browser workbench progress', () => {
       event(7, 'tool.completed', { operation_id: 'search' }),
     ]
     expect(workbenchProgress(events)).toEqual({
-      groups: [{ id: 'first', commentary: '我先查一下。', toolIds: ['search'] }], phase: 'tools', answer: '',
+      groups: [{ id: 'first', commentary: '我先查一下。', toolIds: ['search'] }], phase: 'tools', answer: '', reasoningSummary: 'Provider summary',
     })
     events.push(
       event(8, 'tool.started', { operation_id: 'read' }),
@@ -31,7 +31,42 @@ describe('browser workbench progress', () => {
     )
     expect(workbenchProgress(events)).toEqual({
       groups: [{ id: 'first', commentary: '我先查一下。', toolIds: ['search', 'read'] }],
-      phase: 'answer', answer: '这是最终答案。',
+      phase: 'answer', answer: '这是最终答案。', reasoningSummary: 'Provider summary',
+    })
+  })
+
+  it('discards retried drafts and reasoning, including delayed deltas for a discarded attempt', () => {
+    const events = [
+      event(1, 'model.started', { operation_id: 'first' }),
+      event(2, 'assistant.delta', { operation_id: 'first', text: '先查资料。' }),
+      event(3, 'model.completed', { operation_id: 'first', tool_count: 1 }),
+      event(4, 'tool.completed', { operation_id: 'search' }),
+      event(5, 'model.started', { operation_id: 'failed' }),
+      event(6, 'assistant.delta', { operation_id: 'failed', text: '未完成的回答' }),
+      event(7, 'reasoning.delta', { operation_id: 'failed', text: '上次推理摘要' }),
+      event(8, 'model.retrying', { operation_id: 'failed', attempt: 1, max_retries: 5 }),
+      event(9, 'model.started', { operation_id: 'retry' }),
+      event(10, 'assistant.delta', { operation_id: 'failed', text: '延迟到达的旧输出' }),
+    ]
+    expect(workbenchProgress(events)).toEqual({
+      groups: [{ id: 'first', commentary: '先查资料。', toolIds: ['search'] }],
+      answer: '', reasoningSummary: '', phase: 'model', retry: { attempt: 1, maxRetries: 5 },
+    })
+    events.push(
+      event(11, 'reasoning.delta', { operation_id: 'retry', text: '本次推理摘要' }),
+      event(12, 'assistant.delta', { operation_id: 'retry', text: '正在重新回答' }),
+      event(13, 'model.retrying', { operation_id: 'retry', attempt: 2, max_retries: 5 }),
+      event(14, 'model.started', { operation_id: 'final' }),
+    )
+    expect(workbenchProgress(events)).toMatchObject({ answer: '', reasoningSummary: '', retry: { attempt: 2, maxRetries: 5 } })
+    events.push(
+      event(15, 'reasoning.delta', { operation_id: 'final', text: '最终推理摘要' }),
+      event(16, 'assistant.delta', { operation_id: 'final', text: '这是最终答案。' }),
+      event(17, 'model.completed', { operation_id: 'final', tool_count: 0 }),
+    )
+    expect(workbenchProgress(events)).toEqual({
+      groups: [{ id: 'first', commentary: '先查资料。', toolIds: ['search'] }],
+      answer: '这是最终答案。', reasoningSummary: '最终推理摘要', phase: 'answer',
     })
   })
 

@@ -206,9 +206,13 @@ func dispatchOfficeOperation(ctx context.Context, tx *sql.Tx, runID, operationID
 
 func appendWorkbenchToolPhase(ctx context.Context, tx *sql.Tx, run service.OfficeRun, op service.OfficeOperation, phase, eventID string) error {
 	summary := service.WorkbenchToolOperationSummary(run, op)
-	payload, err := json.Marshal(map[string]string{
+	fields := map[string]string{
 		"operation_id": op.ID, "tool_name": summary.Name, "title": summary.Title, "status": summary.State,
-	})
+	}
+	if summary.Preview != "" {
+		fields["preview"] = summary.Preview
+	}
+	payload, err := json.Marshal(fields)
 	if err != nil {
 		return err
 	}
@@ -316,7 +320,8 @@ func (r *officeAgentRepository) recordOfficeOperationResult(ctx context.Context,
 	}
 	if publishEvent && op.Kind == service.OfficeOperationModel {
 		var gateway struct {
-			Native *struct {
+			Retryable bool `json:"retryable"`
+			Native    *struct {
 				Calls []json.RawMessage `json:"calls"`
 			} `json:"native_reply"`
 		}
@@ -324,8 +329,10 @@ func (r *officeAgentRepository) recordOfficeOperationResult(ctx context.Context,
 		if json.Unmarshal(result.Output, &gateway) == nil && gateway.Native != nil {
 			toolCount = len(gateway.Native.Calls)
 		}
-		if err := appendWorkbenchModelPhase(ctx, tx, lease.Run.UserID, lease.Run.ID, op.ID, "completed", toolCount); err != nil {
-			return nil, err
+		if !gateway.Retryable {
+			if err := appendWorkbenchModelPhase(ctx, tx, lease.Run.UserID, lease.Run.ID, op.ID, "completed", toolCount); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if publishEvent && op.Kind == service.OfficeOperationTool {

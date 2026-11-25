@@ -1,9 +1,10 @@
 <template>
   <details class="tool-operation" :data-state="state" @toggle="onToggle">
-    <summary>
-      <Icon name="chevronRight" size="sm" class="tool-chevron" />
+    <summary :title="summaryPreview || undefined">
+      <Icon name="chevronRight" size="sm" class="tool-chevron" aria-hidden="true" />
       <span class="tool-title">{{ title }}</span>
-      <span class="tool-status">{{ stateLabels[state] }}</span>
+      <span class="tool-preview">{{ summaryPreview }}</span>
+      <span class="tool-status tool-row-status">{{ stateLabels[state] }}</span>
     </summary>
     <p v-if="loading" class="tool-status" role="status">正在加载调用详情…</p>
     <p v-else-if="error" class="tool-error" role="alert">
@@ -50,6 +51,7 @@ const props = defineProps<{
   operationId: string
   title: string
   status: ChatToolStatus
+  preview?: string
   loadDetail: (run: string, operation: string, signal: AbortSignal) => Promise<ChatToolDetail>
   canPreview?: (file: ChatToolArtifact) => boolean
   showVersion?: boolean
@@ -63,6 +65,7 @@ const fileLabels: Record<string, string> = { completed: '已完成', modified: '
 const scopeLabels: Record<string, string> = { all: '全文', body: '正文', header: '页眉', footer: '页脚', title: '标题' }
 const detail = ref<ChatToolDetail>(), loading = ref(false), error = ref(''), open = ref(false)
 const state = computed(() => detail.value?.state || props.status)
+const summaryPreview = computed(() => props.preview || detail.value?.query || detail.value?.source || '')
 let current: AbortController | undefined
 const fields = computed(() => {
   const item = detail.value
@@ -127,13 +130,17 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .tool-operation { width: 100%; min-width: 0; color: inherit; }
-.tool-operation > summary { cursor: pointer; display: flex; align-items: baseline; gap: .5rem; list-style: none; }
+.tool-operation > summary { cursor: pointer; display: flex; align-items: center; gap: .5rem; min-height: 28px; padding-inline: 4px; border-radius: 5px; list-style: none; }
 .tool-operation > summary::-webkit-details-marker { display: none; }
-.tool-operation > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 3px; }
+.tool-operation > summary:hover { background: var(--bc-fill, transparent); }
+.tool-operation > summary:focus-visible { outline: 2px solid var(--bc-blue, currentColor); outline-offset: 2px; }
 .tool-chevron { align-self: center; flex: none; color: var(--bc-muted, #64748b); }
 .tool-operation[open] .tool-chevron { transform: rotate(90deg); }
-.tool-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tool-title { flex: 0 1 auto; min-width: 0; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bc-muted, #64748b); }
 .tool-status { color: var(--bc-muted, #64748b); overflow-wrap: anywhere; }
+.tool-row-status { flex: none; white-space: nowrap; font-size: 12px; }
+.tool-operation:is([data-state="failed"], [data-state="partial"], [data-state="unknown"]) .tool-row-status { color: var(--bc-warning, #a46120); }
 .tool-details, .tool-operation > p { margin: .45rem 0 .2rem 1.5rem; overflow-wrap: anywhere; }
 .tool-fields, .tool-artifacts { margin: 0; padding: 0; display: grid; gap: .3rem; }
 .tool-fields > div, .tool-artifacts > li { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }

@@ -889,6 +889,7 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 		googleError(c, http.StatusBadGateway, "Upstream request failed")
 		return
 	}
+	markWorkbenchUpstreamAccessFailure(c, failoverErr)
 
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody

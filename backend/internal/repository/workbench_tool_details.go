@@ -21,15 +21,22 @@ func (r *officeAgentRepository) AdminToolRun(ctx context.Context, runID string) 
 
 func (r *officeAgentRepository) WorkbenchToolOperations(ctx context.Context, user int64, runID string) ([]service.OfficeOperation, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT operation_id,run_id::text,kind,state,input_hash,
-		CASE WHEN tool_projection IS NULL THEN jsonb_build_object('tool',input_json->'tool') ELSE '{}'::jsonb END,request_id,
+		CASE WHEN tool_projection IS NULL THEN jsonb_build_object('tool',input_json->'tool') || CASE input_json->>'tool'
+			WHEN 'web_search' THEN jsonb_build_object('query',input_json->'query',
+				'arguments',jsonb_build_object('query',input_json#>'{arguments,query}'))
+			WHEN 'web_read' THEN jsonb_build_object('url',input_json->'url',
+				'arguments',jsonb_build_object('url',input_json#>'{arguments,url}'))
+			ELSE '{}'::jsonb END ELSE '{}'::jsonb END,request_id,
 		CASE WHEN tool_projection IS NULL AND result_json IS NOT NULL THEN jsonb_build_object('tool_status',result_json->'tool_status',
 			'error_code',result_json->'error_code','output',jsonb_build_object(
 				'status',result_json->'output'->'status','error',result_json->'output'->'error',
 				'processed',result_json->'output'->'processed','succeeded',result_json->'output'->'succeeded',
-				'failed',result_json->'output'->'failed')) END,
+				'failed',result_json->'output'->'failed',
+				'url',CASE WHEN input_json->>'tool'='web_read' THEN result_json->'output'->'url' END)) END,
 		COALESCE(dispatch_epoch,0),COALESCE(dispatch_token::text,''),created_at,dispatched_at,completed_at,'',
 		CASE WHEN tool_projection IS NOT NULL THEN jsonb_build_object('detail',jsonb_build_object(
-			'name',tool_projection->'detail'->'name','state',tool_projection->'detail'->'state')) END
+			'name',tool_projection->'detail'->'name','state',tool_projection->'detail'->'state',
+			'query',tool_projection->'detail'->'query','source',tool_projection->'detail'->'source')) END
 		FROM office_agent_operations WHERE user_id=$1 AND run_id=$2 AND kind='tool'
 		ORDER BY created_at,operation_id LIMIT 200`, user, runID)
 	if err != nil {

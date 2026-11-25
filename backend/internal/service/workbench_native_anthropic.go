@@ -292,7 +292,10 @@ func (s *workbenchAnthropicStream) result(text string) (workbenchNativeReply, er
 		return workbenchNativeReply{}, &workbenchNativeUpstreamError{Reason: s.upstream}
 	}
 	if !s.stopped {
-		return workbenchNativeReply{}, workbenchNativeParseError("missing Anthropic message stop")
+		if !s.started {
+			return workbenchNativeReply{}, workbenchNativeParseError("no model stream events")
+		}
+		return workbenchNativeReply{}, workbenchNativeParseError(workbenchMissingStop)
 	}
 	reply := workbenchNativeReply{Text: text, Native: workbenchNativeJSON(s.blocks), FinishReason: s.finish}
 	calls, err := workbenchAnthropicCalls(s.blocks)

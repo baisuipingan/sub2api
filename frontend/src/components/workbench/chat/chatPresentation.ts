@@ -1,6 +1,6 @@
-import type { ChatArtifact, ChatClarification, ChatEvent, ChatRun, ChatToolStatus } from '@/types/workbenchChat'
+import type { ChatArtifact, ChatClarification, ChatEvent, ChatRun, ChatToolSummary } from '@/types/workbenchChat'
 export interface TaskItem { id: string; title: string; status: 'pending' | 'running' | 'completed' | 'failed' }
-export interface ToolItem { id: string; title: string; message: string; state: ChatToolStatus; created_at: string }
+export interface ToolItem extends ChatToolSummary { message: string; created_at: string }
 export function runErrorMessage(run: Pick<ChatRun, 'status' | 'error_code' | 'error_message'>): string {
   if (run.error_code === 'RECOVERY_CONFIRMATION_REQUIRED') return '执行服务曾在请求已发出后中断，为避免重复计费，本次任务已暂停自动重试。你可以先终止本次任务，再发起新任务。'
   if (run.error_code === 'MODEL_INPUT_TOO_LARGE') return '对话、工具结果和文档预览合计超过工作台的单次请求大小限制，这一步未发送给模型。可以精简资料后重试，或关闭联网搜索后另发一条消息，只使用已有资料。'
@@ -24,7 +24,14 @@ export function toolItems(events: ChatEvent[], run: ChatRun): ToolItem[] {
     const id = typeof p.operation_id === 'string' ? p.operation_id : e.id
     const previous = tools.get(id)
     const status = p.status === 'failed' || p.status === 'partial' || p.status === 'cancelled' || p.status === 'unknown' ? p.status : 'completed'
-    tools.set(id, { id, title: typeof p.title === 'string' ? p.title : previous?.title || '处理任务', message: typeof p.message === 'string' ? p.message : previous?.message || '', state: e.type === 'tool.started' ? 'running' : status, created_at: previous?.created_at || e.created_at })
+    tools.set(id, {
+      id,
+      title: typeof p.title === 'string' ? p.title : previous?.title || '处理任务',
+      preview: typeof p.preview === 'string' && p.preview ? p.preview : previous?.preview,
+      message: typeof p.message === 'string' ? p.message : previous?.message || '',
+      state: e.type === 'tool.started' ? 'running' : status,
+      created_at: previous?.created_at || e.created_at,
+    })
   }
   if (!['running', 'queued', 'recovering', 'waiting_user'].includes(run.status)) for (const tool of tools.values()) if (tool.state === 'running') tool.state = 'ended'
   return [...tools.values()]

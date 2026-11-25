@@ -1961,6 +1961,7 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 }
 
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
+	markWorkbenchUpstreamAccessFailure(c, failoverErr)
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
 	if service.IsOpenAISilentRefusalErrorBody(responseBody) {
@@ -2547,6 +2548,15 @@ func markWorkbenchGatewayResponse(c *gin.Context, status int, errType, code stri
 		if errType == "model_not_found" {
 			service.MarkWorkbenchGatewayFailure(c.Request.Context(), status, errType)
 		}
+	}
+}
+
+func markWorkbenchUpstreamAccessFailure(c *gin.Context, failure *service.UpstreamFailoverError) {
+	if failure == nil || c.Request == nil {
+		return
+	}
+	if failure.IsCredentialFailure() || failure.StatusCode == http.StatusUnauthorized || failure.StatusCode == http.StatusForbidden {
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), http.StatusBadGateway, "MODEL_UPSTREAM_ACCESS_DENIED")
 	}
 }
 

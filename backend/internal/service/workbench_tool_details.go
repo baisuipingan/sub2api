@@ -12,10 +12,11 @@ import (
 )
 
 type WorkbenchToolSummary struct {
-	ID    string `json:"id"`
-	Name  string `json:"name,omitempty"`
-	Title string `json:"title"`
-	State string `json:"state"`
+	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Title   string `json:"title"`
+	State   string `json:"state"`
+	Preview string `json:"preview,omitempty"`
 }
 
 type WorkbenchToolArtifact struct {
@@ -161,23 +162,40 @@ func workbenchToolState(run OfficeRun, operation OfficeOperation, receipt toolRe
 // WorkbenchToolOperationSummary is also used by the journal's live event writer.
 func WorkbenchToolOperationSummary(run OfficeRun, operation OfficeOperation) WorkbenchToolSummary {
 	if operation.ToolProjection != nil {
-		summary := operation.ToolProjection.Detail.WorkbenchToolSummary
+		detail := operation.ToolProjection.Detail
+		summary := detail.WorkbenchToolSummary
 		summary.ID = operation.ID
 		summary.Title = workbenchToolTitle(summary.Name)
+		summary.Preview = workbenchToolNetworkPreview(summary.Name, detail.Query, detail.Source)
 		if operation.State != OfficeOperationCompleted {
 			summary.State = workbenchToolState(run, operation, toolReceipt{})
 		}
 		return summary
 	}
-	var input struct {
-		Tool string `json:"tool"`
-	}
+	summary, input, receipt := readWorkbenchToolOperation(run, operation)
+	query, source := input.networkDisplay(summary.Name, receipt)
+	summary.Preview = workbenchToolNetworkPreview(summary.Name, query, source)
+	return summary
+}
+
+func readWorkbenchToolOperation(run OfficeRun, operation OfficeOperation) (WorkbenchToolSummary, workbenchToolInput, toolReceipt) {
+	var input workbenchToolInput
 	_ = json.Unmarshal(operation.Input, &input)
 	var receipt toolReceipt
 	if operation.Result != nil {
 		_ = json.Unmarshal(operation.Result.Output, &receipt)
 	}
-	return WorkbenchToolSummary{ID: operation.ID, Name: toolSummaryText(input.Tool, 64), Title: workbenchToolTitle(input.Tool), State: workbenchToolState(run, operation, receipt)}
+	summary := WorkbenchToolSummary{
+		ID: operation.ID, Name: toolSummaryText(input.Tool, 64), Title: workbenchToolTitle(input.Tool),
+		State: workbenchToolState(run, operation, receipt),
+	}
+	return summary, input, receipt
+}
+
+type workbenchToolInput struct {
+	Tool string `json:"tool"`
+	toolArguments
+	Arguments toolArguments `json:"arguments"`
 }
 
 type toolArguments struct {
@@ -186,6 +204,35 @@ type toolArguments struct {
 	VersionID string `json:"version_id"`
 	Name      string `json:"name"`
 	Scope     string `json:"scope"`
+}
+
+func (input workbenchToolInput) networkDisplay(name string, receipt toolReceipt) (query, source string) {
+	switch name {
+	case "web_search":
+		query = toolSummaryText(firstToolValue(input.Arguments.Query, input.Query), 300)
+	case "web_read":
+		source = toolSource(receipt.URL)
+		if source == "" {
+			source = toolSource(firstToolValue(input.Arguments.URL, input.URL))
+		}
+	}
+	return query, source
+}
+
+func workbenchToolNetworkPreview(name, query, source string) string {
+	var value string
+	switch name {
+	case "web_search":
+		value = query
+	case "web_read":
+		value = source
+	}
+	const limit = 120
+	runes := []rune(value)
+	if len(runes) > limit {
+		return string(runes[:limit]) + "…"
+	}
+	return value
 }
 
 func toolSummaryText(value string, limit int) string {
@@ -321,27 +368,21 @@ func workbenchToolErrorMessage(name string, result OfficeOperationResult, state 
 }
 
 func workbenchToolDetail(run OfficeRun, operation OfficeOperation) WorkbenchToolDetail {
-	summary := WorkbenchToolOperationSummary(run, operation)
 	if operation.ToolProjection != nil {
 		detail := operation.ToolProjection.Detail
-		detail.WorkbenchToolSummary = summary
+		detail.WorkbenchToolSummary = WorkbenchToolOperationSummary(run, operation)
 		detail.DurationMS = workbenchToolDuration(operation)
 		return detail
 	}
+	summary, args, receipt := readWorkbenchToolOperation(run, operation)
 	detail := WorkbenchToolDetail{WorkbenchToolSummary: summary, DurationMS: workbenchToolDuration(operation)}
-	var args struct {
-		toolArguments
-		Arguments toolArguments `json:"arguments"`
-	}
-	_ = json.Unmarshal(operation.Input, &args)
-	var receipt toolReceipt
+	detail.Query, detail.Source = args.networkDisplay(detail.Name, receipt)
+	detail.Preview = workbenchToolNetworkPreview(detail.Name, detail.Query, detail.Source)
 	if operation.Result != nil {
-		_ = json.Unmarshal(operation.Result.Output, &receipt)
 		detail.ErrorMessage = workbenchToolErrorMessage(detail.Name, *operation.Result, detail.State)
 	}
 	switch detail.Name {
 	case "web_search":
-		detail.Query = toolSummaryText(firstToolValue(args.Arguments.Query, args.Query), 300)
 		if validWorkbenchSearchProvider(receipt.Provider) {
 			detail.Provider = receipt.Provider
 		}
@@ -351,10 +392,6 @@ func workbenchToolDetail(run OfficeRun, operation OfficeOperation) WorkbenchTool
 			detail.ResultCount = &count
 		}
 	case "web_read":
-		detail.Source = toolSource(receipt.URL)
-		if detail.Source == "" {
-			detail.Source = toolSource(firstToolValue(args.Arguments.URL, args.URL))
-		}
 	default:
 		detail.FileName = toolSummaryText(receipt.Resource.Name, 240)
 		if detail.FileName == "" {
@@ -444,6 +481,7 @@ func BuildWorkbenchToolProjection(operation OfficeOperation) *WorkbenchToolProje
 	}
 	detail := workbenchToolDetail(OfficeRun{}, operation)
 	detail.ID, detail.Title, detail.DurationMS = "", "", nil
+	detail.Preview = ""
 	for i := range detail.Files {
 		detail.Files[i].Message = retainedToolFileMessage(detail.Files[i].Message)
 	}

@@ -71,9 +71,10 @@ describe('TaskProgress terminal status', () => {
     await append('assistant.delta', 'first', { text: '我先查天气。' })
     await append('model.completed', 'first', { tool_count: 1 })
     expect(wrapper.get('[role="status"]').text()).toBe('准备调用工具…')
-    await append('tool.started', 'search', { title: '联网搜索' })
+    await append('tool.started', 'search', { title: '联网搜索', preview: '天气预报' })
     expect(wrapper.get('[role="status"]').text()).toBe('联网搜索')
     await append('tool.completed', 'search')
+    expect(wrapper.get('.tool-preview').text()).toBe('天气预报')
     expect(wrapper.get('[role="status"]').text()).toBe('正在整理工具结果…')
     await append('model.started', 'second')
     expect(wrapper.get('[role="status"]').text()).toBe('正在生成回答…')
@@ -103,7 +104,8 @@ describe('TaskProgress terminal status', () => {
   it('corrects historical search status and lazily displays the recorded reasons', async () => {
     const run = { id: 'run', conversation_id: 'conversation', model: 'gemini', status: 'completed' as const,
       browser_driven: true, tool_calls: 2, created_at: '', updated_at: '' }
-    const failed = { id: 'search-1', name: 'web_search', title: '联网搜索', state: 'failed' }
+    const query = '上海天气预报和未来七天的气温变化，以及周末的降水概率'
+    const failed = { id: 'search-1', name: 'web_search', title: '联网搜索', state: 'failed', preview: query }
     const empty = { id: 'search-2', name: 'web_search', title: '联网搜索', state: 'completed' }
     mocks.tools.mockResolvedValueOnce([failed, empty])
     mocks.toolDetail.mockResolvedValueOnce({ ...failed, query: '上海天气', provider: 'brave', error_message: '搜索供应商响应超时' })
@@ -117,13 +119,16 @@ describe('TaskProgress terminal status', () => {
     } })
     const process = wrapper.get<HTMLDetailsElement>('.bs-chat-turn-process')
     await process.get('summary').trigger('click')
+    await flushPromises()
     const section = process.get<HTMLDetailsElement>('.bs-chat-turn-process-body > details')
+    expect(section.get('.bs-chat-tool-group-preview').text()).toBe(query)
     ;(section.element as HTMLDetailsElement).open = true
     await section.trigger('toggle')
     await flushPromises()
     const steps = wrapper.findAll('li details')
     expect(steps).toHaveLength(2)
     expect(steps[0]?.get('summary').text()).toContain('失败')
+    expect(steps[0]?.get('.tool-preview').text()).toBe(query)
     expect(mocks.toolDetail).not.toHaveBeenCalled()
     for (const step of steps) {
       const details = step.element as HTMLDetailsElement

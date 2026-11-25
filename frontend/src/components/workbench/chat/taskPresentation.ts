@@ -23,7 +23,9 @@ export interface WorkbenchProgressGroup {
 export interface WorkbenchProgress {
   groups: WorkbenchProgressGroup[]
   answer: string
+  reasoningSummary: string
   phase: 'model' | 'tools' | 'tool-results' | 'answer'
+  retry?: { attempt: number; maxRetries: number }
 }
 
 export function workbenchProgress(events: ChatEvent[]): WorkbenchProgress {
@@ -32,9 +34,23 @@ export function workbenchProgress(events: ChatEvent[]): WorkbenchProgress {
   let phase: WorkbenchProgress['phase'] = 'model'
   let expectedTools = 0
   const done = new Set<string>()
+  const reasoning: string[] = []
+  let retry: WorkbenchProgress['retry']
+  const failedAttempts = new Set(events.filter(event => event.type === 'model.retrying').map(event => event.payload.operation_id))
 
   for (const { type, id, payload } of events) {
     const operation = typeof payload.operation_id === 'string' ? payload.operation_id : ''
+    if (type === 'model.retrying' && operation) {
+      // A retry starts the same model step with a new operation ID. Completed
+      // tool groups remain available while the new attempt is in progress.
+      current = undefined
+      expectedTools = 0
+      phase = 'model'
+      const { attempt, max_retries: maxRetries } = payload
+      if (typeof attempt === 'number' && typeof maxRetries === 'number') retry = { attempt, maxRetries }
+      continue
+    }
+    if (operation && failedAttempts.has(operation)) continue
     if (type === 'model.started' || type === 'assistant.delta') {
       // Older runs have text and tool events without explicit model markers.
       if (!current || operation && current.id !== operation || type === 'assistant.delta' && !operation && current.toolIds.length) {
@@ -43,8 +59,15 @@ export function workbenchProgress(events: ChatEvent[]): WorkbenchProgress {
         expectedTools = 0
         phase = 'model'
       }
-      if (type === 'assistant.delta' && typeof payload.text === 'string') current.commentary += payload.text
+      if (type === 'assistant.delta' && typeof payload.text === 'string') {
+        current.commentary += payload.text
+        if (payload.text.trim()) retry = undefined
+      }
+    } else if (type === 'reasoning.delta' && typeof payload.text === 'string') {
+      reasoning.push(payload.text)
+      if (payload.text.trim()) retry = undefined
     } else if (type === 'model.completed') {
+      retry = undefined
       expectedTools = typeof payload.tool_count === 'number' ? payload.tool_count : 0
       phase = expectedTools > 0 ? 'tools' : 'answer'
     } else if (type === 'tool.started' || type === 'tool.completed') {
@@ -64,7 +87,9 @@ export function workbenchProgress(events: ChatEvent[]): WorkbenchProgress {
   return {
     groups: groups.filter(group => group.toolIds.length || group.commentary.trim() && (group !== current || phase === 'tools')),
     answer,
+    reasoningSummary: reasoning.join(''),
     phase,
+    ...(retry ? { retry } : {}),
   }
 }
 

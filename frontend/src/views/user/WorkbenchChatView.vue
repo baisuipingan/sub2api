@@ -189,7 +189,7 @@ const allTurns = computed(() => store.history.runs.map(run => {
   const text = persisted || liveText || (!deltas.length && typeof partial?.text === 'string' ? partial.text : '')
   const reasoningSummary = assistants.flatMap(message => typeof message.content === 'string' ? [] : message.content.reasoning_summary || []).join('\n\n')
     || (typeof partial?.reasoning_summary === 'string' ? partial.reasoning_summary : '')
-    || runEvents.filter(event => event.type === 'reasoning.delta' && typeof event.payload.text === 'string').map(event => event.payload.text).join('')
+    || (progress?.reasoningSummary ?? runEvents.filter(event => event.type === 'reasoning.delta' && typeof event.payload.text === 'string').map(event => event.payload.text).join(''))
   const files = new Map<string, ChatArtifact>(runArtifacts(runEvents, run).map(file => [file.version_id, file]))
   const citations: ChatCitation[] = []
   for (const message of assistants) { for (const file of chatArtifacts(message.content)) files.set(file.version_id, file); if (typeof message.content !== 'string') citations.push(...message.content.citations || []) }

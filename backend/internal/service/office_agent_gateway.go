@@ -13,6 +13,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -33,6 +34,8 @@ type OfficeGatewayReply struct {
 	Native           *workbenchNativeReply `json:"native_reply,omitempty"`
 	IncompleteReason string                `json:"incomplete_reason,omitempty"`
 	ErrorCode        string                `json:"error_code,omitempty"`
+	Retryable        bool                  `json:"retryable,omitempty"`
+	RetryAfterMillis int64                 `json:"retry_after_ms,omitempty"`
 }
 
 type workbenchGatewayFailure struct {
@@ -214,25 +217,27 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 		defer close(stop)
 		defer func() {
 			if recover() != nil {
-				writer.failed = true
+				writer.err = errOfficeGatewayPanic
 			}
 		}()
 		router.ServeHTTP(writer, request)
 	}()
 	<-done
-	if live != nil && live.flush() != nil {
-		writer.failed = true
+	if live != nil && writer.err == nil {
+		writer.err = live.flush()
 	}
 	complete := officeResponseComplete(writer)
 	reply := &OfficeGatewayReply{Status: writer.status, ContentType: writer.header.Get("Content-Type"),
 		Body: writer.body.Bytes(), RequestID: requestID}
-	if protocol != "" && failure.code != "" && writer.body.Len() > 0 {
+	var parseErr error
+	if protocol != "" && failure.code != "" {
 		// A keepalive may already have committed HTTP 200 before a local failure.
 		reply.Status = failure.status
 		reply.ErrorCode = failure.code
 		complete = true
 	} else if protocol != "" && writer.status >= 200 && writer.status < 300 {
-		parsed, parseErr := parseWorkbenchNativeResponse(protocol, writer.body.Bytes())
+		var parsed workbenchNativeReply
+		parsed, parseErr = parseWorkbenchNativeResponse(protocol, writer.body.Bytes())
 		var upstream *workbenchNativeUpstreamError
 		switch {
 		case parseErr == nil:
@@ -244,20 +249,43 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 		default:
 			complete = false
 		}
+	} else if protocol != "" && writer.status >= 400 && writer.status <= 599 {
+		// An HTTP rejection is still known when its error body is empty or not JSON.
+		complete = true
 	}
-	if writer.failed || !complete {
-		if repo, ok := s.repo.(workbenchBrowserRepository); lease.Run.BrowserDriven && ok {
-			fence, stop := context.WithTimeout(context.Background(), 5*time.Second)
-			defer stop()
-			return nil, repo.ResolveBrowserDispatch(fence, lease, operationID)
+	settlementStatus := reply.Status
+	if isWorkbenchModelStreamReadError(reply.ErrorCode) && writer.status == http.StatusOK {
+		// The gateway can record partial usage after reporting an SSE error.
+		settlementStatus = writer.status
+	}
+	if writer.err != nil || !complete {
+		var code, reason string
+		if lease.Run.BrowserDriven && protocol != "" && ctx.Err() == nil {
+			code, reason = workbenchModelResponseFailure(writer.err, parseErr, callCtx.Err())
 		}
-		return nil, s.unknownOfficeOperation(lease, operationID)
+		if code == "" {
+			if repo, ok := s.repo.(workbenchBrowserRepository); lease.Run.BrowserDriven && ok {
+				fence, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				defer stop()
+				return nil, repo.ResolveBrowserDispatch(fence, lease, operationID)
+			}
+			return nil, s.unknownOfficeOperation(lease, operationID)
+		}
+		slog.Warn("workbench model response rejected", "request_id", requestID, "run_id", lease.Run.ID,
+			"operation_id", operationID, "protocol", protocol, "code", code, "reason", reason)
+		reply.Status, reply.ErrorCode = http.StatusBadGateway, code
+		reply.Native, reply.IncompleteReason = nil, ""
+		settlementStatus = writer.status
 	}
 	if protocol != "" {
 		if reply.ErrorCode == "" {
 			reply.ErrorCode = officeGatewayErrorCode(reply.Body)
 		}
 		reply.Body = nil
+		if lease.Run.BrowserDriven && ctx.Err() == nil && (callCtx.Err() == nil || reply.ErrorCode == "MODEL_STREAM_TIMEOUT") {
+			reply.RetryAfterMillis = workbenchModelRetryAfter(writer.header.Get("Retry-After"), time.Now())
+			reply.Retryable = isWorkbenchRetryableModelFailure(reply)
+		}
 	}
 	encoded, err := json.Marshal(reply)
 	if err != nil || len(encoded) > OfficeMaxOperationResultBytes {
@@ -267,7 +295,7 @@ func (s *OfficeAgentService) invokeOfficeGateway(ctx context.Context, lease Offi
 	// invocation is made. A cancelled run may accept only this original result.
 	storeCtx, storeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer storeCancel()
-	_, err = s.repo.RecordOperationResult(storeCtx, lease, operationID, OfficeOperationResult{Output: encoded, HTTPStatus: reply.Status})
+	_, err = s.repo.RecordOperationResult(storeCtx, lease, operationID, OfficeOperationResult{Output: encoded, HTTPStatus: settlementStatus})
 	if err != nil {
 		return nil, ErrOfficeResultUnknown
 	}
@@ -494,12 +522,14 @@ func officeApprovedTool(name string) bool {
 	}
 }
 
+var errOfficeGatewayPanic = errors.New("model gateway handler panicked")
+
 type officeBoundedWriter struct {
 	header  http.Header
 	body    bytes.Buffer
 	status  int
 	limit   int
-	failed  bool
+	err     error
 	cancel  context.CancelFunc
 	onWrite func([]byte) error
 }
@@ -514,16 +544,25 @@ func (w *officeBoundedWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
 	}
-	if w.failed || len(data) > w.limit-w.body.Len() {
-		w.failed = true
+	if w.err != nil {
+		return 0, w.err
+	}
+	if len(data) > w.limit-w.body.Len() {
+		w.err = io.ErrShortBuffer
 		w.cancel()
-		return 0, io.ErrShortBuffer
+		return 0, w.err
 	}
 	if w.onWrite != nil && w.status >= 200 && w.status < 300 && strings.HasPrefix(w.header.Get("Content-Type"), "text/event-stream") {
 		if err := w.onWrite(data); err != nil {
-			w.failed = true
-			w.cancel()
-			return 0, err
+			var parseFailure workbenchNativeParseFailure
+			if !errors.As(err, &parseFailure) {
+				w.err = err
+				w.cancel()
+				return 0, err
+			}
+			// Stop publishing the draft. Keep receiving the bounded response so the
+			// gateway can collect usage and final validation sees the full stream.
+			w.onWrite = nil
 		}
 	}
 	return w.body.Write(data)

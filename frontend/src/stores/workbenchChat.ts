@@ -96,7 +96,7 @@ export const useWorkbenchChatStore = defineStore('workbenchChat', () => {
       last.payload.text += event.payload.text; last.sequence = event.sequence; last.id = event.id
     } else { list.push(event); list.sort((a, b) => a.sequence - b.sequence) }
     if (list.length > 2000) {
-      const disposable = list.findIndex(e => !['assistant.delta', 'assistant.partial', 'reasoning.delta', 'model.started', 'model.completed', 'tool.started', 'tool.completed', 'clarification.requested', 'artifact.published', 'task.updated'].includes(e.type))
+      const disposable = list.findIndex(e => !['assistant.delta', 'assistant.partial', 'reasoning.delta', 'model.started', 'model.retrying', 'model.completed', 'tool.started', 'tool.completed', 'clarification.requested', 'artifact.published', 'task.updated'].includes(e.type))
       if (disposable >= 0) list.splice(disposable, 1)
       else list.splice(0, 1)
     }

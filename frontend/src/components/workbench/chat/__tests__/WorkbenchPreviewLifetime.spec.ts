@@ -69,6 +69,46 @@ describe('conversation preview lifetime', () => {
     expect(wrapper.text()).not.toContain('实时回答。')
     expect(wrapper.find('.bso-breathing').exists()).toBe(false)
   })
+  it.each([1, 5])('replaces a failed model draft and summary on retry %i while preserving the completed tool group', async (attempt) => {
+    const store = useWorkbenchChatStore()
+    const run: ChatRun = { id: 'run', conversation_id: 'conversation', model: 'gpt', status: 'running', browser_driven: true, created_at: '', updated_at: '' }
+    store.history.runs = [run]
+    const event = (sequence: number, type: string, payload: Record<string, unknown>): ChatEvent => ({ id: `event-${sequence}`, run_id: run.id, sequence, type, payload, created_at: '' })
+    store.events[run.id] = [
+      event(1, 'assistant.delta', { operation_id: 'search-model', text: '先查资料。' }),
+      event(2, 'model.completed', { operation_id: 'search-model', tool_count: 1 }),
+      event(3, 'tool.completed', { operation_id: 'search', title: '联网搜索' }),
+      event(4, 'model.started', { operation_id: 'failed' }),
+      event(5, 'assistant.delta', { operation_id: 'failed', text: '失败的草稿。' }),
+      event(6, 'reasoning.delta', { operation_id: 'failed', text: '失败的摘要。' }),
+    ]
+    wrapper = mount(WorkbenchChatView, { global: { stubs: {
+      WorkbenchChatLayout: { template: '<div><slot /></div>' },
+      ChatComposer: true, Icon: true, ResourcePreview: true, ToolOperationDetails: true,
+    } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('失败的草稿。')
+    expect(wrapper.get('.bs-chat-reasoning-summary').text()).toBe('失败的摘要。')
+    store.events[run.id]!.push(event(7, 'model.retrying', { operation_id: 'failed', attempt, max_retries: 5 }))
+    await nextTick()
+    expect(wrapper.get('.bso-breathing').text()).toBe(`正在重连模型… ${attempt}/5`)
+    expect(wrapper.text()).not.toContain('失败的草稿。')
+    expect(wrapper.find('.bs-chat-reasoning-summary').exists()).toBe(false)
+    expect(wrapper.get('.bs-chat-step-commentary').text()).toBe('先查资料。')
+    expect(wrapper.get('.bs-chat-tool-group-title').text()).toBe('联网搜索')
+    store.events[run.id]!.push(event(8, 'model.started', { operation_id: 'retry' }))
+    await nextTick()
+    expect(wrapper.get('.bso-breathing').text()).toBe(`正在重连模型… ${attempt}/5`)
+    store.events[run.id]!.push(
+      event(9, 'reasoning.delta', { operation_id: 'retry', text: '新的摘要。' }),
+      event(10, 'assistant.delta', { operation_id: 'retry', text: '新的回答。' }),
+    )
+    await nextTick()
+    expect(wrapper.get('.bso-breathing').text()).toBe('正在生成回答…')
+    expect(wrapper.get('.bs-chat-reasoning-summary').text()).toBe('新的摘要。')
+    expect(wrapper.text()).toContain('新的回答。')
+    expect(wrapper.text()).not.toContain('失败的草稿。')
+  })
   it('moves one preview between dock and full screen without remounting its iframe', async () => {
     const store = useWorkbenchChatStore()
     store.history.runs[0]!.artifacts = [{ id: 'report', version_id: 'report', name: '报告.docx', mime: '', bytes: 1 }]

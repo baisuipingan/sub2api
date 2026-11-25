@@ -44,6 +44,11 @@
 .bs-chat-process > summary::-webkit-details-marker { display:none; }
 .bs-chat-process > summary:focus-visible { outline:2px solid var(--bc-blue); outline-offset:2px; }
 .bs-chat-process[open] > summary>svg { transform:rotate(90deg); }
+.bs-chat-tool-group > summary { max-width:100%; }
+.bs-chat-tool-group > summary > svg,.bs-chat-tool-group .bs-chat-tool-count { flex:none; }
+.bs-chat-tool-group-title,.bs-chat-tool-group-preview { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bs-chat-tool-group-preview { flex:0 1 auto; max-width:36ch; padding-inline-start:8px; border-inline-start:1px solid var(--bc-border); }
+.bs-chat-tool-group[open] > summary > .bs-chat-tool-group-preview { display:none; }
 .bs-chat-tool-count { white-space:nowrap; flex:none; }
 .bs-chat-process-steps { display:grid; gap:8px; margin:8px 0 0 12px; padding:4px 0 4px 12px; border-inline-start:1px solid var(--bc-border); }
 .bs-chat-process-steps > li { min-width:0; color:var(--bc-ink); }

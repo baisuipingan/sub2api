@@ -108,6 +108,8 @@ func (s *OfficeAgentService) AdvanceWorkbench(ctx context.Context, user int64, i
 type workbenchBrowserState struct {
 	Exchanges       []workbenchNativeExchange
 	NextModel       int
+	ModelID         string
+	Retry           *workbenchModelRetry
 	Pending         *workbenchNativeCall
 	ToolID          string
 	Final           *workbenchNativeReply
@@ -135,24 +137,12 @@ func workbenchState(protocol workbenchProtocol, operations []OfficeOperation) (w
 		journal[op.ID] = op
 	}
 	for index := 0; ; index++ {
-		state.NextModel = index
-		model := journal[fmt.Sprintf("browser:model:%d", index)]
-		switch model.State {
-		case "", OfficeOperationPrepared:
-			return state, nil
-		case OfficeOperationDispatched, OfficeOperationUnknown:
-			state.Uncertain = model.ID
-			return state, nil
-		}
-		if model.Result == nil {
-			return state, ErrOfficeResultUnknown
-		}
-		var gateway OfficeGatewayReply
-		if json.Unmarshal(model.Result.Output, &gateway) != nil {
-			return state, ErrOfficeResultUnknown
+		gateway, err := state.modelAttempt(journal, index)
+		if gateway == nil || err != nil {
+			return state, err
 		}
 		if gateway.Status < 200 || gateway.Status >= 300 {
-			state.ModelError = &gateway
+			state.ModelError = gateway
 			return state, nil
 		}
 		reply, err := gateway.workbenchResult(protocol)
@@ -276,8 +266,12 @@ func (s *OfficeAgentService) executeBrowserStep(ctx context.Context, repo workbe
 	} else if state.Pending != nil {
 		err = s.runBrowserTool(ctx, repo, lease, params, state.ToolID, *state.Pending)
 	} else {
-		operation := fmt.Sprintf("browser:model:%d", state.NextModel)
-		err = s.runBrowserModel(ctx, repo, lease, params, operation, state.Exchanges)
+		if state.Retry != nil {
+			err = s.waitForWorkbenchModelRetry(ctx, lease, state.Retry)
+		}
+		if err == nil {
+			err = s.runBrowserModel(ctx, repo, lease, params, state.ModelID, state.Exchanges)
+		}
 	}
 	switch {
 	case errors.Is(err, ErrOfficeBudgetExceeded):
@@ -378,6 +372,24 @@ func workbenchModelError(reply *OfficeGatewayReply) (string, string) {
 		return code, "当前模型的上游请求已达频率上限，请稍后重试或切换模型。"
 	case "MODEL_UPSTREAM_UNAVAILABLE":
 		return code, "当前模型暂时没有可用的上游，请稍后重试或切换模型。"
+	case "MODEL_UPSTREAM_ACCESS_DENIED":
+		return code, "模型上游鉴权或访问失败，请切换模型或联系管理员。"
+	case "MODEL_STREAM_FINISH_MISSING":
+		return code, "模型回复缺少结束标记，请稍后重试或切换模型。"
+	case "MODEL_STREAM_TIMEOUT":
+		return code, "等待模型回复超时，请稍后重试。"
+	case "MODEL_STREAM_INVALID_RESPONSE":
+		return code, "模型返回了工作台无法读取的回复格式，请稍后重试或切换模型。"
+	case "MODEL_TOOL_CALL_INVALID":
+		return code, "模型返回的工具调用格式不正确，请稍后重试或切换模型。"
+	case "MODEL_RESPONSE_TOO_LARGE":
+		return code, "模型回复超过工作台可接收的大小，请缩短任务后重试。"
+	case "MODEL_PROGRESS_LIMIT":
+		return code, "本轮已达到工作台的进度记录上限，请拆分任务后重试。"
+	case "MODEL_RESPONSE_WRITE_FAILED":
+		return code, "工作台在接收模型回复时出现内部错误，请稍后重试。"
+	case "UPSTREAM_HTTP2_STREAM_ERROR", "UPSTREAM_STREAM_READ_ERROR", "UPSTREAM_STREAM_TRUNCATED":
+		return code, "模型回复的连接中断，请稍后重试。"
 	case "CONTEXT_LENGTH_EXCEEDED", "CONTEXT_TOO_LARGE":
 		return "MODEL_CONTEXT_TOO_LARGE", "对话内容超出模型上下文上限，请减少附件或开启新对话。"
 	}
@@ -412,7 +424,7 @@ func workbenchModelIncompleteError(reason string) (string, string) {
 		return "MODEL_CONTENT_BLOCKED", "模型限制了本次内容，请调整后重试。"
 	case "empty_output":
 		return "EMPTY_MODEL_RESULT", "模型没有返回可显示的回答。"
-	case "failed", "upstream_error":
+	case "failed", "upstream_error", "network_error":
 		return "MODEL_STREAM_FAILED", "模型在回复过程中返回错误，请稍后重试。"
 	default:
 		return "MODEL_INCOMPLETE", "模型提前结束了回答。请调整内容或发送“继续”。"

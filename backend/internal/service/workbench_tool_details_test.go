@@ -37,6 +37,46 @@ func TestWorkbenchToolDetailsDistinguishEmptySearchFromStoredFailures(t *testing
 	require.NotContains(t, detail.ErrorMessage, "private")
 }
 
+func TestWorkbenchToolSummaryShowsBoundedNetworkPreview(t *testing.T) {
+	run := OfficeRun{Status: OfficeRunRunning}
+	op := OfficeOperation{
+		ID: "browser:tool:0:0", Kind: OfficeOperationTool, State: OfficeOperationDispatched,
+		Input: json.RawMessage(`{"tool":"web_search","arguments":{"query":"  上海\n天气 "},"query":"legacy fallback"}`),
+	}
+	summary := WorkbenchToolOperationSummary(run, op)
+	require.Equal(t, "running", summary.State)
+	require.Equal(t, "上海 天气", summary.Preview)
+
+	longQuery := strings.Repeat("查", 150)
+	op.Input, _ = json.Marshal(map[string]string{"tool": "web_search", "query": longQuery})
+	require.Equal(t, strings.Repeat("查", 120)+"…", WorkbenchToolOperationSummary(run, op).Preview)
+	require.Equal(t, longQuery, workbenchToolDetail(run, op).Query)
+
+	op.Input = json.RawMessage(`{"tool":"web_read","url":"https://example.com/private?token=secret"}`)
+	require.Equal(t, "example.com", WorkbenchToolOperationSummary(run, op).Preview)
+	op.State = OfficeOperationCompleted
+	op.Result = &OfficeOperationResult{Output: json.RawMessage(`{
+		"url":"https://redirect.example.com:443/private?session=hidden","title":"private title","text":"private content"
+	}`)}
+	summary = WorkbenchToolOperationSummary(run, op)
+	require.Equal(t, "redirect.example.com", summary.Preview)
+	encoded, err := json.Marshal(summary)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"id":"browser:tool:0:0","name":"web_read","title":"读取网页","state":"completed","preview":"redirect.example.com"}`, string(encoded))
+
+	op.Result.Output = json.RawMessage(`{"url":"https://creds:secret@redirect.example.com/page"}`)
+	require.Equal(t, "example.com", WorkbenchToolOperationSummary(run, op).Preview)
+
+	// Retained snapshots from earlier releases already contain the display fields.
+	op.Input, op.Result = nil, nil
+	op.ToolProjection = &WorkbenchToolProjection{Detail: WorkbenchToolDetail{
+		WorkbenchToolSummary: WorkbenchToolSummary{Name: "web_read", State: "completed"}, Source: "retained.example.com",
+	}}
+	require.Equal(t, "retained.example.com", WorkbenchToolOperationSummary(run, op).Preview)
+	op.ToolProjection.Detail.Name = "edit_docx"
+	require.Empty(t, WorkbenchToolOperationSummary(run, op).Preview)
+}
+
 func TestWorkbenchToolDetailsAllowlistAndBatchOutcome(t *testing.T) {
 	const version = "d94c674b-e514-43c5-82b2-fe2c3cf40355"
 	op := OfficeOperation{

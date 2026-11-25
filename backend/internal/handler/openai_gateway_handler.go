@@ -3646,6 +3646,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 		h.handleFailoverExhaustedSimple(c, http.StatusBadGateway, streamStarted)
 		return
 	}
+	markWorkbenchUpstreamAccessFailure(c, failoverErr)
 	copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
 	if failoverErr.IsOpenAIRequestBodyTooLarge() {
 		// An operator-configured passthrough rule wins over the built-in body
@@ -3925,7 +3926,13 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareErrorWithCode(
 
 func (h *OpenAIGatewayHandler) ensureOpenAIStreamReadErrorResponse(c *gin.Context, err error, streamStarted bool) bool {
 	code, message, ok := service.OpenAIUpstreamStreamReadErrorDetails(err)
-	if !ok || c == nil || c.Writer == nil || service.IsResponseCommitted(c) {
+	if !ok || c == nil || c.Writer == nil {
+		return false
+	}
+	if c.Request != nil {
+		service.MarkWorkbenchGatewayFailure(c.Request.Context(), http.StatusBadGateway, code)
+	}
+	if service.IsResponseCommitted(c) {
 		return false
 	}
 	if c.Writer.Written() {

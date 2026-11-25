@@ -225,9 +225,15 @@ func marshalWorkbenchToolProjection(op service.OfficeOperation) (any, error) {
 func compactWorkbenchDeltas(ctx context.Context, tx *sql.Tx, userID int64, runID string) error {
 	var text, reasoning string
 	if err := tx.QueryRowContext(ctx, `WITH deltas AS (
-		SELECT sequence, event_type, payload,
-			LAG(payload->>'operation_id') OVER (PARTITION BY event_type ORDER BY sequence) AS previous_operation
-		FROM office_agent_run_events WHERE user_id=$1 AND run_id=$2 AND event_type IN ('assistant.delta','reasoning.delta')
+		SELECT delta.sequence, delta.event_type, delta.payload,
+			LAG(delta.payload->>'operation_id') OVER (PARTITION BY delta.event_type ORDER BY delta.sequence) AS previous_operation
+		FROM office_agent_run_events delta
+		WHERE delta.user_id=$1 AND delta.run_id=$2 AND delta.event_type IN ('assistant.delta','reasoning.delta')
+		AND NOT EXISTS (
+			SELECT 1 FROM office_agent_run_events retry
+			WHERE retry.user_id=$1 AND retry.run_id=$2 AND retry.event_type='model.retrying'
+			AND retry.payload->>'operation_id'=delta.payload->>'operation_id'
+		)
 	) SELECT
 		CASE WHEN EXISTS (SELECT 1 FROM office_agent_messages m WHERE m.user_id=$1 AND m.run_id=$2 AND m.role='assistant')
 			THEN '' ELSE LEFT(COALESCE(string_agg(
